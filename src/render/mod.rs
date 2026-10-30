@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use crate::document::annotation::{Annotation, RenderContext, Target};
 use crate::document::bitmap::{Bitmap, BitmapError};
 use crate::document::color::Rgba;
-use crate::document::geometry::{Point, Rect};
+use crate::document::geometry::{IRect, Point, Rect};
 use crate::document::scene::ObjectId;
 use crate::document::{Background, Document};
 
@@ -98,6 +98,22 @@ pub struct Preview<'a> {
     pub objects: &'a [(ObjectId, Box<dyn Annotation>)],
     /// Also draw the originals, faded, where they were (moves; mockups 02 and 06).
     pub ghost: bool,
+    /// The canvas rectangle while a canvas edge is dragged (mockup 10).
+    pub canvas: Option<IRect>,
+    /// The image's corner radius while its handle is dragged (mockup 09).
+    pub corner_radius: Option<f64>,
+}
+
+impl<'a> Preview<'a> {
+    /// Edited copies of objects; the canvas as it is.
+    pub fn objects(objects: &'a [(ObjectId, Box<dyn Annotation>)], ghost: bool) -> Self {
+        Self {
+            objects,
+            ghost,
+            canvas: None,
+            corner_radius: None,
+        }
+    }
 }
 
 /// Opacity of the original under a moved object (mockups 02, 06: "Ghost shows old position").
@@ -153,7 +169,10 @@ fn render_inner(
     let base = cr.matrix();
     cr.translate(viewport.origin.x, viewport.origin.y);
     cr.scale(viewport.zoom, viewport.zoom);
-    let canvas = doc.canvas().rect.to_rect();
+    let canvas = preview
+        .and_then(|p| p.canvas)
+        .unwrap_or(doc.canvas().rect)
+        .to_rect();
     cr.rectangle(canvas.x, canvas.y, canvas.width, canvas.height);
     cr.clip();
     let (x0, y0, x1, y1) = cr.clip_extents()?;
@@ -175,7 +194,10 @@ fn render_inner(
         Background::Transparent | Background::Unknown => {}
     }
 
-    paint_base_image(cr, doc, viewport.zoom)?;
+    let radius = preview
+        .and_then(|p| p.corner_radius)
+        .unwrap_or(doc.image().corner_radius);
+    paint_image(cr, doc, viewport.zoom, radius)?;
 
     let ctx = RenderContext {
         document: doc,
@@ -235,14 +257,23 @@ pub fn filter_for(zoom: f64) -> cairo::Filter {
 }
 
 fn paint_base_image(cr: &cairo::Context, doc: &Document, zoom: f64) -> Result<(), cairo::Error> {
+    paint_image(cr, doc, zoom, doc.image().corner_radius)
+}
+
+fn paint_image(
+    cr: &cairo::Context,
+    doc: &Document,
+    zoom: f64,
+    corner_radius: f64,
+) -> Result<(), cairo::Error> {
     let image = doc.image();
     let (w, h) = (
         f64::from(image.bitmap.width()),
         f64::from(image.bitmap.height()),
     );
     cr.save()?;
-    if image.corner_radius > 0.0 {
-        shadow::rounded_rect(cr, 0.0, 0.0, w, h, image.corner_radius);
+    if corner_radius > 0.0 {
+        shadow::rounded_rect(cr, 0.0, 0.0, w, h, corner_radius);
         cr.clip();
     }
     cr.set_source_surface(image.bitmap.surface(), 0.0, 0.0)?;
@@ -294,6 +325,52 @@ pub fn flatten(doc: &Document, scale: f64) -> Result<Bitmap, BitmapError> {
     Bitmap::draw(width, height, |cr| {
         render(cr, doc, &viewport, &Options::EXPORT)
     })
+}
+
+/// Burns the objects `ids` into the original image (Flatten, Flatten All): a new bitmap of the
+/// image with its rounded corners and those objects drawn in their stacking order, as they are
+/// exported (no editing aids). It covers the image and the parts of the objects inside the
+/// canvas, so a callout on an extended canvas keeps its pixels; outside the image and the
+/// objects it is transparent, so the canvas background still shows there. Returns the bitmap
+/// and where it lies in document space (whole pixels; it may start left of or above the old
+/// image).
+pub fn burn_in(doc: &Document, ids: &[ObjectId]) -> Result<(Bitmap, IRect), BitmapError> {
+    let scene = doc.scene();
+    let image = &doc.image().bitmap;
+    let canvas = doc.canvas().rect.to_rect();
+    let mut positions: Vec<usize> = ids.iter().filter_map(|id| scene.position(*id)).collect();
+    positions.sort_unstable();
+    positions.dedup();
+    let mut area = Rect::new(
+        0.0,
+        0.0,
+        f64::from(image.width()),
+        f64::from(image.height()),
+    );
+    for &p in &positions {
+        if let Some(visible) = scene.bounds_at(p).and_then(|b| b.intersection(&canvas)) {
+            area = area.union(&visible);
+        }
+    }
+    let rect = IRect::covering(&area);
+    let ctx = RenderContext {
+        document: doc,
+        zoom: 1.0,
+        target: Target::Export,
+    };
+    let bitmap = Bitmap::draw(rect.width, rect.height, |cr| {
+        cr.translate(-f64::from(rect.x), -f64::from(rect.y));
+        cr.rectangle(canvas.x, canvas.y, canvas.width, canvas.height);
+        cr.clip();
+        paint_base_image(cr, doc, 1.0)?;
+        for &p in &positions {
+            if let Some(node) = scene.nodes().get(p) {
+                draw_object(cr, node.object.as_ref(), &ctx)?;
+            }
+        }
+        Ok(())
+    })?;
+    Ok((bitmap, rect))
 }
 
 /// A thumbnail whose longer side is at most `max_side` pixels (never enlarged).
@@ -565,10 +642,7 @@ mod tests {
         let moved = vec![(ids[0], boxed(30.0))];
         let draw = |ghost: bool| {
             Bitmap::draw(100, 40, |cr| {
-                let preview = Preview {
-                    objects: &moved,
-                    ghost,
-                };
+                let preview = Preview::objects(&moved, ghost);
                 // The view shows only x 25..100: the original at 0..20 is culled, the copy is
                 // not.
                 cr.rectangle(25.0, 0.0, 75.0, 40.0);
@@ -593,10 +667,7 @@ mod tests {
         assert_eq!(out.pixel(10, 10).map(|p| p.a), Some(0), "outside the clip");
         // Ghost: the original faded where it was (visible part only).
         let doc_view = Bitmap::draw(100, 40, |cr| {
-            let preview = Preview {
-                objects: &moved,
-                ghost: true,
-            };
+            let preview = Preview::objects(&moved, true);
             render_preview(
                 cr,
                 &doc,

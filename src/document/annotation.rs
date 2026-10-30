@@ -24,8 +24,8 @@
 //!   read back (e.g. a NaN field, which JSON stores as `null`). The UI therefore does not have
 //!   to guard every division by zero itself: the command fails and nothing changes.
 //!
-//! Default methods cover the generic parts (box handles, translate, rotation), so a simple
-//! boxed type only implements geometry, rendering and its properties. New capabilities are
+//! Default methods cover the generic parts (box handles, translate, rotation, whole-document
+//! transforms), so a simple boxed type only implements geometry, rendering and its properties. New capabilities are
 //! added later as default methods, which keeps existing implementations compiling.
 
 use std::any::Any;
@@ -34,7 +34,7 @@ use std::fmt;
 use serde::Serialize;
 
 use super::color::Rgba;
-use super::geometry::{normalize_degrees, Arrange, Point, Rect};
+use super::geometry::{normalize_degrees, Arrange, Point, Rect, Transform};
 use super::scene::{Node, ObjectId};
 use super::style::Shadow;
 use super::Document;
@@ -280,6 +280,25 @@ pub trait Annotation: AnnotationBase + fmt::Debug {
         let mut a = self.arrange();
         a.rect = a.rect.translate(dx, dy);
         self.set_arrange(a);
+    }
+
+    /// Follows a transform of the whole document — crop, rotate by 90°, flip, resize image —
+    /// so the object stays on the image pixels it belongs to. `Arrange` cannot express these:
+    /// a quarter turn or a mirror changes where the object is *and* how it is turned, and a
+    /// resize scales positions together with sizes.
+    ///
+    /// The default moves a translation exactly (`translate`) and otherwise maps the object's
+    /// box with [`Transform::map_arrange`]; mirrored content keeps reading upright. Types whose
+    /// geometry is not a box (arrow end points, pen strokes) override this and map their points
+    /// with [`Transform::apply`]; types with line widths, text sizes or shadows scale those by
+    /// [`Transform::style_scale`] ("Scale annotations").
+    fn transform(&mut self, t: &Transform) {
+        if t.is_translation() {
+            self.translate(t.dx, t.dy);
+        } else {
+            let next = t.map_arrange(&self.arrange());
+            self.set_arrange(next);
+        }
     }
 
     /// Ids of document resources (embedded images) this object draws; they are saved with it.

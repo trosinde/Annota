@@ -145,7 +145,7 @@ pub fn resize_cursor(compass: Compass, rotation: f64) -> &'static str {
 }
 
 /// The topmost selectable object under `screen`.
-fn hit(doc: &Document, viewport: &Viewport, screen: Point) -> Option<ObjectId> {
+pub fn hit(doc: &Document, viewport: &Viewport, screen: Point) -> Option<ObjectId> {
     let scene = doc.scene();
     let at = viewport.to_document(screen);
     scene

@@ -11,7 +11,7 @@ use crate::document::annotation::{
 use crate::document::bitmap::Bitmap;
 use crate::document::color::{palette, Rgba};
 use crate::document::command::Command;
-use crate::document::geometry::{Arrange, Point, Rect};
+use crate::document::geometry::{Arrange, Point, Rect, Transform};
 use crate::document::scene::Node;
 use crate::document::style::Shadow;
 use crate::document::Document;
@@ -267,6 +267,24 @@ impl Annotation for Image {
 
     fn resources(&self) -> Vec<&str> {
         vec![self.source.as_str()]
+    }
+
+    /// The box follows the image (default); with "Scale annotations" the border, the rounding
+    /// and the shadow scale too. Mirrored, the picture itself is not mirrored (it keeps reading
+    /// the right way round).
+    fn transform(&mut self, t: &Transform) {
+        if t.is_translation() {
+            self.translate(t.dx, t.dy);
+            return;
+        }
+        self.set_arrange(t.map_arrange(&self.arrange()));
+        let s = t.style_scale;
+        if s.is_finite() && s > 0.0 && s != 1.0 {
+            self.border_width = (self.border_width * s).min(MAX_BORDER);
+            self.corner_radius *= s;
+            self.shadow.distance *= s;
+            self.shadow.blur *= s;
+        }
     }
 }
 

@@ -11,6 +11,7 @@ use std::io::Cursor;
 use std::rc::Rc;
 
 use super::color::Rgba;
+use super::geometry::Transform;
 
 /// cairo's limit for image surfaces in either direction.
 pub const MAX_SIDE: i32 = 32_767;
@@ -195,6 +196,39 @@ impl Bitmap {
     /// True if both bitmaps share the same pixels (not a pixel comparison).
     pub fn ptr_eq(&self, other: &Bitmap) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
+    }
+
+    /// A new `width` × `height` bitmap of this one's pixels mapped through `t` (its scale,
+    /// mirror, quarter turns and translation; `style_scale` does not apply to pixels). Quarter
+    /// turns, mirrors and whole-pixel translations copy pixels exactly; scaling resamples
+    /// smoothly, with the edge pixels extended so the border does not fade.
+    pub fn transformed(
+        &self,
+        t: &Transform,
+        width: i32,
+        height: i32,
+    ) -> Result<Bitmap, BitmapError> {
+        let scaled = t.scale_x != 1.0 || t.scale_y != 1.0;
+        let [xx, yx, xy, yy, x0, y0] = t.matrix();
+        Bitmap::draw(width, height, |cr| {
+            cr.transform(cairo::Matrix::new(xx, yx, xy, yy, x0, y0));
+            cr.set_source_surface(self.surface(), 0.0, 0.0)?;
+            let source = cr.source();
+            if scaled {
+                source.set_filter(cairo::Filter::Good);
+                source.set_extend(cairo::Extend::Pad);
+            } else {
+                source.set_filter(cairo::Filter::Nearest);
+            }
+            cr.set_operator(cairo::Operator::Source);
+            cr.paint()
+        })
+    }
+
+    /// The part `x`, `y`, `width` × `height` of this bitmap (crop).
+    pub fn cropped(&self, x: i32, y: i32, width: i32, height: i32) -> Result<Bitmap, BitmapError> {
+        let t = Transform::translation(-f64::from(x), -f64::from(y));
+        self.transformed(&t, width, height)
     }
 }
 

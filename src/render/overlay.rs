@@ -246,6 +246,196 @@ pub fn draw_guides(
     stroked
 }
 
+/// Crop mode's dimming outside the frame (redline: `rgb(0 0 6 / 55%)`).
+pub const CROP_DIM: Rgba = Rgba::new(0, 0, 6, 140);
+/// Crop grips: L-shaped corners and edge bars 22 × 6 px, white, 1 px ink at 35 %, radius 2.
+const GRIP_LONG: f64 = 22.0;
+const GRIP_SHORT: f64 = 6.0;
+/// How far the grips and the frame's outline reach outside the frame.
+const GRIP_OUTSET: f64 = 4.0;
+
+fn rounded_rect(cr: &cairo::Context, x: f64, y: f64, w: f64, h: f64, r: f64) {
+    super::shadow::rounded_rect(cr, x, y, w, h, r);
+}
+
+/// Crop mode (mockup 08): the canvas outside `frame` dimmed, a 2 px white frame, the
+/// rule-of-thirds lines (1 px white at 60 %) and the grips.
+pub fn draw_crop(
+    cr: &cairo::Context,
+    viewport: &Viewport,
+    canvas: IRect,
+    frame: IRect,
+) -> Result<(), cairo::Error> {
+    let device = |r: Rect| {
+        let a = viewport.to_device(Point::new(r.x, r.y));
+        let b = viewport.to_device(Point::new(r.right(), r.bottom()));
+        (a.x.round(), a.y.round(), b.x.round(), b.y.round())
+    };
+    let (cx0, cy0, cx1, cy1) = device(canvas.to_rect());
+    let (x0, y0, x1, y1) = device(frame.to_rect());
+    cr.save()?;
+    let result = (|| {
+        // Dim: the canvas minus the frame.
+        cr.set_fill_rule(cairo::FillRule::EvenOdd);
+        cr.rectangle(cx0, cy0, cx1 - cx0, cy1 - cy0);
+        cr.rectangle(x0, y0, x1 - x0, y1 - y0);
+        CROP_DIM.set_source(cr);
+        cr.fill()?;
+        cr.set_fill_rule(cairo::FillRule::Winding);
+        // Rule of thirds.
+        cr.set_source_rgba(1.0, 1.0, 1.0, 0.6);
+        cr.set_line_width(1.0);
+        for k in [1.0, 2.0] {
+            let x = crisp(x0 + (x1 - x0) * k / 3.0);
+            let y = crisp(y0 + (y1 - y0) * k / 3.0);
+            cr.move_to(x, y0);
+            cr.line_to(x, y1);
+            cr.move_to(x0, y);
+            cr.line_to(x1, y);
+        }
+        cr.stroke()?;
+        // The frame: a thin dark line for contrast on white, then 2 px white outside.
+        cr.set_source_rgba(0.0, 0.0, 6.0 / 255.0, 0.4);
+        cr.rectangle(x0 - 2.5, y0 - 2.5, x1 - x0 + 5.0, y1 - y0 + 5.0);
+        cr.stroke()?;
+        Rgba::WHITE.set_source(cr);
+        cr.set_line_width(2.0);
+        cr.rectangle(x0 - 1.0, y0 - 1.0, x1 - x0 + 2.0, y1 - y0 + 2.0);
+        cr.stroke()?;
+        // Grips: an L at every corner, a bar at every edge midpoint.
+        let (mx, my) = (((x0 + x1) / 2.0).round(), ((y0 + y1) / 2.0).round());
+        let o = GRIP_OUTSET;
+        let (l, s) = (GRIP_LONG, GRIP_SHORT);
+        let bars = [
+            // Corners: horizontal and vertical arm each.
+            (x0 - o, y0 - o, l, s),
+            (x0 - o, y0 - o, s, l),
+            (x1 + o - l, y0 - o, l, s),
+            (x1 + o - s, y0 - o, s, l),
+            (x0 - o, y1 + o - s, l, s),
+            (x0 - o, y1 + o - l, s, l),
+            (x1 + o - l, y1 + o - s, l, s),
+            (x1 + o - s, y1 + o - l, s, l),
+            // Edges.
+            (mx - l / 2.0, y0 - o, l, s),
+            (mx - l / 2.0, y1 + o - s, l, s),
+            (x0 - o, my - l / 2.0, s, l),
+            (x1 + o - s, my - l / 2.0, s, l),
+        ];
+        for (x, y, w, h) in bars {
+            rounded_rect(cr, x - 0.5, y - 0.5, w + 1.0, h + 1.0, 2.5);
+            cr.set_source_rgba(0.0, 0.0, 6.0 / 255.0, 0.35);
+            cr.fill()?;
+            rounded_rect(cr, x, y, w, h, 2.0);
+            Rgba::WHITE.set_source(cr);
+            cr.fill()?;
+        }
+        Ok(())
+    })();
+    cr.restore()?;
+    result
+}
+
+/// A canvas-edge grabber (redline: 12 × 36, radius 6, white with a 1.5 px accent border) at
+/// `rect` (view pixels). While its edge is dragged, the edge itself is a 2 px accent line.
+pub fn draw_canvas_grabber(
+    cr: &cairo::Context,
+    viewport: &Viewport,
+    canvas: IRect,
+    rect: Rect,
+    active_edge: Option<crate::editing::canvas_edit::Side>,
+) -> Result<(), cairo::Error> {
+    use crate::editing::canvas_edit::Side;
+    cr.save()?;
+    let result = (|| {
+        if let Some(side) = active_edge {
+            let r = canvas.to_rect();
+            let a = viewport.to_device(Point::new(r.x, r.y));
+            let b = viewport.to_device(Point::new(r.right(), r.bottom()));
+            let (a, b) = (
+                Point::new(a.x.round(), a.y.round()),
+                Point::new(b.x.round(), b.y.round()),
+            );
+            ACCENT.set_source(cr);
+            match side {
+                Side::Left => cr.rectangle(a.x, a.y, 2.0, b.y - a.y),
+                Side::Right => cr.rectangle(b.x - 2.0, a.y, 2.0, b.y - a.y),
+                Side::Top => cr.rectangle(a.x, a.y, b.x - a.x, 2.0),
+                Side::Bottom => cr.rectangle(a.x, b.y - 2.0, b.x - a.x, 2.0),
+            }
+            cr.fill()?;
+        }
+        rounded_rect(
+            cr,
+            rect.x.round() + 0.75,
+            rect.y.round() + 0.75,
+            rect.width - 1.5,
+            rect.height - 1.5,
+            rect.width.min(rect.height) / 2.0 - 0.75,
+        );
+        fill_and_stroke(cr, Rgba::WHITE, ACCENT, HANDLE_BORDER)
+    })();
+    cr.restore()?;
+    result
+}
+
+/// The dashed 1 px accent line at the image edge `side` while the canvas is extended there
+/// (mockup 10).
+pub fn draw_image_edge(
+    cr: &cairo::Context,
+    viewport: &Viewport,
+    image: IRect,
+    canvas: IRect,
+    side: crate::editing::canvas_edit::Side,
+) -> Result<(), cairo::Error> {
+    use crate::editing::canvas_edit::Side;
+    let i = image.to_rect();
+    let c = canvas.to_rect();
+    let (from, to) = match side {
+        Side::Left => (Point::new(i.x, c.y), Point::new(i.x, c.bottom())),
+        Side::Right => (
+            Point::new(i.right(), c.y),
+            Point::new(i.right(), c.bottom()),
+        ),
+        Side::Top => (Point::new(c.x, i.y), Point::new(c.right(), i.y)),
+        Side::Bottom => (
+            Point::new(c.x, i.bottom()),
+            Point::new(c.right(), i.bottom()),
+        ),
+    };
+    let (a, b) = (viewport.to_device(from), viewport.to_device(to));
+    cr.save()?;
+    ACCENT.set_source(cr);
+    cr.set_line_width(1.0);
+    cr.set_dash(&DASH, 0.0);
+    if side.horizontal() {
+        let x = crisp(a.x);
+        cr.move_to(x, a.y);
+        cr.line_to(x, b.y);
+    } else {
+        let y = crisp(a.y);
+        cr.move_to(a.x, y);
+        cr.line_to(b.x, y);
+    }
+    let stroked = cr.stroke();
+    cr.restore()?;
+    stroked
+}
+
+/// Loose handles (the image's corner-radius handle), drawn like selection handles.
+pub fn draw_handles(
+    cr: &cairo::Context,
+    viewport: &Viewport,
+    handles: &[Handle],
+) -> Result<(), cairo::Error> {
+    cr.save()?;
+    let result = handles
+        .iter()
+        .try_for_each(|h| draw_handle(cr, viewport, h, 0.0));
+    cr.restore()?;
+    result
+}
+
 /// Rubber band `rect` (document space).
 pub fn draw_band(cr: &cairo::Context, viewport: &Viewport, rect: Rect) -> Result<(), cairo::Error> {
     cr.save()?;
@@ -361,6 +551,46 @@ mod tests {
         assert_eq!(out.pixel(90, 115), Some(VIOLET));
         assert_eq!(out.pixel(90, 125), Some(CANVAS));
         assert_eq!(out.pixel(91, 60), Some(CANVAS));
+    }
+
+    #[test]
+    fn crop_mode_dims_outside_and_draws_frame_and_grips() {
+        let vp = Viewport::new(1.0, Point::new(10.0, 10.0));
+        let canvas = IRect::new(0, 0, 180, 120);
+        let frame = IRect::new(40, 30, 90, 60);
+        let out = draw(|cr| draw_crop(cr, &vp, canvas, frame));
+        // Outside the frame, inside the canvas: dimmed.
+        let dim = out.pixel(20, 20).unwrap();
+        assert!(dim.r < CANVAS.r / 2, "{dim:?}");
+        // Inside the frame between the thirds: untouched.
+        assert_eq!(out.pixel(60, 50), Some(CANVAS));
+        // A thirds line (x = 50 + 30) is lighter than the canvas around it.
+        let third = out.pixel(80, 70).unwrap();
+        assert!(third.r > CANVAS.r, "{third:?}");
+        // The NW grip covers the frame corner, white.
+        assert_eq!(out.pixel(50 - 2, 40 + 5), Some(Rgba::WHITE));
+        // Outside the canvas: untouched.
+        assert_eq!(out.pixel(195, 135), Some(CANVAS));
+    }
+
+    #[test]
+    fn canvas_grabber_and_image_edge() {
+        use crate::editing::canvas_edit::{grabber_rect, Side};
+        let vp = Viewport::new(1.0, Point::new(10.0, 10.0));
+        let canvas = IRect::new(0, 0, 150, 100);
+        let rect = grabber_rect(&vp, canvas, Side::Right);
+        let out = draw(|cr| {
+            draw_canvas_grabber(cr, &vp, canvas, rect, Some(Side::Right))?;
+            draw_image_edge(cr, &vp, IRect::new(0, 0, 100, 100), canvas, Side::Right)
+        });
+        // White grabber centred on the right edge (x = 160), accent edge line above it.
+        assert_eq!(out.pixel(160, 60), Some(Rgba::WHITE));
+        assert_eq!(out.pixel(159, 20), Some(ACCENT));
+        // Dashed line at x = 110: dashes and gaps.
+        let column: Vec<bool> = (10..40)
+            .map(|y| out.pixel(110, y) == Some(ACCENT))
+            .collect();
+        assert!(column.iter().any(|on| *on) && column.iter().any(|on| !*on));
     }
 
     #[test]

@@ -25,7 +25,7 @@ use crate::document::annotation::{
     Annotation, Property, PropertyError, PropertyValue, RenderContext,
 };
 use crate::document::command::Command;
-use crate::document::geometry::{normalize_degrees, Arrange, Point, Rect};
+use crate::document::geometry::{normalize_degrees, Arrange, Point, Rect, Transform};
 use crate::document::registry::{self, UnknownObject};
 use crate::document::scene::{Node, ObjectId};
 use crate::document::Document;
@@ -193,6 +193,17 @@ impl Annotation for Group {
     fn translate(&mut self, dx: f64, dy: f64) {
         for child in &mut self.children {
             child.object.translate(dx, dy);
+        }
+    }
+
+    /// Every member follows the document on its own (so arrows inside a group map their end
+    /// points exactly); the group's box turns with it.
+    fn transform(&mut self, t: &Transform) {
+        for child in &mut self.children {
+            child.object.transform(t);
+        }
+        if !t.is_translation() {
+            self.rotation = t.map_rotation(self.rotation);
         }
     }
 

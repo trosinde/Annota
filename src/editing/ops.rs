@@ -40,6 +40,20 @@ pub enum Action {
     Ungroup,
     /// A new object (an image dropped from the tray).
     Insert,
+    // Operations on the whole document (`super::image_ops`).
+    Crop,
+    ResizeImage,
+    RotateLeft,
+    RotateRight,
+    FlipHorizontally,
+    FlipVertically,
+    ExtendCanvas,
+    CanvasBackground,
+    CornerRadius,
+    /// Flatten Selection (Ctrl+T); the subject is what was flattened.
+    Flatten,
+    /// Flatten All (Ctrl+Shift+T); the subject counts the objects.
+    FlattenAll,
 }
 
 /// What the edit applies to, for the label ("Move Group", "Move 3 Objects").
