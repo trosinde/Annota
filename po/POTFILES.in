@@ -17,3 +17,4 @@ src/capture/overlay.rs
 src/capture/shortcut_dialog.rs
 src/capture/shortcuts.rs
 src/preferences.rs
+src/ui/labels.rs

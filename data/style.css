@@ -225,3 +225,12 @@ banner.annota-warning-banner > revealer > widget {
   background-color: mix(@warning_bg_color, @window_bg_color, 0.72);
   color: @window_fg_color;
 }
+
+/* --- Editor canvas (add-annotation-editor 02, 03, 06) ---------------------------------- */
+
+/* Measurement and snap chips on the canvas: redline "Canvas" — 12 px bold, radius 6,
+ * padding 3/8, light shadow. */
+.annota-chip.annota-canvas-chip {
+  font-size: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 6, 0.25);
+}

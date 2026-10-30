@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 17:08+0100\n"
+"POT-Creation-Date: 2026-10-30 19:30+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -38,15 +38,15 @@ msgstr ""
 msgid "screenshot;capture;annotate;arrow;markup;redact;screen;recording;"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:252
+#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:275
 msgid "Capture Region"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:21 src/application.rs:253
+#: data/io.github.trosinde.Annota.desktop.in:21 src/application.rs:276
 msgid "Capture Window"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:254
+#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:277
 msgid "Capture Screen"
 msgstr ""
 
@@ -774,15 +774,15 @@ msgstr ""
 msgid "Esc cancels · Backspace disables the shortcut"
 msgstr ""
 
-#: src/application.rs:120
+#: src/application.rs:143
 msgid "Opening files arrives in milestone 0.1"
 msgstr ""
 
-#: src/application.rs:219 src/capture/overlay.rs:284 src/preferences.rs:232
+#: src/application.rs:242 src/capture/overlay.rs:284 src/preferences.rs:232
 msgid "{seconds} s"
 msgstr ""
 
-#: src/application.rs:401
+#: src/application.rs:424
 msgid "Works entirely on this computer. No account, no tracking."
 msgstr ""
 
@@ -862,11 +862,11 @@ msgstr ""
 msgid "Open Image"
 msgstr ""
 
-#: src/capture/mod.rs:98
+#: src/capture/mod.rs:101
 msgid "Capturing needs xdg-desktop-portal, which is not running"
 msgstr ""
 
-#: src/capture/mod.rs:100
+#: src/capture/mod.rs:103
 msgid "The capture failed. Nothing was captured."
 msgstr ""
 
@@ -940,4 +940,109 @@ msgstr ""
 
 #: src/preferences.rs:348
 msgid "Choose Folder"
+msgstr ""
+
+#: src/ui/labels.rs:17
+msgctxt "object type"
+msgid "Image"
+msgstr ""
+
+#: src/ui/labels.rs:18
+msgctxt "object type"
+msgid "Group"
+msgstr ""
+
+#: src/ui/labels.rs:19
+msgctxt "object type"
+msgid "Object"
+msgstr ""
+
+#: src/ui/labels.rs:28
+msgid "{n} Object"
+msgid_plural "{n} Objects"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/ui/labels.rs:37
+msgid "Move {object}"
+msgstr ""
+
+#: src/ui/labels.rs:38
+msgid "Resize {object}"
+msgstr ""
+
+#: src/ui/labels.rs:39
+msgid "Rotate {object}"
+msgstr ""
+
+#: src/ui/labels.rs:40
+msgid "Edit {object}"
+msgstr ""
+
+#: src/ui/labels.rs:41
+msgid "Delete {object}"
+msgstr ""
+
+#: src/ui/labels.rs:42
+msgid "Duplicate {object}"
+msgstr ""
+
+#: src/ui/labels.rs:43
+msgid "Bring to Front"
+msgstr ""
+
+#: src/ui/labels.rs:44
+msgid "Bring Forward"
+msgstr ""
+
+#: src/ui/labels.rs:45
+msgid "Send Backward"
+msgstr ""
+
+#: src/ui/labels.rs:46
+msgid "Send to Back"
+msgstr ""
+
+#: src/ui/labels.rs:47
+msgid "Group"
+msgstr ""
+
+#: src/ui/labels.rs:48
+msgid "Ungroup"
+msgstr ""
+
+#: src/ui/labels.rs:55
+msgid "Canvas centre"
+msgstr ""
+
+#: src/ui/labels.rs:56
+msgid "Canvas edge"
+msgstr ""
+
+#: src/ui/labels.rs:57
+msgid "Object centre"
+msgstr ""
+
+#: src/ui/labels.rs:58
+msgid "Object edge"
+msgstr ""
+
+#: src/ui/labels.rs:102
+msgid "X {x} · Y {y}"
+msgstr ""
+
+#: src/ui/labels.rs:107
+msgid "Δ X {dx} · Y {dy}"
+msgstr ""
+
+#: src/ui/labels.rs:112
+msgid "{width} × {height}"
+msgstr ""
+
+#: src/ui/labels.rs:118
+msgid "{angle}° · Shift: 15° steps"
+msgstr ""
+
+#: src/ui/labels.rs:120
+msgid "{angle}°"
 msgstr ""

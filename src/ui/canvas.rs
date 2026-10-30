@@ -1,9 +1,15 @@
 //! The canvas widget: draws a document with the shared renderer, with zoom and pan (spec
-//! editor-canvas: View control).
+//! editor-canvas: View control), and edits it with the Select tool: selection, moving,
+//! resizing, rotating, rubber band, snapping guides, nudging, z-order and grouping (spec
+//! editor-canvas: Object selection and manipulation, Z-order and grouping, Snapping and
+//! guides).
 //!
-//! Built imperatively, as CLAUDE.md §7 allows for the canvas. All geometry comes from
-//! `annota::render::view`; this module only wires GTK to it. Selection, handles and the zoom
-//! OSD arrive with tasks 3.2 and 4.1.
+//! Built imperatively, as CLAUDE.md §7 allows for the canvas (its measurement and snap chips
+//! included). All geometry and editing logic comes from `annota::render::view` and
+//! `annota::editing`; this module only wires GTK events to them, executes the resulting
+//! `Edit`s through the document's `History` (one undo step each) and draws
+//! `annota::render::overlay`. The zoom OSD and window-level actions and menus arrive with the
+//! editor window (task 4.1); until then the keys are handled here.
 //!
 //! **Viewport-sized, not content-sized.** [`CanvasView`] implements `GtkScrollable`: inside a
 //! `GtkScrolledWindow` it is allocated exactly the visible area and *owns* the scroll
@@ -19,10 +25,18 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gtk::{gdk, glib, graphene};
 
+use annota::document::annotation::{HandleId, Modifiers};
 use annota::document::color::Rgba;
+use annota::document::command::History;
 use annota::document::geometry::Point;
 use annota::document::Document;
-use annota::render::{self, view, Options, Viewport};
+use annota::editing::drag::{self, Drag, Feedback, Hover};
+use annota::editing::ops::{self, Edit, Stacking};
+use annota::editing::selection::{selection_frame, Selection};
+use annota::editing::snap::{Axis, Snap};
+use annota::render::{self, overlay, view, Options, Preview, Viewport};
+
+use super::labels;
 
 /// Kit `--canvas-bg`, light and dark.
 const CANVAS_BG_LIGHT: Rgba = Rgba::opaque(0xDE, 0xDD, 0xDA);
@@ -34,6 +48,12 @@ const PAGE: f64 = 0.9;
 
 struct State {
     doc: Document,
+    history: History,
+    selection: Selection,
+    /// The pointer gesture in progress (Select tool).
+    drag: Option<Drag>,
+    /// Snap to guides (sidebar switch, `Ctrl+;`); Alt suspends it while held.
+    snapping: bool,
     zoom: f64,
     /// Follows the window size ("Fit · 50 %") until the user zooms.
     fitted: bool,
@@ -287,11 +307,39 @@ glib::wrapper! {
 }
 
 /// The canvas: a [`CanvasView`] in a `GtkScrolledWindow` (scroll bars, kinetic scrolling),
-/// with zoom and pan.
+/// with zoom and pan, in an overlay that holds the chips.
 #[derive(Clone)]
 pub struct Canvas {
+    overlay: gtk::Overlay,
     scrolled: gtk::ScrolledWindow,
     view: CanvasView,
+    /// Position, size or angle of what is being dragged (mockups 02, 03, 06).
+    measure_chip: gtk::Label,
+    /// Names the snap target (mockup 02: "Canvas centre").
+    snap_chip: gtk::Label,
+}
+
+/// Redline "Canvas": measurement chips sit 10 px right of the cursor.
+const CHIP_OFFSET: f64 = 10.0;
+/// Gap between a chip and the selection box or guide it belongs to.
+const CHIP_GAP: f64 = 6.0;
+
+fn chip(classes: &[&str]) -> gtk::Label {
+    gtk::Label::builder()
+        .css_classes(classes.iter().map(|c| c.to_string()).collect::<Vec<_>>())
+        .halign(gtk::Align::Start)
+        .valign(gtk::Align::Start)
+        .can_target(false)
+        .visible(false)
+        .build()
+}
+
+fn modifiers(state: gdk::ModifierType) -> Modifiers {
+    Modifiers {
+        shift: state.contains(gdk::ModifierType::SHIFT_MASK),
+        ctrl: state.contains(gdk::ModifierType::CONTROL_MASK),
+        alt: state.contains(gdk::ModifierType::ALT_MASK),
+    }
 }
 
 impl Canvas {
@@ -302,6 +350,10 @@ impl Canvas {
             .build();
         view.imp().state.replace(Some(State {
             doc,
+            history: History::new(),
+            selection: Selection::new(),
+            drag: None,
+            snapping: true,
             zoom: 1.0,
             fitted: true,
             space: false,
@@ -313,12 +365,28 @@ impl Canvas {
             .hexpand(true)
             .vexpand(true)
             .build();
-        let canvas = Self { scrolled, view };
+        let overlay = gtk::Overlay::builder().child(&scrolled).build();
+        let measure_chip = chip(&["annota-chip", "annota-canvas-chip", "numeric"]);
+        let snap_chip = chip(&["annota-chip", "annota-snap-chip", "annota-canvas-chip"]);
+        overlay.add_overlay(&measure_chip);
+        overlay.add_overlay(&snap_chip);
+        let canvas = Self {
+            overlay,
+            scrolled,
+            view,
+            measure_chip,
+            snap_chip,
+        };
         canvas.setup();
         canvas
     }
 
-    pub fn widget(&self) -> &gtk::ScrolledWindow {
+    pub fn widget(&self) -> &gtk::Overlay {
+        &self.overlay
+    }
+
+    #[cfg(test)]
+    pub fn scrolled(&self) -> &gtk::ScrolledWindow {
         &self.scrolled
     }
 
@@ -337,15 +405,54 @@ impl Canvas {
 
     fn setup(&self) {
         let motion = gtk::EventControllerMotion::new();
-        let weak = self.view.downgrade();
+        let weak = self.downgrade();
         motion.connect_motion(move |_, x, y| {
-            if let Some(view) = weak.upgrade() {
-                if let Some(state) = view.imp().state.borrow_mut().as_mut() {
-                    state.pointer = (x, y);
-                }
+            if let Some(canvas) = weak.upgrade() {
+                canvas.with_state(|s| s.pointer = (x, y));
+                canvas.update_cursor();
             }
         });
         self.view.add_controller(motion);
+
+        // Select tool: press, drag, release with the primary button.
+        let select = gtk::GestureDrag::new();
+        select.set_button(gdk::BUTTON_PRIMARY);
+        let weak = self.downgrade();
+        select.connect_drag_begin(move |gesture, x, y| {
+            let Some(canvas) = weak.upgrade() else {
+                return;
+            };
+            if canvas.with_state(|s| s.space).unwrap_or(false) {
+                // Space + drag pans (the scrolled window's gesture).
+                gesture.set_state(gtk::EventSequenceState::Denied);
+                return;
+            }
+            gesture.set_state(gtk::EventSequenceState::Claimed);
+            canvas.pointer_pressed(Point::new(x, y), modifiers(gesture.current_event_state()));
+        });
+        let weak = self.downgrade();
+        select.connect_drag_update(move |gesture, dx, dy| {
+            let (Some(canvas), Some((x, y))) = (weak.upgrade(), gesture.start_point()) else {
+                return;
+            };
+            canvas.pointer_moved(
+                Point::new(x + dx, y + dy),
+                modifiers(gesture.current_event_state()),
+            );
+        });
+        let weak = self.downgrade();
+        select.connect_drag_end(move |_, _, _| {
+            if let Some(canvas) = weak.upgrade() {
+                canvas.pointer_released();
+            }
+        });
+        let weak = self.downgrade();
+        select.connect_cancel(move |_, _| {
+            if let Some(canvas) = weak.upgrade() {
+                canvas.cancel_drag();
+            }
+        });
+        self.view.add_controller(select);
 
         // Ctrl+scroll zooms at the pointer; plain scrolling scrolls (the scrolled window).
         let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
@@ -421,8 +528,300 @@ impl Canvas {
 
     fn downgrade(&self) -> WeakCanvas {
         WeakCanvas {
+            overlay: self.overlay.downgrade(),
             scrolled: self.scrolled.downgrade(),
             view: self.view.downgrade(),
+            measure_chip: self.measure_chip.downgrade(),
+            snap_chip: self.snap_chip.downgrade(),
+        }
+    }
+
+    /// The current mapping of document space into the view.
+    fn viewport(&self) -> Option<Viewport> {
+        let imp = self.view.imp();
+        let (size, scroll) = (imp.view_size(), imp.scroll());
+        self.with_state(|s| {
+            Viewport::new(
+                s.zoom,
+                view::view_origin(s.doc.canvas().rect, s.zoom, size, scroll),
+            )
+        })
+    }
+
+    // ---- Select tool ----
+
+    /// Primary button pressed at `at` (view coordinates).
+    pub fn pointer_pressed(&self, at: Point, modifiers: Modifiers) {
+        let Some(viewport) = self.viewport() else {
+            return;
+        };
+        self.with_state(|s| {
+            s.pointer = (at.x, at.y);
+            s.drag = Drag::press(&s.doc, &mut s.selection, &viewport, at, modifiers);
+        });
+        self.update_cursor();
+        self.view.queue_draw();
+    }
+
+    /// Pointer moved to `at` with the button held.
+    pub fn pointer_moved(&self, at: Point, modifiers: Modifiers) {
+        let Some(viewport) = self.viewport() else {
+            return;
+        };
+        self.with_state(|s| {
+            s.pointer = (at.x, at.y);
+            let State {
+                doc,
+                selection,
+                drag,
+                snapping,
+                ..
+            } = s;
+            if let Some(drag) = drag.as_mut() {
+                drag.motion(doc, selection, &viewport, at, modifiers, *snapping);
+            }
+        });
+        self.update_chips();
+        self.view.queue_draw();
+    }
+
+    /// Button released: the gesture's change becomes one undo step.
+    pub fn pointer_released(&self) {
+        let edit = self
+            .with_state(|s| {
+                let drag = s.drag.take()?;
+                drag.release(&s.doc, &mut s.selection)
+            })
+            .flatten();
+        if let Some(edit) = edit {
+            self.execute(edit);
+        }
+        self.update_chips();
+        self.update_cursor();
+        self.view.queue_draw();
+    }
+
+    /// Drops the gesture in progress (Escape, or the grab was broken).
+    fn cancel_drag(&self) -> bool {
+        let cancelled = self
+            .with_state(|s| match s.drag.take() {
+                Some(drag) => {
+                    drag.cancel(&mut s.selection);
+                    true
+                }
+                None => false,
+            })
+            .unwrap_or(false);
+        self.update_chips();
+        self.view.queue_draw();
+        cancelled
+    }
+
+    /// Executes `edit` as one undo step and updates the selection.
+    fn execute(&self, edit: Edit) {
+        let label = labels::undo_label(&edit);
+        self.with_state(
+            |s| match s.history.execute(&mut s.doc, label, edit.command) {
+                Ok(()) => match edit.select {
+                    Some(ids) => s.selection.set(s.doc.scene(), ids),
+                    None => s.selection.sync(s.doc.scene()),
+                },
+                Err(err) => eprintln!("annota: canvas: {err}"),
+            },
+        );
+        self.view.queue_draw();
+    }
+
+    /// Runs a one-shot operation on the selection; returns whether it changed anything.
+    fn edit(&self, op: impl FnOnce(&Document, &Selection) -> Option<Edit>) -> bool {
+        match self.with_state(|s| op(&s.doc, &s.selection)).flatten() {
+            Some(edit) => {
+                self.execute(edit);
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub fn undo(&self) {
+        self.cancel_drag();
+        self.with_state(|s| {
+            if let Err(err) = s.history.undo(&mut s.doc) {
+                eprintln!("annota: canvas: {err}");
+            }
+            s.selection.sync(s.doc.scene());
+        });
+        self.view.queue_draw();
+    }
+
+    pub fn redo(&self) {
+        self.cancel_drag();
+        self.with_state(|s| {
+            if let Err(err) = s.history.redo(&mut s.doc) {
+                eprintln!("annota: canvas: {err}");
+            }
+            s.selection.sync(s.doc.scene());
+        });
+        self.view.queue_draw();
+    }
+
+    #[cfg(test)]
+    /// Label of the step Ctrl+Z would undo (Undo tooltip, mockup 06).
+    pub fn undo_label(&self) -> Option<String> {
+        self.with_state(|s| s.history.undo_label().map(str::to_string))
+            .flatten()
+    }
+
+    #[cfg(test)]
+    pub fn selection(&self) -> Vec<annota::document::scene::ObjectId> {
+        self.with_state(|s| s.selection.ids().to_vec())
+            .unwrap_or_default()
+    }
+
+    /// Snap to guides on or off (`Ctrl+;`).
+    pub fn set_snapping(&self, on: bool) {
+        self.with_state(|s| s.snapping = on);
+    }
+
+    pub fn snapping(&self) -> bool {
+        self.with_state(|s| s.snapping).unwrap_or(true)
+    }
+
+    #[cfg(test)]
+    /// Runs `f` on the document (read-only).
+    pub fn with_document<T>(&self, f: impl FnOnce(&Document) -> T) -> Option<T> {
+        self.with_state(|s| f(&s.doc))
+    }
+
+    /// Cursor for what is under the pointer (system cursor theme; redline "Kit additions").
+    fn update_cursor(&self) {
+        let Some(viewport) = self.viewport() else {
+            return;
+        };
+        let name = self
+            .with_state(|s| {
+                if s.space || s.pan_start.is_some() {
+                    return None;
+                }
+                let pointer = Point::new(s.pointer.0, s.pointer.1);
+                let hover = match &s.drag {
+                    Some(d) if d.is_dragging() => match d.feedback() {
+                        Feedback::Move { .. } => Hover::Object,
+                        Feedback::Rotate { .. } => {
+                            return Some("grabbing");
+                        }
+                        _ => drag::hover(&s.doc, &s.selection, &viewport, pointer),
+                    },
+                    _ => drag::hover(&s.doc, &s.selection, &viewport, pointer),
+                };
+                match hover {
+                    Hover::Handle {
+                        handle: HandleId::Resize(compass),
+                        rotation,
+                    } => Some(drag::resize_cursor(compass, rotation)),
+                    Hover::Handle {
+                        handle: HandleId::Rotate,
+                        ..
+                    } => Some("grab"),
+                    Hover::Handle { .. } => Some("crosshair"),
+                    Hover::Object => Some("move"),
+                    Hover::Nothing => None,
+                }
+            })
+            .flatten();
+        self.view.set_cursor_from_name(name);
+    }
+
+    /// Shows, fills and places the measurement and snap chips for the gesture in progress.
+    fn update_chips(&self) {
+        let Some(viewport) = self.viewport() else {
+            return;
+        };
+        let view_size = self.view.imp().view_size();
+        let info = self.with_state(|s| {
+            let drag = s.drag.as_ref().filter(|d| d.is_dragging())?;
+            let frame = drag
+                .selection_frame(&s.doc, &s.selection)
+                .map(|f| f.frame.bounds());
+            Some((
+                drag.feedback(),
+                drag.guides().to_vec(),
+                frame,
+                Point::new(s.pointer.0, s.pointer.1),
+                s.doc.canvas().rect,
+            ))
+        });
+        let Some(Some((feedback, guides, frame, pointer, canvas))) = info else {
+            self.measure_chip.set_visible(false);
+            self.snap_chip.set_visible(false);
+            return;
+        };
+        // The chip's own size: the measured size includes the margins that place it.
+        let size = |label: &gtk::Label| {
+            let (_, natural) = label.preferred_size();
+            (
+                f64::from(natural.width() - label.margin_start() - label.margin_end()),
+                f64::from(natural.height() - label.margin_top() - label.margin_bottom()),
+            )
+        };
+        let place = |label: &gtk::Label, x: f64, y: f64| {
+            let (w, h) = size(label);
+            let x = x.clamp(0.0, (view_size.0 - w).max(0.0));
+            let y = y.clamp(0.0, (view_size.1 - h).max(0.0));
+            label.set_margin_start(x.round() as i32);
+            label.set_margin_top(y.round() as i32);
+        };
+
+        match labels::measure_chip(feedback) {
+            Some(text) => {
+                self.measure_chip.set_label(&text);
+                self.measure_chip.set_visible(true);
+                let (w, h) = size(&self.measure_chip);
+                let (x, y) = match feedback {
+                    // Mockup 03: centred above the pointer.
+                    Feedback::Rotate { .. } => (pointer.x - w / 2.0, pointer.y - 18.0 - h),
+                    // Mockups 02, 06: right of the pointer, below the box being moved.
+                    _ => {
+                        let below = frame.map_or(pointer.y, |f| {
+                            viewport.to_device(Point::new(f.x, f.bottom())).y
+                        });
+                        (
+                            pointer.x + CHIP_OFFSET,
+                            (pointer.y + CHIP_OFFSET).max(below + CHIP_GAP),
+                        )
+                    }
+                };
+                place(&self.measure_chip, x, y);
+            }
+            None => self.measure_chip.set_visible(false),
+        }
+
+        match labels::snap_chip(&Snap::targets(&guides)) {
+            Some(text) => {
+                self.snap_chip.set_label(&text);
+                self.snap_chip.set_visible(true);
+                let r = canvas.to_rect();
+                let top_left = viewport.to_device(Point::new(r.x, r.y));
+                let (_, h) = size(&self.snap_chip);
+                // Mockup 02: beside the top end of a vertical guide, else beside the left end
+                // of a horizontal one.
+                let (x, y) = match guides.iter().find(|g| g.axis == Axis::Vertical) {
+                    Some(g) => (
+                        viewport.to_device(Point::new(g.pos, 0.0)).x + CHIP_GAP,
+                        top_left.y - overlay::GUIDE_OVERSHOOT + 4.0,
+                    ),
+                    None => (
+                        top_left.x - overlay::GUIDE_OVERSHOOT + 4.0,
+                        guides
+                            .first()
+                            .map_or(0.0, |g| viewport.to_device(Point::new(0.0, g.pos)).y)
+                            - CHIP_GAP
+                            - h,
+                    ),
+                };
+                place(&self.snap_chip, x, y);
+            }
+            None => self.snap_chip.set_visible(false),
         }
     }
 
@@ -477,10 +876,85 @@ impl Canvas {
         imp.notify_view(zoom, fitted);
     }
 
-    /// Keyboard zoom and space-to-pan; returns whether the key was used.
-    /// (Window-level shortcuts and actions arrive with the editor window, task 4.1.)
+    /// Keyboard zoom, space-to-pan and the Select tool's keys; returns whether the key was
+    /// used. (Window-level shortcuts, actions and menus arrive with the editor window, task
+    /// 4.1; the keys follow the redlines: context menu, "Object selection" and "Snap to
+    /// guides".)
     pub fn key_pressed(&self, key: gdk::Key, modifiers: gdk::ModifierType) -> bool {
         let ctrl = modifiers.contains(gdk::ModifierType::CONTROL_MASK);
+        let shift = modifiers.contains(gdk::ModifierType::SHIFT_MASK);
+        let alt = modifiers.contains(gdk::ModifierType::ALT_MASK);
+        let dragging = self
+            .with_state(|s| s.drag.as_ref().is_some_and(Drag::is_dragging))
+            .unwrap_or(false);
+        if key == gdk::Key::Escape {
+            if self.cancel_drag() {
+                return true;
+            }
+            let had = self
+                .with_state(|s| {
+                    let had = !s.selection.is_empty();
+                    s.selection.clear();
+                    had
+                })
+                .unwrap_or(false);
+            self.view.queue_draw();
+            return had;
+        }
+        // The document does not change under a gesture in progress.
+        if dragging {
+            return false;
+        }
+        let step = if shift { ops::NUDGE_LARGE } else { ops::NUDGE };
+        let nudge = |dx: f64, dy: f64| self.edit(|doc, sel| ops::nudge(doc, sel, dx, dy));
+        let handled = match key.to_lower() {
+            gdk::Key::Left | gdk::Key::KP_Left if !ctrl && !alt => nudge(-step, 0.0),
+            gdk::Key::Right | gdk::Key::KP_Right if !ctrl && !alt => nudge(step, 0.0),
+            gdk::Key::Up | gdk::Key::KP_Up if !ctrl && !alt => nudge(0.0, -step),
+            gdk::Key::Down | gdk::Key::KP_Down if !ctrl && !alt => nudge(0.0, step),
+            gdk::Key::Delete | gdk::Key::KP_Delete if !ctrl => self.edit(ops::delete),
+            gdk::Key::d if ctrl => self.edit(ops::duplicate),
+            gdk::Key::a if ctrl => {
+                self.with_state(|s| s.selection.select_all(s.doc.scene()));
+                self.view.queue_draw();
+                true
+            }
+            gdk::Key::g if ctrl && shift => self.edit(ops::ungroup),
+            gdk::Key::g if ctrl => self.edit(ops::group),
+            gdk::Key::bracketright | gdk::Key::braceright if ctrl => {
+                let how = if shift {
+                    Stacking::ToFront
+                } else {
+                    Stacking::Forward
+                };
+                self.edit(|doc, sel| ops::restack(doc, sel, how))
+            }
+            gdk::Key::bracketleft | gdk::Key::braceleft if ctrl => {
+                let how = if shift {
+                    Stacking::ToBack
+                } else {
+                    Stacking::Backward
+                };
+                self.edit(|doc, sel| ops::restack(doc, sel, how))
+            }
+            gdk::Key::semicolon if ctrl => {
+                self.set_snapping(!self.snapping());
+                true
+            }
+            gdk::Key::z if ctrl && shift => {
+                self.redo();
+                true
+            }
+            gdk::Key::z if ctrl => {
+                self.undo();
+                true
+            }
+            _ => false,
+        };
+        if handled {
+            self.update_cursor();
+            return true;
+        }
         match key {
             gdk::Key::plus | gdk::Key::equal | gdk::Key::KP_Add if ctrl => self.zoom_in(),
             gdk::Key::minus | gdk::Key::KP_Subtract if ctrl => self.zoom_out(),
@@ -488,6 +962,7 @@ impl Canvas {
             gdk::Key::_1 | gdk::Key::KP_1 if ctrl => self.zoom_to(1.0, None),
             gdk::Key::space if !ctrl => {
                 self.with_state(|s| s.space = true);
+                self.view.set_cursor(None);
                 self.scrolled.set_cursor_from_name(Some("grab"));
             }
             _ => return false,
@@ -505,6 +980,7 @@ impl Canvas {
                 .unwrap_or(false);
             if !panning {
                 self.scrolled.set_cursor(None);
+                self.update_cursor();
             }
         }
     }
@@ -512,15 +988,21 @@ impl Canvas {
 
 /// Event handlers hold the canvas weakly; the widgets own the handlers.
 struct WeakCanvas {
+    overlay: glib::WeakRef<gtk::Overlay>,
     scrolled: glib::WeakRef<gtk::ScrolledWindow>,
     view: glib::WeakRef<CanvasView>,
+    measure_chip: glib::WeakRef<gtk::Label>,
+    snap_chip: glib::WeakRef<gtk::Label>,
 }
 
 impl WeakCanvas {
     fn upgrade(&self) -> Option<Canvas> {
         Some(Canvas {
+            overlay: self.overlay.upgrade()?,
             scrolled: self.scrolled.upgrade()?,
             view: self.view.upgrade()?,
+            measure_chip: self.measure_chip.upgrade()?,
+            snap_chip: self.snap_chip.upgrade()?,
         })
     }
 }
@@ -551,9 +1033,39 @@ fn draw(state: &State, cr: &gtk::cairo::Context, size: (f64, f64), scroll: (f64,
     if let Err(err) = draw_canvas_shadow(cr, corner, w, h) {
         eprintln!("annota: canvas: {err}");
     }
-    if let Err(err) = render::render(cr, &state.doc, &viewport, &options) {
+    let preview = state.drag.as_ref().map(|d| Preview {
+        objects: d.preview(),
+        ghost: d.shows_ghost(),
+    });
+    if let Err(err) = render::render_preview(cr, &state.doc, &viewport, &options, preview.as_ref())
+    {
         eprintln!("annota: canvas: {err}");
     }
+    if let Err(err) = draw_editing_aids(state, cr, &viewport) {
+        eprintln!("annota: canvas: {err}");
+    }
+}
+
+/// Selection, guides and rubber band over the document.
+fn draw_editing_aids(
+    state: &State,
+    cr: &gtk::cairo::Context,
+    viewport: &Viewport,
+) -> Result<(), gtk::cairo::Error> {
+    let frame = match &state.drag {
+        Some(drag) => drag.selection_frame(&state.doc, &state.selection),
+        None => selection_frame(state.doc.scene(), &state.selection, &[]),
+    };
+    if let Some(frame) = frame {
+        overlay::draw_selection(cr, viewport, &frame)?;
+    }
+    if let Some(drag) = &state.drag {
+        overlay::draw_guides(cr, viewport, state.doc.canvas().rect, drag.guides())?;
+        if let Feedback::Band(rect) = drag.feedback() {
+            overlay::draw_band(cr, viewport, rect)?;
+        }
+    }
+    Ok(())
 }
 
 /// Kit `.canvas-image`: `0 0 0 1px rgb(0 0 6 / 10%), 0 2px 10px rgb(0 0 6 / 18%)`.
@@ -684,7 +1196,7 @@ mod tests {
         let mut sizes = Vec::new();
         recordings(&render_node(&widget), &mut sizes);
         assert_eq!(sizes, vec![(view.0 as f32, view.1 as f32)]);
-        let h = canvas.widget().hadjustment();
+        let h = canvas.scrolled().hadjustment();
         assert!(h.upper() > 30_000.0 && (h.page_size() - f64::from(view.0)).abs() < 1.0);
 
         // Reviewer finding B2: shrinking the window in fit mode left the canvas off-centre
@@ -714,6 +1226,161 @@ mod tests {
             (y - (h - y - bh)).abs() <= 1,
             "centred vertically: {y} {h} {bh}"
         );
+        window.destroy();
+    }
+
+    /// Pixels of `widget` as RGBA rows.
+    fn pixels(widget: &gtk::Widget) -> (Vec<u8>, usize, i32, i32) {
+        let renderer = widget.native().unwrap().renderer().unwrap();
+        let (w, h) = (widget.width(), widget.height());
+        let area = graphene::Rect::new(0.0, 0.0, w as f32, h as f32);
+        let texture = renderer.render_texture(render_node(widget), Some(&area));
+        let stride = w as usize * 4;
+        let mut px = vec![0u8; stride * h as usize];
+        texture.download(&mut px, stride);
+        (px, stride, w, h)
+    }
+
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn select_move_snap_nudge_undo_and_group_on_a_live_canvas() {
+        use annota::document::command::History;
+        use annota::document::geometry::Rect;
+        use annota::tools::image::Image;
+
+        if gtk::init().is_err() || adw::init().is_err() {
+            eprintln!("skipped: no display");
+            return;
+        }
+        // Two image objects on a 1600 × 1000 capture (mockup 02's document size).
+        let mut doc = Document::new(Bitmap::filled(1600, 1000, palette::PAPER).unwrap());
+        let mut history = History::new();
+        for centre in [Point::new(300.0, 300.0), Point::new(1200.0, 700.0)] {
+            let pip = Bitmap::filled(440, 66, palette::CORAL).unwrap();
+            let cmd = Image::insert_command(&doc, pip, centre);
+            history.execute(&mut doc, "Insert", cmd).unwrap();
+        }
+        let window = gtk::Window::new();
+        window.set_default_size(1280, 800);
+        let canvas = Canvas::new(doc);
+        window.set_child(Some(canvas.widget()));
+        window.present();
+        pump(300);
+        let vp = canvas.viewport().unwrap();
+        let rect_of = |canvas: &Canvas, i: usize| {
+            canvas
+                .with_document(|d| {
+                    let id = d.scene().ids()[i];
+                    d.scene().get(id).unwrap().object.arrange().rect
+                })
+                .unwrap()
+        };
+        let start = rect_of(&canvas, 0).centre();
+
+        // Drag the first object near the canvas centre: guides and chips show.
+        canvas.pointer_pressed(vp.to_device(start), Modifiers::default());
+        assert_eq!(canvas.selection().len(), 1);
+        let near_centre = Point::new(803.0, 498.0);
+        canvas.pointer_moved(
+            vp.to_device(Point::new(near_centre.x, near_centre.y)),
+            Modifiers::default(),
+        );
+        pump(100);
+        assert!(canvas.snap_chip.is_visible());
+        assert_eq!(canvas.snap_chip.label(), "Canvas centre");
+        assert!(canvas.measure_chip.is_visible());
+        assert!(canvas.measure_chip.label().starts_with("X 580 · Y 467"));
+        // A violet guide is on screen.
+        let widget: gtk::Widget = canvas.widget().clone().upcast();
+        let (px, stride, w, h) = pixels(&widget);
+        let violet = (0..h).any(|y| {
+            (0..w).any(|x| {
+                let o = y as usize * stride + x as usize * 4;
+                let v = overlay::VIOLET;
+                // Texture bytes are B, G, R, A or R, G, B, A depending on format; accept both.
+                let rgb = [px[o], px[o + 1], px[o + 2]];
+                rgb == [v.r, v.g, v.b] || rgb == [v.b, v.g, v.r]
+            })
+        });
+        assert!(violet, "snap guide drawn");
+        // The document is untouched until release; then it is one undo step.
+        assert_eq!(rect_of(&canvas, 0).centre(), start);
+        canvas.pointer_released();
+        assert!(!canvas.snap_chip.is_visible() && !canvas.measure_chip.is_visible());
+        assert_eq!(rect_of(&canvas, 0).centre(), Point::new(800.0, 500.0));
+        assert_eq!(canvas.undo_label().as_deref(), Some("Move Image"));
+
+        // Shift+→ nudges 10 px (spec "Keyboard nudge"), Ctrl+Z undoes it.
+        assert!(canvas.key_pressed(gdk::Key::Right, gdk::ModifierType::SHIFT_MASK));
+        assert_eq!(rect_of(&canvas, 0).x, 590.0);
+        assert!(canvas.key_pressed(gdk::Key::z, gdk::ModifierType::CONTROL_MASK));
+        assert_eq!(rect_of(&canvas, 0).x, 580.0);
+
+        // Ctrl+A, Ctrl+G: one group; dragging one member moves both.
+        let ctrl = gdk::ModifierType::CONTROL_MASK;
+        assert!(canvas.key_pressed(gdk::Key::a, ctrl));
+        assert!(canvas.key_pressed(gdk::Key::g, ctrl));
+        assert_eq!(canvas.undo_label().as_deref(), Some("Group"));
+        assert_eq!(canvas.with_document(|d| d.scene().len()), Some(1));
+        let second = Point::new(1200.0, 700.0);
+        canvas.pointer_pressed(vp.to_device(second), Modifiers::default());
+        canvas.pointer_moved(
+            vp.to_device(Point::new(second.x - 100.0, second.y)),
+            Modifiers {
+                alt: true,
+                ..Modifiers::default()
+            },
+        );
+        canvas.pointer_released();
+        assert_eq!(canvas.undo_label().as_deref(), Some("Move Group"));
+        let members: Vec<Rect> = canvas
+            .with_document(|d| {
+                d.scene().nodes()[0]
+                    .object
+                    .children()
+                    .iter()
+                    .map(|c| c.object.arrange().rect)
+                    .collect()
+            })
+            .unwrap();
+        assert_eq!(members[0].x, 480.0);
+        assert_eq!(members[1].x, 980.0 - 100.0);
+
+        // Rotate the group with Shift (mockup 03): the angle chip shows 15° steps and sits
+        // centred above the pointer (its own margins must not count as its size).
+        let frame = canvas
+            .with_state(|s| selection_frame(s.doc.scene(), &s.selection, &[]))
+            .flatten()
+            .unwrap();
+        assert!(frame.dashed, "a group's box is dashed");
+        let vp = canvas.viewport().unwrap();
+        let grab = frame
+            .handles
+            .iter()
+            .find(|h| h.id == HandleId::Rotate)
+            .unwrap()
+            .screen_position(vp.zoom, vp.origin);
+        let shift = Modifiers {
+            shift: true,
+            ..Modifiers::default()
+        };
+        canvas.pointer_pressed(grab, shift);
+        let pointer = Point::new(grab.x - 60.0, grab.y + 5.0);
+        canvas.pointer_moved(pointer, shift);
+        pump(100);
+        assert_eq!(
+            canvas.measure_chip.label(),
+            "\u{2212}30° · Shift: 15° steps"
+        );
+        let chip = &canvas.measure_chip;
+        let (x, w) = (f64::from(chip.margin_start()), f64::from(chip.width()));
+        assert!((x + w / 2.0 - pointer.x).abs() <= 1.0, "centred: {x} {w}");
+        assert!(
+            f64::from(chip.margin_top() + chip.height()) < pointer.y,
+            "above"
+        );
+        canvas.pointer_released();
+        assert_eq!(canvas.undo_label().as_deref(), Some("Rotate Group"));
         window.destroy();
     }
 }
