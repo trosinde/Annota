@@ -242,6 +242,17 @@ Users SHALL extend the canvas beyond the image by dragging its edges. Near an ed
 - **WHEN** the user drags the right canvas edge 200 px outward
 - **THEN** the canvas grows by 200 px filled with the canvas colour
 
+### Requirement: Canvas extension from the keyboard
+The sidebar's Canvas group SHALL offer entries for how far each canvas edge reaches beyond the image (Left, Top, Right, Bottom, in pixels), so the canvas can be extended without a pointer. A changed entry SHALL apply on Enter or when it loses the focus, as one undo step, with the limits of dragging (not into the image); an entry left unchanged SHALL NOT change the document.
+
+#### Scenario: Extend the canvas from the keyboard
+- **WHEN** nothing is selected and the user tabs to the Right entry of the Canvas group, types 200 and presses Enter
+- **THEN** the canvas reaches 200 px beyond the image's right edge, as one undo step named "Extend Canvas"
+
+#### Scenario: Tabbing through the Canvas entries
+- **WHEN** the user tabs through the four Canvas entries without typing
+- **THEN** the document is unchanged and no undo step is added
+
 ### Requirement: Canvas background
 The canvas colour SHALL be set in the sidebar: seven palette colours, Transparent (the default), Paper, a custom colour, or a colour picked from the image with the eyedropper (the next click on the canvas; Esc cancels). Each change is one undo step.
 

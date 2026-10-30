@@ -47,6 +47,7 @@ use annota::document::autosave::{self, AutosaveId, RecoveryEntry, Schedule, Stor
 use annota::document::bitmap::Bitmap;
 use annota::document::geometry::Mirror;
 use annota::document::{Background, Document};
+use annota::editing::canvas_edit;
 use annota::editing::image_ops::{self, Turn};
 use annota::editing::ops::{self, Stacking, Subject};
 use annota::editing::selection::Selection;
@@ -1359,6 +1360,21 @@ impl Editor {
             }
             Event::CropFrame(frame) => canvas.set_crop_frame(frame),
             Event::CropAspect(aspect) => canvas.set_crop_aspect(aspect),
+            // The keyboard path of canvas extension (mockup 10's edge drag): one undo step.
+            Event::CanvasExtensions(extensions) => {
+                if canvas
+                    .run(|doc, _| {
+                        image_ops::set_canvas_rect(
+                            doc,
+                            canvas_edit::with_extensions(doc, extensions),
+                        )
+                    })
+                    .is_none()
+                {
+                    // Limited to what it was (into the image, too large): show the real values.
+                    self.refresh_sidebar();
+                }
+            }
         }
     }
 
@@ -2214,6 +2230,60 @@ mod tests {
         canvas.grab_focus();
         pump(50);
         assert_eq!(canvas.history_info().revision, steps, "no phantom edits");
+
+        // B3: canvas extension from the keyboard, through the sidebar's Canvas entries.
+        assert!(canvas.key_pressed(gdk::Key::Escape, gdk::ModifierType::empty()));
+        pump(50);
+        assert_eq!(
+            sidebar.stack.visible_child_name().as_deref(),
+            Some("document")
+        );
+        let before = canvas.with_document(|d| d.canvas().rect).unwrap();
+        let texts = || {
+            sidebar
+                .canvas_entries
+                .each_ref()
+                .map(|e| e.text().to_string())
+        };
+        assert_eq!(texts(), ["0", "0", "0", "0"].map(String::from));
+        // Tabbing through them changes nothing.
+        let steps = canvas.history_info().revision;
+        for entry in &sidebar.canvas_entries {
+            entry.grab_focus();
+            pump(20);
+            entry.emit_activate();
+        }
+        canvas.grab_focus();
+        pump(50);
+        assert_eq!(
+            canvas.history_info().revision,
+            steps,
+            "no phantom canvas edits"
+        );
+        // 200 px on the right: one undo step, the entry shows it, the canvas is wider.
+        sidebar.canvas_entries[2].grab_focus();
+        sidebar.canvas_entries[2].set_text("200");
+        sidebar.canvas_entries[2].emit_activate();
+        pump(50);
+        assert_eq!(
+            canvas.history_info().undo_label.as_deref(),
+            Some("Extend Canvas")
+        );
+        assert_eq!(canvas.history_info().revision, steps + 1);
+        let after = canvas.with_document(|d| d.canvas().rect).unwrap();
+        assert_eq!((after.x, after.width), (before.x, before.width + 200));
+        assert_eq!(texts(), ["0", "0", "200", "0"].map(String::from));
+        // Into the image is refused and the real value comes back.
+        sidebar.canvas_entries[0].set_text("-50");
+        sidebar.canvas_entries[0].emit_activate();
+        pump(50);
+        assert_eq!(canvas.history_info().revision, steps + 1);
+        assert_eq!(sidebar.canvas_entries[0].text(), "0");
+        canvas.grab_focus();
+        assert!(canvas.key_pressed(gdk::Key::z, gdk::ModifierType::CONTROL_MASK));
+        pump(50);
+        assert_eq!(canvas.with_document(|d| d.canvas().rect), Some(before));
+        assert_eq!(texts(), ["0", "0", "0", "0"].map(String::from));
 
         // Context menu (mockup 05): right-clicking an unselected object selects it and opens
         // the menu; Ungroup is off without a group.

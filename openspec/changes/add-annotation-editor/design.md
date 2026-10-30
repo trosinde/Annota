@@ -528,6 +528,27 @@ Items from the final reviewer pass, each decided by the maintainer before it was
   `editor::newer_objects_block_image_operations_on_a_live_display` (actions, crop button,
   tooltips, the key toast, no crop mode, known objects still move, a plain document re-enables
   everything).
+- **B3: canvas extension from the keyboard (maintainer decision).** Below the mockup's hint
+  "Drag a canvas edge …", the Canvas group gains "Space around the image (px)" and a 2 × 2 grid
+  of entries Left/Top/Right/Bottom, built like the crop page's X/Y/W/H grid (dim labels,
+  `GtkEntry`, accessibility labels "Space left of the image" …). Per-side extensions fit
+  `canvas_edit` better than width/height (which would need an anchor): each value is how far
+  that canvas edge reaches beyond the image edge, as the drag chip says ("+400 px").
+  `canvas_edit::extension`/`extended`/`with_extensions` apply the drag's limits (not into the
+  image unless the canvas already ended inside it, at least 1 px) and cap the canvas at
+  `MAX_SIDE` so it stays exportable (a drag is not capped; it cannot practically get there).
+  An entry applies on Enter or focus-leave (`Event::CanvasExtensions` → `image_ops::
+  set_canvas_rect`, one "Extend Canvas" step, the view refits like after a drag); a refused or
+  limited value shows the real value again. `sidebar::canvas_target` uses the Arrange fix:
+  unchanged text keeps the exact value, so tabbing through sends nothing; `set_canvas_rect`
+  also returns `None` for an unchanged rect. No redline exists for these entries (mockup 10
+  only shows dragging) — a deviation from the mockups the maintainer asked for. Tests:
+  `canvas_edit::entered_extensions_extend_the_canvas`, `a_canvas_inside_the_image_can_only_grow`,
+  `sidebar::canvas_entries_only_send_real_changes`, `document_state_reports_the_canvas_extensions`,
+  and the live editor test (tab through: no step; Right 200 + Enter: one "Extend Canvas" step;
+  −50 on Left refused and reset; Ctrl+Z). On Xvfb with the real binary and `xdotool`, keyboard
+  only: 26 Tabs from the canvas reach Left, 28 Right; typing 200 + Enter gave 1800 × 1000 ·
+  Edited and a refit; tabbing past the entries left the subtitle unedited (light and dark).
 
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.
@@ -597,9 +618,8 @@ Items from the final reviewer pass, each decided by the maintainer before it was
   metadata in the document and add-capture-library.
 - **Canvas edge drags at fit zoom** can take the edge out of the visible area during the drag
   (the view refits on release); a live refit or auto-scroll would need a design decision.
-- **Canvas extension has no keyboard path** (CLAUDE.md §7: every action without a mouse): the
-  redline offers only dragging an edge and the hint "Drag a canvas edge …"; a keyboard route
-  (e.g. canvas size entries) needs a design decision. Crop, resize, rotate, flip, corner radius,
+- ~~**Canvas extension has no keyboard path**~~ — resolved in the final review fixes (B3,
+  maintainer decision): "Space around the image (px)" entries in the sidebar's Canvas group. Crop, resize, rotate, flip, corner radius,
   background (Custom colour) and flatten are keyboard-reachable; the eyedropper is pointer-only
   by nature.
 - ~~**Image content is not mirrored by Flip**~~ — resolved in the final review fixes (maintainer

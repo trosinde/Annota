@@ -21,6 +21,7 @@ use annota::document::color::{palette, Rgba};
 use annota::document::geometry::{Arrange, IRect, Rect};
 use annota::document::scene::ObjectId;
 use annota::document::{Background, Document};
+use annota::editing::canvas_edit::{self, Side};
 use annota::editing::crop::Aspect;
 use annota::editing::image_ops;
 use annota::editing::selection::is_selectable;
@@ -135,6 +136,8 @@ pub struct DocumentInfo {
     /// The document has objects of a type this version does not know, so the image
     /// operations are unavailable (`image_ops::has_unknown_objects`).
     pub newer_objects: bool,
+    /// How far the canvas reaches beyond the image: Left, Top, Right, Bottom (pixels).
+    pub extensions: [i32; 4],
 }
 
 /// Something selected.
@@ -194,6 +197,8 @@ pub fn state(doc: &Document, selection: &[ObjectId]) -> State {
             objects: by_type.iter().map(|(_, n)| n).sum(),
             by_type,
             newer_objects: image_ops::has_unknown_objects(doc),
+            extensions: Side::ALL
+                .map(|side| canvas_edit::extension(canvas.rect, image_ops::image_rect(doc), side)),
         });
     }
     let first = selected[0].object.type_name();
@@ -288,6 +293,22 @@ pub fn arrange_target(
     (target != frame).then_some(target)
 }
 
+/// The canvas extensions (Left, Top, Right, Bottom) the Canvas entries ask for, in whole pixels,
+/// `None` if none changed: a text that is still what was shown, or is not a number, keeps its
+/// value, so tabbing through the entries never edits the document.
+pub fn canvas_target(
+    current: [i32; 4],
+    shown: &[String; 4],
+    texts: &[String; 4],
+) -> Option<[i32; 4]> {
+    let target: [i32; 4] = [0, 1, 2, 3].map(|i| {
+        let v = entry_value(f64::from(current[i]), &shown[i], &texts[i]).round();
+        // Out-of-range input saturates; `canvas_edit::extended` limits the canvas.
+        v.clamp(f64::from(i32::MIN), f64::from(i32::MAX)) as i32
+    });
+    (target != current).then_some(target)
+}
+
 /// The crop frame the crop entries ask for (whole pixels), `None` if unchanged.
 pub fn crop_target(frame: IRect, shown: &[String; 4], texts: &[String; 4]) -> Option<IRect> {
     let current = [frame.x, frame.y, frame.width, frame.height];
@@ -318,6 +339,9 @@ pub enum Event {
     PickBackground,
     CropFrame(IRect),
     CropAspect(Aspect),
+    /// The Canvas entries: how far each edge reaches beyond the image (Left, Top, Right,
+    /// Bottom).
+    CanvasExtensions([i32; 4]),
 }
 
 type Handler = Box<dyn Fn(Event)>;
@@ -349,6 +373,11 @@ pub struct Sidebar {
     pub(super) group_note: gtk::Label,
     pub(super) crop_entries: [gtk::Entry; 4],
     pub(super) crop_aspect: gtk::DropDown,
+    /// Space around the image: Left, Top, Right, Bottom (pixels beyond each image edge).
+    pub(super) canvas_entries: [gtk::Entry; 4],
+    /// The extensions the Canvas entries were filled from, and their texts.
+    canvas_extensions: Cell<Option<[i32; 4]>>,
+    canvas_shown: RefCell<[String; 4]>,
     /// The selection the Arrange entries were filled from.
     pub(super) frame: Cell<Option<(Arrange, bool)>>,
     /// What the Arrange entries and the rotation spin were filled with.
@@ -433,6 +462,14 @@ impl Sidebar {
                 obj!("crop_h"),
             ],
             crop_aspect: obj!("crop_aspect"),
+            canvas_entries: [
+                obj!("canvas_left"),
+                obj!("canvas_top"),
+                obj!("canvas_right"),
+                obj!("canvas_bottom"),
+            ],
+            canvas_extensions: Cell::new(None),
+            canvas_shown: RefCell::default(),
             frame: Cell::new(None),
             shown: RefCell::default(),
             shown_rotation: Cell::new(0.0),
@@ -502,6 +539,9 @@ impl Sidebar {
         }
         for entry in &self.crop_entries {
             self.connect_entry(entry, Self::apply_crop);
+        }
+        for entry in &self.canvas_entries {
+            self.connect_entry(entry, Self::apply_canvas);
         }
         let weak = std::rc::Rc::downgrade(self);
         self.rotation.connect_value_changed(move |_| {
@@ -588,10 +628,45 @@ impl Sidebar {
         }
     }
 
+    fn apply_canvas(&self) {
+        if self.updating.get() {
+            return;
+        }
+        let Some(current) = self.canvas_extensions.get() else {
+            return;
+        };
+        let target = canvas_target(
+            current,
+            &self.canvas_shown.borrow(),
+            &Self::texts(&self.canvas_entries),
+        );
+        match target {
+            Some(target) => self.emit(Event::CanvasExtensions(target)),
+            // Unchanged, or not a number: show the values again.
+            None => self.show_extensions(current),
+        }
+    }
+
+    fn show_extensions(&self, extensions: [i32; 4]) {
+        let was = self.updating.replace(true);
+        self.canvas_extensions.set(Some(extensions));
+        let texts = extensions.map(|v| v.to_string());
+        for (entry, text) in self.canvas_entries.iter().zip(&texts) {
+            if entry.text().as_str() != text.as_str() {
+                entry.set_text(text);
+            }
+        }
+        self.canvas_shown.replace(texts);
+        self.updating.set(was);
+    }
+
     pub fn show(&self, state: &State) {
         self.updating.set(true);
         if !matches!(state, State::Crop(_)) {
             self.crop_frame.set(None);
+        }
+        if !matches!(state, State::Document(_)) {
+            self.canvas_extensions.set(None);
         }
         match state {
             State::Empty => {
@@ -645,6 +720,7 @@ impl Sidebar {
         self.size_row.set_subtitle(
             &gettext("{size} px").replace("{size}", &text::size(info.size.0, info.size.1)),
         );
+        self.show_extensions(info.extensions);
         let adjustment = self.corner_radius_row.adjustment();
         adjustment.set_upper(info.max_corner_radius.max(0.0));
         self.corner_radius_row.set_value(info.corner_radius);
@@ -919,6 +995,45 @@ mod tests {
             crop_target(frame, &shown, &typed),
             Some(IRect::new(10, 170, 640, 800))
         );
+    }
+
+    #[test]
+    fn canvas_entries_only_send_real_changes() {
+        // B3: tabbing through the Canvas entries without typing changes nothing (the same fix
+        // as for the phantom Arrange edits); typed values are whole pixels.
+        let current = [0, 0, 200, 0];
+        let shown = ["0", "0", "200", "0"].map(String::from);
+        assert_eq!(canvas_target(current, &shown, &shown.clone()), None);
+        let mut typed = shown.clone();
+        typed[0] = " 120.4 ".into();
+        assert_eq!(
+            canvas_target(current, &shown, &typed),
+            Some([120, 0, 200, 0])
+        );
+        // Not a number, or the same number written differently: nothing to do.
+        let mut junk = shown.clone();
+        junk[1] = "abc".into();
+        junk[2] = "200.0".into();
+        assert_eq!(canvas_target(current, &shown, &junk), None);
+        // Huge input saturates instead of overflowing (the canvas limits it later).
+        let mut huge = shown.clone();
+        huge[3] = "1e30".into();
+        assert_eq!(
+            canvas_target(current, &shown, &huge),
+            Some([0, 0, 200, i32::MAX])
+        );
+    }
+
+    #[test]
+    fn document_state_reports_the_canvas_extensions() {
+        let (mut doc, mut history) = doc_with_images(0);
+        let rect = canvas_edit::with_extensions(&doc, [10, 20, 30, 40]);
+        let edit = image_ops::set_canvas_rect(&doc, rect).unwrap();
+        history.execute(&mut doc, "Extend", edit.command).unwrap();
+        let State::Document(info) = state(&doc, &[]) else {
+            panic!("document page expected");
+        };
+        assert_eq!(info.extensions, [10, 20, 30, 40]);
     }
 
     #[test]

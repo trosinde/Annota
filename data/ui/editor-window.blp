@@ -828,6 +828,124 @@ Box properties_box {
               xalign: 0;
               styles ["dim-label"]
             }
+
+            // The keyboard path to the same (CLAUDE.md §7): pixels beyond each image edge.
+            Label {
+              label: _("Space around the image (px)");
+              xalign: 0;
+              margin-top: 4;
+              styles ["dim-label"]
+            }
+
+            Grid {
+              column-spacing: 12;
+              row-spacing: 8;
+              column-homogeneous: true;
+
+              Box {
+                spacing: 8;
+
+                layout {
+                  column: 0;
+                  row: 0;
+                }
+
+                Label {
+                  label: C_("canvas side", "Left");
+                  width-chars: 6;
+                  xalign: 0;
+                  styles ["dim-label"]
+                }
+
+                Entry canvas_left {
+                  hexpand: true;
+                  width-chars: 4;
+                  input-purpose: number;
+
+                  accessibility {
+                    label: _("Space left of the image");
+                  }
+                }
+              }
+
+              Box {
+                spacing: 8;
+
+                layout {
+                  column: 1;
+                  row: 0;
+                }
+
+                Label {
+                  label: C_("canvas side", "Top");
+                  width-chars: 6;
+                  xalign: 0;
+                  styles ["dim-label"]
+                }
+
+                Entry canvas_top {
+                  hexpand: true;
+                  width-chars: 4;
+                  input-purpose: number;
+
+                  accessibility {
+                    label: _("Space above the image");
+                  }
+                }
+              }
+
+              Box {
+                spacing: 8;
+
+                layout {
+                  column: 0;
+                  row: 1;
+                }
+
+                Label {
+                  label: C_("canvas side", "Right");
+                  width-chars: 6;
+                  xalign: 0;
+                  styles ["dim-label"]
+                }
+
+                Entry canvas_right {
+                  hexpand: true;
+                  width-chars: 4;
+                  input-purpose: number;
+
+                  accessibility {
+                    label: _("Space right of the image");
+                  }
+                }
+              }
+
+              Box {
+                spacing: 8;
+
+                layout {
+                  column: 1;
+                  row: 1;
+                }
+
+                Label {
+                  label: C_("canvas side", "Bottom");
+                  width-chars: 6;
+                  xalign: 0;
+                  styles ["dim-label"]
+                }
+
+                Entry canvas_bottom {
+                  hexpand: true;
+                  width-chars: 4;
+                  input-purpose: number;
+
+                  accessibility {
+                    label: _("Space below the image");
+                  }
+                }
+              }
+            }
           }
         }
 

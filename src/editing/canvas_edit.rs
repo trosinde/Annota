@@ -5,6 +5,9 @@
 //!   dragging the edge outward extends the canvas, inward shrinks it back — but not into the
 //!   image. While dragging, a dashed line marks the image edge and a chip says how far the
 //!   canvas reaches beyond it ("+400 px").
+//! * **Space around the image** (keyboard path, CLAUDE.md §7): the sidebar's Canvas group
+//!   enters how far each canvas edge reaches beyond the image ([`extension`], [`extended`]);
+//!   the same limits as dragging apply.
 //! * **Rounded corners.** One handle at the image's top-left inner corner, offset by the radius
 //!   (`HandleKind::Radius`), shown when nothing is selected and the pointer is near it. Dragging
 //!   it along the diagonal sets the radius ("Corner radius 20 px").
@@ -13,6 +16,7 @@
 //! preview values) and the release is one [`Edit`].
 
 use crate::document::annotation::{Handle, HandleId, HandleKind};
+use crate::document::bitmap::MAX_SIDE;
 use crate::document::geometry::{IRect, Point, Rect};
 use crate::document::Document;
 use crate::render::Viewport;
@@ -46,6 +50,64 @@ impl Side {
     pub fn horizontal(self) -> bool {
         matches!(self, Side::Left | Side::Right)
     }
+}
+
+/// How far `canvas` reaches beyond `image` on `side`, in pixels ("+400 px"; negative where the
+/// canvas ends inside the image).
+pub fn extension(canvas: IRect, image: IRect, side: Side) -> i32 {
+    match side {
+        Side::Right => canvas.right() - image.right(),
+        Side::Bottom => canvas.bottom() - image.bottom(),
+        Side::Left => image.x - canvas.x,
+        Side::Top => image.y - canvas.y,
+    }
+}
+
+/// `canvas` with `side` reaching `extra` pixels beyond `image`, the other edges where they are.
+/// As when dragging, the edge does not go into the image (unless the canvas already ended inside
+/// it there) and the canvas keeps at least 1 pixel; it is also never wider or higher than a
+/// bitmap can be ([`MAX_SIDE`]), so it can always be exported.
+pub fn extended(canvas: IRect, image: IRect, side: Side, extra: i32) -> IRect {
+    let current = extension(canvas, image, side);
+    let extra = extra.max(current.min(0));
+    let mut c = canvas;
+    // The far edge (fixed) and the extent the moving edge may span from it.
+    let clamp_span = |span: i64| span.clamp(1, i64::from(MAX_SIDE)) as i32;
+    match side {
+        Side::Right => {
+            let right = i64::from(image.right()) + i64::from(extra);
+            c.width = clamp_span(right - i64::from(c.x));
+        }
+        Side::Bottom => {
+            let bottom = i64::from(image.bottom()) + i64::from(extra);
+            c.height = clamp_span(bottom - i64::from(c.y));
+        }
+        Side::Left => {
+            let x = i64::from(image.x) - i64::from(extra);
+            let right = c.right();
+            c.width = clamp_span(i64::from(right) - x);
+            c.x = right - c.width;
+        }
+        Side::Top => {
+            let y = i64::from(image.y) - i64::from(extra);
+            let bottom = c.bottom();
+            c.height = clamp_span(i64::from(bottom) - y);
+            c.y = bottom - c.height;
+        }
+    }
+    c
+}
+
+/// The canvas with every side's extension set (Left, Top, Right, Bottom, as in [`Side::ALL`]):
+/// what the sidebar's Canvas entries ask for.
+pub fn with_extensions(doc: &Document, extensions: [i32; 4]) -> IRect {
+    let image = image_rect(doc);
+    Side::ALL
+        .iter()
+        .zip(extensions)
+        .fold(doc.canvas().rect, |canvas, (&side, extra)| {
+            extended(canvas, image, side, extra)
+        })
 }
 
 /// What a press on the canvas (outside the selection's handles) can grab.
@@ -230,16 +292,10 @@ impl CanvasDrag {
         }
         match self.target {
             Target::Radius => Feedback::Radius(self.radius),
-            Target::Edge(side) => {
-                let (c, i) = (self.canvas, self.image);
-                let extra = match side {
-                    Side::Right => c.right() - i.right(),
-                    Side::Bottom => c.bottom() - i.bottom(),
-                    Side::Left => i.x - c.x,
-                    Side::Top => i.y - c.y,
-                };
-                Feedback::Extend { side, extra }
-            }
+            Target::Edge(side) => Feedback::Extend {
+                side,
+                extra: extension(self.canvas, self.image, side),
+            },
         }
     }
 
@@ -345,6 +401,65 @@ mod tests {
         let mut drag = CanvasDrag::press(&doc, &vp, at, true).unwrap();
         drag.motion(&vp, vp.to_device(Point::new(2000.0, 2000.0)));
         assert_eq!(drag.preview_radius(), Some(500.0));
+    }
+
+    #[test]
+    fn entered_extensions_extend_the_canvas() {
+        // B3 (keyboard path): the sidebar's Canvas entries set how far each edge reaches
+        // beyond the image, as one undo step, with the limits of dragging.
+        let (mut doc, mut history, _) = setup();
+        let image = image_rect(&doc);
+        let canvas = doc.canvas().rect;
+        assert_eq!(
+            Side::ALL.map(|side| extension(canvas, image, side)),
+            [0, 0, 0, 0]
+        );
+        let rect = with_extensions(&doc, [100, 0, 200, 50]);
+        assert_eq!(rect, IRect::new(-100, 0, 1900, 1050));
+        let edit = image_ops::set_canvas_rect(&doc, rect).unwrap();
+        assert_eq!(edit.action, Action::ExtendCanvas);
+        history.execute(&mut doc, "Extend", edit.command).unwrap();
+        let canvas = doc.canvas().rect;
+        assert_eq!(
+            Side::ALL.map(|side| extension(canvas, image, side)),
+            [100, 0, 200, 50]
+        );
+        // The same values again: no change, so no edit (no phantom undo step).
+        let same = with_extensions(&doc, [100, 0, 200, 50]);
+        assert!(image_ops::set_canvas_rect(&doc, same).is_none());
+        // Not into the image: a negative extension stops at the image edge.
+        assert_eq!(
+            with_extensions(&doc, [-40, -1, 0, 0]),
+            IRect::new(0, 0, 1600, 1000)
+        );
+        // Never larger than a bitmap can be.
+        let huge = with_extensions(&doc, [i32::MAX, 0, i32::MAX, 0]);
+        assert_eq!(huge.width, MAX_SIDE);
+        assert_eq!(
+            huge.right(),
+            canvas.right(),
+            "the left edge moved, the right one kept"
+        );
+        history.undo(&mut doc).unwrap();
+        assert_eq!(doc.canvas().rect, IRect::new(0, 0, 1600, 1000));
+    }
+
+    #[test]
+    fn a_canvas_inside_the_image_can_only_grow() {
+        // Unless the canvas already ended inside the image there, as when dragging.
+        let image = IRect::new(0, 0, 100, 80);
+        let canvas = IRect::new(10, 0, 80, 80);
+        assert_eq!(extension(canvas, image, Side::Left), -10);
+        assert_eq!(extension(canvas, image, Side::Right), -10);
+        assert_eq!(extended(canvas, image, Side::Left, -20), canvas);
+        assert_eq!(
+            extended(canvas, image, Side::Left, -4),
+            IRect::new(4, 0, 86, 80)
+        );
+        assert_eq!(
+            extended(canvas, image, Side::Right, 5),
+            IRect::new(10, 0, 95, 80)
+        );
     }
 
     #[test]
