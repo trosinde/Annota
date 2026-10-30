@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — email handoff</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); position: relative; }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .editor-col { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .editor-col > .split-view { flex: 1; }
+  .content-pane { position: relative; }
+  .tray { flex: none; height: 132px; background: var(--window-bg); box-shadow: inset 0 1px var(--separator); display: flex; flex-direction: column; }
+  .tray-bar { height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+  .tray-items { display: flex; gap: 12px; padding: 0 12px; }
+  .tray-item { width: 120px; display: flex; flex-direction: column; gap: 4px; position: relative; }
+  .tray-item .thumb { width: 120px; height: 68px; border-radius: var(--radius-s); overflow: hidden; box-shadow: 0 0 0 1px var(--borders); background: var(--view-bg); }
+  .tray-item .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .tray-item .name { font-size: var(--fs-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  .tray-item.open .thumb { box-shadow: 0 0 0 2px var(--borders-strong); }
+  .tray-item.sel .thumb { box-shadow: 0 0 0 3px var(--accent-bg); }
+  .tray-item .tick { position: absolute; top: 6px; right: 6px; }
+  .tray-item .tick .check { box-shadow: inset 0 0 0 2px #fff, 0 1px 3px rgb(0 0 6 / 40%); background: rgb(0 0 6 / 25%); }
+  .tray-item .tick .check.checked { background: var(--accent-bg); box-shadow: 0 0 0 2px #fff; }
+  .kbd-row { display: inline-flex; gap: 4px; }
+  .toast-overlay.over-canvas { left: 52px; right: 300px; }
+  .toast-overlay.over-canvas.with-tray { bottom: 156px; }
+
+  .exp { width: 560px; max-width: 560px; }
+  .exp .dialog-body { display: flex; flex-direction: column; gap: 18px; padding: 6px 24px 24px; }
+  .exp-preview { display: flex; gap: 18px; align-items: center; }
+  .exp-preview .thumb { width: 160px; height: 100px; border-radius: var(--radius-s); overflow: hidden; box-shadow: 0 0 0 1px var(--borders); flex: none; position: relative; }
+  .exp-preview .thumb img { width: 100%; height: 100%; display: block; }
+  .exp-preview .thumb svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .exp-preview .meta { display: flex; flex-direction: column; gap: 4px; }
+  .row .scale { width: 220px; min-height: 0; }
+  .row .toggle-group .toggle { min-width: 52px; }
+  .pattern { font-family: var(--font-mono); font-size: 14px; }
+  .drag-ghost { position: absolute; z-index: 60; width: 160px; height: 100px; border-radius: var(--radius-s); overflow: hidden; box-shadow: 0 6px 20px rgb(0 0 6 / 35%), 0 0 0 1px rgb(0 0 6 / 15%); opacity: .92; }
+  .drag-ghost img { width: 100%; height: 100%; display: block; }
+  .drag-ghost .badge { position: absolute; right: 6px; bottom: 6px; }
+  .cursor { position: absolute; z-index: 61; width: 20px; height: 24px; }
+  .selection-bar { display: flex; align-items: center; gap: 6px; width: 100%; }
+  .files-grid { display: grid; grid-template-columns: repeat(4, 96px); gap: 18px 12px; padding: 18px; }
+  .file { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: var(--fs-caption); text-align: center; }
+  .file .ft { width: 72px; height: 54px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--borders); }
+  .file .ft img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .file.new .ft { box-shadow: 0 0 0 2px var(--accent-bg); }
+  .drop-hl { outline: 2px solid var(--accent-bg); outline-offset: -2px; background: var(--accent-a12) !important; }
+  .batch-list .row .thumb { width: 64px; height: 40px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--borders); }
+  .batch-list .row .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .pixel-blk { fill: #8b86b8; }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+<div class="headerbar"><div class="start"><button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button><div class="linked"><button class="btn image-button"><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button"><svg class="icon"><use href="#i-redo"/></svg></button></div></div><div class="title-widget"><span class="title">Checkout flow</span><span class="subtitle">1600 × 1000 · Edited</span></div><div class="end"><button class="btn flat image-button " title="Drag to Another App"><svg class="icon"><use href="#i-drag-handle"/></svg></button><button class="btn image-button " title="Share"><svg class="icon"><use href="#i-share"/></svg></button><button class="btn image-button " title="Copy to Clipboard (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button><button class="btn text-button suggested-action ">Export</button><button class="btn flat image-button "><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+<div class="editor-col">
+<div class="split-view">
+<div class="tool-strip">
+<button class="btn flat" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button>
+<button class="btn flat active" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button>
+<button class="btn flat" title="Shape (U)"><svg class="icon"><use href="#i-shape"/></svg></button>
+<button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button>
+<button class="btn flat" title="Callout (K)"><svg class="icon"><use href="#i-callout"/></svg></button>
+<button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button>
+<button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Redact (B)"><svg class="icon"><use href="#i-blur"/></svg></button>
+<button class="btn flat" title="Magnify (M)"><svg class="icon"><use href="#i-magnify"/></svg></button>
+<button class="btn flat" title="Spotlight (G)"><svg class="icon"><use href="#i-spotlight"/></svg></button>
+<button class="btn flat" title="Stamp (I)"><svg class="icon"><use href="#i-stamp"/></svg></button>
+<button class="btn flat" title="Crop (C)"><svg class="icon"><use href="#i-crop"/></svg></button>
+</div>
+<div class="content-pane"><div class="canvas-area"><div class="canvas-image" style="width:768px;height:480px"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt=""><svg class="annotations" viewBox="0 0 768 480"><path d="M372 388 L276 292" stroke="var(--annota-coral)" stroke-width="6" stroke-linecap="round" fill="none"/>
+<path d="M270 316 L270 287 L299 287" stroke="var(--annota-coral)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="50" y="248" width="206" height="27" rx="5" fill="none" stroke="var(--annota-coral)" stroke-width="3"/>
+<circle cx="50" cy="249" r="13" fill="var(--annota-coral)"/><text x="50" y="254" font-size="15" font-weight="700" fill="#fff" text-anchor="middle" font-family="Inter">1</text></svg></div><div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px"><button class="btn image-button"><svg class="icon"><use href="#i-zoom-out"/></svg></button><span class="label">48 %</span><button class="btn image-button"><svg class="icon"><use href="#i-zoom-in"/></svg></button></div></div></div>
+<div class="sidebar-pane end props"><div class="scroll"><div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Arrow</span></div></div>
+  <div class="swatch-row"><span class="swatch selected" style="--c:var(--annota-coral)"></span><span class="swatch" style="--c:var(--annota-amber)"></span><span class="swatch" style="--c:var(--annota-lime)"></span><span class="swatch" style="--c:var(--annota-teal)"></span><span class="swatch" style="--c:var(--annota-azure)"></span><span class="swatch" style="--c:var(--annota-violet)"></span><span class="swatch" style="--c:var(--annota-ink)"></span></div>
+</div>
+<div class="boxed-list">
+  <div class="row"><div class="text"><span class="title">Width</span></div><div class="suffix"><span class="spin" style="width:120px"><span class="value">6</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div>
+  <div class="row"><div class="text"><span class="title">Shadow</span></div><div class="suffix"><span class="switch on"></span></div></div>
+</div></div></div>
+</div>
+<div class="tray"><div class="tray-bar"><span class="caption-heading dim-label">Recent Captures</span><span class="spacer"></span><button class="btn flat small text-button">Select</button></div><div class="tray-items"><div class="tray-item open"><div class="thumb"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt=""></div><span class="name">Checkout flow</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/a-harbor-backup.png" alt=""></div><span class="name">Backup settings</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/c-code-editor.png" alt=""></div><span class="name">Build warning</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div><span class="name">September dashboard</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/e-relay-chat.png" alt=""></div><span class="name">Chat with Jonas</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/f-field-notes.png" alt=""></div><span class="name">Field notes</span></div></div></div>
+</div>
+<div class="toast-overlay over-canvas with-tray"><div class="toast"><span class="toast-title">Opening your mail app with “Checkout flow.png” attached…</span></div></div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

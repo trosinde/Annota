@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — terminal</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); position: relative; }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .editor-col { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .editor-col > .split-view { flex: 1; }
+  .content-pane { position: relative; }
+  .tray { flex: none; height: 132px; background: var(--window-bg); box-shadow: inset 0 1px var(--separator); display: flex; flex-direction: column; }
+  .tray-bar { height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+  .tray-items { display: flex; gap: 12px; padding: 0 12px; }
+  .tray-item { width: 120px; display: flex; flex-direction: column; gap: 4px; position: relative; }
+  .tray-item .thumb { width: 120px; height: 68px; border-radius: var(--radius-s); overflow: hidden; box-shadow: 0 0 0 1px var(--borders); background: var(--view-bg); }
+  .tray-item .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .tray-item .name { font-size: var(--fs-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  .tray-item.open .thumb { box-shadow: 0 0 0 2px var(--borders-strong); }
+  .tray-item.sel .thumb { box-shadow: 0 0 0 3px var(--accent-bg); }
+  .tray-item .tick { position: absolute; top: 6px; right: 6px; }
+  .tray-item .tick .check { box-shadow: inset 0 0 0 2px #fff, 0 1px 3px rgb(0 0 6 / 40%); background: rgb(0 0 6 / 25%); }
+  .tray-item .tick .check.checked { background: var(--accent-bg); box-shadow: 0 0 0 2px #fff; }
+  .kbd-row { display: inline-flex; gap: 4px; }
+
+  .term { background: #1e1e22; color: #e6e6e6; flex: 1; padding: 14px 18px; font-family: var(--font-mono); font-size: 14px; line-height: 1.55; white-space: pre; overflow: hidden; }
+  .term .p { color: #8ff0a4; } .term .d { color: #99c1f1; } .term .e { color: #f66151; font-weight: 700; } .term .m { color: #9a9a9a; } .term .b { font-weight: 700; }
+  .term .cur { display: inline-block; width: 9px; height: 17px; background: #e6e6e6; vertical-align: -3px; }
+  .window.console .headerbar { background: #2e2e32; color: #fff; box-shadow: inset 0 -1px rgb(0 0 6 / 36%); }
+  .window.console .wc { background: rgb(255 255 255 / 10%); color: #fff; }
+  .window.console { background: #1e1e22; }
+</style>
+</head>
+<body class="mock-frame">
+<div class="window console" style="width:900px;height:560px">
+  <div class="headerbar"><div class="start"><button class="btn flat image-button" style="color:#fff"><svg class="icon"><use href="#i-plus"/></svg></button></div><div class="title-widget"><span class="title">mara@workstation: ~</span></div><div class="end"><button class="btn flat image-button" style="color:#fff"><svg class="icon"><use href="#i-search"/></svg></button><button class="btn flat image-button" style="color:#fff"><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+  <div class="term"><span class="p">mara@workstation</span>:<span class="d">~</span>$ annota --version
+annota 0.1.0
+<span class="p">mara@workstation</span>:<span class="d">~</span>$ annota --capture banana
+<span class="e">error:</span> invalid value '<span class="b">banana</span>' for '<span class="b">--capture &lt;MODE&gt;</span>'
+  [possible values: <span class="p">region</span>, <span class="p">window</span>, <span class="p">screen</span>]
+
+Usage: annota [OPTIONS]
+
+For more information, try '<span class="b">--help</span>'.
+<span class="p">mara@workstation</span>:<span class="d">~</span>$ echo $?
+2
+<span class="p">mara@workstation</span>:<span class="d">~</span>$ annota --capture region --delay 90
+<span class="e">error:</span> invalid value '<span class="b">90</span>' for '<span class="b">--delay &lt;SECONDS&gt;</span>': 90 is not in 0..=60
+
+For more information, try '<span class="b">--help</span>'.
+<span class="p">mara@workstation</span>:<span class="d">~</span>$ annota --open shot.annota
+<span class="p">mara@workstation</span>:<span class="d">~</span>$ <span class="cur"></span></div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

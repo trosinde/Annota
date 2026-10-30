@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — favourite applied</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); position: relative; }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .editor-col { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .editor-col > .split-view { flex: 1; }
+  .content-pane { position: relative; }
+  .tray { flex: none; height: 132px; background: var(--window-bg); box-shadow: inset 0 1px var(--separator); display: flex; flex-direction: column; }
+  .tray-bar { height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+  .tray-items { display: flex; gap: 12px; padding: 0 12px; }
+  .tray-item { width: 120px; display: flex; flex-direction: column; gap: 4px; position: relative; }
+  .tray-item .thumb { width: 120px; height: 68px; border-radius: var(--radius-s); overflow: hidden; box-shadow: 0 0 0 1px var(--borders); background: var(--view-bg); }
+  .tray-item .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .tray-item .name { font-size: var(--fs-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  .tray-item.open .thumb { box-shadow: 0 0 0 2px var(--borders-strong); }
+  .tray-item.sel .thumb { box-shadow: 0 0 0 3px var(--accent-bg); }
+  .tray-item .tick { position: absolute; top: 6px; right: 6px; }
+  .tray-item .tick .check { box-shadow: inset 0 0 0 2px #fff, 0 1px 3px rgb(0 0 6 / 40%); background: rgb(0 0 6 / 25%); }
+  .tray-item .tick .check.checked { background: var(--accent-bg); box-shadow: 0 0 0 2px #fff; }
+  .kbd-row { display: inline-flex; gap: 4px; }
+  .toast-overlay.over-canvas { left: 52px; right: 300px; }
+  .toast-overlay.over-canvas.with-tray { bottom: 156px; }
+
+  .qs-head { display: flex; align-items: center; gap: 6px; }
+  .qs-head .heading { flex: 1; }
+  .qs-head.theme-row { justify-content: space-between; margin-top: -6px; }
+  .qs-head.theme-row .dropdown { min-height: 30px; }
+  .qs-grid { display: grid; grid-template-columns: repeat(4, 63px); gap: 8px; }
+  .qs { width: 63px; height: 48px; border-radius: var(--radius-m); background: var(--annota-paper); box-shadow: 0 0 0 1px var(--borders); position: relative; display: grid; place-items: center; }
+  .qs svg.prev { width: 63px; height: 48px; }
+  .qs.selected { box-shadow: 0 0 0 2px var(--accent-bg); }
+  .qs.hover { box-shadow: 0 0 0 1px var(--borders-strong); background-image: linear-gradient(var(--row-hover), var(--row-hover)); }
+  .qs.focus { outline: 2px solid var(--accent-a50); outline-offset: 2px; }
+  .qs.new { box-shadow: 0 0 0 2px var(--accent-bg), 0 0 0 6px var(--accent-a25); }
+  .qs .star { position: absolute; top: 2px; right: 2px; width: 14px; height: 14px; color: var(--annota-amber); }
+  .qs .star .icon { width: 12px; height: 12px; filter: drop-shadow(0 0 1px rgb(0 0 0 / 40%)); }
+  .qs.add { background: transparent; box-shadow: inset 0 0 0 1px var(--borders); color: var(--window-fg); opacity: .75; }
+  .qs-label { font-size: var(--fs-caption-heading); font-weight: var(--fw-bold); opacity: var(--dim-opacity); margin: 4px 0 -6px; }
+  .theme-chip { display: inline-flex; gap: 2px; }
+  .theme-chip i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .save-btn { width: 100%; }
+  .modified { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-small); }
+  .modified .badge.dot { background: var(--accent-bg); }
+  .fav-tool { display: flex; align-items: center; gap: 8px; font-size: var(--fs-caption-heading); font-weight: var(--fw-bold); opacity: var(--dim-opacity); margin-bottom: -6px; }
+  .fav-tool .icon { width: 14px; height: 14px; }
+  /* theme dialog */
+  .theme-dlg { width: 900px; max-width: 900px; height: 700px; flex-direction: row; }
+  .theme-dlg .tlist { width: 260px; flex: none; background: var(--sidebar-bg); display: flex; flex-direction: column; box-shadow: inset -1px 0 var(--sidebar-border); }
+  .theme-dlg .tlist .headerbar { background: transparent; box-shadow: none; }
+  .theme-dlg .tmain { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .theme-dlg .tmain .headerbar { background: transparent; box-shadow: none; }
+  .theme-dlg .tbody { flex: 1; padding: 6px 24px 18px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  .theme-dlg .nav-row .theme-chip i { width: 8px; height: 16px; border-radius: 2px; }
+  .theme-dlg .nav-row .icon.lock { opacity: var(--dim-opacity); }
+  .pal { display: flex; gap: 10px; align-items: flex-start; }
+  .pal .pc { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-family: var(--font-mono); opacity: .9; }
+  .pal .swatch { width: 40px; height: 40px; border-radius: var(--radius-m); }
+  .pal .swatch.add { background: transparent; box-shadow: inset 0 0 0 1px var(--borders-strong); display: grid; place-items: center; color: var(--window-fg); }
+  .preview { border-radius: var(--radius-l); background: var(--view-bg); box-shadow: 0 0 0 1px var(--borders); padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .preview .tiles { display: flex; gap: 8px; }
+  .preview .fonts { display: flex; align-items: baseline; gap: 12px; padding-top: 10px; box-shadow: inset 0 1px var(--separator); }
+  .preview .mini { flex: none; }
+  .ro .pal .swatch { cursor: default; }
+  .font-sample { font-size: 20px; font-weight: 700; }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+<div class="headerbar"><div class="start"><button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button><div class="linked"><button class="btn image-button"><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button"><svg class="icon"><use href="#i-redo"/></svg></button></div></div><div class="title-widget"><span class="title">Checkout flow</span><span class="subtitle">1600 × 1000 · Edited</span></div><div class="end"><button class="btn image-button " title="Copy to Clipboard (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button><button class="btn text-button suggested-action ">Export</button><button class="btn flat image-button "><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+<div class="editor-col">
+<div class="split-view">
+<div class="tool-strip">
+<button class="btn flat" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button>
+<button class="btn flat" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button>
+<button class="btn flat" title="Shape (U)"><svg class="icon"><use href="#i-shape"/></svg></button>
+<button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button>
+<button class="btn flat active" title="Callout (K)"><svg class="icon"><use href="#i-callout"/></svg></button>
+<button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button>
+<button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Redact (B)"><svg class="icon"><use href="#i-blur"/></svg></button>
+<button class="btn flat" title="Magnify (M)"><svg class="icon"><use href="#i-magnify"/></svg></button>
+<button class="btn flat" title="Spotlight (G)"><svg class="icon"><use href="#i-spotlight"/></svg></button>
+<button class="btn flat" title="Stamp (I)"><svg class="icon"><use href="#i-stamp"/></svg></button>
+<button class="btn flat" title="Crop (C)"><svg class="icon"><use href="#i-crop"/></svg></button>
+</div>
+<div class="content-pane"><div class="canvas-area"><div class="canvas-image" style="width:768px;height:480px"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt=""><svg class="annotations" viewBox="0 0 768 480"><path d="M282 300 h196 a8 8 0 0 1 8 8 v48 a8 8 0 0 1 -8 8 h-196 a8 8 0 0 1 -8 -8 v-48 a8 8 0 0 1 8 -8z" fill="var(--annota-coral)"/>
+<path d="M290 302 L246 278 L326 302z" fill="var(--annota-coral)"/>
+<text x="290" y="328" font-family="Inter" font-size="15" font-weight="700" fill="#fff">Postcode needs 5 digits</text>
+<text x="290" y="349" font-family="Inter" font-size="13" fill="#fff">Shown only after submit</text><rect x="50" y="248" width="206" height="27" rx="5" fill="none" stroke="var(--annota-coral)" stroke-width="3"/>
+<circle cx="50" cy="249" r="13" fill="var(--annota-coral)"/><text x="50" y="254" font-size="15" font-weight="700" fill="#fff" text-anchor="middle" font-family="Inter">1</text></svg></div><div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px"><button class="btn image-button"><svg class="icon"><use href="#i-zoom-out"/></svg></button><span class="label">48 %</span><button class="btn image-button"><svg class="icon"><use href="#i-zoom-in"/></svg></button></div></div></div>
+<div class="sidebar-pane end props"><div class="scroll"><div class="toggle-group" style="width:100%"><span class="toggle active" style="flex:1">Callout</span><span class="toggle " style="flex:1"><svg class="icon"><use href="#i-star"/></svg> Favourites</span></div><div class="vbox" style="--gap:12px"><div class="qs-head"><span class="heading">Quick Styles</span></div><div class="qs-head theme-row"><span class="caption dim-label">Theme</span><span class="dropdown flat" style="font-size:var(--fs-small)"><span class="theme-chip"><i style="background:var(--annota-coral)"></i><i style="background:var(--annota-amber)"></i><i style="background:var(--annota-teal)"></i><i style="background:var(--annota-azure)"></i></span><span>Annota</span></span></div><div class="qs-grid"><div class="qs selected"><svg class="prev" viewBox="0 0 63 48"><path d="M10 9 h43 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-26 l-8 8 v-8 h-9 a4 4 0 0 1 -4 -4 v-14 a4 4 0 0 1 4 -4z" fill="var(--annota-coral)"/><rect x="14" y="16" width="26" height="3" rx="1.5" fill="#fff"/><rect x="14" y="22" width="18" height="3" rx="1.5" fill="#fff" opacity=".8"/></svg><span class="star"><svg class="icon"><use href="#i-star"/></svg></span></div><div class="qs "><svg class="prev" viewBox="0 0 63 48"><path d="M10 9 h43 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-26 l-8 8 v-8 h-9 a4 4 0 0 1 -4 -4 v-14 a4 4 0 0 1 4 -4z" fill="var(--annota-amber)"/><rect x="14" y="16" width="26" height="3" rx="1.5" fill="var(--annota-ink)"/><rect x="14" y="22" width="18" height="3" rx="1.5" fill="var(--annota-ink)" opacity=".8"/></svg></div><div class="qs "><svg class="prev" viewBox="0 0 63 48"><path d="M10 9 h43 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-26 l-8 8 v-8 h-9 a4 4 0 0 1 -4 -4 v-14 a4 4 0 0 1 4 -4z" fill="var(--annota-teal)"/><rect x="14" y="16" width="26" height="3" rx="1.5" fill="#fff"/><rect x="14" y="22" width="18" height="3" rx="1.5" fill="#fff" opacity=".8"/></svg></div><div class="qs "><svg class="prev" viewBox="0 0 63 48"><path d="M10 9 h43 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-26 l-8 8 v-8 h-9 a4 4 0 0 1 -4 -4 v-14 a4 4 0 0 1 4 -4z" fill="var(--annota-azure)"/><rect x="14" y="16" width="26" height="3" rx="1.5" fill="#fff"/><rect x="14" y="22" width="18" height="3" rx="1.5" fill="#fff" opacity=".8"/></svg></div><div class="qs "><svg class="prev" viewBox="0 0 63 48"><path d="M10 9 h43 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-26 l-8 8 v-8 h-9 a4 4 0 0 1 -4 -4 v-14 a4 4 0 0 1 4 -4z" fill="#ffffff" stroke="var(--annota-ink)" stroke-width="2"/><rect x="14" y="16" width="26" height="3" rx="1.5" fill="var(--annota-ink)"/><rect x="14" y="22" width="18" height="3" rx="1.5" fill="var(--annota-ink)" opacity=".8"/></svg><span class="star"><svg class="icon"><use href="#i-star"/></svg></span></div><div class="qs "><svg class="prev" viewBox="0 0 63 48"><path d="M10 9 h43 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-26 l-8 8 v-8 h-9 a4 4 0 0 1 -4 -4 v-14 a4 4 0 0 1 4 -4z" fill="var(--annota-ink)"/><rect x="14" y="16" width="26" height="3" rx="1.5" fill="#fff"/><rect x="14" y="22" width="18" height="3" rx="1.5" fill="#fff" opacity=".8"/></svg></div><div class="qs "><svg class="prev" viewBox="0 0 63 48"><path d="M10 9 h43 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-26 l-8 8 v-8 h-9 a4 4 0 0 1 -4 -4 v-14 a4 4 0 0 1 4 -4z" fill="#ffffff" stroke="var(--annota-coral)" stroke-width="2"/><rect x="14" y="16" width="26" height="3" rx="1.5" fill="var(--annota-coral)"/><rect x="14" y="22" width="18" height="3" rx="1.5" fill="var(--annota-coral)" opacity=".8"/></svg></div><div class="qs "><svg class="prev" viewBox="0 0 63 48"><path d="M10 9 h43 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-26 l-8 8 v-8 h-9 a4 4 0 0 1 -4 -4 v-14 a4 4 0 0 1 4 -4z" fill="var(--annota-violet)"/><rect x="14" y="16" width="26" height="3" rx="1.5" fill="#fff"/><rect x="14" y="22" width="18" height="3" rx="1.5" fill="#fff" opacity=".8"/></svg></div></div><div class="qs-label">My Styles</div><div class="qs-grid"><div class="qs "><svg class="prev" viewBox="0 0 63 48"><path d="M10 9 h43 a4 4 0 0 1 4 4 v14 a4 4 0 0 1 -4 4 h-26 l-8 8 v-8 h-9 a4 4 0 0 1 -4 -4 v-14 a4 4 0 0 1 4 -4z" fill="var(--annota-amber)"/><rect x="14" y="16" width="26" height="3" rx="1.5" fill="var(--annota-ink)"/><rect x="14" y="22" width="18" height="3" rx="1.5" fill="var(--annota-ink)" opacity=".8"/></svg><span class="star"><svg class="icon"><use href="#i-star"/></svg></span></div></div></div>
+<div class="vbox" style="--gap:12px">
+  <div class="qs-head"><span class="heading">Properties</span></div>
+  <div class="swatch-row"><span class="swatch selected" style="--c:var(--annota-coral)"></span><span class="swatch" style="--c:var(--annota-amber)"></span><span class="swatch" style="--c:var(--annota-lime)"></span><span class="swatch" style="--c:var(--annota-teal)"></span><span class="swatch" style="--c:var(--annota-azure)"></span><span class="swatch" style="--c:var(--annota-violet)"></span><span class="swatch" style="--c:var(--annota-ink)"></span></div>
+  <div class="boxed-list">
+    <div class="row"><div class="text"><span class="title">Text colour</span></div><div class="suffix"><span class="swatch small" style="--c:#ffffff"></span></div></div>
+    <div class="row"><div class="text"><span class="title">Font size</span></div><div class="suffix"><span class="spin" style="width:120px"><span class="value">15</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div>
+  </div>
+  <button class="btn save-btn" disabled><svg class="icon"><use href="#i-plus"/></svg> Save as Quick Style</button>
+</div></div></div>
+</div>
+
+</div>
+
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

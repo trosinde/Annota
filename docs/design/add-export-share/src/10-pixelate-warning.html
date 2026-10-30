@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — pixelate warning</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); position: relative; }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .editor-col { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .editor-col > .split-view { flex: 1; }
+  .content-pane { position: relative; }
+  .tray { flex: none; height: 132px; background: var(--window-bg); box-shadow: inset 0 1px var(--separator); display: flex; flex-direction: column; }
+  .tray-bar { height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+  .tray-items { display: flex; gap: 12px; padding: 0 12px; }
+  .tray-item { width: 120px; display: flex; flex-direction: column; gap: 4px; position: relative; }
+  .tray-item .thumb { width: 120px; height: 68px; border-radius: var(--radius-s); overflow: hidden; box-shadow: 0 0 0 1px var(--borders); background: var(--view-bg); }
+  .tray-item .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .tray-item .name { font-size: var(--fs-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  .tray-item.open .thumb { box-shadow: 0 0 0 2px var(--borders-strong); }
+  .tray-item.sel .thumb { box-shadow: 0 0 0 3px var(--accent-bg); }
+  .tray-item .tick { position: absolute; top: 6px; right: 6px; }
+  .tray-item .tick .check { box-shadow: inset 0 0 0 2px #fff, 0 1px 3px rgb(0 0 6 / 40%); background: rgb(0 0 6 / 25%); }
+  .tray-item .tick .check.checked { background: var(--accent-bg); box-shadow: 0 0 0 2px #fff; }
+  .kbd-row { display: inline-flex; gap: 4px; }
+  .toast-overlay.over-canvas { left: 52px; right: 300px; }
+  .toast-overlay.over-canvas.with-tray { bottom: 156px; }
+
+  .exp { width: 560px; max-width: 560px; }
+  .exp .dialog-body { display: flex; flex-direction: column; gap: 18px; padding: 6px 24px 24px; }
+  .exp-preview { display: flex; gap: 18px; align-items: center; }
+  .exp-preview .thumb { width: 160px; height: 100px; border-radius: var(--radius-s); overflow: hidden; box-shadow: 0 0 0 1px var(--borders); flex: none; position: relative; }
+  .exp-preview .thumb img { width: 100%; height: 100%; display: block; }
+  .exp-preview .thumb svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .exp-preview .meta { display: flex; flex-direction: column; gap: 4px; }
+  .row .scale { width: 220px; min-height: 0; }
+  .row .toggle-group .toggle { min-width: 52px; }
+  .pattern { font-family: var(--font-mono); font-size: 14px; }
+  .drag-ghost { position: absolute; z-index: 60; width: 160px; height: 100px; border-radius: var(--radius-s); overflow: hidden; box-shadow: 0 6px 20px rgb(0 0 6 / 35%), 0 0 0 1px rgb(0 0 6 / 15%); opacity: .92; }
+  .drag-ghost img { width: 100%; height: 100%; display: block; }
+  .drag-ghost .badge { position: absolute; right: 6px; bottom: 6px; }
+  .cursor { position: absolute; z-index: 61; width: 20px; height: 24px; }
+  .selection-bar { display: flex; align-items: center; gap: 6px; width: 100%; }
+  .files-grid { display: grid; grid-template-columns: repeat(4, 96px); gap: 18px 12px; padding: 18px; }
+  .file { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: var(--fs-caption); text-align: center; }
+  .file .ft { width: 72px; height: 54px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--borders); }
+  .file .ft img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .file.new .ft { box-shadow: 0 0 0 2px var(--accent-bg); }
+  .drop-hl { outline: 2px solid var(--accent-bg); outline-offset: -2px; background: var(--accent-a12) !important; }
+  .batch-list .row .thumb { width: 64px; height: 40px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--borders); }
+  .batch-list .row .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .pixel-blk { fill: #8b86b8; }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+<div class="headerbar"><div class="start"><button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button><div class="linked"><button class="btn image-button"><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button"><svg class="icon"><use href="#i-redo"/></svg></button></div></div><div class="title-widget"><span class="title">Chat with Jonas</span><span class="subtitle">1600 × 1000 · Edited</span></div><div class="end"><button class="btn flat image-button " title="Drag to Another App"><svg class="icon"><use href="#i-drag-handle"/></svg></button><button class="btn image-button " title="Share"><svg class="icon"><use href="#i-share"/></svg></button><button class="btn image-button " title="Copy to Clipboard (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button><button class="btn text-button suggested-action ">Export</button><button class="btn flat image-button "><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+<div class="editor-col">
+<div class="split-view">
+<div class="tool-strip">
+<button class="btn flat" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button>
+<button class="btn flat" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button>
+<button class="btn flat" title="Shape (U)"><svg class="icon"><use href="#i-shape"/></svg></button>
+<button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button>
+<button class="btn flat" title="Callout (K)"><svg class="icon"><use href="#i-callout"/></svg></button>
+<button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button>
+<button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat active" title="Redact (B)"><svg class="icon"><use href="#i-blur"/></svg></button>
+<button class="btn flat" title="Magnify (M)"><svg class="icon"><use href="#i-magnify"/></svg></button>
+<button class="btn flat" title="Spotlight (G)"><svg class="icon"><use href="#i-spotlight"/></svg></button>
+<button class="btn flat" title="Stamp (I)"><svg class="icon"><use href="#i-stamp"/></svg></button>
+<button class="btn flat" title="Crop (C)"><svg class="icon"><use href="#i-crop"/></svg></button>
+</div>
+<div class="content-pane"><div class="canvas-area"><div class="canvas-image" style="width:768px;height:480px"><img src="../../kit/sample-content/png/e-relay-chat.png" alt=""><svg class="annotations" viewBox="0 0 768 480"><rect x="238" y="76" width="6" height="6" fill="#a6a1cf"/><rect x="244" y="76" width="6" height="6" fill="#938dbf"/><rect x="250" y="76" width="6" height="6" fill="#9d97c9"/><rect x="256" y="76" width="6" height="6" fill="#8a84b6"/><rect x="262" y="76" width="6" height="6" fill="#b3aed8"/><rect x="268" y="76" width="6" height="6" fill="#7f79a8"/><rect x="274" y="76" width="6" height="6" fill="#a6a1cf"/><rect x="280" y="76" width="6" height="6" fill="#938dbf"/><rect x="286" y="76" width="6" height="6" fill="#9d97c9"/><rect x="292" y="76" width="6" height="6" fill="#8a84b6"/><rect x="298" y="76" width="6" height="6" fill="#b3aed8"/><rect x="304" y="76" width="6" height="6" fill="#7f79a8"/><rect x="310" y="76" width="6" height="6" fill="#a6a1cf"/><rect x="316" y="76" width="6" height="6" fill="#938dbf"/><rect x="322" y="76" width="6" height="6" fill="#9d97c9"/><rect x="328" y="76" width="6" height="6" fill="#8a84b6"/><rect x="334" y="76" width="6" height="6" fill="#b3aed8"/><rect x="340" y="76" width="6" height="6" fill="#7f79a8"/><rect x="346" y="76" width="6" height="6" fill="#a6a1cf"/><rect x="352" y="76" width="6" height="6" fill="#938dbf"/><rect x="358" y="76" width="6" height="6" fill="#9d97c9"/><rect x="364" y="76" width="6" height="6" fill="#8a84b6"/><rect x="370" y="76" width="6" height="6" fill="#b3aed8"/><rect x="376" y="76" width="6" height="6" fill="#7f79a8"/><rect x="238" y="82" width="6" height="6" fill="#a6a1cf"/><rect x="244" y="82" width="6" height="6" fill="#938dbf"/><rect x="250" y="82" width="6" height="6" fill="#9d97c9"/><rect x="256" y="82" width="6" height="6" fill="#8a84b6"/><rect x="262" y="82" width="6" height="6" fill="#b3aed8"/><rect x="268" y="82" width="6" height="6" fill="#7f79a8"/><rect x="274" y="82" width="6" height="6" fill="#a6a1cf"/><rect x="280" y="82" width="6" height="6" fill="#938dbf"/><rect x="286" y="82" width="6" height="6" fill="#9d97c9"/><rect x="292" y="82" width="6" height="6" fill="#8a84b6"/><rect x="298" y="82" width="6" height="6" fill="#b3aed8"/><rect x="304" y="82" width="6" height="6" fill="#7f79a8"/><rect x="310" y="82" width="6" height="6" fill="#a6a1cf"/><rect x="316" y="82" width="6" height="6" fill="#938dbf"/><rect x="322" y="82" width="6" height="6" fill="#9d97c9"/><rect x="328" y="82" width="6" height="6" fill="#8a84b6"/><rect x="334" y="82" width="6" height="6" fill="#b3aed8"/><rect x="340" y="82" width="6" height="6" fill="#7f79a8"/><rect x="346" y="82" width="6" height="6" fill="#a6a1cf"/><rect x="352" y="82" width="6" height="6" fill="#938dbf"/><rect x="358" y="82" width="6" height="6" fill="#9d97c9"/><rect x="364" y="82" width="6" height="6" fill="#8a84b6"/><rect x="370" y="82" width="6" height="6" fill="#b3aed8"/><rect x="376" y="82" width="6" height="6" fill="#7f79a8"/><rect x="238" y="179" width="6" height="6" fill="#938dbf"/><rect x="244" y="179" width="6" height="6" fill="#9d97c9"/><rect x="250" y="179" width="6" height="6" fill="#8a84b6"/><rect x="256" y="179" width="6" height="6" fill="#b3aed8"/><rect x="262" y="179" width="6" height="6" fill="#7f79a8"/><rect x="268" y="179" width="6" height="6" fill="#a6a1cf"/><rect x="274" y="179" width="6" height="6" fill="#938dbf"/><rect x="280" y="179" width="6" height="6" fill="#9d97c9"/><rect x="286" y="179" width="6" height="6" fill="#8a84b6"/><rect x="292" y="179" width="6" height="6" fill="#b3aed8"/><rect x="238" y="185" width="6" height="6" fill="#7f79a8"/><rect x="244" y="185" width="6" height="6" fill="#a6a1cf"/><rect x="250" y="185" width="6" height="6" fill="#938dbf"/><rect x="256" y="185" width="6" height="6" fill="#9d97c9"/><rect x="262" y="185" width="6" height="6" fill="#8a84b6"/><rect x="268" y="185" width="6" height="6" fill="#b3aed8"/><rect x="274" y="185" width="6" height="6" fill="#7f79a8"/><rect x="280" y="185" width="6" height="6" fill="#a6a1cf"/><rect x="286" y="185" width="6" height="6" fill="#938dbf"/><rect x="292" y="185" width="6" height="6" fill="#9d97c9"/><rect x="634" y="94" width="6" height="6" fill="#a6a1cf"/><rect x="640" y="94" width="6" height="6" fill="#938dbf"/><rect x="646" y="94" width="6" height="6" fill="#9d97c9"/><rect x="652" y="94" width="6" height="6" fill="#8a84b6"/><rect x="658" y="94" width="6" height="6" fill="#b3aed8"/><rect x="664" y="94" width="6" height="6" fill="#7f79a8"/><rect x="670" y="94" width="6" height="6" fill="#a6a1cf"/><rect x="676" y="94" width="6" height="6" fill="#938dbf"/><rect x="682" y="94" width="6" height="6" fill="#9d97c9"/><rect x="688" y="94" width="6" height="6" fill="#8a84b6"/><rect x="694" y="94" width="6" height="6" fill="#b3aed8"/><rect x="700" y="94" width="6" height="6" fill="#7f79a8"/><rect x="706" y="94" width="6" height="6" fill="#a6a1cf"/><rect x="712" y="94" width="6" height="6" fill="#938dbf"/><rect x="718" y="94" width="6" height="6" fill="#9d97c9"/><rect x="724" y="94" width="6" height="6" fill="#8a84b6"/><rect x="730" y="94" width="6" height="6" fill="#b3aed8"/><rect x="634" y="100" width="6" height="6" fill="#7f79a8"/><rect x="640" y="100" width="6" height="6" fill="#a6a1cf"/><rect x="646" y="100" width="6" height="6" fill="#938dbf"/><rect x="652" y="100" width="6" height="6" fill="#9d97c9"/><rect x="658" y="100" width="6" height="6" fill="#8a84b6"/><rect x="664" y="100" width="6" height="6" fill="#b3aed8"/><rect x="670" y="100" width="6" height="6" fill="#7f79a8"/><rect x="676" y="100" width="6" height="6" fill="#a6a1cf"/><rect x="682" y="100" width="6" height="6" fill="#938dbf"/><rect x="688" y="100" width="6" height="6" fill="#9d97c9"/><rect x="694" y="100" width="6" height="6" fill="#8a84b6"/><rect x="700" y="100" width="6" height="6" fill="#b3aed8"/><rect x="706" y="100" width="6" height="6" fill="#7f79a8"/><rect x="712" y="100" width="6" height="6" fill="#a6a1cf"/><rect x="718" y="100" width="6" height="6" fill="#938dbf"/><rect x="724" y="100" width="6" height="6" fill="#9d97c9"/><rect x="730" y="100" width="6" height="6" fill="#8a84b6"/><rect x="634" y="117" width="6" height="6" fill="#7f79a8"/><rect x="640" y="117" width="6" height="6" fill="#a6a1cf"/><rect x="646" y="117" width="6" height="6" fill="#938dbf"/><rect x="652" y="117" width="6" height="6" fill="#9d97c9"/><rect x="658" y="117" width="6" height="6" fill="#8a84b6"/><rect x="664" y="117" width="6" height="6" fill="#b3aed8"/><rect x="670" y="117" width="6" height="6" fill="#7f79a8"/><rect x="676" y="117" width="6" height="6" fill="#a6a1cf"/><rect x="682" y="117" width="6" height="6" fill="#938dbf"/><rect x="688" y="117" width="6" height="6" fill="#9d97c9"/><rect x="694" y="117" width="6" height="6" fill="#8a84b6"/><rect x="634" y="123" width="6" height="6" fill="#b3aed8"/><rect x="640" y="123" width="6" height="6" fill="#7f79a8"/><rect x="646" y="123" width="6" height="6" fill="#a6a1cf"/><rect x="652" y="123" width="6" height="6" fill="#938dbf"/><rect x="658" y="123" width="6" height="6" fill="#9d97c9"/><rect x="664" y="123" width="6" height="6" fill="#8a84b6"/><rect x="670" y="123" width="6" height="6" fill="#b3aed8"/><rect x="676" y="123" width="6" height="6" fill="#7f79a8"/><rect x="682" y="123" width="6" height="6" fill="#a6a1cf"/><rect x="688" y="123" width="6" height="6" fill="#938dbf"/><rect x="694" y="123" width="6" height="6" fill="#9d97c9"/></svg></div><div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px"><button class="btn image-button"><svg class="icon"><use href="#i-zoom-out"/></svg></button><span class="label">48 %</span><button class="btn image-button"><svg class="icon"><use href="#i-zoom-in"/></svg></button></div></div></div>
+<div class="sidebar-pane end props"><div class="scroll"><div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Redact</span></div></div>
+<div class="toggle-group" style="width:100%"><span class="toggle" style="flex:1">Blur</span><span class="toggle active" style="flex:1">Pixelate</span><span class="toggle" style="flex:1">Solid</span></div></div>
+<div class="boxed-list"><div class="row"><div class="text"><span class="title">Block size</span></div><div class="suffix"><span class="spin" style="width:120px"><span class="value">12</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div></div></div></div>
+</div>
+<div class="tray"><div class="tray-bar"><span class="caption-heading dim-label">Recent Captures</span><span class="spacer"></span><button class="btn flat small text-button">Select</button></div><div class="tray-items"><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt=""></div><span class="name">Checkout flow</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/a-harbor-backup.png" alt=""></div><span class="name">Backup settings</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/c-code-editor.png" alt=""></div><span class="name">Build warning</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div><span class="name">September dashboard</span></div><div class="tray-item open"><div class="thumb"><img src="../../kit/sample-content/png/e-relay-chat.png" alt=""></div><span class="name">Chat with Jonas</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/f-field-notes.png" alt=""></div><span class="name">Field notes</span></div></div></div>
+</div>
+<div class="dialog-host"><div class="dialog alert" style="width:460px;max-width:460px"><div class="alert-body"><div style="color:var(--warning)"><svg class="icon large"><use href="#i-warning"/></svg></div><div class="alert-heading">Make Redactions Solid?</div><div>4 redactions use pixelate. Pixelated text can sometimes be reconstructed. Solid boxes hide it for good.</div></div><div class="alert-actions"><button class="btn ">Cancel</button><button class="btn ">Export Anyway</button><button class="btn suggested-action">Convert to Solid</button></div></div></div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

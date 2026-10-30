@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — welcome</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); position: relative; }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .editor-col { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .editor-col > .split-view { flex: 1; }
+  .content-pane { position: relative; }
+  .tray { flex: none; height: 132px; background: var(--window-bg); box-shadow: inset 0 1px var(--separator); display: flex; flex-direction: column; }
+  .tray-bar { height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+  .tray-items { display: flex; gap: 12px; padding: 0 12px; }
+  .tray-item { width: 120px; display: flex; flex-direction: column; gap: 4px; position: relative; }
+  .tray-item .thumb { width: 120px; height: 68px; border-radius: var(--radius-s); overflow: hidden; box-shadow: 0 0 0 1px var(--borders); background: var(--view-bg); }
+  .tray-item .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .tray-item .name { font-size: var(--fs-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  .tray-item.open .thumb { box-shadow: 0 0 0 2px var(--borders-strong); }
+  .tray-item.sel .thumb { box-shadow: 0 0 0 3px var(--accent-bg); }
+  .tray-item .tick { position: absolute; top: 6px; right: 6px; }
+  .tray-item .tick .check { box-shadow: inset 0 0 0 2px #fff, 0 1px 3px rgb(0 0 6 / 40%); background: rgb(0 0 6 / 25%); }
+  .tray-item .tick .check.checked { background: var(--accent-bg); box-shadow: 0 0 0 2px #fff; }
+  .kbd-row { display: inline-flex; gap: 4px; }
+
+  .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--window-bg); }
+  .welcome .app-icon { width: 128px; height: 128px; margin-bottom: 24px; }
+  .welcome .status-title { font-size: var(--fs-title-1); font-weight: var(--fw-heavy); margin-bottom: 12px; }
+  .welcome .status-description { max-width: 460px; text-align: center; margin-bottom: 30px; }
+  .mode-row { display: flex; gap: 12px; margin-bottom: 30px; }
+  .mode-card { width: 156px; height: 108px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: var(--radius-l); font-weight: var(--fw-bold); }
+  .mode-card .kbd-row { font-weight: var(--fw-regular); }
+  .mode-card.focus { outline: 2px solid var(--accent-a50); outline-offset: 1px; }
+  .hint { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+<div class="headerbar"><div class="start"><button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button></div><div class="title-widget"><span class="title">Annota</span></div><div class="end"><button class="btn flat image-button "><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+<div class="welcome">
+  <img class="app-icon" src="../../kit/app-icon/annota.svg" alt="">
+  <div class="status-title">Capture Anything</div>
+  <div class="status-description">Pick what to capture. The capture opens here, ready to mark up. Every annotation stays editable until you export.</div>
+  <div class="mode-row">
+    <div class="card activatable mode-card focus"><svg class="icon large"><use href="#i-capture-region"/></svg><span>Region</span><span class="kbd-row"><kbd class="key">Print</kbd></span></div>
+    <div class="card activatable mode-card"><svg class="icon large"><use href="#i-capture-window"/></svg><span>Window</span><span class="kbd-row"><kbd class="key">Alt</kbd><kbd class="key">Print</kbd></span></div>
+    <div class="card activatable mode-card"><svg class="icon large"><use href="#i-capture-screen"/></svg><span>Screen</span><span class="kbd-row"><kbd class="key">Shift</kbd><kbd class="key">Print</kbd></span></div>
+  </div>
+  <div class="hint dim-label"><svg class="icon"><use href="#i-folder"/></svg><span>or open an image or .annota file with</span><kbd class="key">Ctrl</kbd><kbd class="key">O</kbd><span>— or drop it here</span></div>
+</div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

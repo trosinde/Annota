@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — preferences dropdown</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); position: relative; }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .editor-col { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .editor-col > .split-view { flex: 1; }
+  .content-pane { position: relative; }
+  .tray { flex: none; height: 132px; background: var(--window-bg); box-shadow: inset 0 1px var(--separator); display: flex; flex-direction: column; }
+  .tray-bar { height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+  .tray-items { display: flex; gap: 12px; padding: 0 12px; }
+  .tray-item { width: 120px; display: flex; flex-direction: column; gap: 4px; position: relative; }
+  .tray-item .thumb { width: 120px; height: 68px; border-radius: var(--radius-s); overflow: hidden; box-shadow: 0 0 0 1px var(--borders); background: var(--view-bg); }
+  .tray-item .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .tray-item .name { font-size: var(--fs-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  .tray-item.open .thumb { box-shadow: 0 0 0 2px var(--borders-strong); }
+  .tray-item.sel .thumb { box-shadow: 0 0 0 3px var(--accent-bg); }
+  .tray-item .tick { position: absolute; top: 6px; right: 6px; }
+  .tray-item .tick .check { box-shadow: inset 0 0 0 2px #fff, 0 1px 3px rgb(0 0 6 / 40%); background: rgb(0 0 6 / 25%); }
+  .tray-item .tick .check.checked { background: var(--accent-bg); box-shadow: 0 0 0 2px #fff; }
+  .kbd-row { display: inline-flex; gap: 4px; }
+
+  .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--window-bg); }
+  .welcome .app-icon { width: 128px; height: 128px; margin-bottom: 24px; }
+  .welcome .status-title { font-size: var(--fs-title-1); font-weight: var(--fw-heavy); margin-bottom: 12px; }
+  .welcome .status-description { max-width: 460px; text-align: center; margin-bottom: 30px; }
+  .mode-row { display: flex; gap: 12px; margin-bottom: 30px; }
+  .mode-card { width: 156px; height: 108px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: var(--radius-l); font-weight: var(--fw-bold); }
+  .mode-card .kbd-row { font-weight: var(--fw-regular); }
+  .mode-card.focus { outline: 2px solid var(--accent-a50); outline-offset: 1px; }
+  .hint { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); }
+
+  .prefs { width: 640px; height: 680px; max-width: 640px; }
+  .prefs .headerbar { min-height: 47px; }
+  .prefs .body { flex: 1; overflow: hidden; background: var(--dialog-bg); }
+  .prefs .preferences-page { padding: 12px 24px 24px; max-width: none; gap: 24px; }
+  .row .dropdown.flat { font-weight: var(--fw-regular); }
+  .pattern-entry { font-family: var(--font-mono); font-size: 14px; }
+  .switcher { margin: 0 auto; }
+  .row .radio { margin-right: 4px; }
+  .popover.list .menu-item { gap: 8px; }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+<div class="headerbar"><div class="start"><button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button></div><div class="title-widget"><span class="title">Annota</span></div><div class="end"><button class="btn flat image-button "><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+<div class="welcome">
+  <img class="app-icon" src="../../kit/app-icon/annota.svg" alt="">
+  <div class="status-title">Capture Anything</div>
+  <div class="status-description">Pick what to capture. The capture opens here, ready to mark up. Every annotation stays editable until you export.</div>
+  <div class="mode-row">
+    <div class="card activatable mode-card focus"><svg class="icon large"><use href="#i-capture-region"/></svg><span>Region</span><span class="kbd-row"><kbd class="key">Print</kbd></span></div>
+    <div class="card activatable mode-card"><svg class="icon large"><use href="#i-capture-window"/></svg><span>Window</span><span class="kbd-row"><kbd class="key">Alt</kbd><kbd class="key">Print</kbd></span></div>
+    <div class="card activatable mode-card"><svg class="icon large"><use href="#i-capture-screen"/></svg><span>Screen</span><span class="kbd-row"><kbd class="key">Shift</kbd><kbd class="key">Print</kbd></span></div>
+  </div>
+  <div class="hint dim-label"><svg class="icon"><use href="#i-folder"/></svg><span>or open an image or .annota file with</span><kbd class="key">Ctrl</kbd><kbd class="key">O</kbd><span>— or drop it here</span></div>
+</div>
+<div class="dialog-host"><div class="dialog prefs">
+  <div class="headerbar">
+    <div class="start"><button class="btn flat image-button"><svg class="icon"><use href="#i-search"/></svg></button></div>
+    <div class="title-widget"><div class="toggle-group switcher"><span class="toggle active"><svg class="icon"><use href="#i-settings"/></svg> General</span><span class="toggle "><svg class="icon"><use href="#i-camera"/></svg> Capture</span></div></div>
+    <div class="end"><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div>
+  </div>
+  <div class="body" style="position:relative"><div class="preferences-page">
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Saving</span><span class="description">Where Ctrl+S puts new captures</span></div></div>
+  <div class="boxed-list">
+    <div class="row"><div class="text"><span class="title">Save folder</span><span class="subtitle">~/Pictures/Annota</span></div><div class="suffix"><button class="btn flat image-button" title="Choose Folder…"><svg class="icon"><use href="#i-folder"/></svg></button></div></div>
+    <div class="row entry-row"><div class="text"><span class="title">File name pattern</span><span class="pattern-entry">Annota %Y-%m-%d %H-%M-%S</span></div><div class="suffix"><button class="btn flat image-button" title="Pattern Help"><svg class="icon"><use href="#i-info"/></svg></button></div></div>
+  </div>
+  <div class="caption dim-label" style="padding:0 2px">Example: Annota 2026-10-30 14-22-08.annota</div>
+</div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Export</span></div></div>
+  <div class="boxed-list">
+    <div class="row"><div class="text"><span class="title">Default format</span><span class="subtitle">Pre-selected in the Export dialog</span></div><div class="suffix"><span class="dropdown flat hover">JPG</span></div></div>
+    <div class="row"><div class="text"><span class="title">Export folder</span><span class="subtitle">~/Pictures/Annota/Exports</span></div><div class="suffix"><button class="btn flat image-button"><svg class="icon"><use href="#i-folder"/></svg></button></div></div>
+  </div>
+</div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Appearance</span></div></div>
+  <div class="boxed-list">
+    <div class="row"><div class="text"><span class="title">Style</span><span class="subtitle">Follows the system light or dark style and accent colour</span></div><div class="suffix"><span class="value">System</span></div></div>
+  </div>
+</div></div><div class="popover list" style="right:52px;top:330px;width:200px;--arrow-x:150px">
+  <div class="menu-item"><span class="label">PNG</span></div>
+  <div class="menu-item selected"><span class="label">JPG</span><svg class="icon"><use href="#i-check"/></svg></div>
+  <div class="menu-item"><span class="label">WebP</span></div>
+  <div class="menu-item"><span class="label">PDF</span></div>
+</div></div>
+  
+</div></div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>
