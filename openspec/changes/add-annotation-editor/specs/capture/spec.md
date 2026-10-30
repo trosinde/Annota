@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Image from clipboard or file
-The system SHALL create a new capture from an image in the clipboard (`Ctrl+Shift+V`) or from PNG/JPG/WebP files opened (`Ctrl+O`) or dropped onto Annota, and open it in the editor as a new document (add-screen-capture mockup 13): a pasted image is named "Pasted Image", an opened or dropped image after its file, and its subtitle reads `W × H · Not saved`. A toast ("New capture from clipboard", "New capture from file") SHALL offer Undo, which closes the new document again. `.annota` documents opened or dropped the same way SHALL open in the editor as themselves. A file that is open already SHALL become the current document instead of being opened twice.
+The system SHALL create a new capture from an image in the clipboard (`Ctrl+Shift+V`) or from PNG/JPG/WebP/`.annota` files opened (`Ctrl+O`) or dropped onto Annota, and open it in the editor as a new document (add-screen-capture mockup 13). A toast SHALL offer Undo, which closes the new document again. A file that is already open SHALL become the current document instead of being opened twice.
 
 #### Scenario: Paste
 - **WHEN** the clipboard contains an image and the user presses Ctrl+Shift+V
@@ -17,8 +17,12 @@ The system SHALL create a new capture from an image in the clipboard (`Ctrl+Shif
 - **WHEN** the user drops a file that is not PNG, JPG, WebP or `.annota`
 - **THEN** no capture is created and a toast says which formats can be opened
 
+#### Scenario: File already open
+- **WHEN** the user opens or drops a file that is already open in the editor
+- **THEN** that document becomes the current one instead of a duplicate being created
+
 ### Requirement: After-capture destination
-The system SHALL deliver every region, window and screen capture according to the `after-capture` preference: "Copy to Clipboard" puts the image on the clipboard and opens no window; "Open in Editor" opens it in the editor as a new document (add-screen-capture mockup 12) named by the file-name pattern, `W × H · Not saved`, with a toast ("Region captured · 400 × 300") that offers Copy; "Both" does both, and its toast says the image was copied. A new capture is autosaved like every unsaved document (`document-format`); it is written to a file only when the user saves or exports it (add-export-share). Only if the editor window cannot be shown SHALL the capture instead be saved as PNG into the save folder, never overwriting a file, with a toast naming it.
+The system SHALL deliver every capture per the `after-capture` preference: "Copy to Clipboard" puts it on the clipboard and opens no window; "Open in Editor" opens it in the editor as a new document (add-screen-capture mockup 12); "Both" does both. A new capture is autosaved like any unsaved document (`document-format`) until saved or exported (add-export-share).
 
 #### Scenario: Copy to clipboard
 - **WHEN** the after-capture preference is "Copy to Clipboard" and the user captures a region with the global shortcut while no Annota window is open
@@ -33,3 +37,7 @@ The system SHALL deliver every region, window and screen capture according to th
 #### Scenario: Both
 - **WHEN** the after-capture preference is "Both" and the user captures a region
 - **THEN** the capture opens in the editor and the image is on the clipboard
+
+#### Scenario: Editor unavailable
+- **WHEN** the after-capture preference includes "Open in Editor" but the editor window cannot be shown
+- **THEN** the capture is saved as PNG into the save folder instead, never overwriting a file, with a toast naming it
