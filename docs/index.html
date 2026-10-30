@@ -1,0 +1,588 @@
+<title>Annota</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Annota: native GNOME screenshot, annotation and screen recording for Ubuntu and Debian.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Cantarell:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: an editorial project page whose hero is a working Annota window; the page itself is "annotated" with the app's own marks. */
+:root{
+  --bg:#f4f6f9; --surface:#ffffff; --surface-2:#eceff4; --ink:#18202c; --muted:#5a6475; --line:#d9dee6;
+  --coral:#e2443a; --coral-soft:#fde3e0; --blue:#3584e4; --hl:#ffd84d; --ok:#2e9e6b; --warn:#c98a00; --na:#8a93a3;
+  --win:#fafafa; --win-head:#ebebeb; --win-side:#f2f2f2; --win-ink:#1f1f1f; --win-line:#dcdcdc; --win-dim:#6b6b6b;
+  --f-display:"Bricolage Grotesque", "Cantarell", system-ui, sans-serif;
+  --f-body:"Cantarell", "Noto Sans", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+  --r:12px; --shadow:0 1px 2px rgba(20,30,50,.06),0 12px 40px -12px rgba(20,30,50,.22);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151a; --surface:#1b1f26; --surface-2:#232832; --ink:#eef1f6; --muted:#a3acbb; --line:#2f3541;
+  --coral:#ff6b5f; --coral-soft:#3a1f1d; --blue:#62a0ea; --hl:#f5cc33; --ok:#4cc38a; --warn:#e5b13a; --na:#7d8697;
+  --win:#242424; --win-head:#2e2e2e; --win-side:#2a2a2a; --win-ink:#f0f0f0; --win-line:#3a3a3a; --win-dim:#a0a0a0;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 50px -12px rgba(0,0,0,.7); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12151a; --surface:#1b1f26; --surface-2:#232832; --ink:#eef1f6; --muted:#a3acbb; --line:#2f3541;
+  --coral:#ff6b5f; --coral-soft:#3a1f1d; --blue:#62a0ea; --hl:#f5cc33; --ok:#4cc38a; --warn:#e5b13a; --na:#7d8697;
+  --win:#242424; --win-head:#2e2e2e; --win-side:#2a2a2a; --win-ink:#f0f0f0; --win-line:#3a3a3a; --win-dim:#a0a0a0;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 50px -12px rgba(0,0,0,.7); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1120px;margin:0 auto}
+section{padding-block:72px}
+h1,h2,h3{font-family:var(--f-display);line-height:1.05;text-wrap:balance;margin:0}
+h2{font-size:clamp(30px,4.4vw,46px);font-weight:800;letter-spacing:-.02em}
+h3{font-size:20px;font-weight:700}
+p{margin:0}
+.lede{color:var(--muted);max-width:62ch;font-size:18px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--coral);font-weight:600}
+.sec-head{display:grid;gap:14px;margin-bottom:36px}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+kbd{font-family:var(--f-mono);font-size:12px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:var(--surface);color:var(--ink)}
+a{color:var(--coral)}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px;border-radius:6px}
+
+/* ---------- top nav ---------- */
+nav.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:20px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:-.01em;color:var(--ink);text-decoration:none}
+.links{display:flex;gap:18px;flex-wrap:wrap;font-size:14px}
+.links a{color:var(--muted);text-decoration:none}
+.links a:hover{color:var(--ink)}
+
+/* ---------- hero ---------- */
+.hero{padding-block:40px 64px;display:grid;gap:40px}
+.hero>*{min-width:0}
+.hb{min-width:0}.tb{min-width:0;overflow:hidden;flex-shrink:1}
+@media (max-width:520px){.hb .ctrls{display:none}.hb .title span{display:none}}
+.hero-copy{display:grid;gap:22px;max-width:780px}
+.hero h1{font-size:clamp(44px,8.5vw,104px);font-weight:800;letter-spacing:-.045em}
+.hero h1 .mark{position:relative;white-space:nowrap}
+.hero h1 .mark svg{position:absolute;left:-4%;bottom:-.12em;width:108%;height:.42em;overflow:visible;pointer-events:none}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:13px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 12px;color:var(--muted)}
+.chip b{color:var(--ink);font-weight:700}
+
+/* ---------- adwaita mock window ---------- */
+.stage{position:relative}
+.win{background:var(--win);color:var(--win-ink);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;border:1px solid var(--win-line);font-family:"Cantarell",system-ui,sans-serif}
+.hb{display:flex;align-items:center;gap:6px;padding:7px 8px;background:var(--win-head);border-bottom:1px solid var(--win-line);min-height:46px}
+.hb .title{flex:1;text-align:center;font-weight:700;font-size:13.5px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb .title span{display:block;font-weight:400;font-size:11.5px;color:var(--win-dim)}
+.tb{display:flex;gap:2px;background:color-mix(in srgb,var(--win-ink) 6%,transparent);border-radius:8px;padding:2px}
+.ib{width:32px;height:30px;border:0;border-radius:6px;background:transparent;color:var(--win-ink);display:grid;place-items:center;cursor:pointer}
+.ib:hover{background:color-mix(in srgb,var(--win-ink) 9%,transparent)}
+.ib.on{background:color-mix(in srgb,var(--blue) 22%,transparent);color:var(--blue)}
+.ib svg{width:16px;height:16px}
+.pill{border:0;border-radius:6px;padding:6px 12px;font:700 13px/1 "Cantarell",sans-serif;background:var(--blue);color:#fff}
+.pill.flat{background:color-mix(in srgb,var(--win-ink) 8%,transparent);color:var(--win-ink)}
+.ctrls{display:flex;gap:6px;margin-left:4px}
+.ctrls i{width:22px;height:22px;border-radius:50%;background:color-mix(in srgb,var(--win-ink) 10%,transparent);display:block}
+.body{display:grid;grid-template-columns:1fr 250px;min-height:0}
+.canvas-wrap{background:color-mix(in srgb,var(--win-ink) 4%,var(--win));padding:22px;display:grid;place-items:center;min-width:0}
+.canvas-wrap svg.canvas{width:100%;height:auto;display:block;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.side{border-left:1px solid var(--win-line);background:var(--win-side);padding:14px;display:grid;gap:14px;align-content:start;font-size:12.5px}
+.side h4{margin:0 0 6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--win-dim);font-weight:700}
+.sw{display:flex;gap:6px;flex-wrap:wrap}
+.sw i{width:20px;height:20px;border-radius:50%;display:block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.sw i.sel{box-shadow:0 0 0 2px var(--win),0 0 0 4px var(--blue)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--win);border:1px solid var(--win-line);border-radius:8px;padding:7px 10px}
+.slider{height:4px;border-radius:2px;background:color-mix(in srgb,var(--win-ink) 15%,transparent);position:relative;flex:1}
+.slider b{position:absolute;inset:0 60% 0 0;background:var(--blue);border-radius:2px}
+.slider b::after{content:"";position:absolute;right:-7px;top:-5px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.styles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.styles span{height:34px;border-radius:7px;border:1px solid var(--win-line);background:var(--win);display:grid;place-items:center}
+.styles span.sel{border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+.tray{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--win-line);background:var(--win-head);overflow-x:auto}
+.tray i{flex:0 0 76px;height:46px;border-radius:5px;background:color-mix(in srgb,var(--win-ink) 9%,transparent);display:block;border:2px solid transparent}
+.tray i.sel{border-color:var(--blue)}
+.replay{position:absolute;right:14px;bottom:-18px;z-index:2;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 14px;font:600 13px/1 var(--f-body);cursor:pointer;box-shadow:var(--shadow);display:flex;gap:8px;align-items:center}
+@media (max-width:760px){.body{grid-template-columns:1fr}.side{display:none}.hb .opt{display:none}.canvas-wrap{padding:10px}}
+
+/* annotation replay animation (resting state is fully drawn) */
+.play .a-step{animation:pop .45s cubic-bezier(.3,1.6,.5,1) both}
+.play .a-step.s2{animation-delay:.35s}.play .a-step.s3{animation-delay:.7s}
+.play .a-hl{animation:wipe .5s ease-out .95s both}
+.play .a-blur{animation:fade .4s ease-out 1.3s both}
+.play .a-arrow{stroke-dasharray:420;animation:draw .7s ease-in-out 1.6s both}
+.play .a-head{animation:fade .2s ease-out 2.25s both}
+.play .a-callout{animation:pop .45s cubic-bezier(.3,1.4,.5,1) 2.35s both}
+@keyframes pop{from{transform:scale(0);opacity:0}to{transform:none;opacity:1}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes draw{from{stroke-dashoffset:420}to{stroke-dashoffset:0}}
+@keyframes wipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+.a-step,.a-callout{transform-box:fill-box;transform-origin:center}
+@media (prefers-reduced-motion:reduce){.play *{animation:none!important}}
+
+/* ---------- tool explorer ---------- */
+.explorer{display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start}
+.toollist{display:grid;gap:6px}
+.tool{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;text-align:left;border:1px solid transparent;background:transparent;color:var(--ink);border-radius:10px;padding:9px 10px;font:inherit;cursor:pointer}
+.tool:hover{background:var(--surface)}
+.tool[aria-selected="true"]{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow)}
+.tool svg{width:18px;height:18px;color:var(--muted)}
+.tool[aria-selected="true"] svg{color:var(--coral)}
+.tool .ph{font-family:var(--f-mono);font-size:10.5px;color:var(--muted)}
+.demo{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;min-width:0}
+.demo svg{display:block;width:100%;height:auto}
+.demo-info{display:grid;grid-template-columns:1fr auto;gap:8px 20px;padding:18px 20px;border-top:1px solid var(--line)}
+.demo-info h3{font-size:22px}
+.demo-info p{color:var(--muted);grid-column:1/-1;max-width:70ch}
+.props{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.props span{font-size:12.5px;background:var(--surface-2);border-radius:6px;padding:3px 9px}
+@media (max-width:820px){.explorer{grid-template-columns:1fr}.toollist{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.tool{grid-template-columns:22px 1fr}.tool .ph{display:none}}
+
+/* ---------- coverage ---------- */
+.cov{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:40px;align-items:start}
+.bignum{font-family:var(--f-display);font-weight:800;font-size:clamp(64px,10vw,120px);line-height:.9;letter-spacing:-.04em}
+.bignum small{font-size:.28em;letter-spacing:0;color:var(--muted);font-weight:500;display:block;margin-top:10px;font-family:var(--f-body)}
+.bar{display:flex;height:16px;border-radius:999px;overflow:hidden;background:var(--surface-2);margin-block:22px 12px}
+.bar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:block}
+.groups{display:grid;gap:10px}
+.g{display:grid;grid-template-columns:150px 1fr 34px;gap:12px;align-items:center;font-size:14px}
+.g .gb{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--surface-2)}
+.g .gb i{display:block;height:100%}
+.g .n{font-family:var(--f-mono);font-size:12px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:820px){.cov{grid-template-columns:1fr}.g{grid-template-columns:110px 1fr 30px}}
+
+/* ---------- roadmap ---------- */
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:22px}
+.filters button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 14px;font:600 13px/1 var(--f-body);cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.lanes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.lane{display:grid;gap:10px;align-content:start}
+.lane-h{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:4px}
+.lane-h h3{font-size:18px}
+.lane-h span{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 14px;display:grid;gap:8px}
+.card code{font-size:12px;color:var(--coral);word-break:break-all}
+.card b{font-size:15px;line-height:1.3}
+.tags{display:flex;flex-wrap:wrap;gap:4px}
+.tags span{font-family:var(--f-mono);font-size:10.5px;background:var(--surface-2);color:var(--muted);border-radius:4px;padding:1px 6px}
+.meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.gate{display:inline-flex;align-items:center;gap:5px}
+.gate i{width:8px;height:8px;border-radius:50%;background:var(--warn);display:block}
+@media (max-width:900px){.lanes{grid-template-columns:1fr}}
+
+/* ---------- workflow ---------- */
+.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;counter-reset:st}
+.st{position:relative;padding:22px 18px 22px 0;display:grid;gap:10px;align-content:start}
+.st::before{counter-increment:st;content:counter(st);width:34px;height:34px;border-radius:50%;background:var(--coral);color:#fff;display:grid;place-items:center;font:800 16px/1 var(--f-display)}
+.st:not(:last-child)::after{content:"";position:absolute;left:44px;right:10px;top:39px;border-top:2px dashed var(--line)}
+.st h3{font-size:18px}
+.st p{font-size:14px;color:var(--muted)}
+.who{font-family:var(--f-mono);font-size:11.5px;color:var(--ink);background:var(--surface-2);border-radius:5px;padding:2px 7px;justify-self:start}
+.st.human::before{background:var(--ink);color:var(--bg)}
+@media (max-width:900px){.flow{grid-template-columns:1fr}.st{padding:14px 0 14px 50px}.st::before{position:absolute;left:0;top:14px}.st:not(:last-child)::after{left:16px;right:auto;top:52px;bottom:-12px;border-top:0;border-left:2px dashed var(--line)}}
+
+/* ---------- architecture ---------- */
+.arch{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;overflow-x:auto}
+.arch svg{min-width:760px;width:100%;height:auto;display:block}
+.arch text{font-family:var(--f-body);fill:var(--ink)}
+.arch .t-dim{fill:var(--muted);font-size:11px;font-family:var(--f-mono)}
+.decisions{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:22px}
+.decisions div{border-top:2px solid var(--line);padding-top:10px;display:grid;gap:2px}
+.decisions span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.decisions b{font-size:15px}
+
+/* ---------- start ---------- */
+.start{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
+.term{background:#14181f;color:#e6e9ef;border-radius:var(--r);padding:18px 18px 16px;font-family:var(--f-mono);font-size:13px;line-height:1.75;position:relative;min-width:0;overflow-x:auto}
+.term .c{color:#7d8697}
+.term .p{color:#ff8a80}
+.copy{position:absolute;top:10px;right:10px;border:1px solid #333b48;background:#1d232c;color:#e6e9ef;border-radius:6px;padding:4px 9px;font:600 11px/1 var(--f-mono);cursor:pointer}
+.files{display:grid;gap:2px;font-family:var(--f-mono);font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;min-width:0;overflow-x:auto}
+.files div{display:grid;grid-template-columns:minmax(0,max-content) 1fr;gap:14px;white-space:nowrap}
+.files em{font-style:normal;color:var(--muted);font-family:var(--f-body);font-size:13px;white-space:normal}
+@media (max-width:860px){.start{grid-template-columns:1fr}}
+footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+</style>
+
+<!-- shared drawing defs: the fictional sample screenshot and symbolic icons -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <pattern id="mosaic" width="12" height="12" patternUnits="userSpaceOnUse">
+      <rect width="12" height="12" fill="#b9c0cb"/><rect width="6" height="6" fill="#9aa3b1"/><rect x="6" y="6" width="6" height="6" fill="#c9cfd8"/>
+    </pattern>
+    <marker id="head" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#e2443a"/></marker>
+    <symbol id="sample" viewBox="0 0 760 440">
+      <rect width="760" height="440" rx="10" fill="#fafafa"/>
+      <rect width="760" height="46" rx="10" fill="#ebebeb"/><rect y="36" width="760" height="10" fill="#ebebeb"/>
+      <text x="380" y="28" text-anchor="middle" font-family="Cantarell,sans-serif" font-weight="700" font-size="14" fill="#1f1f1f">Harbor Preferences</text>
+      <circle cx="728" cy="23" r="10" fill="#dadada"/><circle cx="700" cy="23" r="10" fill="#dadada"/>
+      <rect y="46" width="190" height="394" fill="#f2f2f2"/><rect x="189" y="46" width="1" height="394" fill="#dcdcdc"/>
+      <g font-family="Cantarell,sans-serif" font-size="14" fill="#1f1f1f">
+        <text x="24" y="86">General</text>
+        <rect x="10" y="102" width="170" height="34" rx="7" fill="#dcdcdc"/><text x="24" y="124" font-weight="700">Accounts</text>
+        <text x="24" y="162">Sync</text><text x="24" y="200">Privacy</text><text x="24" y="238">About</text>
+        <text x="222" y="92" font-size="22" font-weight="700">Accounts</text>
+        <text x="222" y="116" font-size="13" fill="#6b6b6b">Connect Harbor to your team server.</text>
+        <rect x="222" y="134" width="510" height="152" rx="12" fill="#fff" stroke="#dcdcdc"/>
+        <text x="240" y="164">Email</text><text x="714" y="164" text-anchor="end" fill="#6b6b6b">maria.keller@example.org</text>
+        <rect x="222" y="184" width="510" height="1" fill="#e6e6e6"/>
+        <text x="240" y="214">Server</text><text x="714" y="214" text-anchor="end" fill="#6b6b6b">sync.harbor.example</text>
+        <rect x="222" y="234" width="510" height="1" fill="#e6e6e6"/>
+        <text x="240" y="264">Sync interval</text><text x="690" y="264" text-anchor="end" fill="#6b6b6b">Every 15 min</text><path d="M700 258l5 5 5-5" stroke="#6b6b6b" stroke-width="2" fill="none"/>
+        <rect x="222" y="304" width="510" height="54" rx="12" fill="#fff" stroke="#dcdcdc"/>
+        <text x="240" y="336">Sync on metered connections</text>
+        <rect x="672" y="320" width="44" height="24" rx="12" fill="#c8c8c8"/><circle cx="684" cy="332" r="10" fill="#fff"/>
+        <rect x="610" y="378" width="122" height="38" rx="8" fill="#3584e4"/><text x="671" y="402" text-anchor="middle" fill="#fff" font-weight="700">Connect</text>
+        <rect x="508" y="378" width="92" height="38" rx="8" fill="#e6e6e6"/><text x="554" y="402" text-anchor="middle">Cancel</text>
+      </g>
+    </symbol>
+    <symbol id="i-select" viewBox="0 0 16 16"><path d="M3 2l9 5.2-4 1 2.6 4.6-1.7 1-2.6-4.6L3.5 12z" fill="currentColor"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M2.5 13.5 12 4M7 3.5h5.5V9" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-shape" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/></symbol>
+    <symbol id="i-text" viewBox="0 0 16 16"><path d="M3 3.5h10M8 3.5V13.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-callout" viewBox="0 0 16 16"><path d="M2.5 3h11v7.5H7l-3.5 3v-3h-1z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/></symbol>
+    <symbol id="i-step" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="M7 5.6 8.4 4.8V11.2" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-hl" viewBox="0 0 16 16"><path d="M2 13.5h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4 10.5 10.5 4l2 2L6 12.5H4z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></symbol>
+    <symbol id="i-blur" viewBox="0 0 16 16"><g fill="currentColor"><rect x="2" y="2" width="3.5" height="3.5" rx=".8"/><rect x="6.25" y="2" width="3.5" height="3.5" rx=".8" opacity=".45"/><rect x="10.5" y="2" width="3.5" height="3.5" rx=".8"/><rect x="2" y="6.25" width="3.5" height="3.5" rx=".8" opacity=".45"/><rect x="6.25" y="6.25" width="3.5" height="3.5" rx=".8"/><rect x="10.5" y="6.25" width="3.5" height="3.5" rx=".8" opacity=".45"/><rect x="2" y="10.5" width="3.5" height="3.5" rx=".8"/><rect x="6.25" y="10.5" width="3.5" height="3.5" rx=".8" opacity=".45"/><rect x="10.5" y="10.5" width="3.5" height="3.5" rx=".8"/></g></symbol>
+    <symbol id="i-magnify" viewBox="0 0 16 16"><circle cx="6.8" cy="6.8" r="4.6" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M10.3 10.3 14 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-spot" viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="13" height="13" rx="2" fill="currentColor" opacity=".35"/><circle cx="8" cy="8" r="3.6" fill="currentColor"/></symbol>
+    <symbol id="i-crop" viewBox="0 0 16 16"><path d="M4 1.5V12h10.5M1.5 4H12v10.5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-rec" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="8" cy="8" r="3.2" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <nav class="top">
+    <a class="brand" href="#top" id="top">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="2" y="4" width="26" height="22" rx="6" fill="var(--ink)"/><path d="M8 20 19 9m-5.5 0H19v5.5" stroke="var(--coral)" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Annota
+    </a>
+    <div class="links"><a href="#tools">Tools</a><a href="#coverage">Coverage</a><a href="#roadmap">Roadmap</a><a href="#workflow">Workflow</a><a href="#architecture">Architecture</a><a href="#start">Start</a></div>
+  </nav>
+
+  <header class="hero">
+    <div class="hero-copy">
+      <span class="eyebrow">GNOME · Ubuntu · Debian</span>
+      <h1>Capture it. Mark it up. Make it <span class="mark">obvious.<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 14C50 6 120 4 197 9" stroke="var(--coral)" stroke-width="5" fill="none" stroke-linecap="round"/></svg></span></h1>
+      <p class="lede">Annota is a native screenshot, annotation and screen-recording app for GNOME. Arrows, callouts, numbered steps and redaction stay editable until you export. Built in Rust with GTK&nbsp;4 and libadwaita, shipped as a real Debian package, private by default.</p>
+      <div class="chips">
+        <span class="chip"><b>Ubuntu 24.04+</b> · Debian 13</span>
+        <span class="chip"><b>Wayland</b> first, X11 works</span>
+        <span class="chip"><b>Rust</b> · GTK 4 · libadwaita</span>
+        <span class="chip"><b>No telemetry</b> · local OCR</span>
+        <span class="chip"><b>Status</b> · specified, pre-alpha</span>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="win" role="img" aria-label="Concept of the Annota editor: a preferences screenshot annotated with three numbered steps, a highlighted row, a pixelated email address and a callout with an arrow to the Connect button.">
+        <div class="hb">
+          <div class="tb" aria-hidden="true">
+            <span class="ib"><svg><use href="#i-select"/></svg></span>
+            <span class="ib on"><svg><use href="#i-arrow"/></svg></span>
+            <span class="ib"><svg><use href="#i-shape"/></svg></span>
+            <span class="ib"><svg><use href="#i-text"/></svg></span>
+            <span class="ib"><svg><use href="#i-callout"/></svg></span>
+            <span class="ib"><svg><use href="#i-step"/></svg></span>
+            <span class="ib opt"><svg><use href="#i-hl"/></svg></span>
+            <span class="ib opt"><svg><use href="#i-blur"/></svg></span>
+          </div>
+          <div class="title">Harbor setup guide<span>Edited · 1600 × 926</span></div>
+          <span class="pill flat opt">Copy</span><span class="pill">Export</span>
+          <span class="ctrls" aria-hidden="true"><i></i><i></i></span>
+        </div>
+        <div class="body">
+          <div class="canvas-wrap">
+            <svg class="canvas" id="heroCanvas" viewBox="0 0 760 440" aria-hidden="true">
+              <use href="#sample"/>
+              <rect class="a-hl" x="226" y="240" width="502" height="40" rx="4" fill="#ffd84d" opacity=".42" style="mix-blend-mode:multiply"/>
+              <rect class="a-blur" x="532" y="148" width="186" height="24" rx="4" fill="url(#mosaic)"/>
+              <g class="a-step s1"><circle cx="160" cy="119" r="15" fill="#e2443a" stroke="#fff" stroke-width="2.5"/><text x="160" y="125" text-anchor="middle" font-family="Bricolage Grotesque,sans-serif" font-weight="800" font-size="16" fill="#fff">1</text></g>
+              <g class="a-step s2"><circle cx="210" cy="160" r="15" fill="#e2443a" stroke="#fff" stroke-width="2.5"/><text x="210" y="166" text-anchor="middle" font-family="Bricolage Grotesque,sans-serif" font-weight="800" font-size="16" fill="#fff">2</text></g>
+              <g class="a-step s3"><circle cx="740" cy="380" r="15" fill="#e2443a" stroke="#fff" stroke-width="2.5"/><text x="740" y="386" text-anchor="middle" font-family="Bricolage Grotesque,sans-serif" font-weight="800" font-size="16" fill="#fff">3</text></g>
+              <path class="a-arrow" d="M420 398 C 470 420, 540 420, 598 402" stroke="#e2443a" stroke-width="5" fill="none" stroke-linecap="round"/>
+              <path class="a-head" d="M584 391 L602 402 L586 415" stroke="#e2443a" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              <g class="a-callout">
+                <rect x="222" y="370" width="196" height="54" rx="10" fill="#fff" stroke="#e2443a" stroke-width="3"/>
+                <text x="238" y="393" font-family="Cantarell,sans-serif" font-weight="700" font-size="14" fill="#1f1f1f">Click Connect to finish</text>
+                <text x="238" y="412" font-family="Cantarell,sans-serif" font-size="12" fill="#6b6b6b">Your admin sends the server.</text>
+              </g>
+            </svg>
+          </div>
+          <aside class="side" aria-hidden="true">
+            <div><h4>Arrow</h4><div class="styles"><span class="sel"><svg width="40" height="12"><path d="M2 6h32" stroke="#e2443a" stroke-width="3"/><path d="M30 2l6 4-6 4" fill="#e2443a"/></svg></span><span><svg width="40" height="12"><path d="M2 6h32" stroke="#3584e4" stroke-width="3"/><path d="M30 2l6 4-6 4" fill="#3584e4"/></svg></span><span><svg width="40" height="12"><path d="M2 6h32" stroke="#1f1f1f" stroke-width="2" stroke-dasharray="4 3"/><path d="M30 2l6 4-6 4" fill="#1f1f1f"/></svg></span></div></div>
+            <div><h4>Colour</h4><div class="sw"><i class="sel" style="background:#e2443a"></i><i style="background:#f5a623"></i><i style="background:#ffd84d"></i><i style="background:#2e9e6b"></i><i style="background:#3584e4"></i><i style="background:#9141ac"></i><i style="background:#1f1f1f"></i><i style="background:#fff"></i></div></div>
+            <div><h4>Width</h4><div class="row"><span class="slider"><b></b></span><span>5 px</span></div></div>
+            <div><h4>Ends</h4><div class="row"><span>None</span><span>→ Triangle</span></div></div>
+            <div><h4>Shadow</h4><div class="row"><span>Soft, 4 px</span><span style="color:var(--blue)">On</span></div></div>
+            <div class="row"><span>Select all arrows</span><span>⌄</span></div>
+          </aside>
+        </div>
+        <div class="tray" aria-hidden="true"><i class="sel"></i><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <button class="replay" id="replay" type="button"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1.5v9l8-4.5z" fill="currentColor"/></svg>Replay annotations</button>
+    </div>
+  </header>
+</div>
+
+<section id="tools"><div class="wrap">
+  <div class="sec-head">
+    <span class="eyebrow">Annotation tools</span>
+    <h2>Every mark is an object you can edit later.</h2>
+    <p class="lede">Each tool has a single-key shortcut, a property sidebar and quick styles. Pick a tool to see what it draws and which properties the specification requires.</p>
+  </div>
+  <div class="explorer">
+    <div class="toollist" role="tablist" aria-label="Tools" id="toollist"></div>
+    <div class="demo" role="tabpanel" id="demo" aria-live="polite">
+      <svg viewBox="0 0 760 440" id="demoSvg" aria-hidden="true"><use href="#sample"/><g id="demoLayer"></g></svg>
+      <div class="demo-info">
+        <h3 id="dTitle"></h3><span id="dKey"></span>
+        <p id="dText"></p>
+        <div class="props" id="dProps"></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section id="coverage"><div class="wrap">
+  <div class="sec-head">
+    <span class="eyebrow">Feature coverage</span>
+    <h2>Benchmarked against a full commercial capture suite.</h2>
+    <p class="lede">The catalogue lists 67 documented features of today's leading Windows/Mac capture tool. Annota plans 63 of them, half in the first release. The rest are cloud or Windows-only functions that don't fit a private, native GNOME app.</p>
+  </div>
+  <div class="cov">
+    <div>
+      <div class="bignum" id="covNum">94%<small>of benchmark features are planned</small></div>
+      <div class="bar" id="covBar" role="img" aria-label="33 MVP, 27 Phase 2, 3 Phase 3, 4 not planned"></div>
+      <div class="legend" id="covLegend"></div>
+    </div>
+    <div class="groups" id="groups"></div>
+  </div>
+</div></section>
+
+<section id="roadmap"><div class="wrap">
+  <div class="sec-head">
+    <span class="eyebrow">Roadmap · OpenSpec changes</span>
+    <h2>17 specified changes, ready to build in order.</h2>
+    <p class="lede">Each card is a validated change in <code>openspec/changes/</code> with proposal, spec deltas, design and tasks. None has passed the design gate yet.</p>
+  </div>
+  <div class="filters" id="filters" role="group" aria-label="Filter by phase"></div>
+  <div class="lanes" id="lanes"></div>
+</div></section>
+
+<section id="workflow"><div class="wrap">
+  <div class="sec-head">
+    <span class="eyebrow">How Annota gets built</span>
+    <h2>Design first. Then spec, code, verify, package.</h2>
+    <p class="lede">Claude Code works through the roadmap with four specialised agents. Nothing user-visible is coded before its mockups are approved, and nothing is archived before an independent review and a clean <code>.deb</code> build.</p>
+  </div>
+  <div class="flow">
+    <div class="st"><h3>Propose</h3><p>Pick the next change, refine proposal, spec deltas and tasks.</p><span class="who">/opsx:propose</span></div>
+    <div class="st"><h3>Design</h3><p>High-fidelity libadwaita mockups for every scenario, light and dark, 1× and 2×.</p><span class="who">designer · /design</span></div>
+    <div class="st human"><h3>Approve</h3><p>Thorsten reviews the PNGs. Approval is recorded in <code>design.md</code>.</p><span class="who">maintainer</span></div>
+    <div class="st"><h3>Build</h3><p>Rust implementation that matches the redlines, with golden-image tests.</p><span class="who">gtk-engineer · /opsx:apply</span></div>
+    <div class="st"><h3>Verify &amp; ship</h3><p>Independent review, lintian-clean <code>.deb</code>, then archive the change.</p><span class="who">reviewer · debian-packager</span></div>
+  </div>
+</div></section>
+
+<section id="architecture"><div class="wrap">
+  <div class="sec-head">
+    <span class="eyebrow">Architecture</span>
+    <h2>One renderer for canvas and export.</h2>
+    <p class="lede">Screen access goes only through xdg-desktop-portal, so Annota behaves the same on Wayland and X11 without special privileges. Canvas and exporter share one Cairo renderer: what you see is pixel for pixel what you get.</p>
+  </div>
+  <div class="arch">
+    <svg viewBox="0 0 1040 330" role="img" aria-label="Architecture: xdg-desktop-portal feeds capture; capture creates a document scene graph; the scene graph is drawn by a Cairo renderer for both canvas and export; packaging wraps everything into a Debian package.">
+      <g font-size="14">
+        <rect x="10" y="20" width="200" height="250" rx="12" fill="var(--surface-2)" stroke="var(--line)"/>
+        <text x="28" y="48" font-weight="700">xdg-desktop-portal</text>
+        <g font-size="13"><text x="28" y="84">Screenshot</text><text x="28" y="112">ScreenCast + PipeWire</text><text x="28" y="140">GlobalShortcuts</text><text x="28" y="168">PickColor · Email</text><text x="28" y="196">OpenURI</text></g>
+        <text class="t-dim" x="28" y="246">ashpd crate</text>
+
+        <rect x="270" y="20" width="190" height="110" rx="12" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="288" y="48" font-weight="700">capture/</text><text x="288" y="74" font-size="13">region overlay, loupe</text><text x="288" y="94" font-size="13">delay, presets, hotkeys</text><text class="t-dim" x="288" y="116">frozen frame, HiDPI</text>
+        <rect x="270" y="160" width="190" height="110" rx="12" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="288" y="188" font-weight="700">recording/</text><text x="288" y="214" font-size="13">GStreamer pipeline</text><text x="288" y="234" font-size="13">webcam, cursor, draw</text><text class="t-dim" x="288" y="256">MP4 · WebM · GIF</text>
+
+        <rect x="520" y="20" width="220" height="250" rx="12" fill="var(--coral-soft)" stroke="var(--coral)"/>
+        <text x="538" y="48" font-weight="700">document/</text>
+        <g font-size="13"><text x="538" y="80">scene graph of Annotation</text><text x="538" y="100">objects (serde)</text><text x="538" y="132">Command-based undo/redo</text><text x="538" y="164">styles · themes · effects</text><text x="538" y="196">.annota = ZIP</text><text x="538" y="216">original.png + document.json</text></g>
+        <text class="t-dim" x="538" y="252">versioned JSON schema</text>
+
+        <rect x="800" y="20" width="230" height="110" rx="12" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="818" y="48" font-weight="700">render/ (Cairo)</text><text x="818" y="74" font-size="13">one renderer, two targets</text><text class="t-dim" x="818" y="116">golden-image tested</text>
+        <rect x="800" y="160" width="108" height="110" rx="12" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="816" y="188" font-weight="700">canvas</text><text x="816" y="212" font-size="12.5">GTK 4</text><text x="816" y="230" font-size="12.5">libadwaita</text>
+        <rect x="922" y="160" width="108" height="110" rx="12" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="938" y="188" font-weight="700">export</text><text x="938" y="212" font-size="12.5">PNG · JPG</text><text x="938" y="230" font-size="12.5">WebP · PDF</text><text x="938" y="248" font-size="12.5">clipboard</text>
+      </g>
+      <g stroke="var(--muted)" stroke-width="2" fill="none">
+        <path d="M210 75h52" marker-end="url(#ah)"/><path d="M210 215h52" marker-end="url(#ah)"/>
+        <path d="M460 75h52" marker-end="url(#ah)"/><path d="M460 215h52" marker-end="url(#ah)"/>
+        <path d="M740 75h52" marker-end="url(#ah)"/>
+        <path d="M854 130v22" marker-end="url(#ah)"/><path d="M976 130v22" marker-end="url(#ah)"/>
+      </g>
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="var(--muted)"/></marker></defs>
+      <rect x="10" y="292" width="1020" height="30" rx="8" fill="none" stroke="var(--line)" stroke-dasharray="5 4"/>
+      <text x="520" y="312" text-anchor="middle" font-size="13" fill="var(--muted)">debian/ · Meson + Cargo · vendored crates · desktop file, AppStream, GSettings, translations → annota_0.x_amd64.deb</text>
+    </svg>
+  </div>
+  <div class="decisions">
+    <div><span>App ID</span><b class="mono">io.github.trosinde.Annota</b></div>
+    <div><span>Minimum</span><b>GNOME 46, GTK 4.14, libadwaita 1.5</b></div>
+    <div><span>OCR</span><b>Tesseract, local only</b></div>
+    <div><span>Licence</span><b>GPL-3.0-or-later (to confirm)</b></div>
+  </div>
+</div></section>
+
+<section id="start"><div class="wrap">
+  <div class="sec-head">
+    <span class="eyebrow">Get started</span>
+    <h2>Open the repo in Claude Code and run the design gate.</h2>
+    <p class="lede">CLAUDE.md defines the stack, the bootstrap steps and the workflow. The first build step is the design kit, then the app shell.</p>
+  </div>
+  <div class="start">
+    <pre class="term" id="cmds"><button class="copy" type="button" data-copy="cmds">Copy</button><span class="c"># clone and open in Claude Code</span>
+<span class="p">$</span> git clone https://github.com/trosinde/Annota.git
+<span class="p">$</span> cd Annota &amp;&amp; claude
+
+<span class="c"># inside Claude Code</span>
+<span class="p">›</span> /design bootstrap-app-shell
+<span class="c">  … review mockups, then reply "freigegeben"</span>
+<span class="p">›</span> /opsx:apply bootstrap-app-shell
+<span class="p">›</span> /design add-screen-capture</pre>
+    <div class="files" aria-label="Repository map">
+      <div><span>CLAUDE.md</span><em>stack, rules, workflow</em></div>
+      <div><span>openspec/changes/</span><em>17 roadmap changes</em></div>
+      <div><span>openspec/config.yaml</span><em>project context and artifact rules</em></div>
+      <div><span>.claude/agents/</span><em>designer, gtk-engineer, reviewer, debian-packager</em></div>
+      <div><span>.claude/commands/design.md</span><em>design gate command</em></div>
+      <div><span>docs/feature-catalog.md</span><em>67 benchmark features → phase</em></div>
+      <div><span>tools/render-mockups.py</span><em>HTML mockups → PNG, light/dark, 1×/2×</em></div>
+    </div>
+  </div>
+</div></section>
+
+<div class="wrap"><footer><span>Annota — an original, independent GNOME app. Not affiliated with any commercial screenshot tool.</span><span>Concept and specification, October 2026</span></footer></div>
+
+<script>
+(function(){
+  /* hero replay */
+  var canvas=document.getElementById('heroCanvas');
+  document.getElementById('replay').addEventListener('click',function(){
+    canvas.classList.remove('play'); void canvas.getBoundingClientRect(); canvas.classList.add('play');
+  });
+
+  /* tool explorer */
+  var C='#e2443a';
+  var tools=[
+    {id:'arrow',icon:'i-arrow',name:'Arrow',key:'A',phase:'MVP',text:'Points at what matters. Drag the middle handle to bend it into a curve; Shift locks 0°, 45° and 90°.',
+     props:['width 1–40 px','start + end style','end sizes','solid / dashed / dotted','Bézier curve','shadow'],
+     svg:'<path d="M300 392 C 380 432, 520 432, 598 405" stroke="'+C+'" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M582 396 L601 404 L587 418" stroke="'+C+'" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="450" cy="422" r="6" fill="#fff" stroke="#3584e4" stroke-width="2"/>'},
+    {id:'callout',icon:'i-callout',name:'Callout',key:'K',phase:'MVP',text:'A text box with one or more tails. Drag the add-tail handle to point at a second place; the box grows with its text.',
+     props:['rect / rounded / ellipse / cloud','multiple tails','padding','font + outline','fill + outline'],
+     svg:'<path d="M330 120 L268 152" stroke="'+C+'" stroke-width="3"/><path d="M420 120 L470 160" stroke="'+C+'" stroke-width="3"/><rect x="300" y="60" width="210" height="62" rx="12" fill="#fff" stroke="'+C+'" stroke-width="3"/><text x="318" y="88" font-family="Cantarell,sans-serif" font-size="15" font-weight="700" fill="#1f1f1f">Both fields come from IT</text><text x="318" y="108" font-family="Cantarell,sans-serif" font-size="12.5" fill="#6b6b6b">Ask your admin before changing.</text>'},
+    {id:'step',icon:'i-step',name:'Step',key:'S',phase:'MVP',text:'Click, click, click: numbered markers in order. Delete one and the rest renumber. Numbers, letters or Roman numerals.',
+     props:['1 2 3 · A B C · a b c · I II III','restart sequence','edit single value','circle / square / pin','auto-renumber'],
+     svg:[['160','119','1'],['210','260','2'],['560','320','3'],['740','380','4']].map(function(s){return '<g><circle cx="'+s[0]+'" cy="'+s[1]+'" r="16" fill="'+C+'" stroke="#fff" stroke-width="3"/><text x="'+s[0]+'" y="'+(+s[1]+6)+'" text-anchor="middle" font-family="Bricolage Grotesque,sans-serif" font-weight="800" font-size="17" fill="#fff">'+s[2]+'</text></g>'}).join('')},
+    {id:'hl',icon:'i-hl',name:'Highlighter',key:'H',phase:'MVP',text:'Multiply-blended marker colour keeps the text underneath readable.',
+     props:['colour','opacity (default 40 %)','rectangle','text-only mode (Phase 2)'],
+     svg:'<rect x="226" y="240" width="502" height="40" rx="4" fill="#ffd84d" opacity=".45" style="mix-blend-mode:multiply"/><rect x="226" y="190" width="502" height="40" rx="4" fill="#8ff0a4" opacity=".4" style="mix-blend-mode:multiply"/>'},
+    {id:'blur',icon:'i-blur',name:'Redact',key:'B',phase:'MVP',text:'Blur, pixelate or a solid box. Before export Annota warns that blur can be reversible and offers to make it solid.',
+     props:['blur / pixelate / solid','intensity','rectangle / ellipse','export warning','smart redaction (Phase 2)'],
+     svg:'<rect x="532" y="148" width="186" height="24" rx="4" fill="url(#mosaic)"/><rect x="560" y="200" width="158" height="22" rx="4" fill="#1f1f1f"/>'},
+    {id:'shape',icon:'i-shape',name:'Shape',key:'U',phase:'MVP',text:'Rectangles, rounded rectangles, ellipses and polygons. Make the fill transparent and you have a frame.',
+     props:['fill + outline separately','corner radius','polygon','line style','shadow'],
+     svg:'<rect x="598" y="370" width="146" height="54" rx="12" fill="none" stroke="'+C+'" stroke-width="4"/><ellipse cx="694" cy="332" rx="40" ry="24" fill="none" stroke="#3584e4" stroke-width="4"/>'},
+    {id:'text',icon:'i-text',name:'Text',key:'T',phase:'MVP',text:'Captions and headings directly on the image, edited in place with a double-click.',
+     props:['font, size, weight','outline colour + width','alignment','multi-line'],
+     svg:'<text x="400" y="384" text-anchor="middle" font-family="Bricolage Grotesque,sans-serif" font-weight="800" font-size="30" fill="'+C+'" stroke="#fff" stroke-width="5" paint-order="stroke">Step 3: connect</text>'},
+    {id:'magnify',icon:'i-magnify',name:'Magnifier',key:'M',phase:'P2',text:'Enlarges a detail into a lens you can move away from its source, with a connector line.',
+     props:['125–800 %','circle / rounded','offset lens','connector line'],
+     svg:'<rect x="660" y="318" width="70" height="30" rx="4" fill="none" stroke="'+C+'" stroke-width="2" stroke-dasharray="4 3"/><path d="M660 333 L560 200" stroke="'+C+'" stroke-width="2"/><clipPath id="lens"><circle cx="500" cy="150" r="70"/></clipPath><g clip-path="url(#lens)"><use href="#sample" x="-1932" y="-1015" width="2660" height="1540"/></g><circle cx="500" cy="150" r="70" fill="none" stroke="'+C+'" stroke-width="4"/>'},
+    {id:'spot',icon:'i-spot',name:'Spotlight',key:'L',phase:'P2',text:'Keeps one or more areas bright and dims or blurs everything else.',
+     props:['dim 0–90 %','blur 0–30 px','several areas','rect / ellipse / polygon'],
+     svg:'<mask id="spm"><rect width="760" height="440" fill="#fff"/><rect x="600" y="370" width="140" height="54" rx="10" fill="#000"/><rect x="226" y="140" width="502" height="40" rx="8" fill="#000"/></mask><rect width="760" height="440" fill="#0d1117" opacity=".62" mask="url(#spm)"/>'},
+    {id:'crop',icon:'i-crop',name:'Crop',key:'C',phase:'MVP',text:'Crop with handles, then extend the canvas again if a callout needs room outside the image.',
+     props:['crop handles','resize with lock','rotate / flip','extend canvas','rounded corners'],
+     svg:'<path d="M0 0H760V440H0Z M200 60 H740 V430 H200 Z" fill="#0d1117" opacity=".5" fill-rule="evenodd"/><rect x="200" y="60" width="540" height="370" fill="none" stroke="#fff" stroke-width="2"/><g fill="#fff">'+[[200,60],[740,60],[200,430],[740,430]].map(function(p){return '<rect x="'+(p[0]-6)+'" y="'+(p[1]-6)+'" width="12" height="12" rx="2"/>'}).join('')+'</g>'},
+    {id:'rec',icon:'i-rec',name:'Record',key:'⇧⌃Print',phase:'P2',text:'Screen recording with microphone, system audio, webcam overlay, click ripples and on-screen drawing. Export MP4, WebM or GIF.',
+     props:['region / window / screen','mic + system audio','webcam PiP','cursor highlight','trim · cut · GIF'],
+     svg:'<rect x="210" y="56" width="530" height="380" rx="6" fill="none" stroke="'+C+'" stroke-width="3" stroke-dasharray="10 6"/><g transform="translate(560 20)"><rect width="170" height="34" rx="17" fill="#1f1f1f"/><circle cx="20" cy="17" r="6" fill="'+C+'"/><text x="34" y="22" font-family="JetBrains Mono,monospace" font-size="13" fill="#fff">00:12</text><rect x="96" y="11" width="4" height="12" fill="#fff"/><rect x="104" y="11" width="4" height="12" fill="#fff"/><rect x="128" y="11" width="12" height="12" rx="2" fill="#fff"/></g><circle cx="671" cy="397" r="18" fill="none" stroke="#3584e4" stroke-width="3" opacity=".8"/><circle cx="671" cy="397" r="30" fill="none" stroke="#3584e4" stroke-width="2" opacity=".35"/>'}
+  ];
+  var list=document.getElementById('toollist'), layer=document.getElementById('demoLayer');
+  function show(i){
+    var t=tools[i];
+    [].forEach.call(list.children,function(b,j){b.setAttribute('aria-selected',j===i?'true':'false');b.tabIndex=j===i?0:-1});
+    layer.innerHTML=t.svg;
+    document.getElementById('dTitle').textContent=t.name;
+    document.getElementById('dKey').innerHTML='<kbd>'+t.key+'</kbd>';
+    document.getElementById('dText').textContent=t.text;
+    document.getElementById('dProps').innerHTML=t.props.map(function(p){return '<span>'+p+'</span>'}).join('');
+  }
+  tools.forEach(function(t,i){
+    var b=document.createElement('button');b.type='button';b.className='tool';b.setAttribute('role','tab');b.id='tool-'+t.id;
+    b.innerHTML='<svg aria-hidden="true"><use href="#'+t.icon+'"/></svg><span>'+t.name+'</span><span class="ph">'+t.phase+'</span>';
+    b.addEventListener('click',function(){show(i)});
+    b.addEventListener('keydown',function(e){var k=e.key,n=null;if(k==='ArrowDown'||k==='ArrowRight')n=(i+1)%tools.length;if(k==='ArrowUp'||k==='ArrowLeft')n=(i-1+tools.length)%tools.length;if(n!==null){e.preventDefault();show(n);list.children[n].focus()}});
+    list.appendChild(b);
+  });
+  show(0);
+
+  /* coverage */
+  var css=getComputedStyle(document.documentElement);
+  var phases=[{k:'MVP',label:'MVP · 0.1',c:'var(--coral)'},{k:'P2',label:'Phase 2',c:'var(--blue)'},{k:'P3',label:'Phase 3',c:'var(--ok)'},{k:'NA',label:'not planned',c:'var(--na)'}];
+  var tot={MVP:33,P2:27,P3:3,NA:4};
+  var all=67;
+  document.getElementById('covBar').innerHTML=phases.map(function(p){return '<i style="width:'+(tot[p.k]/all*100)+'%;background:'+p.c+'"></i>'}).join('');
+  document.getElementById('covLegend').innerHTML=phases.map(function(p){return '<span><i style="background:'+p.c+'"></i>'+p.label+' <b class="mono">'+tot[p.k]+'</b></span>'}).join('');
+  var groups=[['Capture',{MVP:8,P2:4,P3:2,NA:2}],['Editor & document',{MVP:9}],['Annotation tools',{MVP:9,P2:6,P3:1}],['Styles & effects',{MVP:2,P2:6}],['Privacy & text',{P2:3}],['Video',{P2:7}],['Organise & share',{MVP:5,P2:1,NA:2}]];
+  var max=16;
+  document.getElementById('groups').innerHTML=groups.map(function(g){
+    var n=0,bars=phases.map(function(p){var v=g[1][p.k]||0;n+=v;return v?'<i style="width:'+(v/max*100)+'%;background:'+p.c+'"></i>':''}).join('');
+    return '<div class="g"><span>'+g[0]+'</span><span class="gb">'+bars+'</span><span class="n">'+n+'</span></div>';
+  }).join('');
+
+  /* roadmap */
+  var changes=[
+    ['bootstrap-app-shell','App shell & Debian packaging','MVP',['app-shell','debian-packaging'],14],
+    ['add-screen-capture','Region, window & screen capture','MVP',['capture'],15],
+    ['add-annotation-editor','Editor canvas & .annota format','MVP',['editor-canvas','document-format'],17],
+    ['add-core-annotation-tools','Core annotation tools','MVP',['annotation-tools'],18],
+    ['add-style-system','Quick styles & themes','MVP',['style-system'],10],
+    ['add-export-share','Export & sharing','MVP',['export-share'],11],
+    ['add-advanced-annotation-tools','Magnifier, spotlight, stamps, cut-out','P2',['annotation-tools'],16],
+    ['add-image-effects','Borders, edges, shadows, capture info','P2',['image-effects'],10],
+    ['add-capture-presets','Presets, multi-area, time-lapse','P2',['capture'],10],
+    ['add-text-recognition','Grab & edit text (local OCR)','P2',['text-recognition'],10],
+    ['add-smart-redaction','Smart redaction','P2',['privacy-redaction'],9],
+    ['add-capture-library','Searchable capture library','P2',['capture-library'],11],
+    ['add-templates','Templates & combine images','P2',['templates'],11],
+    ['add-screen-recording','Screen recording & GIF','P2',['screen-recording'],16],
+    ['add-scrolling-capture','Scrolling capture','P3',['scrolling-capture'],10],
+    ['add-step-capture','Step capture guides','P3',['step-capture'],9],
+    ['add-smart-editing','Smart move & simplify','P3',['smart-editing'],10]
+  ];
+  var lanesMeta=[['MVP','MVP','milestone 0.1'],['P2','Phase 2','0.2 – 0.4'],['P3','Phase 3','0.5 +']];
+  var filter='all';
+  function renderLanes(){
+    var q=changes.filter(function(c){return filter==='all'||c[3].indexOf(filter)>-1});
+    document.getElementById('lanes').innerHTML=lanesMeta.map(function(l){
+      var cs=q.filter(function(c){return c[2]===l[0]});
+      var tasks=cs.reduce(function(a,c){return a+c[4]},0);
+      return '<div class="lane"><div class="lane-h"><h3>'+l[1]+'</h3><span>'+l[2]+' · '+cs.length+' changes · '+tasks+' tasks</span></div>'+
+        (cs.length?cs.map(function(c){return '<article class="card"><code>'+c[0]+'</code><b>'+c[1]+'</b><div class="tags">'+c[3].map(function(t){return '<span>'+t+'</span>'}).join('')+'</div><div class="meta"><span class="gate"><i></i>design gate open</span><span>0 / '+c[4]+' tasks</span></div></article>'}).join(''):'<p style="color:var(--muted);font-size:14px">No change touches this capability here.</p>')+'</div>';
+    }).join('');
+  }
+  var caps=['all','capture','annotation-tools','editor-canvas','export-share','screen-recording','privacy-redaction'];
+  var fwrap=document.getElementById('filters');
+  caps.forEach(function(c){var b=document.createElement('button');b.type='button';b.textContent=c==='all'?'All capabilities':c;b.setAttribute('aria-pressed',c==='all'?'true':'false');
+    b.addEventListener('click',function(){filter=c;[].forEach.call(fwrap.children,function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});renderLanes()});fwrap.appendChild(b)});
+  renderLanes();
+
+  /* copy */
+  document.querySelectorAll('.copy').forEach(function(btn){btn.addEventListener('click',function(){
+    var el=document.getElementById(btn.dataset.copy);var txt=el.innerText.replace(/^Copy\n?/,'').split('\n').filter(function(l){return /^[$›] /.test(l)}).map(function(l){return l.replace(/^[$›] /,'')}).join('\n');
+    var done=function(){btn.textContent='Copied';setTimeout(function(){btn.textContent='Copy'},1500)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,function(){sel(el)})}else{sel(el)}
+  })});
+  function sel(el){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r)}
+})();
+</script>

@@ -1,0 +1,35 @@
+schema: spec-driven
+
+context: |
+  Annota is a native GNOME screenshot/annotation/recording app (Rust, GTK 4, libadwaita),
+  shipped as a Debian package for Ubuntu 24.04+ and Debian 13. Fixed decisions are in CLAUDE.md §2.
+  Screen access only through xdg-desktop-portal (Wayland first, X11 must keep working).
+  Annota is an original product: never copy UI, artwork, stamps, templates or text of other tools.
+  Write all OpenSpec artifacts in English. The maintainer communicates in German.
+  Every user-visible change passes the design gate: mockups in docs/design/<change-id>/ approved
+  by the maintainer before implementation (CLAUDE.md §5).
+
+rules:
+  proposal:
+    - State the roadmap phase (MVP, Phase 2, Phase 3) and what is explicitly out of scope
+    - Name the benchmark features from docs/feature-catalog.md that this change covers
+  specs:
+    - Every requirement has at least one testable WHEN/THEN scenario
+    - Keyboard shortcuts, default values and limits are part of the requirement text
+  design:
+    - Link every mockup in docs/design/<change-id>/ and map it to the spec scenarios
+    - Record "Design approved <date>" once the maintainer approved the mockups
+    - Name Wayland vs X11 behaviour differences explicitly
+  tasks:
+    - First task group is always "Design gate" (designer mockups + maintainer approval)
+    - Last task group is always "Verify" (reviewer agent, tests, .deb build, lintian)
+    - Every new annotation tool needs a golden-image render test
+
+operations:
+  apply:
+    guidance:
+      - Do not start implementation while the design gate tasks are open
+      - Match mockups exactly; deviations need maintainer approval
+  archive:
+    guidance:
+      - Only archive after the reviewer agent reported no blocking findings
