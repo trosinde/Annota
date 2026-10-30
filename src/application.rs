@@ -172,7 +172,7 @@ fn show_about(app: &adw::Application) {
         .developers(vec!["Thorsten Rosin"])
         .website("https://github.com/trosinde/Annota")
         .issue_url("https://github.com/trosinde/Annota/issues")
-        .license_type(gtk::License::Gpl30)
+        .license_type(gtk::License::MitX11)
         .copyright("© 2026 The Annota Contributors")
         .comments(gettext(
             "Works entirely on this computer. No account, no tracking.",

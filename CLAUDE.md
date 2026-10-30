@@ -45,7 +45,7 @@ Do not change these without an approved OpenSpec change that says so (record it 
 | Packaging | Native Debian package (`debian/`, debhelper-compat 13, vendored crates for offline build). Flatpak manifest is secondary. |
 | App ID | `io.github.trosinde.Annota` |
 | i18n | gettext; ship `en` and `de` from day one |
-| License | GPL-3.0-or-later (code), CC-BY-SA-4.0 (artwork, docs) — confirm with the maintainer before first release |
+| License | MIT (code), CC-BY-SA-4.0 (artwork, docs) — confirmed by the maintainer 2026-10-30 |
 | Local only | No accounts, no sign-in, no cloud, no telemetry, no update check. Annota never opens a network connection itself; the library may live on the user's own server via a mounted share. |
 
 ---
@@ -257,6 +257,6 @@ Delegate with a precise brief: change id, scenario list, file paths, acceptance 
 
 - The maintainer (Thorsten) writes in German; answer in German, keep artefacts in English.
 - Short status, no filler. Show mockups as images, not as descriptions.
-- Ask before: changing a fixed decision (§2), adding a dependency with a non-GPL-compatible
-  license, anything that sends data over the network.
+- Ask before: changing a fixed decision (§2), adding a dependency whose license would force a
+  stronger copyleft onto the MIT-licensed binary, anything that sends data over the network.
 

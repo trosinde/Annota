@@ -57,7 +57,7 @@ Popover 290 px, items and accels exactly: New Capture `Ctrl+N` · Open… `Ctrl+
 - GSettings keys: `save-folder`, `filename-pattern`, `default-export-format` (enum png/jpg/webp/pdf), `export-folder`, `after-capture` (enum editor/clipboard/both), `capture-mode`, `capture-delay`, `include-pointer`.
 
 ### About (06)
-`AdwAboutDialog`: icon 128 px, name "Annota", developer "The Annota Contributors", version pill "0.1.0", rows Website, Report an Issue, Credits, Legal. Comment/footer: "Works entirely on this computer. No account, no tracking." · "© 2026 The Annota Contributors · GPL-3.0-or-later".
+`AdwAboutDialog`: icon 128 px, name "Annota", developer "The Annota Contributors", version pill "0.1.0", rows Website, Report an Issue, Credits, Legal. Comment/footer: "Works entirely on this computer. No account, no tracking." · "© 2026 The Annota Contributors · MIT".
 
 ### Shortcuts window (07)
 `GtkShortcutsWindow`, 4 columns, section titles in accent colour. Groups and keys exactly as drawn:

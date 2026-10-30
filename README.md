@@ -64,5 +64,5 @@ git clone https://github.com/trosinde/Annota.git && cd Annota && claude
 
 ## License
 
-GPL-3.0-or-later for code, CC-BY-SA-4.0 for artwork and docs (to be confirmed before the first release).
+MIT for code, CC-BY-SA-4.0 for artwork and docs.
 Annota is an independent project and is not affiliated with any commercial screenshot tool.

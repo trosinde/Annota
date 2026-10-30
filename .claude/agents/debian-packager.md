@@ -14,7 +14,9 @@ Rules:
   (both git-ignored); `build-aux/make-deb.sh` = vendor + `dpkg-buildpackage -us -uc -b` + lintian.
   Toolchain: Rust 1.85 (`rustc-1.85`/`cargo-1.85` on Ubuntu 24.04, default on Debian 13).
 - `debian/copyright` in DEP-5 format incl. all vendored crate licenses: run
-  `build-aux/update-copyright.py` after every dependency change; review GPL compatibility.
+  `build-aux/update-copyright.py` after every dependency change; review license compatibility
+  with MIT (code) and CC-BY-SA-4.0 (artwork, docs) — flag any dependency that would force a
+  stronger copyleft on the whole binary.
 - Validate: `lintian -I --pedantic`, `appstreamcli validate --pedantic`, `desktop-file-validate`.
 - Target suites: Ubuntu noble (24.04), Ubuntu 26.04, Debian trixie. Build in clean chroots
   (`sbuild` or `pbuilder`) before calling something releasable.
