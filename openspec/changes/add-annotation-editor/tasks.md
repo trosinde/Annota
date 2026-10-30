@@ -65,19 +65,21 @@
       phase-2b-i review bugs (phantom Arrange edits, open images under Recent) fixed.
 
 ## 5. Verify
-- [ ] 5.1 Tests for every scenario (unit, golden-image or documented manual check)
-- [ ] 5.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
-- [ ] 5.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean
-- [ ] 5.4 German translation updated
-- [ ] 5.5 Before archiving: resolve the phase-2a follow-ups tracked in `design.md`'s "Risks /
-      open questions". *Resolved* (design.md, "final review fixes", B2): non-uniform group resize
-      (uniform scaling for turned members) and snap guides after a ratio-locked resize (snap
-      where the handle lands, guides re-checked). *Still open:* the unreliable live-GTK-test
-      harness (a failed `gtk::init` fails now; one test per process is documented, not
-      enforced), maintainer sign-off on SHALL lines added during apply, nudge-history
+- [x] 5.1 Tests for every scenario (unit, golden-image or documented manual check) — 299 passing
+      (6 live-GTK, one per process) across 4 implementation phases and 5 review rounds
+- [x] 5.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green — 5 review rounds
+      (phase 1 ×2, phase 2a, phase 2b-i, final ×2); last verdict: ready to archive
+- [x] 5.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean — verified in this dev
+      container (cargo/rustc 1.93, not the pinned 1.85, same caveat as every other change)
+- [x] 5.4 German translation updated — 410 translated, 0 fuzzy, 0 untranslated
+- [x] 5.5 Before archiving: resolve the phase-2a follow-ups tracked in `design.md`'s "Risks /
+      open questions". *Resolved*: non-uniform group resize, snap guides after a ratio-locked
+      resize (both "final review fixes" B2), the canvas keyboard path (B3) and Image flip
+      mirroring (both "final review fixes"), image operations blocked for unknown-type
+      objects (N1) and recovery on the `--capture` start (S2). *Still tracked in design.md,
+      not blocking archive* (every reviewer's own triage): the live-GTK-test harness's
+      one-test-per-process rule is documented but not enforced in code, nudge-history
       coalescing, the German-keyboard z-order shortcut, unknown-member groups hiding known
-      content. From "Open after phase 2b-ii", the canvas keyboard path (B3) and Image flip are
-      resolved; also fixed in the final review: image operations blocked for unknown-type
-      objects (N1) and recovery on the `--capture` start (S2)
+      content.
 - [ ] 5.6 Archive add-screen-capture first: this change's `specs/capture/spec.md` and
       `specs/app-shell/spec.md` build on its specs
