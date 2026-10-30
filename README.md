@@ -21,7 +21,7 @@ Built in Rust with GTK 4 and libadwaita, shipped as a native Debian package, pri
 - **Visual project overview:** [`docs/index.html`](docs/index.html) (GitHub Pages ready)
 - Feature catalogue (benchmark → phase): [`docs/feature-catalog.md`](docs/feature-catalog.md)
 - Roadmap as OpenSpec changes: [`openspec/changes/`](openspec/changes)
-- Rules for contributors and Claude Code: [`AGENTS.md`](AGENTS.md)
+- Rules for contributors and Claude Code: [`CLAUDE.md`](CLAUDE.md)
 
 ## Roadmap
 
@@ -46,16 +46,10 @@ sudo apt install ../annota_*.deb
 On Debian 13 install `cargo rustc` instead of the versioned `-1.85` packages.
 Every push to `main` also builds the `.deb` in GitHub Actions (artifact `annota-deb-ubuntu-24.04`).
 
-## Continue with opencode or Claude Code
+## Continue with Claude Code
 
-`AGENTS.md` is the shared rule book (Claude Code reads it through `CLAUDE.md`).
-
-| | opencode | Claude Code |
-|---|---|---|
-| Next change | `/opsx-apply <id>` | `/opsx:apply <id>` |
-| Design gate | `/design <id>` | `/design <id>` |
-| Agents | `@designer` `@gtk-engineer` `@reviewer` `@debian-packager` | same names |
-
+`CLAUDE.md` is the rule book. Next change: `/opsx:apply <id>`, design gate: `/design <id>`,
+agents: `designer`, `gtk-engineer`, `reviewer`, `debian-packager`.
 Review all mockups in one page: `python3 tools/build-review-gallery.py` → `docs/design/review.html`.
 
 ## How it is built
@@ -64,8 +58,8 @@ Design → Spec → Code → Verify → Package. Every user-visible change gets 
 `designer` agent and maintainer approval before any code is written.
 
 ```bash
-git clone https://github.com/trosinde/Annota.git && cd Annota && opencode
-# then: /opsx-apply bootstrap-app-shell   (after the design is approved)
+git clone https://github.com/trosinde/Annota.git && cd Annota && claude
+# then: /opsx:apply bootstrap-app-shell   (after the design is approved)
 ```
 
 ## License

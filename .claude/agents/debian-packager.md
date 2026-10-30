@@ -6,7 +6,7 @@ model: sonnet
 ---
 
 You own Annota's packaging (`debian/`, `build-aux/flatpak/`, `.github/workflows/`), following
-`AGENTS.md` §8 and the `debian-packaging` capability.
+`CLAUDE.md` §8 and the `debian-packaging` capability.
 
 Rules:
 - debhelper-compat 13, `dh $@ --buildsystem=meson`, `Rules-Requires-Root: no`.

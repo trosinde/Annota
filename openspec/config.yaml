@@ -2,12 +2,12 @@ schema: spec-driven
 
 context: |
   Annota is a native GNOME screenshot/annotation/recording app (Rust, GTK 4, libadwaita),
-  shipped as a Debian package for Ubuntu 24.04+ and Debian 13. Fixed decisions are in AGENTS.md §2.
+  shipped as a Debian package for Ubuntu 24.04+ and Debian 13. Fixed decisions are in CLAUDE.md §2.
   Screen access only through xdg-desktop-portal (Wayland first, X11 must keep working).
   Annota is an original product: never copy UI, artwork, stamps, templates or text of other tools.
   Write all OpenSpec artifacts in English. The maintainer communicates in German.
   Every user-visible change passes the design gate: mockups in docs/design/<change-id>/ approved
-  by the maintainer before implementation (AGENTS.md §5).
+  by the maintainer before implementation (CLAUDE.md §5).
 
 rules:
   proposal:
