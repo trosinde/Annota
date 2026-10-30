@@ -5,10 +5,14 @@
 
 use std::collections::HashSet;
 
+use crate::document::annotation::Annotation;
+use crate::document::bitmap::Bitmap;
 use crate::document::command::Command;
-use crate::document::scene::{ObjectId, Scene};
+use crate::document::geometry::{Arrange, Point};
+use crate::document::scene::{Node, ObjectId, Scene};
 use crate::document::Document;
-use crate::tools::group::{group_command, ungroup_command};
+use crate::tools::group::{group_command, ungroup_command, Group};
+use crate::tools::image::Image;
 
 use super::selection::Selection;
 
@@ -34,6 +38,8 @@ pub enum Action {
     SendToBack,
     Group,
     Ungroup,
+    /// A new object (an image dropped from the tray).
+    Insert,
 }
 
 /// What the edit applies to, for the label ("Move Group", "Move 3 Objects").
@@ -229,6 +235,78 @@ pub fn ungroup(doc: &Document, selection: &Selection) -> Option<Edit> {
     })
 }
 
+/// The Arrange entries of the sidebar (X, Y, W, H, Rotation): places the selection at `target`.
+/// One object takes `target` as its own placement. Several are placed as one box, like their
+/// selection handles do (a transient [`Group`]); that box has no orientation of its own, so for
+/// several objects only position and size apply. `None` if nothing would change.
+pub fn arrange(doc: &Document, selection: &Selection, target: Arrange) -> Option<Edit> {
+    let scene = doc.scene();
+    let originals: Vec<(ObjectId, Box<dyn Annotation>)> = selection
+        .ids()
+        .iter()
+        .filter_map(|&id| Some((id, scene.get(id)?.object.clone())))
+        .collect();
+    let (current, target, objects) = match originals.as_slice() {
+        [] => return None,
+        [(id, object)] => {
+            let mut copy = object.clone();
+            copy.set_arrange(target);
+            (object.arrange(), target, vec![(*id, copy)])
+        }
+        _ => {
+            let mut group = Group::new(
+                originals
+                    .iter()
+                    .map(|(id, o)| Node::new(*id, o.clone()))
+                    .collect(),
+            );
+            let current = group.arrange();
+            let target = Arrange::new(target.rect, current.rotation);
+            group.set_arrange(target);
+            let objects = group
+                .children
+                .into_iter()
+                .map(|n| (n.id, n.object))
+                .collect();
+            (current, target, objects)
+        }
+    };
+    let differs = |a: f64, b: f64| (a - b).abs() > 1e-9;
+    let action = if differs(current.rotation, target.rotation) {
+        Action::Rotate
+    } else if differs(current.rect.width, target.rect.width)
+        || differs(current.rect.height, target.rect.height)
+    {
+        Action::Resize
+    } else if differs(current.rect.x, target.rect.x) || differs(current.rect.y, target.rect.y) {
+        Action::Move
+    } else {
+        return None;
+    };
+    Some(Edit {
+        action,
+        subject: Subject::of(scene, selection.ids()),
+        command: Command::Replace { objects },
+        select: None,
+    })
+}
+
+/// Inserts `bitmap` as a new image object centred on `centre` (a tray thumbnail dropped on the
+/// canvas, spec "Picture in picture"); the new object becomes the selection.
+pub fn insert_image(doc: &Document, bitmap: Bitmap, centre: Point) -> Option<Edit> {
+    let command = Image::insert_command(doc, bitmap, centre);
+    let id = match &command {
+        Command::Insert { nodes, .. } => nodes.first()?.1.id,
+        _ => return None,
+    };
+    Some(Edit {
+        action: Action::Insert,
+        subject: Subject::One(Image::TYPE),
+        command,
+        select: Some(vec![id]),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,8 +314,7 @@ mod tests {
     use crate::document::color::Rgba;
     use crate::document::command::History;
     use crate::document::geometry::Rect;
-    use crate::document::scene::{tests::TestBox, Node};
-    use crate::tools::group::Group;
+    use crate::document::scene::tests::TestBox;
 
     fn doc_with(n: usize) -> (Document, History, Vec<ObjectId>) {
         let mut doc = Document::new(Bitmap::filled(400, 300, Rgba::WHITE).unwrap());
@@ -432,5 +509,79 @@ mod tests {
         history.undo(&mut doc).unwrap();
         sel.sync(doc.scene());
         assert!(sel.is_empty());
+    }
+
+    #[test]
+    fn arrange_places_one_object() {
+        let (mut doc, mut history, ids) = doc_with(2);
+        let mut sel = Selection::new();
+        sel.set(doc.scene(), [ids[1]]);
+        let at = |x, y, w, h, r| Arrange::new(Rect::new(x, y, w, h), r);
+        // Unchanged values are no edit.
+        assert!(arrange(&doc, &sel, at(50.0, 10.0, 20.0, 20.0, 0.0)).is_none());
+        let edit = arrange(&doc, &sel, at(70.0, 15.0, 20.0, 20.0, 0.0)).unwrap();
+        assert_eq!(edit.action, Action::Move);
+        apply(&mut doc, &mut history, &mut sel, edit);
+        assert_eq!(rect(&doc, ids[1]), Rect::new(70.0, 15.0, 20.0, 20.0));
+        let edit = arrange(&doc, &sel, at(70.0, 15.0, 40.0, 20.0, 0.0)).unwrap();
+        assert_eq!(edit.action, Action::Resize);
+        apply(&mut doc, &mut history, &mut sel, edit);
+        let edit = arrange(&doc, &sel, at(70.0, 15.0, 40.0, 20.0, 30.0)).unwrap();
+        assert_eq!(edit.action, Action::Rotate);
+        // (The test box has no rotation of its own; images and groups keep it.)
+        apply(&mut doc, &mut history, &mut sel, edit);
+        // One undo step each.
+        for _ in 0..3 {
+            history.undo(&mut doc).unwrap();
+        }
+        assert_eq!(rect(&doc, ids[1]), Rect::new(50.0, 10.0, 20.0, 20.0));
+        assert!(arrange(&doc, &Selection::new(), at(0.0, 0.0, 1.0, 1.0, 0.0)).is_none());
+    }
+
+    #[test]
+    fn arrange_places_several_as_one_box() {
+        // Boxes at x 0 and 50 (20 wide): one box 0..70; moving it to x 100 moves both, and
+        // doubling its width doubles their sizes and gaps. Rotation does not apply.
+        let (mut doc, mut history, ids) = doc_with(2);
+        let mut sel = Selection::new();
+        sel.set(doc.scene(), ids.clone());
+        let edit = arrange(
+            &doc,
+            &sel,
+            Arrange::new(Rect::new(100.0, 10.0, 140.0, 20.0), 45.0),
+        )
+        .unwrap();
+        assert_eq!(
+            (edit.action, edit.subject),
+            (Action::Resize, Subject::Many(2))
+        );
+        apply(&mut doc, &mut history, &mut sel, edit);
+        assert_eq!(rect(&doc, ids[0]), Rect::new(100.0, 10.0, 40.0, 20.0));
+        assert_eq!(rect(&doc, ids[1]), Rect::new(200.0, 10.0, 40.0, 20.0));
+        assert!(doc
+            .scene()
+            .nodes()
+            .iter()
+            .all(|n| n.object.arrange().rotation == 0.0));
+    }
+
+    #[test]
+    fn inserted_image_is_selected_and_undoable() {
+        let (mut doc, mut history, _) = doc_with(1);
+        let mut sel = Selection::new();
+        let pip = Bitmap::filled(40, 30, Rgba::WHITE).unwrap();
+        let edit = insert_image(&doc, pip, Point::new(200.0, 150.0)).unwrap();
+        assert_eq!(
+            (edit.action, edit.subject),
+            (Action::Insert, Subject::One(Image::TYPE))
+        );
+        apply(&mut doc, &mut history, &mut sel, edit);
+        assert_eq!(doc.scene().len(), 2);
+        let id = sel.ids()[0];
+        assert_eq!(doc.scene().ids()[1], id);
+        assert_eq!(rect(&doc, id).centre(), Point::new(200.0, 150.0));
+        assert_eq!(doc.resources().len(), 1);
+        history.undo(&mut doc).unwrap();
+        assert_eq!(doc.scene().len(), 1);
     }
 }

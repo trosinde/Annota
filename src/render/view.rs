@@ -36,6 +36,21 @@ pub fn fit_zoom(canvas: IRect, view: (f64, f64)) -> f64 {
     clamp_zoom(zx.min(zy).min(1.0))
 }
 
+/// Zoom at which the canvas *width* fits the view with margins ("Fit Width" in the zoom
+/// popover, mockup 07); like [`fit_zoom`] never above 100 %. The height may then scroll.
+pub fn fit_width_zoom(canvas: IRect, view: (f64, f64)) -> f64 {
+    let w = f64::from(canvas.width.max(1));
+    clamp_zoom(((view.0 - 2.0 * FIT_MARGIN).max(1.0) / w).min(1.0))
+}
+
+/// The preset `zoom` is at, if any (the check mark in the zoom popover).
+pub fn preset(zoom: f64) -> Option<f64> {
+    PRESETS
+        .iter()
+        .copied()
+        .find(|p| (p - zoom).abs() < 1e-6 * p.max(1.0))
+}
+
 /// Next preset above `zoom` (Ctrl++).
 pub fn zoom_in(zoom: f64) -> f64 {
     PRESETS
@@ -158,6 +173,26 @@ mod tests {
         let canvas = IRect::new(-200, 0, 1200, 500);
         let o = origin(canvas, 1.0, (100.0, 100.0));
         assert_eq!(o, Point::new(FIT_MARGIN + 200.0, FIT_MARGIN));
+    }
+
+    #[test]
+    fn fit_width_fills_the_width_only() {
+        // 1600 × 1000 in a 928 × 400 view: Fit is limited by the height, Fit Width is not.
+        let canvas = IRect::new(0, 0, 1600, 1000);
+        let view = (928.0, 400.0);
+        let zw = fit_width_zoom(canvas, view);
+        assert!((zw - (928.0 - 2.0 * FIT_MARGIN) / 1600.0).abs() < 1e-12);
+        assert!(zw > fit_zoom(canvas, view));
+        // Never enlarged, like Fit.
+        assert_eq!(fit_width_zoom(IRect::new(0, 0, 200, 100), view), 1.0);
+    }
+
+    #[test]
+    fn presets_are_recognised() {
+        assert_eq!(preset(2.0), Some(2.0));
+        assert_eq!(preset(0.25), Some(0.25));
+        assert_eq!(preset(0.42), None);
+        assert_eq!(preset(MIN_ZOOM), None);
     }
 
     #[test]

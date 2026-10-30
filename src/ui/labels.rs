@@ -46,6 +46,7 @@ pub fn undo_label(edit: &Edit) -> String {
         Action::SendToBack => gettext("Send to Back"),
         Action::Group => gettext("Group"),
         Action::Ungroup => gettext("Ungroup"),
+        Action::Insert => with_object(gettext("Insert {object}")),
     }
 }
 
