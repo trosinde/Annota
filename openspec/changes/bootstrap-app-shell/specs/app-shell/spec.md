@@ -44,3 +44,13 @@ The application SHALL follow the system light/dark preference and the system acc
 #### Scenario: System switches to dark
 - **WHEN** the user switches GNOME to dark style while Annota is open
 - **THEN** all Annota windows switch to the dark style without restart
+### Requirement: Local-only operation
+Annota SHALL work completely offline and SHALL NOT require, offer or contact any user account, sign-in, cloud service, licence server, update server or telemetry endpoint. Network access SHALL only happen as a side effect of actions the user starts with another local application (for example handing an image to the system mail client).
+
+#### Scenario: No network at all
+- **WHEN** Annota runs on a machine without any network connection
+- **THEN** every feature works and no dialog mentions sign-in or connectivity
+
+#### Scenario: No outgoing connections
+- **WHEN** Annota is used for capturing, editing, saving and exporting while outgoing traffic is monitored
+- **THEN** Annota opens no network connection

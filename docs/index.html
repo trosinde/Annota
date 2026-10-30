@@ -211,25 +211,25 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
     <symbol id="sample" viewBox="0 0 760 440">
       <rect width="760" height="440" rx="10" fill="#fafafa"/>
       <rect width="760" height="46" rx="10" fill="#ebebeb"/><rect y="36" width="760" height="10" fill="#ebebeb"/>
-      <text x="380" y="28" text-anchor="middle" font-family="Cantarell,sans-serif" font-weight="700" font-size="14" fill="#1f1f1f">Harbor Preferences</text>
+      <text x="380" y="28" text-anchor="middle" font-family="Cantarell,sans-serif" font-weight="700" font-size="14" fill="#1f1f1f">Harbor Backup</text>
       <circle cx="728" cy="23" r="10" fill="#dadada"/><circle cx="700" cy="23" r="10" fill="#dadada"/>
       <rect y="46" width="190" height="394" fill="#f2f2f2"/><rect x="189" y="46" width="1" height="394" fill="#dcdcdc"/>
       <g font-family="Cantarell,sans-serif" font-size="14" fill="#1f1f1f">
         <text x="24" y="86">General</text>
-        <rect x="10" y="102" width="170" height="34" rx="7" fill="#dcdcdc"/><text x="24" y="124" font-weight="700">Accounts</text>
-        <text x="24" y="162">Sync</text><text x="24" y="200">Privacy</text><text x="24" y="238">About</text>
-        <text x="222" y="92" font-size="22" font-weight="700">Accounts</text>
-        <text x="222" y="116" font-size="13" fill="#6b6b6b">Connect Harbor to your team server.</text>
+        <rect x="10" y="102" width="170" height="34" rx="7" fill="#dcdcdc"/><text x="24" y="124" font-weight="700">Backup</text>
+        <text x="24" y="162">Schedule</text><text x="24" y="200">Storage</text><text x="24" y="238">About</text>
+        <text x="222" y="92" font-size="22" font-weight="700">Backup</text>
+        <text x="222" y="116" font-size="13" fill="#6b6b6b">Copy your files to a drive or server at home.</text>
         <rect x="222" y="134" width="510" height="152" rx="12" fill="#fff" stroke="#dcdcdc"/>
-        <text x="240" y="164">Email</text><text x="714" y="164" text-anchor="end" fill="#6b6b6b">maria.keller@example.org</text>
+        <text x="240" y="164">Destination</text><text x="714" y="164" text-anchor="end" fill="#6b6b6b">/mnt/nas/backup/maria</text>
         <rect x="222" y="184" width="510" height="1" fill="#e6e6e6"/>
-        <text x="240" y="214">Server</text><text x="714" y="214" text-anchor="end" fill="#6b6b6b">sync.harbor.example</text>
+        <text x="240" y="214">Source folder</text><text x="714" y="214" text-anchor="end" fill="#6b6b6b">~/Documents</text>
         <rect x="222" y="234" width="510" height="1" fill="#e6e6e6"/>
-        <text x="240" y="264">Sync interval</text><text x="690" y="264" text-anchor="end" fill="#6b6b6b">Every 15 min</text><path d="M700 258l5 5 5-5" stroke="#6b6b6b" stroke-width="2" fill="none"/>
+        <text x="240" y="264">Schedule</text><text x="690" y="264" text-anchor="end" fill="#6b6b6b">Every day, 02:00</text><path d="M700 258l5 5 5-5" stroke="#6b6b6b" stroke-width="2" fill="none"/>
         <rect x="222" y="304" width="510" height="54" rx="12" fill="#fff" stroke="#dcdcdc"/>
-        <text x="240" y="336">Sync on metered connections</text>
+        <text x="240" y="336">Back up on battery power</text>
         <rect x="672" y="320" width="44" height="24" rx="12" fill="#c8c8c8"/><circle cx="684" cy="332" r="10" fill="#fff"/>
-        <rect x="610" y="378" width="122" height="38" rx="8" fill="#3584e4"/><text x="671" y="402" text-anchor="middle" fill="#fff" font-weight="700">Connect</text>
+        <rect x="610" y="378" width="122" height="38" rx="8" fill="#3584e4"/><text x="671" y="402" text-anchor="middle" fill="#fff" font-weight="700">Start backup</text>
         <rect x="508" y="378" width="92" height="38" rx="8" fill="#e6e6e6"/><text x="554" y="402" text-anchor="middle">Cancel</text>
       </g>
     </symbol>
@@ -261,18 +261,18 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
     <div class="hero-copy">
       <span class="eyebrow">GNOME · Ubuntu · Debian</span>
       <h1>Capture it. Mark it up. Make it <span class="mark">obvious.<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 14C50 6 120 4 197 9" stroke="var(--coral)" stroke-width="5" fill="none" stroke-linecap="round"/></svg></span></h1>
-      <p class="lede">Annota is a native screenshot, annotation and screen-recording app for GNOME. Arrows, callouts, numbered steps and redaction stay editable until you export. Built in Rust with GTK&nbsp;4 and libadwaita, shipped as a real Debian package, private by default.</p>
+      <p class="lede">Annota is a native screenshot, annotation and screen-recording app for GNOME. Arrows, callouts, numbered steps and redaction stay editable until you export. Built in Rust with GTK&nbsp;4 and libadwaita, shipped as a Debian package. Everything stays on your machine: no account, no cloud, no telemetry.</p>
       <div class="chips">
         <span class="chip"><b>Ubuntu 24.04+</b> · Debian 13</span>
         <span class="chip"><b>Wayland</b> first, X11 works</span>
         <span class="chip"><b>Rust</b> · GTK 4 · libadwaita</span>
-        <span class="chip"><b>No telemetry</b> · local OCR</span>
+        <span class="chip"><b>100 % local</b> · no account, no cloud</span>
         <span class="chip"><b>Status</b> · specified, pre-alpha</span>
       </div>
     </div>
 
     <div class="stage">
-      <div class="win" role="img" aria-label="Concept of the Annota editor: a preferences screenshot annotated with three numbered steps, a highlighted row, a pixelated email address and a callout with an arrow to the Connect button.">
+      <div class="win" role="img" aria-label="Concept of the Annota editor: a backup tool screenshot annotated with three numbered steps, a highlighted row, a pixelated folder path and a callout with an arrow to the Start backup button.">
         <div class="hb">
           <div class="tb" aria-hidden="true">
             <span class="ib"><svg><use href="#i-select"/></svg></span>
@@ -284,7 +284,7 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
             <span class="ib opt"><svg><use href="#i-hl"/></svg></span>
             <span class="ib opt"><svg><use href="#i-blur"/></svg></span>
           </div>
-          <div class="title">Harbor setup guide<span>Edited · 1600 × 926</span></div>
+          <div class="title">Harbor backup guide<span>Edited · 1600 × 926</span></div>
           <span class="pill flat opt">Copy</span><span class="pill">Export</span>
           <span class="ctrls" aria-hidden="true"><i></i><i></i></span>
         </div>
@@ -301,8 +301,8 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
               <path class="a-head" d="M584 391 L602 402 L586 415" stroke="#e2443a" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
               <g class="a-callout">
                 <rect x="222" y="370" width="196" height="54" rx="10" fill="#fff" stroke="#e2443a" stroke-width="3"/>
-                <text x="238" y="393" font-family="Cantarell,sans-serif" font-weight="700" font-size="14" fill="#1f1f1f">Click Connect to finish</text>
-                <text x="238" y="412" font-family="Cantarell,sans-serif" font-size="12" fill="#6b6b6b">Your admin sends the server.</text>
+                <text x="238" y="393" font-family="Cantarell,sans-serif" font-weight="700" font-size="14" fill="#1f1f1f">Click Start backup</text>
+                <text x="238" y="412" font-family="Cantarell,sans-serif" font-size="12" fill="#6b6b6b">The first run takes longest.</text>
               </g>
             </svg>
           </div>
@@ -478,7 +478,7 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
      svg:'<path d="M300 392 C 380 432, 520 432, 598 405" stroke="'+C+'" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M582 396 L601 404 L587 418" stroke="'+C+'" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="450" cy="422" r="6" fill="#fff" stroke="#3584e4" stroke-width="2"/>'},
     {id:'callout',icon:'i-callout',name:'Callout',key:'K',phase:'MVP',text:'A text box with one or more tails. Drag the add-tail handle to point at a second place; the box grows with its text.',
      props:['rect / rounded / ellipse / cloud','multiple tails','padding','font + outline','fill + outline'],
-     svg:'<path d="M330 120 L268 152" stroke="'+C+'" stroke-width="3"/><path d="M420 120 L470 160" stroke="'+C+'" stroke-width="3"/><rect x="300" y="60" width="210" height="62" rx="12" fill="#fff" stroke="'+C+'" stroke-width="3"/><text x="318" y="88" font-family="Cantarell,sans-serif" font-size="15" font-weight="700" fill="#1f1f1f">Both fields come from IT</text><text x="318" y="108" font-family="Cantarell,sans-serif" font-size="12.5" fill="#6b6b6b">Ask your admin before changing.</text>'},
+     svg:'<path d="M330 120 L268 152" stroke="'+C+'" stroke-width="3"/><path d="M420 120 L470 160" stroke="'+C+'" stroke-width="3"/><rect x="300" y="60" width="210" height="62" rx="12" fill="#fff" stroke="'+C+'" stroke-width="3"/><text x="318" y="88" font-family="Cantarell,sans-serif" font-size="15" font-weight="700" fill="#1f1f1f">Both paths must exist</text><text x="318" y="108" font-family="Cantarell,sans-serif" font-size="12.5" fill="#6b6b6b">Check them before the first run.</text>'},
     {id:'step',icon:'i-step',name:'Step',key:'S',phase:'MVP',text:'Click, click, click: numbered markers in order. Delete one and the rest renumber. Numbers, letters or Roman numerals.',
      props:['1 2 3 · A B C · a b c · I II III','restart sequence','edit single value','circle / square / pin','auto-renumber'],
      svg:[['160','119','1'],['210','260','2'],['560','320','3'],['740','380','4']].map(function(s){return '<g><circle cx="'+s[0]+'" cy="'+s[1]+'" r="16" fill="'+C+'" stroke="#fff" stroke-width="3"/><text x="'+s[0]+'" y="'+(+s[1]+6)+'" text-anchor="middle" font-family="Bricolage Grotesque,sans-serif" font-weight="800" font-size="17" fill="#fff">'+s[2]+'</text></g>'}).join('')},

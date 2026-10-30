@@ -46,7 +46,7 @@ Do not change these without an approved OpenSpec change that says so (record it 
 | App ID | `io.github.trosinde.Annota` |
 | i18n | gettext; ship `en` and `de` from day one |
 | License | GPL-3.0-or-later (code), CC-BY-SA-4.0 (artwork, docs) — confirm with the maintainer before first release |
-| Privacy | No telemetry, no network access except explicit user-triggered share actions |
+| Local only | No accounts, no sign-in, no cloud, no telemetry, no update check. Annota never opens a network connection itself; the library may live on the user's own server via a mounted share. |
 
 ---
 

@@ -83,3 +83,13 @@ An empty library SHALL show a status page explaining how to capture (with the co
 #### Scenario: Large library
 - **WHEN** the library holds 10 000 items
 - **THEN** it opens in under 1 second
+### Requirement: Library on a local server
+The library folder SHALL be allowed to live on a mounted network share of the user's own server (SMB/NFS via GVfs or a system mount). If the share is unavailable, the library SHALL show the cached index read-only with a banner and SHALL store new captures in a local fallback folder that is moved to the share when it is available again.
+
+#### Scenario: Share offline
+- **WHEN** the library folder is on a NAS that is switched off and the user takes a capture
+- **THEN** the capture is stored in the local fallback folder and a banner says the library server is not reachable
+
+#### Scenario: Share back online
+- **WHEN** the NAS becomes reachable again
+- **THEN** captures from the fallback folder are moved to the library folder and appear in the library
