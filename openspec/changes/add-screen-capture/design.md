@@ -20,7 +20,7 @@ Source HTML: `docs/design/add-screen-capture/src/`; dark and 2× renders sit nex
 - [13-paste-from-clipboard](../../../docs/design/add-screen-capture/png/13-paste-from-clipboard-light@1x.png)
 - [14-drop-image-file](../../../docs/design/add-screen-capture/png/14-drop-image-file-light@1x.png)
 
-Design approved: _pending_
+Design approved: 2026-10-30
 
 ## Technical decisions
 - `ashpd` for Screenshot portal (non-interactive full-screen grab, then own overlay)

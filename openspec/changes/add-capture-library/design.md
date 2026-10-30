@@ -34,7 +34,7 @@ Light 1× renders (dark variants: same name with `-dark@1x.png`):
 - [25-trash](../../../docs/design/add-capture-library/png/25-trash-light@1x.png)
 - [26-video-preview](../../../docs/design/add-capture-library/png/26-video-preview-light@1x.png)
 
-Design approved: _pending_
+Design approved: 2026-10-30
 
 ## Technical decisions
 - Files stay the source of truth; SQLite index (`rusqlite`) in `~/.cache/annota/library.db` is rebuildable

@@ -18,7 +18,7 @@ Screens (light, 1×; every screen also has `-dark@1x/2x`):
 - [09-theme-import-export](../../../docs/design/add-style-system/png/09-theme-import-export-light@1x.png)
 - [10-theme-import-error](../../../docs/design/add-style-system/png/10-theme-import-error-light@1x.png)
 
-Design approved: _pending_
+Design approved: 2026-10-30
 
 ## Technical decisions
 - Styles stored in `~/.local/share/annota/styles/`; themes as JSON with schema version

@@ -19,7 +19,7 @@ Screens (light, 1×; every screen also has `-dark@1x/2x`):
 - [10-gnome-search](../../../docs/design/bootstrap-app-shell/png/10-gnome-search-light@1x.png)
 - [11-cli-errors](../../../docs/design/bootstrap-app-shell/png/11-cli-errors-light@1x.png)
 
-Design approved: _pending_
+Design approved: 2026-10-30
 
 ## Technical decisions
 - Meson drives Cargo (GNOME template); Blueprint for UI files

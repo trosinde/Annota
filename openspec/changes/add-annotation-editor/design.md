@@ -26,7 +26,7 @@ Light 1× renders:
 - [17-main-menu](../../../docs/design/add-annotation-editor/png/17-main-menu-light@1x.png)
 - [18-flatten-all-result](../../../docs/design/add-annotation-editor/png/18-flatten-all-result-light@1x.png)
 
-Design approved: _pending_
+Design approved: 2026-10-30
 
 ## Technical decisions
 - Scene graph of `Annotation` trait objects, serde-serialised

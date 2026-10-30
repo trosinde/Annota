@@ -22,7 +22,7 @@ Screens (light, 1×; every screen also has `-dark@1x/2x`):
 - [13-batch-export-done](../../../docs/design/add-export-share/png/13-batch-export-done-light@1x.png)
 - [14-email-handoff](../../../docs/design/add-export-share/png/14-email-handoff-light@1x.png)
 
-Design approved: _pending_
+Design approved: 2026-10-30
 
 ## Technical decisions
 - PDF via cairo PdfSurface, vector annotations kept vector

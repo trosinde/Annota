@@ -28,7 +28,7 @@ Light 1× renders:
 - [19-export-redaction-warning](../../../docs/design/add-core-annotation-tools/png/19-export-redaction-warning-light@1x.png)
 - [20-narrow-text-properties](../../../docs/design/add-core-annotation-tools/png/20-narrow-text-properties-light@1x.png)
 
-Design approved: _pending_
+Design approved: 2026-10-30
 
 ## Technical decisions
 - One module per tool implementing `Annotation`; shared property widgets generated from a property schema
