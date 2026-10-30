@@ -47,16 +47,21 @@
 
 ## 4. CI integration
 
-- [ ] 4.1 Extend the `build-deb` job in `.github/workflows/ci.yml` (or add a dependent job) so
+- [x] 4.1 Extend the `build-deb` job in `.github/workflows/ci.yml` (or add a dependent job) so
   that, gated on `startsWith(github.ref, 'refs/tags/v')`, it imports
   `ANNOTA_RELEASE_SIGNING_KEY`, runs `build-aux/make-apt-repo.sh`, and assembles a Pages artifact
-  combining the existing `docs/` tree with the generated `docs/apt/` tree; verify with a run on a
-  test tag that the workflow succeeds and the uploaded Pages artifact contains both trees
-- [ ] 4.2 Add the `actions/deploy-pages` step (and required `pages: write`/`id-token: write`
-  permissions) to publish that artifact; verify the resulting page serves
-  `https://trosinde.github.io/Annota/apt/dists/noble/Release` with a 200 response
+  combining the existing `docs/` tree with the generated `docs/apt/` tree — job `publish-apt-repo`
+  added; **not yet run** — no `v*` tag has been pushed since this job was added, so the workflow
+  itself is untested on real CI
+- [x] 4.2 Add the `actions/deploy-pages` step (and required `pages: write`/`id-token: write`
+  permissions) to publish that artifact — step added; repo was private and Pages was never
+  enabled before this change (`gh api .../pages` → 404, then `422` while private); with the
+  maintainer's approval the repo was made public and Pages enabled with `build_type: workflow`
+  (`https://trosinde.github.io/Annota/`). **Still open:** no run has happened yet to actually
+  populate that URL — needs a `v*` tag push to verify end-to-end
 - [ ] 4.3 Keep the existing unsigned-`.deb`-to-GitHub-Release attachment step unchanged; verify a
-  test tag's Release still has the `.deb` asset attached exactly as before this change
+  test tag's Release still has the `.deb` asset attached exactly as before this change — step
+  itself untouched in the diff; verification still needs a real tag push
 
 ## 5. Documentation
 

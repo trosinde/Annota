@@ -82,9 +82,12 @@ it.
 ## Risks / Trade-offs
 
 - [GitHub Pages "Deploy from a branch" → "Actions" switch is a manual repo-settings change] →
-  mitigated by calling it out explicitly as a one-time task in `tasks.md`; CI cannot do this for
-  itself, so the first release under this change needs the maintainer to flip that setting before
-  the workflow run that publishes `docs/apt/` will actually take effect.
+  done: Pages was never enabled for this repo before this change (confirmed via `gh api .../pages`
+  → 404), and the repo was private, which GitHub Pages does not support on the free plan (`422`).
+  With the maintainer's explicit approval the repo was made public and Pages enabled with
+  `build_type: workflow` (`gh repo edit --visibility public`, `gh api -X POST .../pages -f
+  build_type=workflow`); `https://trosinde.github.io/Annota/` now resolves once the first
+  `deploy-pages` run completes.
 - [A single `amd64`/`noble` repo understates what the `.deb` already claims to support (Ubuntu
   26.04, Debian 13, `Architecture: any`)] → mitigated by stating this as an explicit Non-Goal and
   leaving multi-suite/arch repo layout as clearly scoped-out future work, not a silent gap.
