@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Many objects</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 2px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .editor-col { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+  .editor-col > .canvas-area { flex: 1; }
+  .canvas-area.top { align-items: flex-start; }
+  /* recent-captures tray */
+  .tray { flex: none; height: 107px; display: flex; align-items: flex-start; gap: 12px; padding: 9px 12px 12px; background: var(--window-bg); box-shadow: inset 0 1px var(--separator); position: relative; }
+  .tray .tgroup { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .tray .tgroup.grow { flex: 1; overflow: hidden; }
+  .tray .tlabel { font-size: var(--fs-caption); font-weight: var(--fw-bold); opacity: var(--dim-opacity); height: 15px; line-height: 15px; display: flex; gap: 6px; align-items: center; }
+  .tray .thumbs { display: flex; gap: 6px; }
+  .tray .thumb { width: 100px; height: 62px; flex: none; border-radius: var(--radius-s); overflow: hidden; position: relative; box-shadow: 0 0 0 1px var(--borders); background: var(--view-bg); }
+  .tray .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tray .thumb.current { box-shadow: 0 0 0 2px var(--window-bg), 0 0 0 4px var(--accent-bg); }
+  .tray .thumb.hover { box-shadow: 0 0 0 1px var(--borders-strong), 0 2px 6px rgb(0 0 6 / 18%); }
+  .tray .thumb.dragging { opacity: .45; }
+  .tray .thumb .unsaved { position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-bg); box-shadow: 0 0 0 2px var(--view-bg); }
+  .tray .tend { display: flex; flex-direction: column; gap: 6px; align-self: center; }
+  .tray .fade { position: absolute; right: 64px; top: 0; bottom: 0; width: 48px; background: linear-gradient(to right, transparent, var(--window-bg)); pointer-events: none; }
+  /* sidebar helpers */
+  .props .group-title { display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+  .props .group-title .heading { flex: 1; }
+  .props .lbl { font-size: var(--fs-small); opacity: var(--dim-opacity); padding: 0 2px; }
+  .props .field { display: flex; flex-direction: column; gap: 6px; }
+  .props .row-line { display: flex; align-items: center; gap: 12px; min-height: 34px; }
+  .props .row-line > .name { flex: 1; font-size: var(--fs-body); }
+  .props .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+  .props .grid2 .cell { display: flex; align-items: center; gap: 6px; }
+  .props .grid2 .cell .k { width: 16px; font-size: var(--fs-small); opacity: var(--dim-opacity); text-align: center; }
+  .props .grid2 .entry { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
+  .props .toggle-group { width: 100%; }
+  .props .toggle-group > .toggle { flex: 1; }
+  .props .hint { font-size: var(--fs-small); opacity: var(--dim-opacity); line-height: 1.35; padding: 0 2px; }
+  .props .card-note { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-l); background: var(--accent-a12); font-size: var(--fs-small); line-height: 1.35; }
+  .props .card-note.warn { background: rgb(229 165 10 / 18%); }
+  .props .card-note .icon { margin-top: 1px; }
+  .props .boxed-list .row { min-height: 46px; padding: 6px 12px; }
+  .props .boxed-list .row .title { font-size: var(--fs-body); }
+  .props .full { width: 100%; }
+  .swatch.eyedrop { background: var(--fill-1); box-shadow: none; color: inherit; }
+  .swatch.checker { background-color: var(--canvas-checker-a); background-image: linear-gradient(45deg, var(--canvas-checker-b) 25%, transparent 25%, transparent 75%, var(--canvas-checker-b) 75%), linear-gradient(45deg, var(--canvas-checker-b) 25%, transparent 25%, transparent 75%, var(--canvas-checker-b) 75%); background-size: 10px 10px; background-position: 0 0, 5px 5px; }
+  .swatch.none.selected { box-shadow: inset 0 0 0 1px var(--borders-strong), 0 0 0 2px var(--window-bg), 0 0 0 4px var(--accent-bg); }
+  .swatch.mixed { background: conic-gradient(var(--annota-coral) 0 50%, var(--annota-azure) 50% 100%); }
+  /* canvas overlays */
+  .ov { position: absolute; pointer-events: none; }
+  .selx { position: absolute; outline: 1px solid var(--accent-bg); }
+  .selx.dashed { outline: 1px dashed var(--accent-bg); }
+  .selx.thin { outline-color: var(--accent-a50); }
+  .hd { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; background: #ffffff; border: 1.5px solid var(--accent-bg); border-radius: 50%; box-sizing: border-box; }
+  .hd.sq { border-radius: 2px; }
+  .hd.big { width: 12px; height: 12px; margin: -6px 0 0 -6px; }
+  .hd.curve { width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 2px; transform: rotate(45deg); background: var(--accent-bg); border-color: #ffffff; }
+  .hd.add { width: 18px; height: 18px; margin: -9px 0 0 -9px; background: var(--accent-bg); border: 2px solid #ffffff; display: grid; place-items: center; color: #ffffff; box-shadow: 0 1px 3px rgb(0 0 6 / 30%); }
+  .hd.add .icon { width: 12px; height: 12px; }
+  .hd.active { background: var(--accent-bg); border-color: #ffffff; }
+  .rot-stem { position: absolute; width: 1px; background: var(--accent-bg); }
+  .guide { position: absolute; background: var(--annota-violet); }
+  .guide.v { width: 1px; } .guide.h { height: 1px; }
+  .chip { position: absolute; padding: 3px 8px; border-radius: var(--radius-s); background: var(--osd-bg-solid); color: var(--osd-fg); font-size: var(--fs-caption); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; white-space: nowrap; box-shadow: 0 1px 3px rgb(0 0 6 / 25%); }
+  .chip.violet { background: var(--annota-violet); }
+  .cursor { position: absolute; width: 18px; height: 18px; }
+  .zoom-osd .label { min-width: 64px; text-align: center; }
+</style>
+</head>
+<body class="mock-frame flush">
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+ <symbol id="x-rotate-left" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M4 6.5A5 5 0 1 1 3.4 10"/><path fill="currentColor" d="M1.5 3.5v4.5H6z"/></symbol>
+ <symbol id="x-rotate-right" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M12 6.5A5 5 0 1 0 12.6 10"/><path fill="currentColor" d="M14.5 3.5v4.5H10z"/></symbol>
+ <symbol id="x-flip-h" viewBox="0 0 16 16"><path fill="currentColor" d="M7.2 1h1.6v14H7.2z"/><path fill="currentColor" d="M6 3.5v9L1 12.5z"/><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" d="M10.7 4.6v7.2l4-.1z"/></symbol>
+ <symbol id="x-flip-v" viewBox="0 0 16 16"><path fill="currentColor" d="M1 7.2h14v1.6H1z"/><path fill="currentColor" d="M3.5 6h9L12.5 1z"/><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" d="M4.6 10.7h7.2l-.1 4z"/></symbol>
+ <symbol id="x-rect" viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+ <symbol id="x-rounded" viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+ <symbol id="x-ellipse" viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="6.2" ry="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+ <symbol id="x-polygon" viewBox="0 0 16 16"><path d="M8 2l6 4.4-2.3 7.1H4.3L2 6.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+ <symbol id="x-cloud" viewBox="0 0 16 16"><path d="M4.5 12.5a3 3 0 0 1-.4-6 4 4 0 0 1 7.6-.6 3.3 3.3 0 0 1 .3 6.6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+ <symbol id="x-solid" viewBox="0 0 16 16"><path d="M1.5 8h13" stroke="currentColor" stroke-width="2"/></symbol>
+ <symbol id="x-dashed" viewBox="0 0 16 16"><path d="M1 8h14" stroke="currentColor" stroke-width="2" stroke-dasharray="4 2.5"/></symbol>
+ <symbol id="x-dotted" viewBox="0 0 16 16"><path d="M2 8h13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="0 3.6"/></symbol>
+ <symbol id="x-align-left" viewBox="0 0 16 16"><path fill="currentColor" d="M1 2h14v1.6H1zM1 6h9v1.6H1zM1 10h14v1.6H1zM1 14h9v1.6H1z"/></symbol>
+ <symbol id="x-align-center" viewBox="0 0 16 16"><path fill="currentColor" d="M1 2h14v1.6H1zM3.5 6h9v1.6h-9zM1 10h14v1.6H1zM3.5 14h9v1.6h-9z"/></symbol>
+ <symbol id="x-align-right" viewBox="0 0 16 16"><path fill="currentColor" d="M1 2h14v1.6H1zM6 6h9v1.6H6zM1 10h14v1.6H1zM6 14h9v1.6H6z"/></symbol>
+ <symbol id="x-group" viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="8" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="6.5" y="7.5" width="8" height="7" rx="1" fill="currentColor"/></symbol>
+ <symbol id="x-transparent" viewBox="0 0 16 16"><path fill="currentColor" d="M2 2h4v4H2zM10 2h4v4h-4zM6 6h4v4H6zM2 10h4v4H2zM10 10h4v4h-4z" opacity=".9"/></symbol>
+</svg>
+<div class="window" style="width:1280px;height:800px">
+  <div class="headerbar">
+    <div class="start">
+      <button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button>
+      <div class="linked">
+        <button class="btn image-button" title="Undo (Ctrl+Z)"><svg class="icon"><use href="#i-undo"/></svg></button>
+        <button class="btn image-button disabled" title="Redo (Ctrl+Shift+Z)"><svg class="icon"><use href="#i-redo"/></svg></button>
+      </div>
+    </div>
+    <div class="title-widget"><span class="title">September dashboard</span><span class="subtitle">1600 × 1000 · Edited</span></div>
+    <div class="end">
+      <button class="btn flat image-button active" title="Show Properties (F9)"><svg class="icon"><use href="#i-sidebar-show-right"/></svg></button>
+      <button class="btn image-button" title="Copy to Clipboard (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button>
+      <button class="btn text-button suggested-action">Export</button>
+      <button class="btn flat image-button"><svg class="icon"><use href="#i-open-menu"/></svg></button>
+      <div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div>
+    </div>
+  </div>
+  <div class="split-view">
+    <div class="tool-strip">
+<button class="btn flat active" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button>
+<button class="btn flat" title="Line (L)"><svg class="icon"><use href="#i-line"/></svg></button>
+<button class="btn flat" title="Pen (P)"><svg class="icon"><use href="#i-pen"/></svg></button>
+<button class="btn flat" title="Shape (U)"><svg class="icon"><use href="#i-shape"/></svg></button>
+<button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button>
+<button class="btn flat" title="Callout (K)"><svg class="icon"><use href="#i-callout"/></svg></button>
+<button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button>
+<button class="btn flat" title="Redact (B)"><svg class="icon"><use href="#i-blur"/></svg></button>
+<button class="btn flat" title="Magnify (M)"><svg class="icon"><use href="#i-magnify"/></svg></button>
+<button class="btn flat" title="Spotlight (G)"><svg class="icon"><use href="#i-spotlight"/></svg></button>
+<button class="btn flat" title="Stamp (I)"><svg class="icon"><use href="#i-stamp"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Crop (C)"><svg class="icon"><use href="#i-crop"/></svg></button>
+<button class="btn flat" title="More Tools"><svg class="icon"><use href="#i-view-more"/></svg></button>
+</div>
+    <div class="editor-col">
+      <div class="canvas-area" >
+        <div class="canvas-image" style="width:800px;height:500px;">
+          <img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt="">
+          <svg class="annotations" viewBox="0 0 1600 1000"><defs>
+  <filter id="sh" filterUnits="userSpaceOnUse" x="-500" y="-500" width="3000" height="2500"><feDropShadow dx="2.5" dy="3.5" stdDeviation="3" flood-color="#000006" flood-opacity=".32"/></filter>
+  <filter id="sh-big" filterUnits="userSpaceOnUse" x="-500" y="-500" width="3000" height="2500"><feDropShadow dx="7" dy="9" stdDeviation="8" flood-color="#000006" flood-opacity=".45"/></filter>
+</defs><rect x="1156" y="320" width="380" height="34" fill="rgb(255 222 0)" opacity="0.35" style="mix-blend-mode:multiply"/><rect x="1156" y="356" width="380" height="34" fill="rgb(255 222 0)" opacity="0.35" style="mix-blend-mode:multiply"/><rect x="1156" y="392" width="380" height="34" fill="rgb(255 222 0)" opacity="0.35" style="mix-blend-mode:multiply"/><rect x="1156" y="428" width="380" height="34" fill="rgb(255 222 0)" opacity="0.35" style="mix-blend-mode:multiply"/><rect x="1156" y="464" width="380" height="34" fill="rgb(255 222 0)" opacity="0.35" style="mix-blend-mode:multiply"/><rect x="1156" y="500" width="380" height="34" fill="rgb(255 222 0)" opacity="0.35" style="mix-blend-mode:multiply"/><g><circle cx="345.0" cy="660" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="345.0" y="660" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:12px">1</text></g><g><circle cx="370.8" cy="646" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="370.8" y="646" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:12px">2</text></g><g><circle cx="396.6" cy="632" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="396.6" y="632" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:12px">3</text></g><g><circle cx="422.4" cy="618" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="422.4" y="618" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:12px">4</text></g><g><circle cx="448.2" cy="604" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="448.2" y="604" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:12px">5</text></g><g><circle cx="474.0" cy="660" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="474.0" y="660" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:12px">6</text></g><g><circle cx="499.8" cy="646" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="499.8" y="646" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:12px">7</text></g><g><circle cx="525.6" cy="632" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="525.6" y="632" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:12px">8</text></g><g><circle cx="551.4" cy="618" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="551.4" y="618" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:12px">9</text></g><g><circle cx="577.2" cy="604" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="577.2" y="604" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">10</text></g><g><circle cx="603.0" cy="660" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="603.0" y="660" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">11</text></g><g><circle cx="628.8" cy="646" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="628.8" y="646" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">12</text></g><g><circle cx="654.6" cy="632" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="654.6" y="632" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">13</text></g><g><circle cx="680.4000000000001" cy="618" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="680.4000000000001" y="618" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">14</text></g><g><circle cx="706.2" cy="604" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="706.2" y="604" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">15</text></g><g><circle cx="732.0" cy="660" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="732.0" y="660" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">16</text></g><g><circle cx="757.8" cy="646" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="757.8" y="646" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">17</text></g><g><circle cx="783.6" cy="632" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="783.6" y="632" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">18</text></g><g><circle cx="809.4000000000001" cy="618" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="809.4000000000001" y="618" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">19</text></g><g><circle cx="835.2" cy="604" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="835.2" y="604" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">20</text></g><g><circle cx="861.0" cy="660" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="861.0" y="660" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">21</text></g><g><circle cx="886.8000000000001" cy="646" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="886.8000000000001" y="646" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">22</text></g><g><circle cx="912.6" cy="632" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="912.6" y="632" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">23</text></g><g><circle cx="938.4" cy="618" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="938.4" y="618" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">24</text></g><g><circle cx="964.2" cy="604" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="964.2" y="604" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">25</text></g><g><circle cx="990.0" cy="660" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="990.0" y="660" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">26</text></g><g><circle cx="1015.8000000000001" cy="646" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="1015.8000000000001" y="646" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">27</text></g><g><circle cx="1041.6" cy="632" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="1041.6" y="632" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">28</text></g><g><circle cx="1067.4" cy="618" r="11" fill="var(--annota-coral)" stroke="#ffffff" stroke-width="3"/><text x="1067.4" y="618" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">29</text></g><g><circle cx="1093.2" cy="604" r="11" fill="var(--annota-azure)" stroke="#ffffff" stroke-width="3"/><text x="1093.2" y="604" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:10px">30</text></g><rect x="270" y="87" width="300" height="96" rx="10" fill="none" stroke="var(--annota-teal)" stroke-width="4" filter="url(#sh)" opacity="1"/><g filter="url(#sh)"><circle cx="554" cy="87" r="16" fill="var(--annota-teal)" stroke="#ffffff" stroke-width="3"/><text x="554" y="87" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:17px">A</text></g><rect x="600" y="87" width="300" height="96" rx="10" fill="none" stroke="var(--annota-teal)" stroke-width="4" filter="url(#sh)" opacity="1"/><g filter="url(#sh)"><circle cx="884" cy="87" r="16" fill="var(--annota-teal)" stroke="#ffffff" stroke-width="3"/><text x="884" y="87" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:17px">B</text></g><rect x="930" y="87" width="300" height="96" rx="10" fill="none" stroke="var(--annota-teal)" stroke-width="4" filter="url(#sh)" opacity="1"/><g filter="url(#sh)"><circle cx="1214" cy="87" r="16" fill="var(--annota-teal)" stroke="#ffffff" stroke-width="3"/><text x="1214" y="87" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:17px">C</text></g><rect x="1260" y="87" width="300" height="96" rx="10" fill="none" stroke="var(--annota-teal)" stroke-width="4" filter="url(#sh)" opacity="1"/><g filter="url(#sh)"><circle cx="1544" cy="87" r="16" fill="var(--annota-teal)" stroke="#ffffff" stroke-width="3"/><text x="1544" y="87" dy=".36em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:800;font-size:17px">D</text></g><g filter="url(#sh)" opacity="1"><path d="M1300.0 600.0 L1425.2 528.4" stroke="var(--annota-coral)" stroke-width="6" stroke-linecap="round" fill="none"/><path d="M1440.0 520.0 L1426.6 536.9 L1418.7 523.0Z" fill="var(--annota-coral)" stroke="var(--annota-coral)" stroke-width="2.4" stroke-linejoin="round"/></g><g filter="url(#sh)" opacity="1"><path d="M1300.0 640.0 L1443.5 604.1" stroke="var(--annota-coral)" stroke-width="6" stroke-linecap="round" fill="none"/><path d="M1460.0 600.0 L1442.5 612.6 L1438.7 597.1Z" fill="var(--annota-coral)" stroke="var(--annota-coral)" stroke-width="2.4" stroke-linejoin="round"/></g><g filter="url(#sh)" opacity="1"><path d="M1200.0 640.0 L1226.1 621.7" stroke="var(--annota-coral)" stroke-width="6" stroke-linecap="round" fill="none"/><path d="M1240.0 612.0 L1228.2 630.0 L1219.0 616.9Z" fill="var(--annota-coral)" stroke="var(--annota-coral)" stroke-width="2.4" stroke-linejoin="round"/></g><g filter="url(#sh)"><path d="M695.2 356.3 L1040 440 L704.8 323.7Z" fill="var(--annota-violet)" stroke="none" stroke-width="0" stroke-linejoin="round"/><rect x="320" y="300" width="440" height="80" rx="14" fill="var(--annota-violet)" stroke="none" stroke-width="0"/></g><text x="540.0" y="340.0" dy=".35em" text-anchor="middle" fill="#ffffff" style="font-family:var(--font-ui);font-weight:700;font-size:28px">Peak on 26 Sep</text><rect x="1150" y="590" width="380" height="70" rx="8" fill="none" stroke="var(--annota-coral)" stroke-width="4" filter="url(#sh)" opacity="1"/></svg>
+          
+        </div>
+        <div class="osd-toolbar zoom-osd" style="position:absolute;right:18px;bottom:18px">
+          <button class="btn image-button" title="Zoom Out (Ctrl+−)"><svg class="icon"><use href="#i-zoom-out"/></svg></button>
+          <button class="btn text-button" style="padding:0 8px;min-width:78px" title="Zoom Levels">Fit · 50 %</button>
+          <button class="btn image-button" title="Zoom In (Ctrl++)"><svg class="icon"><use href="#i-zoom-in"/></svg></button>
+        </div>
+      </div>
+      <div class="tray">
+        <div class="tgroup"><span class="tlabel">Open</span><div class="thumbs"><div class="thumb" title="Checkout flow"><img src="../../kit/sample-content/png/b-lumen-checkout.png" style="object-position:0% 0%" alt=""></div><div class="thumb current" title="September dashboard"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" style="object-position:0% 0%" alt=""><span class="unsaved"></span></div><div class="thumb" title="Backup settings"><img src="../../kit/sample-content/png/a-harbor-backup.png" style="object-position:50% 50%" alt=""></div></div></div><span class="separator-v" style="margin:21px 0 0"></span>
+        <div class="tgroup grow"><span class="tlabel">Recent</span><div class="thumbs"><div class="thumb"><img src="../../kit/sample-content/png/e-relay-chat.png" style="object-position:30% 20%" alt=""></div><div class="thumb"><img src="../../kit/sample-content/png/c-code-editor.png" style="object-position:0% 0%" alt=""></div><div class="thumb"><img src="../../kit/sample-content/png/f-field-notes.png" style="object-position:50% 0%" alt=""></div><div class="thumb"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" style="object-position:100% 20%" alt=""></div><div class="thumb"><img src="../../kit/sample-content/png/b-lumen-checkout.png" style="object-position:100% 30%" alt=""></div><div class="thumb"><img src="../../kit/sample-content/png/a-harbor-backup.png" style="object-position:0% 0%" alt=""></div><div class="thumb"><img src="../../kit/sample-content/png/e-relay-chat.png" style="object-position:100% 0%" alt=""></div></div></div>
+        <span class="fade"></span>
+        <div class="tend">
+          <button class="btn flat image-button" title="Open Library (Ctrl+L)"><svg class="icon"><use href="#i-library"/></svg></button>
+          <button class="btn flat image-button" title="Hide Tray"><svg class="icon"><use href="#i-pan-down"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-pane end props"><div class="scroll">
+        <div class="group-title"><span class="heading">Document</span><span class="dim-label caption">64 objects</span></div>
+        <div class="boxed-list">
+          <div class="row"><span class="prefix"><svg class="icon"><use href="#i-step"/></svg></span><div class="text"><span class="title">Steps</span></div><div class="suffix"><span class="badge neutral">34</span><button class="btn flat small">Select</button></div></div>
+          <div class="row"><span class="prefix"><svg class="icon"><use href="#i-highlighter"/></svg></span><div class="text"><span class="title">Highlights</span></div><div class="suffix"><span class="badge neutral">6</span><button class="btn flat small">Select</button></div></div>
+          <div class="row"><span class="prefix"><svg class="icon"><use href="#i-shape"/></svg></span><div class="text"><span class="title">Rectangles</span></div><div class="suffix"><span class="badge neutral">5</span><button class="btn flat small">Select</button></div></div>
+          <div class="row"><span class="prefix"><svg class="icon"><use href="#i-arrow"/></svg></span><div class="text"><span class="title">Arrows</span></div><div class="suffix"><span class="badge neutral">3</span><button class="btn flat small">Select</button></div></div>
+          <div class="row"><span class="prefix"><svg class="icon"><use href="#i-callout"/></svg></span><div class="text"><span class="title">Callouts</span></div><div class="suffix"><span class="badge neutral">1</span><button class="btn flat small">Select</button></div></div>
+          <div class="row"><span class="prefix"><svg class="icon"><use href="#i-image"/></svg></span><div class="text"><span class="title">Other</span></div><div class="suffix"><span class="badge neutral">15</span><button class="btn flat small">Select</button></div></div>
+        </div>
+        <div class="boxed-list">
+            <div class="row"><div class="text"><span class="title">Snap to guides</span><span class="subtitle">Ctrl+; · hold Alt to suspend</span></div><div class="suffix"><span class="switch on"></span></div></div>
+            <div class="row"><div class="text"><span class="title">64 editable objects</span></div><div class="suffix"><button class="btn">Flatten All</button></div></div>
+        </div></div></div>
+  </div>
+  
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>
