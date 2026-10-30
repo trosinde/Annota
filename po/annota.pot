@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 15:48+0100\n"
+"POT-Creation-Date: 2026-10-30 17:08+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,10 +16,11 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
 #: data/io.github.trosinde.Annota.desktop.in:2
 #: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:24
-#: data/ui/window.blp:45
+#: data/ui/window.blp:264
 msgid "Annota"
 msgstr ""
 
@@ -37,15 +38,15 @@ msgstr ""
 msgid "screenshot;capture;annotate;arrow;markup;redact;screen;recording;"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:17
+#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:252
 msgid "Capture Region"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:21
+#: data/io.github.trosinde.Annota.desktop.in:21 src/application.rs:253
 msgid "Capture Window"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:25
+#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:254
 msgid "Capture Screen"
 msgstr ""
 
@@ -116,15 +117,74 @@ msgstr ""
 msgid "Include the mouse pointer in captures"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:59
+#: data/io.github.trosinde.Annota.gschema.xml:59 data/ui/preferences.blp:181
+msgid "Capture all monitors"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:60
+msgid ""
+"Screen mode captures every monitor instead of the one under the pointer."
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:64
+msgid "Region capture shortcut"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:65
+msgid ""
+"Global shortcut (GTK accelerator syntax) that starts a region capture. Empty "
+"disables it."
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:69
+msgid "Window capture shortcut"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:70
+msgid ""
+"Global shortcut (GTK accelerator syntax) that starts a window capture. Empty "
+"disables it."
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:74
+msgid "Screen capture shortcut"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:75
+msgid ""
+"Global shortcut (GTK accelerator syntax) that starts a screen capture. Empty "
+"disables it."
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:79
+msgid "GNOME shortcuts created"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:80
+msgid ""
+"Whether Annota has written GNOME custom keybindings that run annota --"
+"capture (used when the GlobalShortcuts portal is unavailable)."
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:84
+msgid "GNOME screenshot keys moved aside"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:85
+msgid ""
+"GNOME Shell keybindings (key, accelerator) that Annota took over. They are "
+"given back when the Annota shortcut is disabled or changed."
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:89
 msgid "Editor window width"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:63
+#: data/io.github.trosinde.Annota.gschema.xml:93
 msgid "Editor window height"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:67
+#: data/io.github.trosinde.Annota.gschema.xml:97
 msgid "Editor window maximized"
 msgstr ""
 
@@ -140,12 +200,64 @@ msgstr ""
 msgid "_About Annota"
 msgstr ""
 
-#: data/ui/window.blp:37
+#: data/ui/window.blp:36
+msgid "New Capture (Ctrl+N)"
+msgstr ""
+
+#: data/ui/window.blp:54 data/ui/window.blp:68 data/ui/region-overlay.blp:139
+msgid "Region"
+msgstr ""
+
+#: data/ui/window.blp:80 data/ui/window.blp:94 data/ui/region-overlay.blp:146
+msgid "Window"
+msgstr ""
+
+#: data/ui/window.blp:106 data/ui/window.blp:120 data/ui/region-overlay.blp:153
+msgid "Screen"
+msgstr ""
+
+#: data/ui/window.blp:141 data/ui/region-overlay.blp:226
+msgid "Delay"
+msgstr ""
+
+#: data/ui/window.blp:146
+msgid "Countdown before capturing"
+msgstr ""
+
+#: data/ui/window.blp:154 data/ui/region-overlay.blp:248
+msgid "Delay in seconds"
+msgstr ""
+
+#: data/ui/window.blp:169 data/ui/preferences.blp:166
+msgid "Include pointer"
+msgstr ""
+
+#: data/ui/window.blp:176 data/ui/region-overlay.blp:221
+msgid "Include Pointer"
+msgstr ""
+
+#: data/ui/window.blp:214
+msgid "Paste Image From Clipboard"
+msgstr ""
+
+#: data/ui/window.blp:237
+msgid "Open Image…"
+msgstr ""
+
+#: data/ui/window.blp:255
 msgid "Main Menu"
 msgstr ""
 
-#: data/ui/window.blp:46
-msgid "Pre-release build. Capturing and editing arrive with milestone 0.1."
+#: data/ui/window.blp:265
+msgid "Pre-release build. Editing arrives with milestone 0.1."
+msgstr ""
+
+#: data/ui/window.blp:296
+msgid "Drop to Open as New Capture"
+msgstr ""
+
+#: data/ui/window.blp:301
+msgid "PNG, JPG or WebP"
 msgstr ""
 
 #: data/ui/preferences.blp:5
@@ -228,76 +340,61 @@ msgstr ""
 msgid "System"
 msgstr ""
 
-#: data/ui/preferences.blp:102
+#: data/ui/preferences.blp:102 data/ui/preferences.blp:163
+#: data/ui/region-overlay.blp:278 data/ui/region-overlay.blp:396
 msgid "Capture"
 msgstr ""
 
-#: data/ui/preferences.blp:106
-msgid "After Capture"
+#: data/ui/preferences.blp:111
+msgid "Global Shortcuts"
 msgstr ""
 
-#: data/ui/preferences.blp:107
-msgid "What happens when a capture is taken"
+#: data/ui/preferences.blp:114 src/capture/shortcuts.rs:60
+msgid "Region capture"
 msgstr ""
 
-#: data/ui/preferences.blp:110
-msgid "Open in editor"
+#: data/ui/preferences.blp:130 src/capture/shortcuts.rs:61
+msgid "Window capture"
 msgstr ""
 
-#: data/ui/preferences.blp:120
-msgid "Copy to clipboard"
+#: data/ui/preferences.blp:146 src/capture/shortcuts.rs:62
+msgid "Screen capture"
 msgstr ""
 
-#: data/ui/preferences.blp:121
-msgid "No window opens"
+#: data/ui/preferences.blp:167
+msgid "Show the mouse pointer in captures"
 msgstr ""
 
-#: data/ui/preferences.blp:132
-msgid "Open in editor and copy to clipboard"
+#: data/ui/preferences.blp:171
+msgid "Default delay"
 msgstr ""
 
-#: data/ui/preferences.blp:144
-msgid "Capture Defaults"
+#: data/ui/preferences.blp:182
+msgid "Screen mode captures every monitor instead of the one under the pointer"
 msgstr ""
 
-#: data/ui/preferences.blp:147
-msgid "Default mode"
+#: data/ui/preferences.blp:186
+msgid "After capture"
 msgstr ""
 
-#: data/ui/preferences.blp:149
-msgid "Region"
+#: data/ui/preferences.blp:188
+msgid "Open in Editor"
 msgstr ""
 
-#: data/ui/preferences.blp:149
-msgid "Window"
+#: data/ui/preferences.blp:188
+msgid "Copy to Clipboard"
 msgstr ""
 
-#: data/ui/preferences.blp:149
-msgid "Screen"
+#: data/ui/preferences.blp:188
+msgid "Both"
 msgstr ""
 
-#: data/ui/preferences.blp:154
-msgid "Delay"
+#: data/ui/preferences.blp:196
+msgid "Global shortcuts are not active yet"
 msgstr ""
 
-#: data/ui/preferences.blp:155
-msgid "Seconds to wait before capturing (0–60)"
-msgstr ""
-
-#: data/ui/preferences.blp:165
-msgid "Include pointer"
-msgstr ""
-
-#: data/ui/preferences.blp:170
-msgid "Shortcut"
-msgstr ""
-
-#: data/ui/preferences.blp:173
-msgid "Capture region"
-msgstr ""
-
-#: data/ui/preferences.blp:174
-msgid "Registered as a system shortcut"
+#: data/ui/preferences.blp:197
+msgid "Create GNOME Shortcuts"
 msgstr ""
 
 #: data/ui/help-overlay.blp:11
@@ -317,211 +414,530 @@ msgstr ""
 
 #: data/ui/help-overlay.blp:24
 msgctxt "shortcut window"
-msgid "Capture library"
+msgid "Paste image from clipboard"
 msgstr ""
 
 #: data/ui/help-overlay.blp:29
 msgctxt "shortcut window"
-msgid "Preferences"
+msgid "Capture library"
 msgstr ""
 
 #: data/ui/help-overlay.blp:34
 msgctxt "shortcut window"
-msgid "Keyboard shortcuts"
+msgid "Preferences"
 msgstr ""
 
 #: data/ui/help-overlay.blp:39
 msgctxt "shortcut window"
-msgid "Close window"
+msgid "Keyboard shortcuts"
 msgstr ""
 
 #: data/ui/help-overlay.blp:44
 msgctxt "shortcut window"
+msgid "Close window"
+msgstr ""
+
+#: data/ui/help-overlay.blp:49
+msgctxt "shortcut window"
 msgid "Quit"
 msgstr ""
 
-#: data/ui/help-overlay.blp:50
+#: data/ui/help-overlay.blp:55
 msgctxt "shortcut window"
 msgid "Capture"
 msgstr ""
 
-#: data/ui/help-overlay.blp:53
+#: data/ui/help-overlay.blp:58
 msgctxt "shortcut window"
 msgid "Capture region"
 msgstr ""
 
-#: data/ui/help-overlay.blp:58
+#: data/ui/help-overlay.blp:63
 msgctxt "shortcut window"
 msgid "Capture window"
 msgstr ""
 
-#: data/ui/help-overlay.blp:63
+#: data/ui/help-overlay.blp:68
 msgctxt "shortcut window"
 msgid "Capture screen"
 msgstr ""
 
-#: data/ui/help-overlay.blp:69
+#: data/ui/help-overlay.blp:74
 msgctxt "shortcut window"
 msgid "Document"
 msgstr ""
 
-#: data/ui/help-overlay.blp:72
+#: data/ui/help-overlay.blp:77
 msgctxt "shortcut window"
 msgid "Save"
 msgstr ""
 
-#: data/ui/help-overlay.blp:77
+#: data/ui/help-overlay.blp:82
 msgctxt "shortcut window"
 msgid "Save as"
 msgstr ""
 
-#: data/ui/help-overlay.blp:82
+#: data/ui/help-overlay.blp:87
 msgctxt "shortcut window"
 msgid "Export"
 msgstr ""
 
-#: data/ui/help-overlay.blp:87
+#: data/ui/help-overlay.blp:92
 msgctxt "shortcut window"
 msgid "Copy image"
 msgstr ""
 
-#: data/ui/help-overlay.blp:92
+#: data/ui/help-overlay.blp:97
 msgctxt "shortcut window"
 msgid "Undo"
 msgstr ""
 
-#: data/ui/help-overlay.blp:97
+#: data/ui/help-overlay.blp:102
 msgctxt "shortcut window"
 msgid "Redo"
 msgstr ""
 
-#: data/ui/help-overlay.blp:102
+#: data/ui/help-overlay.blp:107
 msgctxt "shortcut window"
 msgid "Zoom"
 msgstr ""
 
-#: data/ui/help-overlay.blp:107
+#: data/ui/help-overlay.blp:112
 msgctxt "shortcut window"
 msgid "Best fit"
 msgstr ""
 
-#: data/ui/help-overlay.blp:113
+#: data/ui/help-overlay.blp:118
 msgctxt "shortcut window"
 msgid "Tools"
 msgstr ""
 
-#: data/ui/help-overlay.blp:116
+#: data/ui/help-overlay.blp:121
 msgctxt "shortcut window"
 msgid "Select"
 msgstr ""
 
-#: data/ui/help-overlay.blp:121
+#: data/ui/help-overlay.blp:126
 msgctxt "shortcut window"
 msgid "Arrow"
 msgstr ""
 
-#: data/ui/help-overlay.blp:126
+#: data/ui/help-overlay.blp:131
 msgctxt "shortcut window"
 msgid "Line"
 msgstr ""
 
-#: data/ui/help-overlay.blp:131
+#: data/ui/help-overlay.blp:136
 msgctxt "shortcut window"
 msgid "Pen"
 msgstr ""
 
-#: data/ui/help-overlay.blp:136
+#: data/ui/help-overlay.blp:141
 msgctxt "shortcut window"
 msgid "Shape"
 msgstr ""
 
-#: data/ui/help-overlay.blp:141
+#: data/ui/help-overlay.blp:146
 msgctxt "shortcut window"
 msgid "Text"
 msgstr ""
 
-#: data/ui/help-overlay.blp:146
+#: data/ui/help-overlay.blp:151
 msgctxt "shortcut window"
 msgid "Callout"
 msgstr ""
 
-#: data/ui/help-overlay.blp:151
+#: data/ui/help-overlay.blp:156
 msgctxt "shortcut window"
 msgid "Step"
 msgstr ""
 
-#: data/ui/help-overlay.blp:156
+#: data/ui/help-overlay.blp:161
 msgctxt "shortcut window"
 msgid "Highlighter"
 msgstr ""
 
-#: data/ui/help-overlay.blp:161
+#: data/ui/help-overlay.blp:166
 msgctxt "shortcut window"
 msgid "Redact"
 msgstr ""
 
-#: data/ui/help-overlay.blp:167
+#: data/ui/help-overlay.blp:172
 msgctxt "shortcut window"
 msgid "More Tools"
 msgstr ""
 
-#: data/ui/help-overlay.blp:170
+#: data/ui/help-overlay.blp:175
 msgctxt "shortcut window"
 msgid "Crop"
 msgstr ""
 
-#: data/ui/help-overlay.blp:175
+#: data/ui/help-overlay.blp:180
 msgctxt "shortcut window"
 msgid "Magnify"
 msgstr ""
 
-#: data/ui/help-overlay.blp:180
+#: data/ui/help-overlay.blp:185
 msgctxt "shortcut window"
 msgid "Spotlight"
 msgstr ""
 
-#: data/ui/help-overlay.blp:185
+#: data/ui/help-overlay.blp:190
 msgctxt "shortcut window"
 msgid "Stamp"
 msgstr ""
 
-#: data/ui/help-overlay.blp:190
+#: data/ui/help-overlay.blp:195
 msgctxt "shortcut window"
 msgid "Cut-out"
 msgstr ""
 
-#: data/ui/help-overlay.blp:195
+#: data/ui/help-overlay.blp:200
 msgctxt "shortcut window"
 msgid "Fill"
 msgstr ""
 
-#: data/ui/help-overlay.blp:200
+#: data/ui/help-overlay.blp:205
 msgctxt "shortcut window"
 msgid "Eraser"
 msgstr ""
 
-#: data/ui/help-overlay.blp:205
+#: data/ui/help-overlay.blp:210
 msgctxt "shortcut window"
 msgid "Magic wand"
 msgstr ""
 
-#: data/ui/help-overlay.blp:210
+#: data/ui/help-overlay.blp:215
 msgctxt "shortcut window"
 msgid "Selection"
 msgstr ""
 
-#: src/application.rs:96
-msgid "Capturing arrives in milestone 0.1"
+#: data/ui/region-overlay.blp:10 data/ui/region-overlay.blp:239
+#: src/capture/overlay.rs:282
+msgid "Off"
 msgstr ""
 
-#: src/application.rs:98
+#: data/ui/region-overlay.blp:16
+msgid "1 s"
+msgstr ""
+
+#: data/ui/region-overlay.blp:22
+msgid "2 s"
+msgstr ""
+
+#: data/ui/region-overlay.blp:28
+msgid "3 s"
+msgstr ""
+
+#: data/ui/region-overlay.blp:34
+msgid "5 s"
+msgstr ""
+
+#: data/ui/region-overlay.blp:40
+msgid "10 s"
+msgstr ""
+
+#: data/ui/region-overlay.blp:46
+msgid "Custom…"
+msgstr ""
+
+#: data/ui/region-overlay.blp:54
+msgid "Select Region"
+msgstr ""
+
+#: data/ui/region-overlay.blp:121
+msgid "Snapped to window edge"
+msgstr ""
+
+#: data/ui/region-overlay.blp:169
+msgctxt "width"
+msgid "W"
+msgstr ""
+
+#: data/ui/region-overlay.blp:179
+msgid "Width in pixels"
+msgstr ""
+
+#: data/ui/region-overlay.blp:195
+msgctxt "height"
+msgid "H"
+msgstr ""
+
+#: data/ui/region-overlay.blp:205
+msgid "Height in pixels"
+msgstr ""
+
+#: data/ui/region-overlay.blp:211
+msgid "px"
+msgstr ""
+
+#: data/ui/region-overlay.blp:263 data/ui/region-overlay.blp:335
+#: data/ui/region-overlay.blp:377 data/ui/region-overlay.blp:410
+#: data/ui/countdown.blp:48 data/ui/shortcut-dialog.blp:18
+msgid "Cancel"
+msgstr ""
+
+#: data/ui/region-overlay.blp:293
+msgid "Drag to select"
+msgstr ""
+
+#: data/ui/region-overlay.blp:302 data/ui/region-overlay.blp:448
+msgctxt "keyboard key"
+msgid "Shift"
+msgstr ""
+
+#: data/ui/region-overlay.blp:307
+msgid "Square"
+msgstr ""
+
+#: data/ui/region-overlay.blp:316 data/ui/region-overlay.blp:358
+msgctxt "keyboard key"
+msgid "Alt"
+msgstr ""
+
+#: data/ui/region-overlay.blp:321
+msgid "No snapping"
+msgstr ""
+
+#: data/ui/region-overlay.blp:330 data/ui/region-overlay.blp:372
+#: data/ui/region-overlay.blp:405 data/ui/countdown.blp:43
+msgctxt "keyboard key"
+msgid "Esc"
+msgstr ""
+
+#: data/ui/region-overlay.blp:349
+msgid "Edges snap within 8 px"
+msgstr ""
+
+#: data/ui/region-overlay.blp:363
+msgid "Hold to place freely"
+msgstr ""
+
+#: data/ui/region-overlay.blp:391 data/ui/countdown.blp:57
+msgctxt "keyboard key"
+msgid "Enter"
+msgstr ""
+
+#: data/ui/region-overlay.blp:439
+msgid "Nudge 1 px"
+msgstr ""
+
+#: data/ui/region-overlay.blp:462
+msgctxt "keyboard key"
+msgid "Space"
+msgstr ""
+
+#: data/ui/region-overlay.blp:467
+msgid "Move selection"
+msgstr ""
+
+#: data/ui/countdown.blp:7
+msgid "Capture Countdown"
+msgstr ""
+
+#: data/ui/countdown.blp:62
+msgid "Capture now"
+msgstr ""
+
+#: data/ui/permission-dialog.blp:8 data/ui/permission-dialog.blp:25
+msgid "Screen Access Denied"
+msgstr ""
+
+#: data/ui/permission-dialog.blp:32
+msgid ""
+"GNOME did not allow Annota to take a screenshot. To allow it, open "
+"<b>Settings</b>, choose <b>Apps → Annota</b> and turn on <b>Screenshots</b>. "
+"Then try again."
+msgstr ""
+
+#: data/ui/permission-dialog.blp:40
+msgid "Nothing was captured."
+msgstr ""
+
+#: data/ui/permission-dialog.blp:52
+msgid "Close"
+msgstr ""
+
+#: data/ui/permission-dialog.blp:57
+msgid "Open Settings"
+msgstr ""
+
+#: data/ui/shortcut-dialog.blp:8
+msgid "Set Shortcut"
+msgstr ""
+
+#: data/ui/shortcut-dialog.blp:23
+msgid "Set"
+msgstr ""
+
+#: data/ui/shortcut-dialog.blp:64
+msgid "Esc cancels · Backspace disables the shortcut"
+msgstr ""
+
+#: src/application.rs:120
 msgid "Opening files arrives in milestone 0.1"
 msgstr ""
 
-#: src/application.rs:178
+#: src/application.rs:219 src/capture/overlay.rs:284 src/preferences.rs:232
+msgid "{seconds} s"
+msgstr ""
+
+#: src/application.rs:401
 msgid "Works entirely on this computer. No account, no tracking."
 msgstr ""
 
-#: src/preferences.rs:158
+#: src/capture/countdown.rs:55
+msgid "Capturing region in {seconds} s"
+msgstr ""
+
+#: src/capture/countdown.rs:56
+msgid "Capturing window in {seconds} s"
+msgstr ""
+
+#: src/capture/countdown.rs:57
+msgid "Capturing screen in {seconds} s"
+msgstr ""
+
+#: src/capture/delivery.rs:111
+msgid "Region captured · {width} × {height}"
+msgstr ""
+
+#: src/capture/delivery.rs:112
+msgid "Window captured · {width} × {height}"
+msgstr ""
+
+#: src/capture/delivery.rs:113
+msgid "Screen captured · {width} × {height}"
+msgstr ""
+
+#: src/capture/delivery.rs:114
+msgid "New capture from clipboard"
+msgstr ""
+
+#: src/capture/delivery.rs:115
+msgid "New capture from file"
+msgstr ""
+
+#: src/capture/delivery.rs:184
+msgid "Copied to clipboard"
+msgstr ""
+
+#: src/capture/delivery.rs:197
+msgid "Saved as {name}"
+msgstr ""
+
+#: src/capture/delivery.rs:204
+msgid "Undo"
+msgstr ""
+
+#: src/capture/delivery.rs:219
+msgid "Copy"
+msgstr ""
+
+#: src/capture/delivery.rs:233
+msgid "Could not save the capture: {error}"
+msgstr ""
+
+#: src/capture/import.rs:42
+msgid "The clipboard does not contain an image"
+msgstr ""
+
+#: src/capture/import.rs:51
+msgid "Only PNG, JPG and WebP images can be opened"
+msgstr ""
+
+#: src/capture/import.rs:57
+msgid "This image is empty"
+msgstr ""
+
+#: src/capture/import.rs:61
+msgid "This image could not be opened"
+msgstr ""
+
+#: src/capture/import.rs:69
+msgid "PNG, JPG or WebP images"
+msgstr ""
+
+#: src/capture/import.rs:76
+msgid "Open Image"
+msgstr ""
+
+#: src/capture/mod.rs:98
+msgid "Capturing needs xdg-desktop-portal, which is not running"
+msgstr ""
+
+#: src/capture/mod.rs:100
+msgid "The capture failed. Nothing was captured."
+msgstr ""
+
+#: src/capture/overlay.rs:539
+msgid "at {x}, {y}"
+msgstr ""
+
+#: src/capture/shortcut_dialog.rs:110
+msgid "Press the new shortcut for {name}"
+msgstr ""
+
+#: src/capture/shortcut_dialog.rs:147
+msgid "Not used by GNOME or another app"
+msgstr ""
+
+#: src/capture/shortcut_dialog.rs:152
+msgid "Taken over from GNOME: {name}"
+msgstr ""
+
+#: src/capture/shortcut_dialog.rs:157
+msgid "Used by {name}"
+msgstr ""
+
+#: src/preferences.rs:208
+msgid "Could not change the shortcut: {error}"
+msgstr ""
+
+#: src/preferences.rs:258
+msgid ""
+"This system has no global-shortcuts portal. Annota adds GNOME keyboard "
+"shortcuts instead."
+msgstr ""
+
+#: src/preferences.rs:260
+msgid "Work in every app, even when Annota is closed"
+msgstr ""
+
+#: src/preferences.rs:262
+msgid "Work in every app while Annota is running"
+msgstr ""
+
+#: src/preferences.rs:276
+msgid "Disabled"
+msgstr ""
+
+#: src/preferences.rs:279
+msgid "GNOME shortcut · runs {command}"
+msgstr ""
+
+#: src/preferences.rs:282
+msgid "System shortcut"
+msgstr ""
+
+#: src/preferences.rs:284
+msgid "Not active yet"
+msgstr ""
+
+#: src/preferences.rs:307
+msgid "{count} GNOME shortcut created"
+msgid_plural "{count} GNOME shortcuts created"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/preferences.rs:314
+msgid "Open Keyboard Settings"
+msgstr ""
+
+#: src/preferences.rs:320
+msgid "Could not create GNOME shortcuts: {error}"
+msgstr ""
+
+#: src/preferences.rs:348
 msgid "Choose Folder"
 msgstr ""
