@@ -106,3 +106,10 @@ When Annota starts and autosaves of a previous run are left, it SHALL show "Rest
 #### Scenario: Discard
 - **WHEN** the dialog lists an autosave and the user presses Discard
 - **THEN** the autosave is deleted and not offered again
+
+### Requirement: Recovery offered once per run
+Annota SHALL offer the autosaves of a previous run at most once per run: at its start or, when it was started by a capture (`annota --capture`, the hotkey fallback), when that capture opens the editor, with the dialog over the capture.
+
+#### Scenario: Started by a capture hotkey
+- **WHEN** autosaves of a previous run are left and Annota is started with `annota --capture region`
+- **THEN** the capture opens in the editor with "Restore Unsaved Captures?" over it, and the next capture of that run does not show the dialog again

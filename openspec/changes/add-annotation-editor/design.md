@@ -270,7 +270,8 @@ Tasks 4.1 and 4.2 (`src/ui/editor/`, `data/ui/editor-window.blp`, `restore-dialo
   — with no Save yet (add-export-share) that means closing discards changes without asking.
   *(Superseded in phase 2b-ii: closing keeps autosaves until Save exists.)*
   "Restore Unsaved Captures?" appears once at the primary instance's start (not for `--capture`
-  or forwarded launches) over an empty editor window; all rows start checked, Restore opens the
+  or forwarded launches — *superseded by S2 in the final review fixes: once per process, also
+  when a capture or `--open` opens the editor first*) over an empty editor window; all rows start checked, Restore opens the
   checked ones, Discard deletes them, unchecked ones stay for next time. Built as an `AdwDialog`
   like the existing alerts (no `AdwAlertDialog` response syntax: Ubuntu 24.04's Blueprint is
   0.10). The thumbnail is drawn in a `GtkDrawingArea` (a `GtkPicture` asks for its texture's
@@ -549,6 +550,25 @@ Items from the final reviewer pass, each decided by the maintainer before it was
   −50 on Left refused and reset; Ctrl+Z). On Xvfb with the real binary and `xdotool`, keyboard
   only: 26 Tabs from the canvas reach Left, 28 Right; typing 200 + Enter gave 1800 × 1000 ·
   Edited and a refit; tabbing past the entries left the subtitle unedited (light and dark).
+- **S2: recovery on the `--capture` start.** `handle_command_line` returns for `--capture`
+  before the start-up `offer_recovery`, so someone who only ever starts Annota by the GNOME
+  keybinding fallback never saw "Restore Unsaved Captures?". Now a thread-local
+  `RECOVERY_OFFERED` makes the offer once per process, wherever the editor opens first:
+  `offer_recovery` (start-up) and `present_editor` (behind `open_capture` and `open_file`) both
+  go through `recovery_entries`, which sets the flag and lists the store. The editor's own store
+  is listed before the new document is added (so the new capture is never offered back), and the
+  dialog is presented after it, over the capture (and its toast). A start-up check with nothing
+  to offer also sets the flag: later autosaves are this run's own. The `--capture` code path
+  itself is unchanged — no dialog appears before the capture overlay; it comes with the editor.
+  A forwarded `--open` into a primary started by `--capture` likewise offers on first opening
+  the editor (before, forwarded launches never offered). Tests: `editor::previous_autosaves_are_
+  offered_once_per_process`, `nothing_to_offer_still_counts_as_offered`, and the live
+  `first_capture_offers_recovery_on_a_live_display` (real `open_capture` → `get_or_create`
+  with `XDG_CACHE_HOME` in a temporary directory: the dialog lists only the previous run's
+  autosave over the capture; the second capture and a later `offer_recovery` do not ask again;
+  closing the dialog keeps the autosave). With the hook disabled that test fails at the missing
+  dialog. Not verified: a real `annota --capture` through the portal (the portal is never
+  invoked here); the path from the portal result into `open_capture` is unchanged.
 
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.

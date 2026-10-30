@@ -72,6 +72,34 @@ thread_local! {
     /// The application's editor window. Owned here (the widgets only hold it weakly) from
     /// creation until the window closes.
     static EDITOR: RefCell<Option<Rc<Inner>>> = const { RefCell::new(None) };
+    /// Whether this process has offered the autosaves of a previous run already: once, at the
+    /// primary instance's start or — when Annota was started by a capture hotkey
+    /// (`annota --capture`) or the editor opens before any start-up offer — the first time the
+    /// editor window opens.
+    static RECOVERY_OFFERED: Cell<bool> = const { Cell::new(false) };
+}
+
+/// The autosaves of a previous run to offer now, the first time this process asks; `None`
+/// afterwards and when there are none. Listed before this process adds documents of its own.
+fn recovery_entries(store: &Store) -> Option<Vec<RecoveryEntry>> {
+    if RECOVERY_OFFERED.with(|offered| offered.replace(true)) {
+        return None;
+    }
+    let listing = store.list();
+    for path in &listing.unreadable {
+        eprintln!("annota: damaged autosave left in place: {}", path.display());
+    }
+    (!listing.entries.is_empty()).then_some(listing.entries)
+}
+
+/// The editor window, created on first use and presented, with the autosaves of a previous
+/// run if they are still to be offered (the caller shows them once its own document is open,
+/// so the dialog sits on top of it).
+fn present_editor(app: &adw::Application) -> Option<(Editor, Option<Vec<RecoveryEntry>>)> {
+    let editor = Editor::get_or_create(app)?;
+    let pending = recovery_entries(&editor.inner.store);
+    editor.inner.w.window.present();
+    Some((editor, pending))
 }
 
 /// Opens `path` (a `.annota` file or an image) in the editor window and presents it
@@ -80,11 +108,13 @@ thread_local! {
 /// from file" toast with Undo (add-screen-capture mockup 13). Returns whether the editor could
 /// be shown.
 pub fn open_file(app: &adw::Application, path: &Path, announce: bool) -> bool {
-    let Some(editor) = Editor::get_or_create(app) else {
+    let Some((editor, pending)) = present_editor(app) else {
         return false;
     };
-    editor.inner.w.window.present();
     editor.open_file_announced(path, announce);
+    if let Some(entries) = pending {
+        editor.offer_recovery(entries);
+    }
     true
 }
 
@@ -100,6 +130,10 @@ pub enum Offer {
 /// Opens a new capture — a region, window or screen capture, or a pasted image — as a new
 /// document ("Not saved") and announces it with `title` and `offer`. Returns `false` if the
 /// editor window could not be built (the caller then keeps the capture another way).
+///
+/// When this is the first time the process opens the editor — Annota started by a capture
+/// hotkey (`annota --capture`), which does not go through the start-up offer — "Restore Unsaved
+/// Captures?" is shown over the new capture, so autosaves never pile up unseen.
 pub fn open_capture(
     app: &adw::Application,
     bitmap: Bitmap,
@@ -107,10 +141,9 @@ pub fn open_capture(
     title: &str,
     offer: Offer,
 ) -> bool {
-    let Some(editor) = Editor::get_or_create(app) else {
+    let Some((editor, pending)) = present_editor(app) else {
         return false;
     };
-    editor.inner.w.window.present();
     let loaded = Loaded {
         document: Document::with_title(bitmap, name),
         source: None,
@@ -119,25 +152,25 @@ pub fn open_capture(
     };
     let uid = editor.add_session(loaded, Origin::New, AutosaveId::generate());
     editor.announce(uid, title, offer);
+    if let Some(entries) = pending {
+        editor.offer_recovery(entries);
+    }
     true
 }
 
-/// If a previous run left autosaves, presents the editor window with "Restore Unsaved
-/// Captures?" (mockup 14) and returns `true`.
+/// If a previous run left autosaves (and this process has not offered them yet), presents the
+/// editor window with "Restore Unsaved Captures?" (mockup 14) and returns `true`. The primary
+/// instance's start; the capture and open paths offer them too if the editor opens first
+/// ([`open_capture`], [`open_file`]).
 pub fn offer_recovery(app: &adw::Application) -> bool {
-    let store = default_store();
-    let listing = store.list();
-    for path in &listing.unreadable {
-        eprintln!("annota: damaged autosave left in place: {}", path.display());
-    }
-    if listing.entries.is_empty() {
+    let Some(entries) = recovery_entries(&default_store()) else {
         return false;
-    }
+    };
     let Some(editor) = Editor::get_or_create(app) else {
         return false;
     };
     editor.inner.w.window.present();
-    editor.offer_recovery(listing.entries);
+    editor.offer_recovery(entries);
     true
 }
 
@@ -1885,6 +1918,132 @@ mod tests {
             .is_ancestor(&editor.inner.w.sheet_scroller)
     }
 
+    #[test]
+    fn previous_autosaves_are_offered_once_per_process() {
+        // S2: whichever path opens the editor first (start-up, a capture, --open) offers the
+        // autosaves; later ones do not offer them again. (Thread-local, so per test thread.)
+        let tmp = TempDir(std::env::temp_dir().join(format!(
+            "annota-recovery-once-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        )));
+        let store = Store::new(tmp.0.join("autosave"));
+        let doc = Document::new(Bitmap::filled(20, 10, palette::LIME).unwrap());
+        store.write(&AutosaveId::generate(), &doc, None).unwrap();
+        let entries = recovery_entries(&store).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(recovery_entries(&store).is_none(), "offered once");
+    }
+
+    #[test]
+    fn nothing_to_offer_still_counts_as_offered() {
+        // An empty start-up check means later autosaves are this process's own: never offered
+        // back to it.
+        let tmp = TempDir(std::env::temp_dir().join(format!(
+            "annota-recovery-empty-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        )));
+        let store = Store::new(tmp.0.join("autosave"));
+        assert!(recovery_entries(&store).is_none());
+        let doc = Document::new(Bitmap::filled(20, 10, palette::LIME).unwrap());
+        store.write(&AutosaveId::generate(), &doc, None).unwrap();
+        assert!(recovery_entries(&store).is_none());
+    }
+
+    /// S2: Annota started by a capture hotkey (`annota --capture`, which skips the start-up
+    /// offer) offers the autosaves of a previous run when the capture opens the editor —
+    /// through the real `open_capture` → `get_or_create` path, with the cache in a temporary
+    /// directory. Run on its own like the tests below.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn first_capture_offers_recovery_on_a_live_display() {
+        let tmp = TempDir(
+            std::env::temp_dir().join(format!("annota-capture-recovery-{}", std::process::id())),
+        );
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        // Before GLib reads it: the default autosave store lives in the temporary directory.
+        std::env::set_var("XDG_CACHE_HOME", tmp.0.join("cache"));
+        let app = environment(&tmp.0);
+        assert!(
+            default_store().dir().starts_with(&tmp.0),
+            "never the real cache"
+        );
+        // A previous run left one autosave.
+        let left = Document::with_title(
+            Bitmap::filled(300, 200, palette::AZURE).unwrap(),
+            "Left behind",
+        );
+        default_store()
+            .write(&AutosaveId::generate(), &left, None)
+            .unwrap();
+        assert!(EDITOR.with(|e| e.borrow().is_none()), "no editor yet");
+
+        // The first capture opens the editor: the capture is there, the dialog on top of it.
+        assert!(open_capture(
+            &app,
+            Bitmap::filled(400, 300, palette::LIME).unwrap(),
+            "Capture 2026-10-31 09-00-00",
+            "Region captured · 400 × 300",
+            Offer::Nothing,
+        ));
+        pump(300);
+        let editor = Editor {
+            inner: EDITOR.with(|e| e.borrow().clone()).unwrap(),
+        };
+        let w = &editor.inner.w;
+        assert_eq!(editor.sessions().len(), 1);
+        assert_eq!(w.title.title(), "Capture 2026-10-31 09-00-00");
+        let dialog = w
+            .window
+            .visible_dialog()
+            .expect("Restore Unsaved Captures?");
+        assert!(
+            shows_label(dialog.upcast_ref(), "Left behind"),
+            "lists the autosave"
+        );
+        // Only the previous run's autosave is listed, not the new capture.
+        let rows = {
+            fn count(widget: &gtk::Widget) -> usize {
+                let own = usize::from(widget.is::<adw::ActionRow>());
+                let mut n = own;
+                let mut child = widget.first_child();
+                while let Some(c) = child {
+                    n += count(&c);
+                    child = c.next_sibling();
+                }
+                n
+            }
+            count(dialog.upcast_ref())
+        };
+        assert_eq!(rows, 1);
+        dialog.close();
+        pump(300);
+        assert!(w.window.visible_dialog().is_none());
+
+        // Once per process: the next capture, a later start-up check and --open do not ask again.
+        editor.autosave_now();
+        assert!(open_capture(
+            &app,
+            Bitmap::filled(200, 100, palette::CORAL).unwrap(),
+            "Capture 2026-10-31 09-05-00",
+            "Region captured · 200 × 100",
+            Offer::Nothing,
+        ));
+        pump(200);
+        assert!(w.window.visible_dialog().is_none(), "offered once");
+        assert!(!offer_recovery(&app));
+        assert_eq!(editor.sessions().len(), 2);
+        // Closing the dialog kept the autosave for the next start.
+        assert!(default_store()
+            .list()
+            .entries
+            .iter()
+            .any(|e| e.name.as_deref() == Some("Left behind")));
+        w.window.destroy();
+        pump(50);
+    }
+
     /// Whether a label with exactly `text` is shown somewhere under `root` (a toast's title).
     fn shows_label(root: &gtk::Widget, text: &str) -> bool {
         if root
@@ -2405,6 +2564,8 @@ mod tests {
             Offer::Nothing,
         ));
         pump(100);
+        // Nothing was left to recover when the editor opened, so no dialog (S2).
+        assert!(w.window.visible_dialog().is_none());
         assert_eq!(editor.sessions().len(), 3);
         assert_eq!(w.title.title(), "Capture 2026-10-30 14-22-08");
         assert_eq!(w.title.subtitle(), "400 × 300 · Not saved");

@@ -100,7 +100,8 @@ fn handle_command_line(app: &adw::Application, cmdline: &gio::ApplicationCommand
     let options = cmdline.options_dict();
 
     // `--capture` starts the capture without raising the window first, so Annota itself is
-    // not in the picture (spec app-shell: Single application instance).
+    // not in the picture (spec app-shell: Single application instance). Autosaves of a previous
+    // run are offered when the capture opens the editor (`editor::open_capture`), over it.
     if let Some(mode) = options
         .lookup::<String>("capture")
         .ok()
@@ -117,7 +118,8 @@ fn handle_command_line(app: &adw::Application, cmdline: &gio::ApplicationCommand
         return 0;
     }
 
-    // Autosaves left by a previous run are offered once, at the first start (mockup 14).
+    // Autosaves left by a previous run are offered once per process (mockup 14): here at the
+    // primary instance's start, or when the editor first opens (captures, `--open`).
     let recovering = !cmdline.is_remote() && crate::ui::editor::offer_recovery(app);
 
     // `--open FILE` opens it in the editor (relative to the launching process' directory,
