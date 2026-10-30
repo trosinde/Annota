@@ -1,6 +1,6 @@
-//! Editor UI: the canvas (with the Select tool's editing, tasks 3.1–3.4) and the editor window
-//! around it (tasks 4.1, 4.2). Debug builds reach it through `--dev-canvas FILE` and startup
-//! recovery until `--open` and captures open it (tasks 4.4, 4.5).
+//! Editor UI: the canvas (the Select tool's editing, crop mode, canvas edges; tasks 3.1–3.4,
+//! 4.3) and the editor window around it (tasks 4.1–4.3). It is reached through `--open`,
+//! captures, pasted, opened and dropped images (tasks 4.4, 4.5) and startup recovery.
 
 pub mod canvas;
 pub mod editor;

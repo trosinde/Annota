@@ -4,8 +4,8 @@
 //! **Data source.** "Open" lists the documents open in the editor window; clicking one switches
 //! to it. "Recent" is meant to come from the capture library's index (add-capture-library,
 //! not built yet). Until then it lists the newest [`RECENT_LIMIT`] `.annota` and `.png` files of
-//! the save folder (the `save-folder` preference — where quick-saved captures go today and
-//! where Ctrl+S will put new documents), excluding files that are open; clicking one opens it.
+//! the save folder (the `save-folder` preference — where Ctrl+S will put new documents),
+//! excluding files that are open, of any type; clicking one opens it (or switches to it).
 //! Thumbnails come from the file's own `thumbnail.png` (`.annota`) or the scaled-down image
 //! (`.png`) and are decoded off the main thread. Dragging any tile onto the canvas inserts its
 //! image as an object (spec "Picture in picture").

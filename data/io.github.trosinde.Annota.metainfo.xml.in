@@ -19,7 +19,7 @@
     <p>
       Annota works entirely on your computer: no account, no cloud service and no telemetry.
     </p>
-    <p>This is a pre-release. Capturing and editing arrive with milestone 0.1.</p>
+    <p>This is a pre-release. Saving, exporting and the annotation tools arrive with milestone 0.1.</p>
   </description>
 
   <launchable type="desktop-id">io.github.trosinde.Annota.desktop</launchable>

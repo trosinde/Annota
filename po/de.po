@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 20:37+0100\n"
+"POT-Creation-Date: 2026-10-30 22:52+0100\n"
 "PO-Revision-Date: 2026-10-30 15:01+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -18,10 +18,9 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #: data/io.github.trosinde.Annota.desktop.in:2
-#: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:24
-#: data/ui/window.blp:264 data/ui/editor-window.blp:191
-#: data/ui/editor-window.blp:238 src/ui/editor/mod.rs:468
-#: src/ui/editor/mod.rs:470
+#: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:42
+#: data/ui/editor-window.blp:268 data/ui/editor-window.blp:315
+#: src/ui/editor/mod.rs:649 src/ui/editor/mod.rs:651
 msgid "Annota"
 msgstr "Annota"
 
@@ -39,15 +38,15 @@ msgstr "Bildschirm aufnehmen, markieren und aufzeichnen"
 msgid "screenshot;capture;annotate;arrow;markup;redact;screen;recording;"
 msgstr "Bildschirmfoto;Screenshot;Aufnahme;Anmerken;Pfeil;Markieren;Schwärzen;Bildschirm;Aufzeichnung;"
 
-#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:288
+#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:344
 msgid "Capture Region"
 msgstr "Bereich aufnehmen"
 
-#: data/io.github.trosinde.Annota.desktop.in:21 src/application.rs:289
+#: data/io.github.trosinde.Annota.desktop.in:21 src/application.rs:345
 msgid "Capture Window"
 msgstr "Fenster aufnehmen"
 
-#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:290
+#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:346
 msgid "Capture Screen"
 msgstr "Bildschirm aufnehmen"
 
@@ -72,10 +71,12 @@ msgstr ""
 "Dienst und keine Telemetrie."
 
 #: data/io.github.trosinde.Annota.metainfo.xml.in:22
-msgid "This is a pre-release. Capturing and editing arrive with milestone 0.1."
+msgid ""
+"This is a pre-release. Saving, exporting and the annotation tools arrive "
+"with milestone 0.1."
 msgstr ""
-"Dies ist eine Vorabversion. Aufnehmen und Bearbeiten folgen mit Meilenstein "
-"0.1."
+"Dies ist eine Vorabversion. Speichern, Exportieren und die "
+"Anmerkungswerkzeuge folgen mit Meilenstein 0.1."
 
 #: data/io.github.trosinde.Annota.metainfo.xml.in:53
 msgid "Project skeleton: application shell and Debian packaging."
@@ -202,7 +203,7 @@ msgstr ""
 "übernommen hat. Sie werden zurückgegeben, wenn das Annota-Tastenkürzel "
 "abgeschaltet oder geändert wird."
 
-#: data/io.github.trosinde.Annota.gschema.xml:89 data/ui/editor-window.blp:753
+#: data/io.github.trosinde.Annota.gschema.xml:89 data/ui/editor-window.blp:838
 msgid "Snap to guides"
 msgstr "An Hilfslinien einrasten"
 
@@ -239,77 +240,121 @@ msgstr "Höhe des Editorfensters"
 msgid "Editor window maximized"
 msgstr "Editorfenster maximiert"
 
-#: data/ui/window.blp:7 data/ui/editor-window.blp:83
+#: data/ui/window.blp:8 data/ui/editor-window.blp:17
+#: data/ui/editor-window.blp:285
+msgid "New Capture"
+msgstr "Neue Aufnahme"
+
+#: data/ui/window.blp:13 data/ui/editor-window.blp:22
+msgid "Open…"
+msgstr "Öffnen …"
+
+#: data/ui/window.blp:18
+msgid "Capture Library"
+msgstr "Aufnahme-Bibliothek"
+
+#: data/ui/window.blp:25 data/ui/editor-window.blp:83
 msgid "_Preferences"
 msgstr "_Einstellungen"
 
-#: data/ui/window.blp:12 data/ui/editor-window.blp:88
+#: data/ui/window.blp:30 data/ui/editor-window.blp:88
 msgid "_Keyboard Shortcuts"
 msgstr "_Tastenkürzel"
 
-#: data/ui/window.blp:17 data/ui/editor-window.blp:93
+#: data/ui/window.blp:35 data/ui/editor-window.blp:93
 msgid "_About Annota"
 msgstr "_Info zu Annota"
 
-#: data/ui/window.blp:36 data/ui/editor-window.blp:205
+#: data/ui/window.blp:54 data/ui/editor-window.blp:282
 msgid "New Capture (Ctrl+N)"
 msgstr "Neue Aufnahme (Strg+N)"
 
-#: data/ui/window.blp:54 data/ui/window.blp:68 data/ui/region-overlay.blp:139
+#: data/ui/window.blp:72 data/ui/window.blp:86 data/ui/window.blp:336
+#: data/ui/region-overlay.blp:139
 msgid "Region"
 msgstr "Bereich"
 
-#: data/ui/window.blp:80 data/ui/window.blp:94 data/ui/region-overlay.blp:146
+#: data/ui/window.blp:98 data/ui/window.blp:112 data/ui/window.blp:362
+#: data/ui/region-overlay.blp:146
 msgid "Window"
 msgstr "Fenster"
 
-#: data/ui/window.blp:106 data/ui/window.blp:120 data/ui/region-overlay.blp:153
+#: data/ui/window.blp:124 data/ui/window.blp:138 data/ui/window.blp:388
+#: data/ui/region-overlay.blp:153
 msgid "Screen"
 msgstr "Bildschirm"
 
-#: data/ui/window.blp:141 data/ui/region-overlay.blp:226
+#: data/ui/window.blp:159 data/ui/region-overlay.blp:226
 msgid "Delay"
 msgstr "Verzögerung"
 
-#: data/ui/window.blp:146
+#: data/ui/window.blp:164
 msgid "Countdown before capturing"
 msgstr "Countdown vor der Aufnahme"
 
-#: data/ui/window.blp:154 data/ui/region-overlay.blp:248
+#: data/ui/window.blp:172 data/ui/region-overlay.blp:248
 msgid "Delay in seconds"
 msgstr "Verzögerung in Sekunden"
 
-#: data/ui/window.blp:169 data/ui/preferences.blp:166
+#: data/ui/window.blp:187 data/ui/preferences.blp:166
 msgid "Include pointer"
 msgstr "Mauszeiger einschließen"
 
-#: data/ui/window.blp:176 data/ui/region-overlay.blp:221
+#: data/ui/window.blp:194 data/ui/region-overlay.blp:221
 msgid "Include Pointer"
 msgstr "Mauszeiger einschließen"
 
-#: data/ui/window.blp:214
+#: data/ui/window.blp:232
 msgid "Paste Image From Clipboard"
 msgstr "Bild aus Zwischenablage einfügen"
 
-#: data/ui/window.blp:237
+#: data/ui/window.blp:255
 msgid "Open Image…"
 msgstr "Bild öffnen …"
 
-#: data/ui/window.blp:255 data/ui/editor-window.blp:245
+#: data/ui/window.blp:273 data/ui/editor-window.blp:322
 msgid "Main Menu"
 msgstr "Hauptmenü"
 
-#: data/ui/window.blp:265
-msgid "Pre-release build. Editing arrives with milestone 0.1."
-msgstr "Vorabversion. Bearbeiten folgt mit Meilenstein 0.1."
+#: data/ui/window.blp:301
+msgid "Capture Anything"
+msgstr "Alles aufnehmen"
 
-#: data/ui/window.blp:296
+#: data/ui/window.blp:308
+msgid ""
+"Pick what to capture. The capture opens in the editor, ready to mark up. "
+"Every annotation stays editable until you export."
+msgstr ""
+"Wählen Sie, was aufgenommen werden soll. Die Aufnahme öffnet sich im Editor, "
+"bereit zum Markieren. Jede Anmerkung bleibt bis zum Export bearbeitbar."
+
+#: data/ui/window.blp:322
+msgid "Capture a region"
+msgstr "Einen Bereich aufnehmen"
+
+#: data/ui/window.blp:348
+msgid "Capture a window"
+msgstr "Ein Fenster aufnehmen"
+
+#: data/ui/window.blp:374
+msgid "Capture the screen"
+msgstr "Den Bildschirm aufnehmen"
+
+#: data/ui/window.blp:411
+msgid "or open an image or .annota file with"
+msgstr "oder öffnen Sie ein Bild oder eine .annota-Datei mit"
+
+#: data/ui/window.blp:421
+msgid "— or drop it here"
+msgstr "– oder ziehen Sie sie hierher"
+
+#: data/ui/window.blp:455
 msgid "Drop to Open as New Capture"
 msgstr "Ablegen, um als neue Aufnahme zu öffnen"
 
-#: data/ui/window.blp:301
-msgid "PNG, JPG or WebP"
-msgstr "PNG, JPG oder WebP"
+#: data/ui/window.blp:460
+msgid "PNG, JPG, WebP or .annota"
+msgstr "PNG, JPG, WebP oder .annota"
 
 #: data/ui/preferences.blp:5
 msgid "Preferences"
@@ -343,7 +388,7 @@ msgstr "%Y Jahr · %m Monat · %d Tag · %H Stunde · %M Minute · %S Sekunde"
 msgid "Example"
 msgstr "Beispiel"
 
-#: data/ui/preferences.blp:60 data/ui/editor-window.blp:251
+#: data/ui/preferences.blp:60 data/ui/editor-window.blp:328
 msgid "Export"
 msgstr "Export"
 
@@ -434,8 +479,8 @@ msgstr "Nach der Aufnahme"
 msgid "Open in Editor"
 msgstr "Im Editor öffnen"
 
-#: data/ui/preferences.blp:188 data/ui/editor-window.blp:266
-#: src/ui/editor/mod.rs:1140
+#: data/ui/preferences.blp:188 data/ui/editor-window.blp:343
+#: src/ui/editor/mod.rs:1612
 msgid "Copy to Clipboard"
 msgstr "In die Zwischenablage kopieren"
 
@@ -728,6 +773,7 @@ msgstr "px"
 #: data/ui/region-overlay.blp:263 data/ui/region-overlay.blp:335
 #: data/ui/region-overlay.blp:377 data/ui/region-overlay.blp:410
 #: data/ui/countdown.blp:48 data/ui/shortcut-dialog.blp:18
+#: data/ui/editor-window.blp:1030 data/ui/resize-dialog.blp:21
 msgid "Cancel"
 msgstr "Abbrechen"
 
@@ -831,15 +877,7 @@ msgstr "Festlegen"
 msgid "Esc cancels · Backspace disables the shortcut"
 msgstr "Esc bricht ab · Rücktaste schaltet das Tastenkürzel ab"
 
-#: data/ui/editor-window.blp:17 data/ui/editor-window.blp:208
-msgid "New Capture"
-msgstr "Neue Aufnahme"
-
-#: data/ui/editor-window.blp:22
-msgid "Open…"
-msgstr "Öffnen …"
-
-#: data/ui/editor-window.blp:27 data/ui/editor-window.blp:515
+#: data/ui/editor-window.blp:27 data/ui/editor-window.blp:612
 msgid "Open Library"
 msgstr "Bibliothek öffnen"
 
@@ -859,23 +897,26 @@ msgstr "Exportieren …"
 msgid "Resize Image…"
 msgstr "Bildgröße ändern …"
 
-#: data/ui/editor-window.blp:56
+#: data/ui/editor-window.blp:56 src/ui/labels.rs:54
 msgid "Rotate Right"
 msgstr "Nach rechts drehen"
 
-#: data/ui/editor-window.blp:61
+#: data/ui/editor-window.blp:61 src/ui/labels.rs:53
 msgid "Rotate Left"
 msgstr "Nach links drehen"
 
-#: data/ui/editor-window.blp:66 data/ui/editor-window.blp:629
+#: data/ui/editor-window.blp:66 data/ui/editor-window.blp:726
+#: src/ui/labels.rs:55
 msgid "Flip Horizontally"
 msgstr "Horizontal spiegeln"
 
-#: data/ui/editor-window.blp:71 data/ui/editor-window.blp:635
+#: data/ui/editor-window.blp:71 data/ui/editor-window.blp:732
+#: src/ui/labels.rs:56
 msgid "Flip Vertically"
 msgstr "Vertikal spiegeln"
 
-#: data/ui/editor-window.blp:76 data/ui/editor-window.blp:760
+#: data/ui/editor-window.blp:76 data/ui/editor-window.blp:190
+#: data/ui/editor-window.blp:845 src/ui/labels.rs:61
 msgid "Flatten All"
 msgstr "Alle einbrennen"
 
@@ -891,260 +932,349 @@ msgstr "Öffnen mit …"
 msgid "Copy to Folder…"
 msgstr "In Ordner kopieren …"
 
-#: data/ui/editor-window.blp:123
-msgid "Fit to Window"
-msgstr "An Fenster anpassen"
+#: data/ui/editor-window.blp:125 src/capture/delivery.rs:296
+#: src/ui/editor/mod.rs:461
+msgid "Copy"
+msgstr "Kopieren"
 
-#: data/ui/editor-window.blp:128
-msgid "Fit Width"
-msgstr "An Breite anpassen"
+#: data/ui/editor-window.blp:131
+msgid "Duplicate"
+msgstr "Duplizieren"
 
-#: data/ui/editor-window.blp:179 data/ui/editor-window.blp:371
-msgid "Zoom In"
-msgstr "Vergrößern"
+#: data/ui/editor-window.blp:137
+msgid "Delete"
+msgstr "Löschen"
 
-#: data/ui/editor-window.blp:184 data/ui/editor-window.blp:350
-msgid "Zoom Out"
-msgstr "Verkleinern"
+#: data/ui/editor-window.blp:145 src/ui/labels.rs:44
+msgid "Bring to Front"
+msgstr "In den Vordergrund"
 
-#: data/ui/editor-window.blp:222 src/capture/delivery.rs:204
-#: src/ui/editor/mod.rs:1019 src/ui/editor/text.rs:88
-msgid "Undo"
-msgstr "Rückgängig"
+#: data/ui/editor-window.blp:151 src/ui/labels.rs:45
+msgid "Bring Forward"
+msgstr "Eine Ebene nach vorne"
 
-#: data/ui/editor-window.blp:232 src/ui/editor/text.rs:90
-msgid "Redo"
-msgstr "Wiederholen"
+#: data/ui/editor-window.blp:157 src/ui/labels.rs:46
+msgid "Send Backward"
+msgstr "Eine Ebene nach hinten"
 
-#: data/ui/editor-window.blp:254
-msgid "Export (Ctrl+E)"
-msgstr "Exportieren (Strg+E)"
+#: data/ui/editor-window.blp:163 src/ui/labels.rs:47
+msgid "Send to Back"
+msgstr "In den Hintergrund"
 
-#: data/ui/editor-window.blp:255
-msgid "Share"
-msgstr "Teilen"
+#: data/ui/editor-window.blp:171 src/ui/labels.rs:48
+msgid "Group"
+msgstr "Gruppieren"
 
-#: data/ui/editor-window.blp:263
-msgid "Copy to Clipboard (Ctrl+C)"
-msgstr "In die Zwischenablage kopieren (Strg+C)"
-
-#: data/ui/editor-window.blp:274
-msgid "Show Properties (F9)"
-msgstr "Eigenschaften anzeigen (F9)"
-
-#: data/ui/editor-window.blp:277
-msgid "Show Properties"
-msgstr "Eigenschaften anzeigen"
-
-#: data/ui/editor-window.blp:302
-msgid "Select (V)"
-msgstr "Auswählen (V)"
-
-#: data/ui/editor-window.blp:306 src/ui/editor/sidebar.rs:445
-msgid "Select"
-msgstr "Auswählen"
-
-#: data/ui/editor-window.blp:346
-msgid "Zoom Out (Ctrl+−)"
-msgstr "Verkleinern (Strg+−)"
-
-#: data/ui/editor-window.blp:358
-msgid "Zoom Level"
-msgstr "Zoomstufe"
-
-#: data/ui/editor-window.blp:367
-msgid "Zoom In (Ctrl++)"
-msgstr "Vergrößern (Strg++)"
-
-#: data/ui/editor-window.blp:385 data/ui/editor-window.blp:389
-msgid "Show Tray"
-msgstr "Leiste anzeigen"
-
-#: data/ui/editor-window.blp:407
-msgid "Drop to insert image"
-msgstr "Loslassen, um das Bild einzufügen"
-
-#: data/ui/editor-window.blp:460
-msgid "Open"
-msgstr "Geöffnet"
-
-#: data/ui/editor-window.blp:481
-msgid "Recent"
-msgstr "Zuletzt"
-
-#: data/ui/editor-window.blp:511
-msgid "Open Library (Ctrl+L)"
-msgstr "Bibliothek öffnen (Strg+L)"
-
-#: data/ui/editor-window.blp:522 data/ui/editor-window.blp:526
-msgid "Hide Tray"
-msgstr "Leiste ausblenden"
-
-#: data/ui/editor-window.blp:573
-msgid "Document"
-msgstr "Dokument"
-
-#: data/ui/editor-window.blp:591
-msgid "Image"
-msgstr "Bild"
-
-#: data/ui/editor-window.blp:594
-msgid "Size"
-msgstr "Größe"
-
-#: data/ui/editor-window.blp:599
-msgid "Resize…"
-msgstr "Größe ändern …"
-
-#: data/ui/editor-window.blp:606
-msgid "Rotate & Flip"
-msgstr "Drehen und Spiegeln"
-
-#: data/ui/editor-window.blp:617
-msgid "Rotate Left (Ctrl+Shift+R)"
-msgstr "Nach links drehen (Umschalt+Strg+R)"
-
-#: data/ui/editor-window.blp:623
-msgid "Rotate Right (Ctrl+R)"
-msgstr "Nach rechts drehen (Strg+R)"
-
-#: data/ui/editor-window.blp:641
-msgid "Corner radius"
-msgstr "Eckenradius"
-
-#: data/ui/editor-window.blp:653
-msgid "Canvas"
-msgstr "Leinwand"
-
-#: data/ui/editor-window.blp:660
-msgid "Background"
-msgstr "Hintergrund"
-
-#: data/ui/editor-window.blp:670
-msgid "Coral"
-msgstr "Koralle"
-
-#: data/ui/editor-window.blp:676
-msgid "Amber"
-msgstr "Bernstein"
-
-#: data/ui/editor-window.blp:682
-msgid "Lime"
-msgstr "Limette"
-
-#: data/ui/editor-window.blp:688
-msgid "Teal"
-msgstr "Petrol"
-
-#: data/ui/editor-window.blp:694
-msgid "Azure"
-msgstr "Azur"
-
-#: data/ui/editor-window.blp:700
-msgid "Violet"
-msgstr "Violett"
-
-#: data/ui/editor-window.blp:706
-msgid "Ink"
-msgstr "Tinte"
-
-#: data/ui/editor-window.blp:716
-msgid "Transparent"
-msgstr "Transparent"
-
-#: data/ui/editor-window.blp:722
-msgid "Paper"
-msgstr "Papier"
-
-#: data/ui/editor-window.blp:728
-msgid "Custom Colour"
-msgstr "Eigene Farbe"
-
-#: data/ui/editor-window.blp:735
-msgid "Pick Colour From Image"
-msgstr "Farbe aus dem Bild aufnehmen"
-
-#: data/ui/editor-window.blp:741
-msgid "Drag a canvas edge to add space around the image."
-msgstr "Ziehen Sie an einem Leinwandrand, um Platz um das Bild hinzuzufügen."
-
-#: data/ui/editor-window.blp:750
-msgid "Objects"
-msgstr "Objekte"
-
-#: data/ui/editor-window.blp:754
-msgid "Ctrl+; · hold Alt to suspend"
-msgstr "Strg+; · Alt gedrückt halten zum Aussetzen"
-
-#: data/ui/editor-window.blp:804 src/ui/labels.rs:48
+#: data/ui/editor-window.blp:177 data/ui/editor-window.blp:1095
+#: src/ui/labels.rs:49
 msgid "Ungroup"
 msgstr "Gruppierung aufheben"
 
-#: data/ui/editor-window.blp:818
-msgid "Arrange"
-msgstr "Anordnen"
+#: data/ui/editor-window.blp:185
+msgid "Flatten Selection"
+msgstr "Auswahl einbrennen"
 
-#: data/ui/editor-window.blp:837
+#: data/ui/editor-window.blp:200
+msgid "Fit to Window"
+msgstr "An Fenster anpassen"
+
+#: data/ui/editor-window.blp:205
+msgid "Fit Width"
+msgstr "An Breite anpassen"
+
+#: data/ui/editor-window.blp:256 data/ui/editor-window.blp:468
+msgid "Zoom In"
+msgstr "Vergrößern"
+
+#: data/ui/editor-window.blp:261 data/ui/editor-window.blp:447
+msgid "Zoom Out"
+msgstr "Verkleinern"
+
+#: data/ui/editor-window.blp:299 src/capture/delivery.rs:281
+#: src/ui/editor/mod.rs:474 src/ui/editor/mod.rs:1067 src/ui/editor/mod.rs:1490
+#: src/ui/editor/text.rs:88
+msgid "Undo"
+msgstr "Rückgängig"
+
+#: data/ui/editor-window.blp:309 src/ui/editor/text.rs:90
+msgid "Redo"
+msgstr "Wiederholen"
+
+#: data/ui/editor-window.blp:331
+msgid "Export (Ctrl+E)"
+msgstr "Exportieren (Strg+E)"
+
+#: data/ui/editor-window.blp:332
+msgid "Share"
+msgstr "Teilen"
+
+#: data/ui/editor-window.blp:340
+msgid "Copy to Clipboard (Ctrl+C)"
+msgstr "In die Zwischenablage kopieren (Strg+C)"
+
+#: data/ui/editor-window.blp:351
+msgid "Show Properties (F9)"
+msgstr "Eigenschaften anzeigen (F9)"
+
+#: data/ui/editor-window.blp:354
+msgid "Show Properties"
+msgstr "Eigenschaften anzeigen"
+
+#: data/ui/editor-window.blp:379
+msgid "Select (V)"
+msgstr "Auswählen (V)"
+
+#: data/ui/editor-window.blp:383 src/ui/editor/sidebar.rs:667
+msgid "Select"
+msgstr "Auswählen"
+
+#: data/ui/editor-window.blp:399
+msgid "Crop (C)"
+msgstr "Zuschneiden (C)"
+
+#: data/ui/editor-window.blp:403 data/ui/editor-window.blp:863
+#: data/ui/editor-window.blp:1048 src/ui/labels.rs:51
+msgid "Crop"
+msgstr "Zuschneiden"
+
+#: data/ui/editor-window.blp:443
+msgid "Zoom Out (Ctrl+−)"
+msgstr "Verkleinern (Strg+−)"
+
+#: data/ui/editor-window.blp:455
+msgid "Zoom Level"
+msgstr "Zoomstufe"
+
+#: data/ui/editor-window.blp:464
+msgid "Zoom In (Ctrl++)"
+msgstr "Vergrößern (Strg++)"
+
+#: data/ui/editor-window.blp:482 data/ui/editor-window.blp:486
+msgid "Show Tray"
+msgstr "Leiste anzeigen"
+
+#: data/ui/editor-window.blp:504
+msgid "Drop to insert image"
+msgstr "Loslassen, um das Bild einzufügen"
+
+#: data/ui/editor-window.blp:557
+msgid "Open"
+msgstr "Geöffnet"
+
+#: data/ui/editor-window.blp:578
+msgid "Recent"
+msgstr "Zuletzt"
+
+#: data/ui/editor-window.blp:608
+msgid "Open Library (Ctrl+L)"
+msgstr "Bibliothek öffnen (Strg+L)"
+
+#: data/ui/editor-window.blp:619 data/ui/editor-window.blp:623
+msgid "Hide Tray"
+msgstr "Leiste ausblenden"
+
+#: data/ui/editor-window.blp:670
+msgid "Document"
+msgstr "Dokument"
+
+#: data/ui/editor-window.blp:688
+msgid "Image"
+msgstr "Bild"
+
+#: data/ui/editor-window.blp:691
+msgid "Size"
+msgstr "Größe"
+
+#: data/ui/editor-window.blp:696
+msgid "Resize…"
+msgstr "Größe ändern …"
+
+#: data/ui/editor-window.blp:703
+msgid "Rotate & Flip"
+msgstr "Drehen und Spiegeln"
+
+#: data/ui/editor-window.blp:714
+msgid "Rotate Left (Ctrl+Shift+R)"
+msgstr "Nach links drehen (Umschalt+Strg+R)"
+
+#: data/ui/editor-window.blp:720
+msgid "Rotate Right (Ctrl+R)"
+msgstr "Nach rechts drehen (Strg+R)"
+
+#: data/ui/editor-window.blp:738
+msgid "Corner radius"
+msgstr "Eckenradius"
+
+#: data/ui/editor-window.blp:749
+msgid "Canvas"
+msgstr "Leinwand"
+
+#: data/ui/editor-window.blp:756
+msgid "Background"
+msgstr "Hintergrund"
+
+#: data/ui/editor-window.blp:765
+msgid "Coral"
+msgstr "Koralle"
+
+#: data/ui/editor-window.blp:770
+msgid "Amber"
+msgstr "Bernstein"
+
+#: data/ui/editor-window.blp:775
+msgid "Lime"
+msgstr "Limette"
+
+#: data/ui/editor-window.blp:780
+msgid "Teal"
+msgstr "Petrol"
+
+#: data/ui/editor-window.blp:785
+msgid "Azure"
+msgstr "Azur"
+
+#: data/ui/editor-window.blp:790
+msgid "Violet"
+msgstr "Violett"
+
+#: data/ui/editor-window.blp:795
+msgid "Ink"
+msgstr "Tinte"
+
+#: data/ui/editor-window.blp:804
+msgid "Transparent"
+msgstr "Transparent"
+
+#: data/ui/editor-window.blp:809
+msgid "Paper"
+msgstr "Papier"
+
+#: data/ui/editor-window.blp:814
+msgid "Custom Colour"
+msgstr "Eigene Farbe"
+
+#: data/ui/editor-window.blp:820
+msgid "Pick Colour From Image"
+msgstr "Farbe aus dem Bild aufnehmen"
+
+#: data/ui/editor-window.blp:826
+msgid "Drag a canvas edge to add space around the image."
+msgstr "Ziehen Sie an einem Leinwandrand, um Platz um das Bild hinzuzufügen."
+
+#: data/ui/editor-window.blp:835
+msgid "Objects"
+msgstr "Objekte"
+
+#: data/ui/editor-window.blp:839
+msgid "Ctrl+; · hold Alt to suspend"
+msgstr "Strg+; · Alt gedrückt halten zum Aussetzen"
+
+#: data/ui/editor-window.blp:882 data/ui/editor-window.blp:1128
 msgctxt "arrange"
 msgid "X"
 msgstr "X"
 
-#: data/ui/editor-window.blp:848
-msgid "X position"
-msgstr "X-Position"
+#: data/ui/editor-window.blp:893
+msgid "Crop X position"
+msgstr "X-Position des Zuschnitts"
 
-#: data/ui/editor-window.blp:862
+#: data/ui/editor-window.blp:907 data/ui/editor-window.blp:1153
 msgctxt "arrange"
 msgid "Y"
 msgstr "Y"
 
-#: data/ui/editor-window.blp:873
-msgid "Y position"
-msgstr "Y-Position"
+#: data/ui/editor-window.blp:918
+msgid "Crop Y position"
+msgstr "Y-Position des Zuschnitts"
 
-#: data/ui/editor-window.blp:887
+#: data/ui/editor-window.blp:932 data/ui/editor-window.blp:1178
 msgctxt "arrange"
 msgid "W"
 msgstr "B"
 
-#: data/ui/editor-window.blp:898
-msgid "Width"
-msgstr "Breite"
+#: data/ui/editor-window.blp:943
+msgid "Crop width"
+msgstr "Breite des Zuschnitts"
 
-#: data/ui/editor-window.blp:912
+#: data/ui/editor-window.blp:957 data/ui/editor-window.blp:1203
 msgctxt "arrange"
 msgid "H"
 msgstr "H"
 
-#: data/ui/editor-window.blp:923
+#: data/ui/editor-window.blp:968
+msgid "Crop height"
+msgstr "Höhe des Zuschnitts"
+
+#: data/ui/editor-window.blp:979 data/ui/editor-window.blp:996
+msgid "Aspect ratio"
+msgstr "Seitenverhältnis"
+
+#: data/ui/editor-window.blp:987
+msgctxt "aspect ratio"
+msgid "Free"
+msgstr "Frei"
+
+#: data/ui/editor-window.blp:988
+msgctxt "aspect ratio"
+msgid "Original"
+msgstr "Original"
+
+#: data/ui/editor-window.blp:1011
+msgid ""
+"Annotations keep their position on the image. Objects outside the crop stay "
+"in the document and can be brought back with Undo."
+msgstr ""
+"Anmerkungen behalten ihre Position auf dem Bild. Objekte außerhalb des "
+"Zuschnitts bleiben im Dokument und lassen sich mit Rückgängig zurückholen."
+
+#: data/ui/editor-window.blp:1109
+msgid "Arrange"
+msgstr "Anordnen"
+
+#: data/ui/editor-window.blp:1139
+msgid "X position"
+msgstr "X-Position"
+
+#: data/ui/editor-window.blp:1164
+msgid "Y position"
+msgstr "Y-Position"
+
+#: data/ui/editor-window.blp:1189 data/ui/resize-dialog.blp:44
+msgid "Width"
+msgstr "Breite"
+
+#: data/ui/editor-window.blp:1214 data/ui/resize-dialog.blp:56
 msgid "Height"
 msgstr "Höhe"
 
-#: data/ui/editor-window.blp:933 data/ui/editor-window.blp:950
+#: data/ui/editor-window.blp:1224 data/ui/editor-window.blp:1241
 msgid "Rotation"
 msgstr "Drehung"
 
-#: data/ui/editor-window.blp:962
+#: data/ui/editor-window.blp:1253
 msgid "Dragging any member moves the whole group."
 msgstr "Wird ein Mitglied gezogen, bewegt sich die ganze Gruppe."
 
-#: data/ui/restore-dialog.blp:10 data/ui/restore-dialog.blp:21
+#: data/ui/restore-dialog.blp:11 data/ui/restore-dialog.blp:22
 msgid "Restore Unsaved Captures?"
 msgstr "Nicht gespeicherte Aufnahmen wiederherstellen?"
 
-#: data/ui/restore-dialog.blp:28
+#. Not "closed unexpectedly": until Save exists (add-export-share), closing the editor
+#. keeps autosaves too, so this is the common case, not only a crash.
+#: data/ui/restore-dialog.blp:31
 msgid ""
-"Annota closed unexpectedly. These documents were autosaved and can be "
-"restored."
+"These documents have changes that are not saved in a file. Annota kept a "
+"copy of each one, so they can be restored."
 msgstr ""
-"Annota wurde unerwartet beendet. Diese Dokumente wurden automatisch "
-"gesichert und können wiederhergestellt werden."
+"Diese Dokumente haben Änderungen, die in keiner Datei gespeichert sind. "
+"Annota hat von jedem eine Kopie behalten, damit sie wiederhergestellt werden "
+"können."
 
-#: data/ui/restore-dialog.blp:46
+#: data/ui/restore-dialog.blp:49
 msgid "Discard"
 msgstr "Verwerfen"
 
-#: data/ui/restore-dialog.blp:51
+#: data/ui/restore-dialog.blp:54
 msgid "Restore"
 msgstr "Wiederherstellen"
 
@@ -1160,19 +1290,61 @@ msgstr "In Dateien anzeigen"
 msgid "OK"
 msgstr "OK"
 
-#: src/application.rs:155
-msgid "Opening files arrives in milestone 0.1"
-msgstr "Dateien öffnen folgt mit Meilenstein 0.1"
+#: data/ui/resize-dialog.blp:11 src/ui/labels.rs:52
+msgid "Resize Image"
+msgstr "Bildgröße ändern"
 
-#: src/application.rs:255 src/capture/overlay.rs:284 src/preferences.rs:232
+#: data/ui/resize-dialog.blp:26
+msgid "Resize"
+msgstr "Größe ändern"
+
+#: data/ui/resize-dialog.blp:68
+msgid "Keep aspect ratio"
+msgstr "Seitenverhältnis beibehalten"
+
+#: data/ui/resize-dialog.blp:73
+msgid "Unit"
+msgstr "Einheit"
+
+#: data/ui/resize-dialog.blp:82
+msgctxt "unit"
+msgid "px"
+msgstr "px"
+
+#: data/ui/resize-dialog.blp:86
+msgid "Pixels"
+msgstr "Pixel"
+
+#: data/ui/resize-dialog.blp:91
+msgctxt "unit"
+msgid "%"
+msgstr "%"
+
+#: data/ui/resize-dialog.blp:95
+msgid "Percent"
+msgstr "Prozent"
+
+#: data/ui/resize-dialog.blp:107
+msgid "Scale annotations"
+msgstr "Anmerkungen skalieren"
+
+#: data/ui/resize-dialog.blp:108
+msgid "Line widths and text sizes follow the image"
+msgstr "Linienbreiten und Textgrößen passen sich dem Bild an"
+
+#: src/application.rs:134 src/capture/import.rs:72
+msgid "The editor could not be opened"
+msgstr "Der Editor konnte nicht geöffnet werden"
+
+#: src/application.rs:311 src/capture/overlay.rs:284 src/preferences.rs:232
 msgid "{seconds} s"
 msgstr "{seconds} s"
 
-#: src/application.rs:420
+#: src/application.rs:477
 msgid "The capture library arrives in milestone 0.1"
 msgstr "Die Aufnahme-Bibliothek folgt mit Meilenstein 0.1"
 
-#: src/application.rs:453
+#: src/application.rs:510
 msgid "Works entirely on this computer. No account, no tracking."
 msgstr "Arbeitet vollständig auf diesem Computer. Kein Konto, kein Tracking."
 
@@ -1188,65 +1360,66 @@ msgstr "Fenster wird in {seconds} s aufgenommen"
 msgid "Capturing screen in {seconds} s"
 msgstr "Bildschirm wird in {seconds} s aufgenommen"
 
-#: src/capture/delivery.rs:111
+#: src/capture/delivery.rs:113
 msgid "Region captured · {width} × {height}"
 msgstr "Bereich aufgenommen · {width} × {height}"
 
-#: src/capture/delivery.rs:112
+#: src/capture/delivery.rs:114
 msgid "Window captured · {width} × {height}"
 msgstr "Fenster aufgenommen · {width} × {height}"
 
-#: src/capture/delivery.rs:113
+#: src/capture/delivery.rs:115
 msgid "Screen captured · {width} × {height}"
 msgstr "Bildschirm aufgenommen · {width} × {height}"
 
-#: src/capture/delivery.rs:114
+#: src/capture/delivery.rs:116
 msgid "New capture from clipboard"
 msgstr "Neue Aufnahme aus der Zwischenablage"
 
-#: src/capture/delivery.rs:115
+#: src/capture/delivery.rs:117
 msgid "New capture from file"
 msgstr "Neue Aufnahme aus Datei"
 
-#: src/capture/delivery.rs:184
+#: src/capture/delivery.rs:128
+msgid "Pasted Image"
+msgstr "Eingefügtes Bild"
+
+#: src/capture/delivery.rs:213 src/capture/delivery.rs:230
 msgid "Copied to clipboard"
 msgstr "In die Zwischenablage kopiert"
 
-#: src/capture/delivery.rs:197
+#: src/capture/delivery.rs:274
 msgid "Saved as {name}"
 msgstr "Gespeichert als {name}"
 
-#: src/capture/delivery.rs:219
-msgid "Copy"
-msgstr "Kopieren"
-
-#: src/capture/delivery.rs:233
+#: src/capture/delivery.rs:309
 msgid "Could not save the capture: {error}"
 msgstr "Die Aufnahme konnte nicht gespeichert werden: {error}"
 
-#: src/capture/import.rs:42
+#: src/capture/import.rs:43
 msgid "The clipboard does not contain an image"
 msgstr "Die Zwischenablage enthält kein Bild"
 
-#: src/capture/import.rs:51
-msgid "Only PNG, JPG and WebP images can be opened"
-msgstr "Nur PNG-, JPG- und WebP-Bilder können geöffnet werden"
+#: src/capture/import.rs:64
+msgid "Only PNG, JPG and WebP images and Annota documents can be opened"
+msgstr ""
+"Nur PNG-, JPG- und WebP-Bilder sowie Annota-Dokumente können geöffnet werden"
 
-#: src/capture/import.rs:57
+#: src/capture/import.rs:79
 msgid "This image is empty"
 msgstr "Dieses Bild ist leer"
 
-#: src/capture/import.rs:61
+#: src/capture/import.rs:83
 msgid "This image could not be opened"
 msgstr "Dieses Bild konnte nicht geöffnet werden"
 
-#: src/capture/import.rs:69
-msgid "PNG, JPG or WebP images"
-msgstr "PNG-, JPG- oder WebP-Bilder"
+#: src/capture/import.rs:91
+msgid "Images and Annota documents"
+msgstr "Bilder und Annota-Dokumente"
 
-#: src/capture/import.rs:76
-msgid "Open Image"
-msgstr "Bild öffnen"
+#: src/capture/import.rs:99
+msgid "Open File"
+msgstr "Datei öffnen"
 
 #: src/capture/mod.rs:101
 msgid "Capturing needs xdg-desktop-portal, which is not running"
@@ -1330,43 +1503,65 @@ msgstr "GNOME-Tastenkürzel konnten nicht angelegt werden: {error}"
 msgid "Choose Folder"
 msgstr "Ordner wählen"
 
-#: src/ui/editor/mod.rs:346
+#: src/ui/editor/mod.rs:447
 msgid "Could not open “{name}”: {error}"
 msgstr "„{name}“ konnte nicht geöffnet werden: {error}"
 
-#: src/ui/editor/mod.rs:717
+#: src/ui/editor/mod.rs:1017
 msgid "Copying the image arrives in milestone 0.1"
 msgstr "Bild kopieren folgt mit Meilenstein 0.1"
 
-#: src/ui/editor/mod.rs:720
+#: src/ui/editor/mod.rs:1020
 msgid "Exporting arrives in milestone 0.1"
 msgstr "Exportieren folgt mit Meilenstein 0.1"
 
-#: src/ui/editor/mod.rs:723 src/ui/editor/mod.rs:726
+#: src/ui/editor/mod.rs:1023 src/ui/editor/mod.rs:1026
 msgid "Saving arrives in milestone 0.1"
 msgstr "Speichern folgt mit Meilenstein 0.1"
 
-#: src/ui/editor/mod.rs:1007
+#: src/ui/editor/mod.rs:1347
+msgid "Canvas Colour"
+msgstr "Leinwandfarbe"
+
+#: src/ui/editor/mod.rs:1478
 msgid "Could not insert the image"
 msgstr "Das Bild konnte nicht eingefügt werden"
 
-#: src/ui/editor/mod.rs:1018
+#: src/ui/editor/mod.rs:1489
 msgid "Image inserted"
 msgstr "Bild eingefügt"
 
-#: src/ui/editor/mod.rs:1100
+#: src/ui/editor/mod.rs:1572
 msgid "Could not restore “{name}”: {error}"
 msgstr "„{name}“ konnte nicht wiederhergestellt werden: {error}"
 
-#: src/ui/editor/sidebar.rs:300
+#: src/ui/editor/sidebar.rs:375
+msgctxt "key"
+msgid "Esc"
+msgstr "Esc"
+
+#: src/ui/editor/sidebar.rs:377
+msgctxt "key"
+msgid "Enter"
+msgstr "Eingabe"
+
+#: src/ui/editor/sidebar.rs:421 src/ui/labels.rs:146
 msgid "{n} px"
 msgstr "{n} px"
 
-#: src/ui/editor/sidebar.rs:409
+#: src/ui/editor/sidebar.rs:621
 msgid "{size} px"
 msgstr "{size} px"
 
-#: src/ui/editor/text.rs:40 src/ui/labels.rs:113
+#: src/ui/editor/sidebar.rs:636
+msgid "No editable objects"
+msgstr "Keine bearbeitbaren Objekte"
+
+#: src/ui/editor/sidebar.rs:638
+msgid "Annotations are part of the image"
+msgstr "Die Anmerkungen sind Teil des Bildes"
+
+#: src/ui/editor/text.rs:40 src/ui/labels.rs:125
 msgid "{width} × {height}"
 msgstr "{width} × {height}"
 
@@ -1414,7 +1609,7 @@ msgid_plural "{n} Groups"
 msgstr[0] "{n} Gruppe"
 msgstr[1] "{n} Gruppen"
 
-#: src/ui/editor/text.rs:104 src/ui/labels.rs:28
+#: src/ui/editor/text.rs:104 src/ui/labels.rs:29
 msgid "{n} Object"
 msgid_plural "{n} Objects"
 msgstr[0] "{n} Objekt"
@@ -1505,97 +1700,123 @@ msgstr ""
 "eine neuere Annota-Version, um diese Datei zu öffnen. Die Datei wurde nicht "
 "verändert."
 
-#: src/ui/labels.rs:17
+#: src/ui/labels.rs:18
 msgctxt "object type"
 msgid "Image"
 msgstr "Bild"
 
-#: src/ui/labels.rs:18
+#: src/ui/labels.rs:19
 msgctxt "object type"
 msgid "Group"
 msgstr "Gruppe"
 
-#: src/ui/labels.rs:19
+#: src/ui/labels.rs:20
 msgctxt "object type"
 msgid "Object"
 msgstr "Objekt"
 
-#: src/ui/labels.rs:37
+#: src/ui/labels.rs:38
 msgid "Move {object}"
 msgstr "{object} verschieben"
 
-#: src/ui/labels.rs:38
+#: src/ui/labels.rs:39
 msgid "Resize {object}"
 msgstr "{object} skalieren"
 
-#: src/ui/labels.rs:39
+#: src/ui/labels.rs:40
 msgid "Rotate {object}"
 msgstr "{object} drehen"
 
-#: src/ui/labels.rs:40
+#: src/ui/labels.rs:41
 msgid "Edit {object}"
 msgstr "{object} bearbeiten"
 
-#: src/ui/labels.rs:41
+#: src/ui/labels.rs:42
 msgid "Delete {object}"
 msgstr "{object} löschen"
 
-#: src/ui/labels.rs:42
+#: src/ui/labels.rs:43
 msgid "Duplicate {object}"
 msgstr "{object} duplizieren"
 
-#: src/ui/labels.rs:43
-msgid "Bring to Front"
-msgstr "In den Vordergrund"
-
-#: src/ui/labels.rs:44
-msgid "Bring Forward"
-msgstr "Eine Ebene nach vorne"
-
-#: src/ui/labels.rs:45
-msgid "Send Backward"
-msgstr "Eine Ebene nach hinten"
-
-#: src/ui/labels.rs:46
-msgid "Send to Back"
-msgstr "In den Hintergrund"
-
-#: src/ui/labels.rs:47
-msgid "Group"
-msgstr "Gruppieren"
-
-#: src/ui/labels.rs:49
+#: src/ui/labels.rs:50
 msgid "Insert {object}"
 msgstr "{object} einfügen"
 
-#: src/ui/labels.rs:56
+#: src/ui/labels.rs:57
+msgid "Extend Canvas"
+msgstr "Leinwand erweitern"
+
+#: src/ui/labels.rs:58
+msgid "Canvas Background"
+msgstr "Leinwandhintergrund"
+
+#: src/ui/labels.rs:59
+msgid "Corner Radius"
+msgstr "Eckenradius"
+
+#: src/ui/labels.rs:60
+msgid "Flatten {object}"
+msgstr "{object} einbrennen"
+
+#: src/ui/labels.rs:68
 msgid "Canvas centre"
 msgstr "Leinwandmitte"
 
-#: src/ui/labels.rs:57
+#: src/ui/labels.rs:69
 msgid "Canvas edge"
 msgstr "Leinwandrand"
 
-#: src/ui/labels.rs:58
+#: src/ui/labels.rs:70
 msgid "Object centre"
 msgstr "Objektmitte"
 
-#: src/ui/labels.rs:59
+#: src/ui/labels.rs:71
 msgid "Object edge"
 msgstr "Objektkante"
 
-#: src/ui/labels.rs:103
+#: src/ui/labels.rs:115
 msgid "X {x} · Y {y}"
 msgstr "X {x} · Y {y}"
 
-#: src/ui/labels.rs:108
+#: src/ui/labels.rs:120
 msgid "Δ X {dx} · Y {dy}"
 msgstr "Δ X {dx} · Y {dy}"
 
-#: src/ui/labels.rs:119
+#: src/ui/labels.rs:131
 msgid "{angle}° · Shift: 15° steps"
 msgstr "{angle}° · Umschalt: 15°-Schritte"
 
-#: src/ui/labels.rs:121
+#: src/ui/labels.rs:133
 msgid "{angle}°"
 msgstr "{angle}°"
+
+#: src/ui/labels.rs:149
+msgid "Corner radius {n} px"
+msgstr "Eckenradius {n} px"
+
+#: src/ui/labels.rs:157
+msgid "{width} × {height} px"
+msgstr "{width} × {height} px"
+
+#: src/ui/labels.rs:166
+msgid "{n} object flattened into the image"
+msgid_plural "{n} objects flattened into the image"
+msgstr[0] "{n} Objekt in das Bild eingebrannt"
+msgstr[1] "{n} Objekte in das Bild eingebrannt"
+
+#~ msgid "Pre-release build. Editing arrives with milestone 0.1."
+#~ msgstr "Vorabversion. Bearbeiten folgt mit Meilenstein 0.1."
+
+#~ msgid ""
+#~ "Annota closed unexpectedly. These documents were autosaved and can be "
+#~ "restored."
+#~ msgstr ""
+#~ "Annota wurde unerwartet beendet. Diese Dokumente wurden automatisch "
+#~ "gesichert und können wiederhergestellt werden."
+
+#~ msgid "Opening files arrives in milestone 0.1"
+#~ msgstr "Dateien öffnen folgt mit Meilenstein 0.1"
+
+#~ msgid "PNG, JPG or WebP images"
+#~ msgstr "PNG-, JPG- oder WebP-Bilder"

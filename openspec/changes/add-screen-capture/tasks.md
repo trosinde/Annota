@@ -50,7 +50,8 @@
 >   and "Both" quick-save the capture as PNG into the save folder with a toast; pasted and opened
 >   images do the same. Mockups 12 and 13 (capture inside the editor, tray, sidebar) are therefore
 >   not implemented here. `add-annotation-editor` task 4.5 replaces this with a MODIFIED delta on
->   the `capture` capability.
+>   the `capture` capability. *(Done there: captures, pasted and opened images now open in the
+>   editor; that change's deltas build on this change's specs, so archive this change first.)*
 > - **X11 click-to-pick (mockup 06).** Window mode uses the portal picker on X11 too; Annota-drawn
 >   X11 picking needs direct X11 window enumeration, which CLAUDE.md §2 rules out without an ADR.
 > - **Portal shortcuts while Annota is closed.** With the GlobalShortcuts portal the shortcuts work

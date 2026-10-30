@@ -206,7 +206,8 @@ Tasks 4.1 and 4.2 (`src/ui/editor/`, `data/ui/editor-window.blp`, `restore-dialo
   `--dev-canvas FILE` in it, and the first start of a debug build offers leftover autosaves in
   it. Release builds still compile neither, and `--open` and captures still take their
   stand-in paths until 4.4/4.5. The main window is unchanged; `present_window` skips the editor
-  window (style class `annota-editor`).
+  window (style class `annota-editor`). *(Superseded in phase 2b-ii: `--dev-canvas` is gone; the
+  editor is in every build, reached through `--open`, captures, imports and recovery.)*
 - **One window, several documents.** Each open document is a `Session` (its own `Canvas`:
   document, history, selection, view; origin; autosave slot); the canvases sit in a `GtkStack`
   and the tray's "Open" group switches between them (add-screen-capture's mockups 12/13 open
@@ -267,6 +268,7 @@ Tasks 4.1 and 4.2 (`src/ui/editor/`, `data/ui/editor-window.blp`, `restore-dialo
   state; images opened from files are new captures (autosaved, "Not saved"); restored autosaves
   are "Edited" and keep their slot. Closing the window removes every document's autosave (spec)
   — with no Save yet (add-export-share) that means closing discards changes without asking.
+  *(Superseded in phase 2b-ii: closing keeps autosaves until Save exists.)*
   "Restore Unsaved Captures?" appears once at the primary instance's start (not for `--capture`
   or forwarded launches) over an empty editor window; all rows start checked, Restore opens the
   checked ones, Discard deletes them, unchecked ones stay for next time. Built as an `AdwDialog`
@@ -306,6 +308,160 @@ Tasks 4.1 and 4.2 (`src/ui/editor/`, `data/ui/editor-window.blp`, `restore-dialo
   to the running instance (unchanged afterwards, by checksum), F9 (xdotool sends Alt+F9 on that
   keymap; the raw key code works), Ctrl+E and Ctrl+L. In-process `WidgetPaintable` snapshots
   drop dim (opacity) text on that setup; X screenshots are reliable.
+
+### Decided during apply — phase 2b-ii (2026-10-30: image operations, `--open`, captures in the editor)
+Tasks 4.3–4.5, the close-without-saving policy and two bug fixes from the phase-2b-i review.
+The model is in the library (`src/editing/{image_ops,crop,canvas_edit}.rs`,
+`document::geometry::Transform`, `Bitmap::transformed`, `render::burn_in`, overlay functions)
+and tested without a display; the UI is `src/ui/canvas.rs`, `src/ui/editor/{mod,sidebar,resize}.rs`,
+`data/ui/editor-window.blp`, `data/ui/resize-dialog.blp`.
+
+- **`Annotation::transform` (new defaulted hook).** Crop, rotate by 90°, flip and resize move the
+  whole document, which `Arrange` cannot express (a quarter turn changes position *and*
+  orientation; a resize scales positions with sizes; a mirror reverses handedness), so the trait
+  gained `transform(&mut self, &Transform)`, defaulted like `handles`/`drag_handle`: a pure
+  translation goes through `translate` (exact), anything else maps the object's box with
+  `Transform::map_arrange` (centre exact, size scaled along the box's own axes, rotation through
+  `map_rotation`). `Image` overrides it to scale border, corner radius and shadow by
+  `Transform::style_scale`; `Group` transforms each member on its own (so a future arrow inside a
+  group maps its end points exactly) and turns its own box. Types from add-core-annotation-tools
+  with point geometry override it and map their points with `Transform::apply`.
+  `Transform` = scale, then mirror (H/V), then clockwise quarter turns, then translation — only
+  axis-preserving maps, so a box stays a box (exact except a rotated box under non-uniform
+  scaling, approximated like `Group::set_arrange`).
+- **Mirrored content stays readable.** A mirror cannot be expressed as a rotation, and mirroring
+  an inserted picture or (later) text would make it unreadable; Flip moves every object to its
+  mirrored place and negates its angle (the reflection of a turn by r is a turn by −r), but does
+  not mirror its content. Only the base image's pixels are mirrored.
+- **Crop.** A mode (tool `C`, D2 places it after the other tools behind a separator), not a dialog
+  (mockup 08). `editing::crop::Crop` holds the frame in whole pixels, inside the canvas, at least
+  1 px; corner/edge grips and moving the frame by dragging inside it (grab distance 10 screen px);
+  the aspect ratio (Free, Original = the image's ratio, 1:1, 4:3, 16:9) fits the largest frame of
+  that ratio into the current one and is kept by corner grips (larger change wins, limited by the
+  room from the fixed corner) and edge grips (the other side follows around the centre line).
+  Applying it (`image_ops::crop`) makes the frame the canvas, keeps the image's part inside it and
+  re-bases the document so the image starts at the origin again (objects translated); objects
+  outside the new canvas stay, as the sidebar note says. Crop needs a frame smaller than the
+  canvas that still holds image pixels (an all-extension crop would leave no image). Undo/redo,
+  any image operation and switching documents end crop mode; its keys are Esc and Enter (the
+  editing keys rest). The sidebar's crop page edits X/Y/W/H; the subtitle reads `Crop · W × H`.
+  The frame gets a thin dark line outside its 2 px white outline for contrast on white images
+  (the mockup's 1 px `rgb(0 0 6 / 40%)` box shadow).
+- **Resize Image (mockup 09).** `resize::Form` links Width/Height (px or %, % limited to 1000 and to
+  cairo's 32 767 px). "Scale annotations" is read from its subtitle ("Line widths and text sizes
+  follow the image"): objects always keep their place on the image — positions and sizes scale
+  with it — and the switch decides only whether line widths, text sizes, borders and shadows
+  (`style_scale` = √(sx·sy)) scale too. The image is resampled with cairo's GOOD filter and padded
+  edges; the base image's corner radius scales by the smaller factor; the canvas is scaled and
+  rounded, never smaller than the image.
+- **Rotate and flip** map image, canvas (including an extension) and objects through one
+  `Transform`; quarter turns and mirrors copy pixels exactly (nearest filter, exact matrix), so
+  Rotate Left after Rotate Right gives back the same export pixel for pixel (unit-tested).
+- **Canvas edges (mockup 10).** Mockup 01 shows no grabbers at rest, so an edge's grabber appears
+  when the pointer is within 10 screen px outside / 4 inside that edge (only a sliver inside, so
+  objects at the canvas edge stay clickable); handles of the selection win over it. While an edge
+  is dragged the view keeps its mapping (the edge follows the pointer exactly); on release a fitted
+  view fits the new canvas (mockup 10's "Fit · 42 %") — every canvas-size change now refits or
+  re-ranges the view (`Canvas::canvas_changed`). Limitation: at fit zoom a drag can take the edge
+  past the visible area; the chip stays inside the view and the result is shown after release. An
+  edge cannot enter the image (unless the canvas already ended inside it). The chip counts pixels
+  beyond the image edge ("+400 px"), the dashed line marks that edge while it is positive.
+- **Rounded corners.** `canvas_edit::radius_handle` at (r, r) from the image corner, offered only
+  when nothing is selected and the pointer is within 9 px (so it does not cover objects); dragged
+  along the diagonal, clamped to half the shorter side; the sidebar spin row does the same.
+  Previews (canvas rect, corner radius) are drawn through `render::Preview`, so the document is
+  untouched until release — one undo step, like object gestures.
+- **Canvas background.** The swatches are live; Custom opens GTK's `GtkColorDialog` (no portal);
+  the eyedropper takes the next click on the canvas and renders that one document pixel as it is
+  exported (only the objects on it are drawn), made opaque; Esc cancels. Transparent pixels pick
+  nothing.
+- **Flatten (D3: `Ctrl+T` / `Ctrl+Shift+T`; mockups 05, 17, 18).** `render::burn_in` draws the
+  image (with its rounded corners) and the objects in stacking order exactly as exported into a
+  new bitmap covering the image plus the objects' visible parts on the canvas — a callout on an
+  extended canvas keeps its pixels, and if that grows the image left/up, everything is re-based.
+  It is transparent outside the image and the objects, so the background still shows; the corner
+  radius becomes 0 (it is in the pixels). One `Batch`, no confirmation; the toast "N objects
+  flattened into the image" offers Undo, which only undoes if nothing happened since. Objects of
+  unknown types are kept (never destroyed). The sidebar says "No editable objects · Annotations
+  are part of the image" and disables Flatten All (mockup 18).
+- **Context menu (mockup 05)** — it belonged to no task, built here: a `GtkPopoverMenu` from
+  Blueprint (`menu context_menu`), no arrow, at the pointer (right-click) or the selection
+  (Shift+F10, Menu key). Right-clicking an unselected object selects it first. The entries are
+  window actions whose sensitivity follows the selection (Group needs two objects, Ungroup a
+  group). Keys the canvas already handles (Ctrl+C/D/G, Del, Ctrl+]/[) are only *shown*, through
+  the menu model's `accel` attribute, and stay with the canvas — application accelerators run
+  before text fields; `Ctrl+T` is a new application accelerator. GTK writes "Shift+Ctrl+…" where
+  the mockup writes "Ctrl+Shift+…" (GTK's fixed modifier order, as in the main menu).
+- **Main menu (mockup 17)** is wired: Resize Image…, Rotate, Flip and Flatten All act; Open… opens
+  images and `.annota` documents (the file chooser filter now includes `*.annota`); New Capture,
+  Preferences, Keyboard Shortcuts and About are the existing actions; Save, Save As, Export and
+  Open Library stay "… arrives in milestone 0.1" toasts.
+- **4.4 `--open`.** `src/ui/` is compiled in release builds now (it was debug-only), the hidden
+  `--dev-canvas` option is gone, and `--open FILE` (resolved against the launching process'
+  directory, also when forwarded) opens the file in the editor window; recovery is offered at the
+  primary instance's start in every build. Spec: `specs/app-shell/spec.md` — the archived
+  "Command-line interface" requirement cannot be MODIFIED, because a MODIFIED block must keep every
+  scenario of the current one and "Open file acknowledged before the editor exists" no longer
+  holds (openspec refuses to drop it, and refuses REMOVED and ADDED of the same name), so it is
+  REMOVED and its whole block carried into the ADDED "Command-line options" with `--open`'s real
+  scenarios. "Single application instance" is MODIFIED from add-screen-capture's version of it
+  (its "`--open` keeps acknowledging with a toast" sentence would otherwise go stale) — so
+  **add-screen-capture must be archived before this change**.
+- **4.5 captures in the editor.** `delivery::deliver` opens "Open in Editor"/"Both" captures and
+  pasted images as new documents (`editor::open_capture`): a capture is named by the file-name
+  pattern (mockup 12), a pasted image "Pasted Image" (mockup 13); "Not saved"; the toast keeps
+  add-screen-capture's titles, offers Copy (editor only) or nothing (Both, already copied), and
+  for pasted/opened images Undo, which closes the new document and discards its autosave. Opened
+  and dropped files (`import::open_file`) go to `editor::open_file`, `.annota` documents too.
+  "Copy to Clipboard" is unchanged. If the editor window cannot be built, the capture is
+  quick-saved as before, so it is never lost. Spec: `specs/capture/spec.md` here (where both
+  changes' tasks point) MODIFIES "After-capture destination" and "Image from clipboard or file";
+  "Region capture"/"Window capture" only hand the image "to the after-capture destination", which
+  stays true, so they are not repeated. openspec notes that this delta can only archive once the
+  `capture` spec exists — again: archive add-screen-capture first. add-screen-capture's mockups
+  12/13 show a "Capture" card (Size, Source, Captured, "Saved to the library automatically") in
+  the sidebar; it is not built — the source and time are not part of the document and the library
+  note belongs to add-capture-library — so new captures show the document sidebar of this change.
+- **Welcome page (bootstrap-app-shell mockup 01)** replaces the main window's status page: icon,
+  "Capture Anything", mode cards (156 × 108, keycaps from the shortcut settings, the first one
+  focused) that start a capture, and the Ctrl O / drop hint; the main window's menu gains New
+  Capture, Open… and Capture Library (that change's mockup 02). The mockup's "The capture opens
+  here" is written "opens in the editor": captures open in the editor window, not in this one.
+- **Closing keeps autosaves (maintainer decision, temporary until add-export-share's Save).**
+  Closing the editor window (Ctrl+W, close button) or quitting (`connect_shutdown`) runs one last
+  autosave tick per document (`Session::close`) and never removes an autosave; only Discard in
+  "Restore Unsaved Captures?" (or getting back to the saved state) does. Without this, routing
+  captures into the editor (4.5) would have lost every capture closed within 30 s. To keep the
+  recovery list meaningful, an image opened from a file (`Origin::Image`) is autosaved only once
+  it changes (its pixels are on disk); captures and pasted images exist nowhere else and are
+  autosaved from the start. The dialog no longer says "Annota closed unexpectedly" but "These
+  documents have changes that are not saved in a file. Annota kept a copy of each one …" —
+  true after a crash and after an ordinary close. **Follow-up:** add-export-share task 2.6 adds a
+  "Save changes before closing?" confirmation with Save and reverts closing to "the autosave goes
+  when the document is saved or the user discards it".
+- **Bug fix: phantom Arrange edits.** The X/Y/W/H entries show 0.1 px and compared the parsed text
+  with the real value, so tabbing through a fractional box made "Resize"/"Move" steps (4 bogus
+  steps for X→Y→W→H). Now an entry whose text is what it showed keeps the exact value, the
+  rotation spin counts as unchanged within its 0.1° display rounding, and nothing is sent if
+  nothing changed (`sidebar::arrange_target`; the crop entries likewise).
+- **Bug fix: open images listed under Recent.** Only `.annota` sessions kept their path, so an open
+  PNG stayed in "Recent" and clicking it opened a duplicate. Every session now keeps the canonical
+  path it was opened from (`Session::path`); "Recent" excludes open files of any type compared by
+  canonical path, and opening a file that is open switches to it.
+- **Verification.** Unit tests: transforms, bitmap transforms, every image operation (exported
+  pixels compared before/after crop, rotate, flip, flatten; undo), crop frame and grips, canvas
+  edges and radius gestures, overlay pixels (crop, grabber, dashed edge), labels and toasts,
+  Arrange/crop entry targets (the bug), recent listing with canonical paths (the bug), resize form,
+  delivery plans/toasts/names. Live (`#[ignore]`, one per process, Xvfb + GDK_BACKEND=x11): the
+  editor test now also drives crop mode (C, sidebar, Enter, Esc), rotate, background swatch,
+  Flatten All, the context menu, the Arrange tab-through (no phantom step), the Recent bug, a new
+  capture, and closing with kept autosaves (including a change made after the last tick); a new
+  canvas test drags a canvas edge, the radius handle and a crop grip and uses the eyedropper.
+  Manually, the real binary (release-style `--open`, forwarded to the primary instance) was driven
+  with `xdotool` on a private Xvfb inside `dbus-run-session` and compared with mockups 05, 08, 09,
+  10, 17, 18 and bootstrap-app-shell 01 (dark style, the private session's default). Not verified
+  live: a real capture through the portal into the editor (the portal is never invoked here) and
+  the welcome cards starting one; paste from a real clipboard.
 
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.
@@ -349,17 +505,34 @@ Tasks 4.1 and 4.2 (`src/ui/editor/`, `data/ui/editor-window.blp`, `restore-dialo
   UI (4.1) so this isn't surprising.
 
 ### Open after phase 2b-i (tasks 4.1, 4.2)
-- **Closing the editor discards unsaved changes without asking.** The spec removes a document's
-  autosave when it is closed, and Save does not exist until add-export-share. A "Save changes?"
-  confirmation has no redline in any change; it should come with Save.
-- **No way to close a single document** (only the whole window); no redline either.
-- **The context menu (redline "Context menu", mockup 05) belongs to no task**; its keys work on
-  the canvas, the menu itself is not built.
-- **The tool strip shows only Select** (D2). Arrow … Stamp arrive with add-core-annotation-tools,
-  Crop with 4.3; the shortcuts window (bootstrap-app-shell 07, "exactly as drawn") still lists
-  them all — left unchanged here. The German-keyboard Ctrl+Shift+]/[ point above is still open.
-- **Image/Canvas controls are insensitive until 4.3**, which dims the background swatches
-  compared with mockup 01.
+- ~~Closing the editor discards unsaved changes without asking.~~ Resolved for now in phase
+  2b-ii: closing keeps autosaves until Save exists; add-export-share task 2.6 brings "Save changes
+  before closing?" and the final behaviour.
+- **No way to close a single document** (only the whole window); no redline either. (The Undo of
+  a new capture's toast closes that document; there is no general per-document close.)
+- ~~The context menu belongs to no task.~~ Built in phase 2b-ii.
+- **The tool strip shows Select and Crop** (D2). Arrow … Stamp arrive with
+  add-core-annotation-tools; the shortcuts window (bootstrap-app-shell 07, "exactly as drawn")
+  still lists them all — left unchanged. The German-keyboard Ctrl+Shift+]/[ point above is still
+  open.
+- ~~Image/Canvas controls are insensitive until 4.3.~~ Wired in phase 2b-ii.
 - **Recent is the save folder, not the library.** add-capture-library should replace
   `tray::recent_files` with its index and keep the "Open Library" tile wiring (`app.open-library`).
+
+### Open after phase 2b-ii (tasks 4.3–4.5)
+- **Archive order:** add-screen-capture must be archived before this change (its `capture` spec
+  must exist for `specs/capture/spec.md`, and `specs/app-shell/spec.md` modifies the version of
+  "Single application instance" that add-screen-capture writes).
+- **A new capture's sidebar** shows the document properties, not add-screen-capture mockups
+  12/13's "Capture" card (size, source, capture time, "saved to the library") — needs capture
+  metadata in the document and add-capture-library.
+- **Canvas edge drags at fit zoom** can take the edge out of the visible area during the drag
+  (the view refits on release); a live refit or auto-scroll would need a design decision.
+- **Image content is not mirrored by Flip** (positions and angles are) — a deliberate choice for
+  readability; confirm with the maintainer when text and stamps arrive.
+- **Not verified live:** a real portal capture landing in the editor, the welcome cards starting a
+  capture, pasting from a real clipboard (all driven only through their code paths in tests).
+- **A 2-px sidebar artifact** appears below the selection and crop pages in the Xvfb screenshots
+  (both GSK renderers); bisecting showed it is not the new crop page, and no mapped widget covers
+  it — origin not found, possibly pre-existing.
 

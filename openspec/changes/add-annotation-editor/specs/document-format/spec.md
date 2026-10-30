@@ -71,15 +71,11 @@ A group that contains an object of a type this version does not know SHALL be ke
 - **THEN** the file opens and the whole group is kept and written back unchanged, not drawn and not selectable
 
 ### Requirement: Autosave and recovery
-Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files in `~/.cache/annota/autosave/` (a directory only the user can read), each also recording the file the document belongs to. Nothing SHALL be written while a document does not change, and a document's autosave SHALL be removed when it is saved, closed, or back at its saved state. Autosaves left over from a previous run SHALL be offered for recovery, each with its name, autosave time, object count and thumbnail.
+Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files in `~/.cache/annota/autosave/` (only the user can read it), each recording the file it belongs to; nothing is written while a document does not change. An autosave SHALL be removed when its document is saved or back at its saved state, or discarded in "Restore Unsaved Captures?". Autosaves left by a previous run SHALL be offered for recovery with name, autosave time, object count and thumbnail.
 
 #### Scenario: Crash recovery
 - **WHEN** Annota is killed with an unsaved document and restarted
 - **THEN** the user is offered to restore the document, and Restore opens it in the editor with its changes
-
-#### Scenario: Closed document leaves no autosave
-- **WHEN** the editor window with an autosaved document is closed
-- **THEN** the document's autosave is removed
 
 #### Scenario: Recoverable entry
 - **WHEN** an unsaved document was autosaved and its autosave was never removed
@@ -89,9 +85,20 @@ Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files 
 - **WHEN** a document that has an autosave is saved
 - **THEN** its autosave is removed at the next autosave tick
 
+### Requirement: Closing keeps autosaves
+Until Annota can save documents (add-export-share), closing the editor window (`Ctrl+W`, its close button) or quitting Annota SHALL NOT remove autosaves: it SHALL write a last autosave of every document with unsaved changes and keep it, to be offered at the next start. A new capture or pasted image counts as unsaved from the start, an image opened from a file only once it is changed.
+
+#### Scenario: Closed document keeps its autosave
+- **WHEN** the editor window is closed while a document has unsaved changes, some of them made after the last 30 s autosave
+- **THEN** the document's autosave is kept, contains those changes, and is offered in "Restore Unsaved Captures?" at the next start
+
 ### Requirement: Recovery dialog
-When Annota starts and autosaves of a previous run are left, it SHALL show "Restore Unsaved Captures?" with one checked row per autosave. Restore SHALL open the checked ones in the editor, Discard SHALL delete them; unchecked ones, or all if the dialog is closed otherwise, SHALL be kept and offered again.
+When Annota starts and autosaves of a previous run are left, it SHALL show "Restore Unsaved Captures?" with one checked row per autosave. Its text SHALL say that these documents have changes not saved in a file and that Annota kept a copy of each — not that Annota crashed. Restore SHALL open the checked ones in the editor, Discard SHALL delete them; unchecked ones, or all if the dialog is closed otherwise, SHALL be kept and offered again.
 
 #### Scenario: Restore
 - **WHEN** the dialog lists an autosave and the user presses Restore
-- **THEN** the document opens in the editor with its changes and stays recoverable until it is saved or closed
+- **THEN** the document opens in the editor with its changes and stays recoverable until it is saved or discarded
+
+#### Scenario: Discard
+- **WHEN** the dialog lists an autosave and the user presses Discard
+- **THEN** the autosave is deleted and not offered again

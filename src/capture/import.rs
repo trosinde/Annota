@@ -96,7 +96,7 @@ pub fn choose_file(app: &adw::Application) {
     let filters = gio::ListStore::new::<gtk::FileFilter>();
     filters.append(&filter);
     let dialog = gtk::FileDialog::builder()
-        .title(gettext("Open"))
+        .title(gettext("Open File"))
         .modal(true)
         .filters(&filters)
         .default_filter(&filter)
