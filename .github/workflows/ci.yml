@@ -17,10 +17,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
+            rustfmt-1.85 rust-1.85-clippy \
             libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext \
             desktop-file-utils appstream libglib2.0-bin lintian devscripts \
             nodejs npm
-          rustup component add rustfmt clippy
 
       - name: Configure (generates src/config.rs)
         run: PATH=/usr/lib/rust-1.85/bin:$PATH meson setup _build -Dprofile=development
