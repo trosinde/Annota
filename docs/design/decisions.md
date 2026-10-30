@@ -4,7 +4,8 @@ Six designer agents produced the first mockup set in parallel (267 screens, Octo
 This file resolves where their choices overlap or conflict. **It overrides individual
 `index.md` redlines.** Designers and engineers read it before working on any change.
 
-Status: decisions D1–D8 are set by the design lead; Q1–Q5 wait for the maintainer.
+Status: D1–D13 are decided (D1–D8 by the design lead, D9–D13 confirmed by the maintainer on
+2026-10-30). No open cross-change decisions remain.
 
 ## Decided
 
@@ -18,13 +19,8 @@ Status: decisions D1–D8 are set by the design lead; Q1–Q5 wait for the maint
 | D6 | Preferences structure | One preferences window with pages **General · Capture · Editor · Library · Text Recognition**. The Library and OCR pages drawn in their changes are pages of this window, not separate tabs. | bootstrap-app-shell, add-capture-library, add-text-recognition |
 | D7 | Redaction warnings | Blur/pixelate warning fires on every way out of Annota: export, copy, drag, share, quick save. Faces default to **Solid**. | add-core-annotation-tools, add-export-share, add-smart-redaction |
 | D8 | Kit additions needed | Icons: lock, email, capture-scrolling, rotate-left/right, flip-h/v, shape types, line styles (solid/dashed/dotted), arrow ends, text align, bold/italic/underline/strikethrough, corner picker, transparent swatch. To be added to `kit/icons/` via `tools/build-icons.py`; page-local glyphs in mockups are replaced then. | kit |
-
-## Waiting for the maintainer
-
-| # | Question | Options | Recommendation |
-|---|---|---|---|
-| Q1 | Capture hotkeys collide with GNOME's own screenshot keys (`Print`, `Shift+Print`, `Alt+Print`). | (a) Annota offers at first launch to take over the Print keys (GNOME's bindings are moved, reversible) · (b) own keys `Super+Shift+R/W/S`, Print stays GNOME | (a) — a screenshot tool should own Print |
-| Q2 | Smart redaction entry | (a) runs automatically when the Redact tool is first opened on a capture · (b) only via button "Find Sensitive Data" | (b) — predictable, no surprise objects |
-| Q3 | Retention (auto-trash old captures) | (a) one confirmation the first time it is enabled · (b) only a startup toast with "Review" | (a) |
-| Q4 | Light/dark override inside Annota | (a) follow the system only (as specified) · (b) add System/Light/Dark switch | (a) |
-| Q5 | Combine captures from the library multi-select bar too (spec says tray only) | yes / no | yes |
+| D9 | Capture hotkeys vs. GNOME's own screenshot keys (`Print`, `Shift+Print`, `Alt+Print`) | Annota offers at first launch to take over the Print keys (GNOME's bindings are moved, not deleted — reversible). | add-screen-capture |
+| D10 | Smart redaction entry | Only via a "Find Sensitive Data" button — never runs automatically when the Redact tool opens. | add-smart-redaction |
+| D11 | Retention (auto-trash old captures) | One explicit confirmation the first time retention is enabled, not just a startup toast. | add-library-organisation |
+| D12 | Light/dark override inside Annota | Follows the system only, as originally specified — no in-app System/Light/Dark switch. | bootstrap-app-shell |
+| D13 | Combine captures from the library | Also available from the library's multi-select bar, not just the capture tray. | add-templates, add-library-organisation |

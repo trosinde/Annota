@@ -18,10 +18,11 @@
 
 > Welcome page (mockup 01, mode cards) and the full main-menu redline (D1) are not in this
 > pass: D1 is shared with editor screens that don't exist yet (`add-annotation-editor`,
-> `add-export-share`), and the mode cards' Print/Alt+Print/Shift+Print hotkeys depend on the
-> still-open Q1 decision (`docs/design/decisions.md`). The window keeps its placeholder content
-> area; the main menu gained Preferences and Keyboard Shortcuts only. Revisit when
-> `add-screen-capture` lands.
+> `add-export-share`). The hotkey question itself is settled (D9 in
+> `docs/design/decisions.md`: Annota offers to take over Print/Alt+Print/Shift+Print at first
+> launch), but the actual portal/GlobalShortcuts wiring is `add-screen-capture`'s job. The window
+> keeps its placeholder content area; the main menu gained Preferences and Keyboard Shortcuts
+> only. Revisit when `add-screen-capture` lands.
 
 ## 3. Packaging
 - [x] 3.1 `debian/` directory, vendoring script, offline build

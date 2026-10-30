@@ -113,8 +113,8 @@ annota/
   cross-change decisions in `docs/design/decisions.md`. **The 7 MVP (0.1) changes are
   design-approved** (bootstrap-app-shell, add-screen-capture, add-annotation-editor,
   add-core-annotation-tools, add-style-system, add-export-share, add-capture-library);
-  P2/P3 changes stay `_pending_`. Open maintainer questions Q1–Q5 are still in decisions.md —
-  Q1 (Print-key ownership) blocks `add-screen-capture`'s hotkeys.
+  P2/P3 changes stay `_pending_`. All cross-change decisions (D1–D13) are settled, including
+  the former Q1–Q5 maintainer questions, confirmed 2026-10-30 — none block implementation now.
 - Code: `bootstrap-app-shell` mostly implemented — AdwApplication, CLI, GSettings-backed
   preferences dialog (General + Capture pages), keyboard shortcuts window (`Ctrl+?`), About
   dialog, German translation. Still open in that change: the welcome page's mode cards and the
@@ -125,8 +125,8 @@ annota/
 - Packaging: `build-aux/make-deb.sh` is lintian-clean on CI (ubuntu-24.04); not re-verified
   locally after the preferences/shortcuts work (toolchain mismatch above).
 - Next step: finish `bootstrap-app-shell` (reviewer pass, CI-verified `.deb`), then
-  `add-screen-capture` — but first resolve Q1 with the maintainer, since it decides whether
-  Annota takes over the GNOME `Print` keys.
+  `add-screen-capture` (Annota takes over the GNOME `Print` keys per D9, reversibly, offered at
+  first launch).
 
 **Build dependencies (Ubuntu 24.04)**
 ```bash
