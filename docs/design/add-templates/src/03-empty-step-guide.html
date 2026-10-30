@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Editor — empty step guide</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  /* library window — layout only, colours from tokens */
+  .lib-side { width: 280px; }
+  .lib-side .sidebar-list { flex: 1; }
+  .lib-side .nav-row .icon { flex: none; }
+  .nav-row.drop { background: var(--accent-a25); outline: 2px solid var(--accent-bg); outline-offset: -2px; }
+  .nav-row .spinner { margin-left: auto; }
+  .side-foot { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 16px 12px; box-shadow: inset 0 1px var(--separator); font-size: var(--fs-small); }
+  .side-foot .vbox { min-width: 0; flex: 1; }
+  .side-foot .path { font-family: var(--font-mono); font-size: 12px; opacity: var(--dim-opacity); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success-bg); flex: none; }
+  .state-dot.off { background: var(--warning-bg); }
+  .grid-scroll { flex: 1; min-height: 0; overflow: hidden; position: relative; padding: 0 18px 18px; }
+  .day-head { display: flex; align-items: baseline; gap: 10px; padding: 18px 2px 12px; }
+  .day-head .caption { opacity: var(--dim-opacity); }
+  .day-head .spacer { flex: 1; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, var(--tw, 150px)); gap: 18px 12px; }
+  .tile { width: var(--tw, 150px); display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .tile .frame { height: var(--th, 112px); border-radius: 9px; background: var(--row-hover); box-shadow: inset 0 0 0 1px var(--separator);
+                 display: grid; place-items: center; position: relative; }
+  .timg { position: relative; display: block; background-repeat: no-repeat;
+                 box-shadow: 0 0 0 1px var(--shade), 0 1px 3px rgb(0 0 6 / 14%); border-radius: 2px; overflow: hidden; }
+  .timg > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .tile .name { font-size: var(--fs-small); padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .meta { font-size: var(--fs-caption); padding: 0 2px; opacity: var(--dim-opacity); display: flex; gap: 4px; align-items: center; margin-top: -4px; white-space: nowrap; overflow: hidden; }
+  .tile .meta .icon { width: 12px; height: 12px; }
+  .tile.hover .frame { background: var(--fill-flat-hover); }
+  .tile.selected .frame { background: var(--accent-a12); box-shadow: inset 0 0 0 2px var(--accent-bg); }
+  .tile.focus .frame { outline: 2px solid var(--accent-a50); outline-offset: 2px; }
+  .tile.dim { opacity: .35; }
+  .tile.gone { opacity: .25; transform: scale(.94); }
+  .tile .sel { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+               background: var(--view-bg); box-shadow: inset 0 0 0 2px var(--borders-strong), 0 1px 2px rgb(0 0 6 / 20%); }
+  .tile .sel.on { background: var(--accent-bg); color: var(--accent-fg); box-shadow: 0 1px 2px rgb(0 0 6 / 20%); }
+  .tile .sel .icon { width: 14px; height: 14px; }
+  .tile .fav { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--osd-bg); color: #ffffff; }
+  .tile .fav .icon { width: 14px; height: 14px; }
+  .tile .fav.on .icon { fill: var(--annota-amber); }
+  .dur { position: absolute; right: 6px; bottom: 6px; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px 0 5px; border-radius: 10px;
+         background: var(--osd-bg); color: var(--osd-fg); font-size: 11px; font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+  .dur .icon { width: 12px; height: 12px; }
+  .kind-badge { position: absolute; left: 6px; bottom: 6px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--osd-bg); color: var(--osd-fg);
+                font-size: 11px; font-weight: var(--fw-bold); display: inline-flex; align-items: center; }
+  .match { font-size: var(--fs-caption); padding: 0 2px; margin-top: -2px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .match .src { display: block; }
+  .match .src { opacity: var(--dim-opacity); }
+  mark { background: var(--accent-a25); color: inherit; border-radius: 3px; padding: 0 1px; box-shadow: 0 0 0 1px var(--accent-a50); }
+  .scrollbar { position: absolute; right: 3px; width: 6px; border-radius: 3px; background: var(--fill-3); opacity: .6; }
+  .hdr-scale { width: 104px; min-height: 0; gap: 6px; }
+  .hdr-scale .trough .knob { width: 16px; height: 16px; margin: -8px 0 0 -8px; }
+  .hdr-scale .trough .mark { top: 8px; height: 4px; }
+  /* preview pane */
+  .pv { width: 320px; flex: none; display: flex; flex-direction: column; background: var(--window-bg); box-shadow: inset 1px 0 var(--separator); min-height: 0; }
+  .pv .headerbar { background: var(--window-bg); box-shadow: none; }
+  .pv-body { flex: 1; min-height: 0; overflow: hidden; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 12px; }
+  .pv-body > * { flex: none; }
+  .pv-img { height: 196px; border-radius: var(--radius-l); background: var(--canvas-bg); display: grid; place-items: center; position: relative; flex: none; }
+  .pv-title { display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+  .pv-title .title-4 { flex: 1; min-width: 0; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv .boxed-list .row { min-height: 0; padding: 7px 12px; }
+  .pv .row.property .subtitle { font-size: var(--fs-small); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv .row.property .title { font-size: var(--fs-caption); }
+  .pv .actions { display: flex; gap: 6px; }
+  .pv .actions .btn.grow { flex: 1; }
+  .mono-path { font-family: var(--font-mono); font-size: 12px !important; }
+  /* list view */
+  .lv { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+  .lv table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); table-layout: fixed; }
+  .lv th { text-align: left; font-weight: var(--fw-bold); font-size: var(--fs-small); height: 34px; padding: 0 10px; box-shadow: inset 0 -1px var(--separator); white-space: nowrap; }
+  .lv th .icon { width: 12px; height: 12px; vertical-align: -1px; margin-left: 2px; }
+  .lv th.sorted { color: var(--accent); }
+  .lv th + th { box-shadow: inset 0 -1px var(--separator), inset 1px 0 var(--separator); }
+  .lv td { height: 44px; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lv td.dim { opacity: var(--dim-opacity); }
+  .lv td.num { font-variant-numeric: tabular-nums; }
+  .lv tr.sel td { background: var(--accent-a12); }
+  .lv tr.grp td { height: 38px; padding-top: 10px; font-weight: var(--fw-bold); }
+  .lv tr.grp td .caption { font-weight: var(--fw-regular); opacity: var(--dim-opacity); margin-left: 8px; }
+  .lv .namecell { display: flex; align-items: center; gap: 10px; }
+  .lv .namecell .tbox { width: 44px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 4px; background: var(--row-hover); }
+  .lv .namecell .timg { position: relative; display: block; background-repeat: no-repeat; box-shadow: 0 0 0 1px var(--shade); }
+  /* action bar (GtkActionBar) */
+  .action-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: var(--headerbar-bg); box-shadow: inset 0 1px var(--headerbar-shade); }
+  .action-bar .count { font-weight: var(--fw-bold); padding: 0 6px; }
+  /* quick look */
+  .ql { position: absolute; inset: 0; z-index: 35; background: rgb(0 0 6 / 93%); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #ffffff; display: flex; flex-direction: column; }
+  .ql-top { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+  .ql-top .grow .t { font-weight: var(--fw-bold); }
+  .ql-top .grow .s { font-size: var(--fs-caption); opacity: .7; }
+  .ql-img { flex: 1; display: grid; place-items: center; position: relative; }
+  .ql .btn.osd { background: rgb(255 255 255 / 14%); }
+  .ql .btn.osd:hover { background: rgb(255 255 255 / 22%); }
+  .ql-hint { display: flex; justify-content: center; gap: 18px; padding: 14px; font-size: var(--fs-small); opacity: .8; }
+  .ql-hint kbd.key { background: rgb(255 255 255 / 15%); box-shadow: none; color: #ffffff; }
+  .ql .nav { position: absolute; top: 50%; margin-top: -21px; width: 42px; min-height: 42px; }
+  /* chips / filter bar */
+  .filter-bar { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 18px; background: var(--view-bg); box-shadow: inset 0 -1px var(--separator); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 10px; border-radius: var(--radius-pill);
+          background: var(--accent-a12); color: var(--accent); font-size: var(--fs-small); font-weight: var(--fw-bold); white-space: nowrap; }
+  .chip .k { font-weight: var(--fw-regular); opacity: .85; }
+  .chip .x { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; }
+  .chip .x .icon { width: 12px; height: 12px; }
+  .chip.plain { background: var(--fill-1); color: inherit; padding-right: 10px; }
+  .chip.add { background: transparent; color: inherit; box-shadow: inset 0 0 0 1px var(--borders); padding-right: 8px; font-weight: var(--fw-bold); }
+  .tagc { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--fill-1); font-size: var(--fs-caption); white-space: nowrap; }
+  .tagc .icon { width: 12px; height: 12px; opacity: .7; }
+  .tagc .x { width: 14px; height: 14px; opacity: .7; }
+  .tag-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--c); box-shadow: 0 0 0 1px var(--borders); }
+  /* drag ghost */
+  .ghost { position: absolute; z-index: 45; pointer-events: none; }
+  .ghost .stack { position: relative; border-radius: 6px; box-shadow: 0 6px 18px rgb(0 0 6 / 35%); }
+  .ghost .badge { position: absolute; top: -8px; right: -8px; }
+  .cursor-arrow { position: absolute; z-index: 46; width: 20px; height: 20px; }
+  /* misc */
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: var(--fs-small); }
+  .kv .k { opacity: var(--dim-opacity); }
+  .skeleton { background: var(--fill-1); border-radius: 4px; }
+  .pill-status { display: inline-flex; gap: 6px; align-items: center; font-size: var(--fs-caption); }
+
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .tray { flex: none; height: 104px; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--window-bg); box-shadow: inset 0 1px var(--separator); position: relative; }
+  .tray .tray-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: var(--fs-caption-heading); font-weight: var(--fw-bold); opacity: var(--dim-opacity); }
+  .tray .ti { width: 112px; height: 80px; flex: none; border-radius: 8px; display: grid; place-items: center; position: relative; background: var(--row-hover); box-shadow: inset 0 0 0 1px var(--separator); }
+  .tray .ti.cur { box-shadow: inset 0 0 0 2px var(--accent-bg); background: var(--accent-a12); }
+  .tray .ti.hover { background: var(--fill-flat-hover); }
+  .tray .ti.sel { box-shadow: inset 0 0 0 2px var(--accent-bg); background: var(--accent-a12); }
+  .tray .ti .dot { position: absolute; top: 5px; left: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-bg); box-shadow: 0 0 0 2px var(--view-bg); }
+  .tray .ti .ck { position: absolute; top: 4px; left: 4px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent-bg); color: #fff; display: grid; place-items: center; }
+  .tray .ti .ck .icon { width: 12px; height: 12px; }
+  .tray .sepv { width: 1px; height: 64px; background: var(--separator); flex: none; }
+  .tray .more { width: 112px; height: 80px; flex: none; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; box-shadow: inset 0 0 0 1px var(--borders); font-size: var(--fs-small); font-weight: var(--fw-bold); }
+  .tray .more .caption { font-weight: var(--fw-regular); opacity: var(--dim-opacity); }
+
+  /* document page (template) — theme colours are template tokens, shown with Annota ink */
+  .page { position: relative; background: #ffffff; color: #1f1f24; box-shadow: 0 0 0 1px rgb(0 0 6 / 10%), 0 2px 10px rgb(0 0 6 / 18%); font-family: var(--font-ui); }
+  .page .p-title { font-weight: 800; letter-spacing: -.01em; }
+  .page .p-sub { color: #6b6b73; }
+  .page .rule { height: 3px; background: var(--t, var(--annota-coral)); border-radius: 2px; }
+  .page .num { display: grid; place-items: center; border-radius: 50%; background: var(--t, var(--annota-coral)); color: #fff; font-weight: 800; flex: none; }
+  .page .cap { color: #1f1f24; }
+  .page .cap .dim { color: #6b6b73; }
+  .slot { position: relative; display: grid; place-items: center; overflow: hidden; border-radius: 6px; background: #f3f3f5; }
+  .slot.empty { background: repeating-linear-gradient(135deg, #f6f6f8 0 10px, #efeff2 10px 20px); box-shadow: inset 0 0 0 1.5px #c8c8d0; border-radius: 6px; color: #77777f; }
+  .slot.empty .hint { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+  .slot.empty .hint .caption { font-weight: 400; color: #8a8a92; }
+  .slot.drop { background: rgb(53 132 228 / 12%); box-shadow: inset 0 0 0 2px #3584e4; color: #1c71d8; }
+  .slot .timg { box-shadow: none; border-radius: 0; }
+  .slot-sel { position: absolute; outline: 1.5px solid var(--accent-bg); pointer-events: none; }
+  .slot-sel .h { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; background: #fff; border: 1.5px solid var(--accent-bg); border-radius: 50%; }
+  .slot-badge { position: absolute; top: 6px; left: 6px; height: 20px; padding: 0 7px; border-radius: 10px; background: var(--accent-bg); color: #fff; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+  .slot-badge .icon { width: 12px; height: 12px; }
+  /* chooser */
+  .tpl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 14px; }
+  .tpl { display: flex; flex-direction: column; gap: 8px; }
+  .tpl .thumb { height: 132px; border-radius: var(--radius-l); background: var(--card-bg); box-shadow: var(--shadow-card); display: grid; place-items: center; padding: 12px; position: relative; }
+  .tpl.selected .thumb { box-shadow: 0 0 0 2px var(--accent-bg), var(--shadow-card); }
+  .tpl.hover .thumb { background-image: linear-gradient(var(--row-hover), var(--row-hover)); }
+  .tpl .t { font-weight: 700; font-size: 14px; }
+  .tpl .d { font-size: var(--fs-caption); opacity: var(--dim-opacity); margin-top: -6px; }
+  .mini { width: 100%; max-width: 160px; height: 106px; background: #ffffff; border-radius: 3px; box-shadow: 0 0 0 1px rgb(0 0 6 / 12%), 0 1px 3px rgb(0 0 6 / 12%); position: relative; padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+  .mini .bar { height: 5px; border-radius: 2px; background: #1f1f24; width: 55%; }
+  .mini .ln { height: 3px; border-radius: 2px; background: #c9c9d0; }
+  .mini .bx { background: #dcdce2; border-radius: 2px; }
+  .mini .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--t, var(--annota-coral)); flex: none; }
+  .mini .row { display: flex; gap: 5px; align-items: center; min-height: 0; padding: 0; }
+  .side-cat .nav-row { min-height: 36px; }
+  .combine-list .row { min-height: 0; padding: 8px 10px; gap: 10px; }
+  .combine-list .row .tbox { width: 64px; height: 44px; flex: none; display: grid; place-items: center; background: var(--fill-1); border-radius: 6px; }
+  .combine-list .row .n { width: 22px; height: 22px; border-radius: 50%; background: var(--annota-coral); color: #fff; font-weight: 800; font-size: 12px; display: grid; place-items: center; flex: none; }
+  .combine-list .row .entry { flex: 1; min-height: 32px; font-size: 14px; }
+  .combine-list .row.dragging { background: var(--card-bg); box-shadow: 0 6px 18px rgb(0 0 6 / 25%); transform: translateX(8px) rotate(-.6deg); z-index: 2; }
+  .combine-list .row.gap { min-height: 60px; background: var(--accent-a12); box-shadow: inset 0 0 0 2px var(--accent-a50); }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px"><div class="headerbar "><div class="start"><button class="btn image-button "><svg class="icon"><use href="#i-capture-region"/></svg></button><div class="linked"><button class="btn image-button "><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button "><svg class="icon"><use href="#i-redo"/></svg></button></div></div><div class="title-widget"><span class="title">Untitled step guide</span><span class="subtitle">Step guide · 4 slots · Not saved</span></div><div class="end"><button class="btn image-button "><svg class="icon"><use href="#i-copy"/></svg></button><button class="btn text-button suggested-action">Export</button><button class="btn image-button flat"><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div><div class="split-view"><div class="tool-strip"><button class="btn flat active"><svg class="icon"><use href="#i-select"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-arrow"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-shape"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-text"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-callout"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-step"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-highlighter"/></svg></button><span class="separator-h"></span><button class="btn flat"><svg class="icon"><use href="#i-blur"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-magnify"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-spotlight"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-stamp"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-crop"/></svg></button></div><div class="content-pane" style="position:relative"><div class="canvas-area" style="align-items:flex-start;padding-top:24px"><div style="transform:scale(.93);transform-origin:top center"><div class="page" style="width:640px;padding:26px 24px 24px;--t:var(--annota-coral);display:flex;flex-direction:column;gap:16px"><div><div class="p-title" style="font-size:24px">Untitled step guide</div><div class="p-sub" style="font-size:13px;margin-top:4px">Click to add a subtitle</div></div><div class="rule"></div><div style="display:flex;gap:14px;align-items:flex-start"><span class="num" style="width:30px;height:30px;font-size:15px">1</span><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div class="cap" style="font-size:14px;font-weight:700;line-height:1.3">Step 1<div class="dim" style="font-weight:400;font-size:12px;margin-top:2px">Add a caption</div></div><div class="slot empty" style="width:548px;height:150px"><div class="hint"><svg class="icon large"><use href="#i-image"/></svg>Drop a capture<span class="caption">or click to choose from the library</span></div></div></div></div><div style="display:flex;gap:14px;align-items:flex-start"><span class="num" style="width:30px;height:30px;font-size:15px">2</span><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div class="cap" style="font-size:14px;font-weight:700;line-height:1.3">Step 2<div class="dim" style="font-weight:400;font-size:12px;margin-top:2px">Add a caption</div></div><div class="slot empty" style="width:548px;height:150px"><div class="hint"><svg class="icon large"><use href="#i-image"/></svg>Drop a capture<span class="caption">or click to choose from the library</span></div></div></div></div><div style="display:flex;gap:14px;align-items:flex-start"><span class="num" style="width:30px;height:30px;font-size:15px">3</span><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div class="cap" style="font-size:14px;font-weight:700;line-height:1.3">Step 3<div class="dim" style="font-weight:400;font-size:12px;margin-top:2px">Add a caption</div></div><div class="slot empty" style="width:548px;height:150px"><div class="hint"><svg class="icon large"><use href="#i-image"/></svg>Drop a capture<span class="caption">or click to choose from the library</span></div></div></div></div><div style="display:flex;gap:14px;align-items:flex-start"><span class="num" style="width:30px;height:30px;font-size:15px">4</span><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div class="cap" style="font-size:14px;font-weight:700;line-height:1.3">Step 4<div class="dim" style="font-weight:400;font-size:12px;margin-top:2px">Add a caption</div></div><div class="slot empty" style="width:548px;height:150px"><div class="hint"><svg class="icon large"><use href="#i-image"/></svg>Drop a capture<span class="caption">or click to choose from the library</span></div></div></div></div></div></div><div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px"><button class="btn image-button "><svg class="icon"><use href="#i-zoom-out"/></svg></button><span class="label">60 %</span><button class="btn image-button "><svg class="icon"><use href="#i-zoom-in"/></svg></button></div></div></div><div class="sidebar-pane end props"><div class="scroll"><div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Step Guide</span><span class="description">Template layout</span></div></div><div class="boxed-list"><div class="row"><div class="text"><span class="title">Steps</span></div><div class="suffix"><span class="spin" style="width:110px"><span class="value">4</span><button class="btn image-button "><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn image-button "><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div><div class="row"><div class="text"><span class="title">Numbering</span></div><div class="suffix"><span class="switch on"></span></div></div><div class="row"><div class="text"><span class="title">Image Scaling</span></div><div class="suffix"><div class="toggle-group"><span class="toggle active">Fit</span><span class="toggle">Fill</span></div></div></div></div></div><div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Theme Colour</span></div></div><div class="swatch-row"><span class="swatch selected" style="--c:var(--annota-coral)"></span><span class="swatch" style="--c:var(--annota-amber)"></span><span class="swatch" style="--c:var(--annota-teal)"></span><span class="swatch" style="--c:var(--annota-azure)"></span><span class="swatch" style="--c:var(--annota-violet)"></span><span class="swatch" style="--c:var(--annota-ink)"></span></div></div></div></div></div></div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

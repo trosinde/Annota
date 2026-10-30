@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Library — tag release-notes</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  /* library window — layout only, colours from tokens */
+  .lib-side { width: 280px; }
+  .lib-side .sidebar-list { flex: 1; }
+  .lib-side .nav-row .icon { flex: none; }
+  .nav-row.drop { background: var(--accent-a25); outline: 2px solid var(--accent-bg); outline-offset: -2px; }
+  .nav-row .spinner { margin-left: auto; }
+  .side-foot { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 16px 12px; box-shadow: inset 0 1px var(--separator); font-size: var(--fs-small); }
+  .side-foot .vbox { min-width: 0; flex: 1; }
+  .side-foot .path { font-family: var(--font-mono); font-size: 12px; opacity: var(--dim-opacity); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success-bg); flex: none; }
+  .state-dot.off { background: var(--warning-bg); }
+  .grid-scroll { flex: 1; min-height: 0; overflow: hidden; position: relative; padding: 0 18px 18px; }
+  .day-head { display: flex; align-items: baseline; gap: 10px; padding: 18px 2px 12px; }
+  .day-head .caption { opacity: var(--dim-opacity); }
+  .day-head .spacer { flex: 1; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, var(--tw, 150px)); gap: 18px 12px; }
+  .tile { width: var(--tw, 150px); display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .tile .frame { height: var(--th, 112px); border-radius: 9px; background: var(--row-hover); box-shadow: inset 0 0 0 1px var(--separator);
+                 display: grid; place-items: center; position: relative; }
+  .timg { position: relative; display: block; background-repeat: no-repeat;
+                 box-shadow: 0 0 0 1px var(--shade), 0 1px 3px rgb(0 0 6 / 14%); border-radius: 2px; overflow: hidden; }
+  .timg > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .tile .name { font-size: var(--fs-small); padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .meta { font-size: var(--fs-caption); padding: 0 2px; opacity: var(--dim-opacity); display: flex; gap: 4px; align-items: center; margin-top: -4px; white-space: nowrap; overflow: hidden; }
+  .tile .meta .icon { width: 12px; height: 12px; }
+  .tile.hover .frame { background: var(--fill-flat-hover); }
+  .tile.selected .frame { background: var(--accent-a12); box-shadow: inset 0 0 0 2px var(--accent-bg); }
+  .tile.focus .frame { outline: 2px solid var(--accent-a50); outline-offset: 2px; }
+  .tile.dim { opacity: .35; }
+  .tile.gone { opacity: .25; transform: scale(.94); }
+  .tile .sel { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+               background: var(--view-bg); box-shadow: inset 0 0 0 2px var(--borders-strong), 0 1px 2px rgb(0 0 6 / 20%); }
+  .tile .sel.on { background: var(--accent-bg); color: var(--accent-fg); box-shadow: 0 1px 2px rgb(0 0 6 / 20%); }
+  .tile .sel .icon { width: 14px; height: 14px; }
+  .tile .fav { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--osd-bg); color: #ffffff; }
+  .tile .fav .icon { width: 14px; height: 14px; }
+  .tile .fav.on .icon { fill: var(--annota-amber); }
+  .dur { position: absolute; right: 6px; bottom: 6px; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px 0 5px; border-radius: 10px;
+         background: var(--osd-bg); color: var(--osd-fg); font-size: 11px; font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+  .dur .icon { width: 12px; height: 12px; }
+  .kind-badge { position: absolute; left: 6px; bottom: 6px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--osd-bg); color: var(--osd-fg);
+                font-size: 11px; font-weight: var(--fw-bold); display: inline-flex; align-items: center; }
+  .match { font-size: var(--fs-caption); padding: 0 2px; margin-top: -2px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .match .src { display: block; }
+  .match .src { opacity: var(--dim-opacity); }
+  mark { background: var(--accent-a25); color: inherit; border-radius: 3px; padding: 0 1px; box-shadow: 0 0 0 1px var(--accent-a50); }
+  .scrollbar { position: absolute; right: 3px; width: 6px; border-radius: 3px; background: var(--fill-3); opacity: .6; }
+  .hdr-scale { width: 104px; min-height: 0; gap: 6px; }
+  .hdr-scale .trough .knob { width: 16px; height: 16px; margin: -8px 0 0 -8px; }
+  .hdr-scale .trough .mark { top: 8px; height: 4px; }
+  /* preview pane */
+  .pv { width: 320px; flex: none; display: flex; flex-direction: column; background: var(--window-bg); box-shadow: inset 1px 0 var(--separator); min-height: 0; }
+  .pv .headerbar { background: var(--window-bg); box-shadow: none; }
+  .pv-body { flex: 1; min-height: 0; overflow: hidden; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 12px; }
+  .pv-body > * { flex: none; }
+  .pv-img { height: 196px; border-radius: var(--radius-l); background: var(--canvas-bg); display: grid; place-items: center; position: relative; flex: none; }
+  .pv-title { display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+  .pv-title .title-4 { flex: 1; min-width: 0; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv .boxed-list .row { min-height: 0; padding: 7px 12px; }
+  .pv .row.property .subtitle { font-size: var(--fs-small); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv .row.property .title { font-size: var(--fs-caption); }
+  .pv .actions { display: flex; gap: 6px; }
+  .pv .actions .btn.grow { flex: 1; }
+  .mono-path { font-family: var(--font-mono); font-size: 12px !important; }
+  /* list view */
+  .lv { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+  .lv table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); table-layout: fixed; }
+  .lv th { text-align: left; font-weight: var(--fw-bold); font-size: var(--fs-small); height: 34px; padding: 0 10px; box-shadow: inset 0 -1px var(--separator); white-space: nowrap; }
+  .lv th .icon { width: 12px; height: 12px; vertical-align: -1px; margin-left: 2px; }
+  .lv th.sorted { color: var(--accent); }
+  .lv th + th { box-shadow: inset 0 -1px var(--separator), inset 1px 0 var(--separator); }
+  .lv td { height: 44px; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lv td.dim { opacity: var(--dim-opacity); }
+  .lv td.num { font-variant-numeric: tabular-nums; }
+  .lv tr.sel td { background: var(--accent-a12); }
+  .lv tr.grp td { height: 38px; padding-top: 10px; font-weight: var(--fw-bold); }
+  .lv tr.grp td .caption { font-weight: var(--fw-regular); opacity: var(--dim-opacity); margin-left: 8px; }
+  .lv .namecell { display: flex; align-items: center; gap: 10px; }
+  .lv .namecell .tbox { width: 44px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 4px; background: var(--row-hover); }
+  .lv .namecell .timg { position: relative; display: block; background-repeat: no-repeat; box-shadow: 0 0 0 1px var(--shade); }
+  /* action bar (GtkActionBar) */
+  .action-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: var(--headerbar-bg); box-shadow: inset 0 1px var(--headerbar-shade); }
+  .action-bar .count { font-weight: var(--fw-bold); padding: 0 6px; }
+  /* quick look */
+  .ql { position: absolute; inset: 0; z-index: 35; background: rgb(0 0 6 / 93%); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #ffffff; display: flex; flex-direction: column; }
+  .ql-top { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+  .ql-top .grow .t { font-weight: var(--fw-bold); }
+  .ql-top .grow .s { font-size: var(--fs-caption); opacity: .7; }
+  .ql-img { flex: 1; display: grid; place-items: center; position: relative; }
+  .ql .btn.osd { background: rgb(255 255 255 / 14%); }
+  .ql .btn.osd:hover { background: rgb(255 255 255 / 22%); }
+  .ql-hint { display: flex; justify-content: center; gap: 18px; padding: 14px; font-size: var(--fs-small); opacity: .8; }
+  .ql-hint kbd.key { background: rgb(255 255 255 / 15%); box-shadow: none; color: #ffffff; }
+  .ql .nav { position: absolute; top: 50%; margin-top: -21px; width: 42px; min-height: 42px; }
+  /* chips / filter bar */
+  .filter-bar { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 18px; background: var(--view-bg); box-shadow: inset 0 -1px var(--separator); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 10px; border-radius: var(--radius-pill);
+          background: var(--accent-a12); color: var(--accent); font-size: var(--fs-small); font-weight: var(--fw-bold); white-space: nowrap; }
+  .chip .k { font-weight: var(--fw-regular); opacity: .85; }
+  .chip .x { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; }
+  .chip .x .icon { width: 12px; height: 12px; }
+  .chip.plain { background: var(--fill-1); color: inherit; padding-right: 10px; }
+  .chip.add { background: transparent; color: inherit; box-shadow: inset 0 0 0 1px var(--borders); padding-right: 8px; font-weight: var(--fw-bold); }
+  .tagc { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--fill-1); font-size: var(--fs-caption); white-space: nowrap; }
+  .tagc .icon { width: 12px; height: 12px; opacity: .7; }
+  .tagc .x { width: 14px; height: 14px; opacity: .7; }
+  .tag-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--c); box-shadow: 0 0 0 1px var(--borders); }
+  /* drag ghost */
+  .ghost { position: absolute; z-index: 45; pointer-events: none; }
+  .ghost .stack { position: relative; border-radius: 6px; box-shadow: 0 6px 18px rgb(0 0 6 / 35%); }
+  .ghost .badge { position: absolute; top: -8px; right: -8px; }
+  .cursor-arrow { position: absolute; z-index: 46; width: 20px; height: 20px; }
+  /* misc */
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: var(--fs-small); }
+  .kv .k { opacity: var(--dim-opacity); }
+  .skeleton { background: var(--fill-1); border-radius: 4px; }
+  .pill-status { display: inline-flex; gap: 6px; align-items: center; font-size: var(--fs-caption); }
+
+  .search-head { flex: 1; display: flex; justify-content: center; }
+  .search-head { min-width: 0; padding: 0 12px; }
+  .search-head .search-entry { width: 100%; max-width: 440px; }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 12px; }
+  .pv .group-label { font-size: var(--fs-caption-heading); font-weight: var(--fw-bold); opacity: var(--dim-opacity); padding: 0 2px; margin-bottom: -6px; }
+  .tagc.add { background: transparent; box-shadow: inset 0 0 0 1px var(--borders); font-weight: var(--fw-bold); }
+  .ac-row { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 0 10px; border-radius: var(--radius-s); }
+  .ac-row .label { flex: 1; }
+  .ac-row .n { opacity: var(--dim-opacity); font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
+  .ac-row.hover { background: var(--fill-flat-hover); }
+  .ac-row.selected { background: var(--accent-a12); }
+  .info-line { display: flex; align-items: center; gap: 8px; padding: 10px 18px; font-size: var(--fs-small); box-shadow: inset 0 -1px var(--separator); background: var(--view-bg); }
+  .info-line .icon { opacity: .7; }
+  .dup-group { display: flex; gap: 12px; align-items: flex-start; }
+  .dup-card { width: 150px; display: flex; flex-direction: column; gap: 6px; }
+  .dup-card .frame { height: 100px; border-radius: 9px; background: var(--row-hover); box-shadow: inset 0 0 0 1px var(--separator); display: grid; place-items: center; position: relative; }
+  .dup-card.keep .frame { box-shadow: inset 0 0 0 2px var(--success-bg); }
+  .dup-card .frame .badge { position: absolute; top: 6px; left: 6px; }
+  .dup-card .caption { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px;"><div class="split-view"><div class="sidebar-pane sidebar lib-side"><div class="headerbar "><div class="start"><button class="btn image-button flat"><svg class="icon"><use href="#i-capture-region"/></svg></button></div><div class="title-widget"><span class="title">Annota</span></div><div class="end"><button class="btn image-button flat"><svg class="icon"><use href="#i-open-menu"/></svg></button></div></div><div class="sidebar-list" style="gap:1px"><div class="nav-row "><svg class="icon"><use href="#i-library"/></svg><span class="label">All Captures</span><span class="count">31</span></div><div class="nav-row "><svg class="icon"><use href="#i-star"/></svg><span class="label">Favourites</span><span class="count">4</span></div><div class="nav-row "><svg class="icon"><use href="#i-timer"/></svg><span class="label">Recent</span></div><div class="nav-row "><svg class="icon"><use href="#i-trash"/></svg><span class="label">Trash</span><span class="count">2</span></div><div class="section-title" style="display:flex;align-items:center">Collections<span class="spacer"></span></div><div class="nav-row "><svg class="icon"><use href="#i-folder"/></svg><span class="label">Release notes 0.4</span><span class="count">12</span></div><div class="nav-row "><svg class="icon"><use href="#i-folder"/></svg><span class="label">Onboarding guide</span><span class="count">12</span></div><div class="nav-row "><svg class="icon"><use href="#i-search"/></svg><span class="label">Bugs, last 30 days</span><span class="count">6</span></div><div class="section-title">Tags</div><div class="nav-row "><span class="tag-dot" style="--c:var(--annota-coral);margin:0 3px"></span><span class="label">bug</span><span class="count">6</span></div><div class="nav-row "><span class="tag-dot" style="--c:var(--annota-amber);margin:0 3px"></span><span class="label">checkout</span><span class="count">4</span></div><div class="nav-row "><span class="tag-dot" style="--c:var(--annota-azure);margin:0 3px"></span><span class="label">docs</span><span class="count">2</span></div><div class="nav-row "><span class="tag-dot" style="--c:var(--annota-ink);margin:0 3px"></span><span class="label">dev</span><span class="count">4</span></div><div class="nav-row selected"><span class="tag-dot" style="--c:var(--annota-teal);margin:0 3px"></span><span class="label">release-notes</span><span class="count">5</span></div><div class="nav-row "><span class="tag-dot" style="--c:var(--annota-violet);margin:0 3px"></span><span class="label">report</span><span class="count">4</span></div><div class="nav-row "><span class="tag-dot" style="--c:var(--annota-lime);margin:0 3px"></span><span class="label">support</span><span class="count">2</span></div></div></div><div class="content-pane view" style=""><div class="headerbar "><div class="start"><div class="toggle-group"><span class="toggle icon-only active"><svg class="icon"><use href="#i-grid-view"/></svg></span><span class="toggle icon-only "><svg class="icon"><use href="#i-list-view"/></svg></span></div><div class="scale hdr-scale" title="Thumbnail size"><svg class="icon" style="opacity:.55"><use href="#i-zoom-out"/></svg><div class="trough"><div class="fill" style="width:50%"></div><span class="mark" style="left:0"></span><span class="mark" style="left:50%"></span><span class="mark" style="left:100%"></span><div class="knob" style="left:50%"></div></div></div></div><div class="title-widget"><span class="title">release-notes</span><span class="subtitle">5 captures · tag</span></div><div class="end"><button class="btn image-button flat"><svg class="icon"><use href="#i-search"/></svg></button><button class="btn flat " style="gap:4px;padding:5px 8px 5px 10px">Capture Date<svg class="icon"><use href="#i-pan-down"/></svg></button><button class="btn image-button flat "><svg class="icon"><use href="#i-sidebar-show-right"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div><div class="grid-scroll" style="padding-top:0px"><div class="day-head"><span class="heading">Today</span><span class="caption">Friday, 30 October · 2 captures</span><span class="spacer"></span></div><div class="tiles" style="--tw:150px"><div class="tile " style="--tw:150px;--th:112px"><div class="frame"><span class="timg" style="width:134.0px;height:50.0px;background-image:url(../../kit/sample-content/png/b-lumen-checkout.png);background-size:235.1px 146.9px;background-position:-11.8px -40.4px;"><svg viewBox="0 0 912 340" preserveAspectRatio="none"><rect x="18" y="236" width="524" height="82" rx="5.364705882352941" fill="none" stroke="var(--annota-coral)" stroke-width="5.364705882352941"/><path d="M700 180 L560 262" stroke="var(--annota-coral)" stroke-width="6.974117647058823" stroke-linecap="round" fill="none"/><path d="M572.4 241.3 L560 262 L584.1 261.3" stroke="var(--annota-coral)" stroke-width="6.974117647058823" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span></div><div class="name">Checkout postcode error</div><div class="meta"><svg class="icon"><use href="#i-capture-region"/></svg><span>14:22</span></div></div><div class="tile " style="--tw:150px;--th:112px"><div class="frame"><span class="timg" style="width:65.1px;height:96.0px;background-image:url(../../kit/sample-content/png/b-lumen-checkout.png);background-size:216.9px 135.6px;background-position:-141.0px -25.5px;"></span></div><div class="name">Order summary</div><div class="meta"><svg class="icon"><use href="#i-capture-region"/></svg><span>09:20</span></div></div></div><div class="day-head"><span class="heading">Yesterday</span><span class="caption">Thursday, 29 October · 1 capture</span><span class="spacer"></span></div><div class="tiles" style="--tw:150px"><div class="tile " style="--tw:150px;--th:112px"><div class="frame"><span class="timg" style="width:134.0px;height:47.0px;background-image:url(../../kit/sample-content/png/b-lumen-checkout.png);background-size:235.1px 146.9px;background-position:-11.8px -93.2px;"><svg viewBox="0 0 912 320" preserveAspectRatio="none"><circle cx="40" cy="98" r="22.8" fill="var(--annota-coral)"/><text x="40" y="106.2" font-size="23.9" font-weight="700" fill="#fff" text-anchor="middle" font-family="Inter">1</text><circle cx="40" cy="176" r="22.8" fill="var(--annota-coral)"/><text x="40" y="184.2" font-size="23.9" font-weight="700" fill="#fff" text-anchor="middle" font-family="Inter">2</text><circle cx="40" cy="252" r="22.8" fill="var(--annota-coral)"/><text x="40" y="260.2" font-size="23.9" font-weight="700" fill="#fff" text-anchor="middle" font-family="Inter">3</text></svg></span></div><div class="name">Shipping options</div><div class="meta"><svg class="icon"><use href="#i-capture-region"/></svg><span>15:12</span></div></div></div><div class="day-head"><span class="heading">Wednesday</span><span class="caption">28 October · 1 capture</span><span class="spacer"></span></div><div class="tiles" style="--tw:150px"><div class="tile " style="--tw:150px;--th:112px"><div class="frame"><span class="timg" style="width:134.0px;height:83.8px;background-image:url(../../kit/sample-content/png/b-lumen-checkout.png);background-size:134.0px 83.8px;background-position:0.0px 0.0px;"><svg viewBox="0 0 1600 1000" preserveAspectRatio="none"><rect x="100" y="515" width="440" height="90" rx="9.411764705882353" fill="none" stroke="var(--annota-coral)" stroke-width="9.411764705882353"/><path d="M760 650 L560 570" stroke="var(--annota-coral)" stroke-width="12.23529411764706" stroke-linecap="round" fill="none"/><path d="M602.1 565.0 L560 570 L587.0 602.7" stroke="var(--annota-coral)" stroke-width="12.23529411764706" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span></div><div class="name">Checkout page</div><div class="meta"><svg class="icon"><use href="#i-capture-window"/></svg><span>15:15</span></div></div></div><div class="day-head"><span class="heading">Tuesday</span><span class="caption">27 October · 1 capture</span><span class="spacer"></span></div><div class="tiles" style="--tw:150px"><div class="tile " style="--tw:150px;--th:112px"><div class="frame"><span class="timg" style="width:134.0px;height:22.3px;background-image:url(../../kit/sample-content/png/b-lumen-checkout.png);background-size:446.7px 279.2px;background-position:-290.3px -150.8px;"></span></div><div class="name">Discount code field</div><div class="meta"><svg class="icon"><use href="#i-capture-region"/></svg><span>12:47</span></div></div></div></div></div></div><div class="toast-overlay"><div class="toast"><span class="toast-title">Tag “release-notes” added to 5 captures</span><button class="btn flat text-button">Undo</button><button class="btn flat circular"><svg class="icon"><use href="#i-close"/></svg></button></div></div></div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

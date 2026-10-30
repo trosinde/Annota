@@ -68,7 +68,8 @@ LIB_CSS = r"""
   .dur .icon { width: 12px; height: 12px; }
   .kind-badge { position: absolute; left: 6px; bottom: 6px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--osd-bg); color: var(--osd-fg);
                 font-size: 11px; font-weight: var(--fw-bold); display: inline-flex; align-items: center; }
-  .match { font-size: var(--fs-caption); padding: 0 2px; margin-top: -2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .match { font-size: var(--fs-caption); padding: 0 2px; margin-top: -2px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .match .src { display: block; }
   .match .src { opacity: var(--dim-opacity); }
   mark { background: var(--accent-a25); color: inherit; border-radius: 3px; padding: 0 1px; box-shadow: 0 0 0 1px var(--accent-a50); }
   .scrollbar { position: absolute; right: 3px; width: 6px; border-radius: 3px; background: var(--fill-3); opacity: .6; }
@@ -79,6 +80,7 @@ LIB_CSS = r"""
   .pv { width: 320px; flex: none; display: flex; flex-direction: column; background: var(--window-bg); box-shadow: inset 1px 0 var(--separator); min-height: 0; }
   .pv .headerbar { background: var(--window-bg); box-shadow: none; }
   .pv-body { flex: 1; min-height: 0; overflow: hidden; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 12px; }
+  .pv-body > * { flex: none; }
   .pv-img { height: 196px; border-radius: var(--radius-l); background: var(--canvas-bg); display: grid; place-items: center; position: relative; flex: none; }
   .pv-title { display: flex; align-items: center; gap: 6px; padding: 0 2px; }
   .pv-title .title-4 { flex: 1; min-width: 0; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -130,7 +132,7 @@ LIB_CSS = r"""
   .tagc { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--fill-1); font-size: var(--fs-caption); white-space: nowrap; }
   .tagc .icon { width: 12px; height: 12px; opacity: .7; }
   .tagc .x { width: 14px; height: 14px; opacity: .7; }
-  .tag-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--c); }
+  .tag-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--c); box-shadow: 0 0 0 1px var(--borders); }
   /* drag ghost */
   .ghost { position: absolute; z-index: 45; pointer-events: none; }
   .ghost .stack { position: relative; border-radius: 6px; box-shadow: 0 6px 18px rgb(0 0 6 / 35%); }
@@ -457,7 +459,7 @@ def sidebar_mvp(selected="all", counts=None, foot=None, header_end=None):
 
 TAG_COLORS = {"bug": "var(--annota-coral)", "checkout": "var(--annota-amber)", "docs": "var(--annota-azure)",
               "release-notes": "var(--annota-teal)", "report": "var(--annota-violet)", "support": "var(--annota-lime)",
-              "dev": "var(--annota-ink)"}
+              "dev": "var(--annota-ink)", "invoices": "var(--annota-azure)"}
 
 
 def sidebar_org(selected="all", tag_counts=None, extra_rows=None, drop=None, foot=None, header_end=None,
@@ -480,7 +482,7 @@ def sidebar_org(selected="all", tag_counts=None, extra_rows=None, drop=None, foo
             nav("timer", "Recent", "", cls("recent")),
             nav("trash", "Trash", "2", cls("trash")),
             '<div class="section-title" style="display:flex;align-items:center">Collections<span class="spacer"></span></div>']
-    cols = collections or [("folder", "Release notes 0.4", "18", "rn"), ("folder", "Onboarding guide", "12", "onb"),
+    cols = collections or [("folder", "Release notes 0.4", "12", "rn"), ("folder", "Onboarding guide", "12", "onb"),
                            ("search", "Bugs, last 30 days", "6", "smart")]
     for icn, lab, cnt, k in cols:
         rows.append(nav(icn, lab, cnt, cls(k)))
@@ -558,7 +560,7 @@ def preview_pane(it, folder="/mnt/nas/annota", extra_top="", extra_props="", fav
     if it.url:
         rows.append(prop("Source", "https://" + it.url, suffix=""))
     rows.append(prop("Dimensions", it.px + (f" · scale {it.scale}×" if it.scale != 1 else " · scale 1×")))
-    rows.append(prop("File size", it.fsize + (" · MP4" if it.dur else " · .annota")))
+    rows.append(prop("File size", it.fsize + (" · MP4" if it.dur else (" · PNG" if it.plain else " · .annota"))))
     rows.append(prop("Location", folder + "/" + filename(it), mono=True))
     props = "" if hide_props else f'<div class="boxed-list">{"".join(rows)}{extra_props}</div>'
     return (f'<div class="pv">{hdr}<div class="pv-body">{extra_top}<div class="pv-img">{img}{vid}</div>'
@@ -567,7 +569,7 @@ def preview_pane(it, folder="/mnt/nas/annota", extra_top="", extra_props="", fav
 
 def dayname(k):
     return {"today": "Today", "yesterday": "Yesterday", "wed": "Wed 28 Oct", "tue": "Tue 27 Oct",
-            "mon": "Mon 26 Oct", "oct18": "18 Oct 2026"}[k]
+            "mon": "Mon 26 Oct", "oct18": "18 Oct 2026", "oct12": "Mon 12 Oct", "oct09": "Fri 9 Oct"}.get(k, k)
 
 
 def filename(it):
