@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — capture info screen</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); position: relative; z-index: 5; }
+  .tool-strip .btn { width: 36px; min-height: 34px; padding: 0; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props { display: flex; flex-direction: column; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .props .side-head { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
+  .props .side-head .heading { font-weight: var(--fw-bold); flex: 1; }
+  .props .foot { margin-top: auto; padding: 12px; display: flex; gap: 6px; box-shadow: inset 0 1px var(--separator); }
+  .props .foot .btn { flex: 1; }
+  .lbl { font-size: var(--fs-small); }
+  .field-label { font-size: var(--fs-small); font-weight: var(--fw-bold); opacity: var(--dim-opacity); padding: 0 2px; }
+  .row-stack { display: flex; flex-direction: column; gap: 6px; }
+  .full { width: 100%; }
+  .toggle-group.full { display: flex; }
+  .toggle-group.full > .toggle { flex: 1; justify-content: center; padding: 0 4px; font-size: var(--fs-small); white-space: nowrap; }
+  .toggle-group.full.four > .toggle { font-size: var(--fs-caption); padding: 0 2px; }
+  .canvas-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  svg.annotations text { font-family: var(--font-ui); }
+  .ants { fill: none; stroke: #ffffff; stroke-width: 1; }
+  .ants2 { fill: none; stroke: #1f1f24; stroke-width: 1; stroke-dasharray: 4 4; }
+  .hint { font-size: var(--fs-caption); opacity: var(--dim-opacity); padding: 0 2px; line-height: 1.4; }
+  .scale .trough { flex: 1; }
+  .scale .lbl { width: 84px; flex: none; }
+
+  .pane-switch { margin-bottom: -6px; }
+  .fx-stage { position: relative; display: flex; align-items: center; justify-content: center; padding: 28px; }
+  .fx-stage.checker { box-shadow: 0 0 0 1px rgb(0 0 6 / 10%); }
+  .fx-img { position: relative; display: block; }
+  .fx-img img { display: block; width: 100%; height: 100%; }
+  .fx-size { position: absolute; left: 0; right: 0; bottom: -26px; text-align: center; font-size: 12px; opacity: .55; font-variant-numeric: tabular-nums; }
+  .stack .row { min-height: 50px; }
+  .stack .row .prefix .icon.drag { opacity: .45; }
+  .stack .row.off .text { opacity: .55; }
+  .info-footer { display: flex; gap: 18px; align-items: center; padding: 0 14px; height: 26px; background: #1f1f24; color: #f2f2f4; font: 600 10px/1 Inter, sans-serif; letter-spacing: .1px; }
+  .info-footer .k { opacity: .6; font-weight: 500; margin-right: 4px; }
+  .check-list { display: flex; flex-direction: column; }
+  .check-list .row { min-height: 44px; }
+  .wm { position: absolute; display: flex; align-items: center; gap: 6px; font: 800 13px/1 Inter, sans-serif; }
+  .qfx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .qfx { border-radius: var(--radius-m); background: var(--card-bg); box-shadow: 0 0 0 1px var(--card-shade), 0 1px 2px var(--card-shade); padding: 8px; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-small); }
+  .qfx .thumb { height: 52px; border-radius: 6px; background: var(--fill-1); display: grid; place-items: center; }
+  .qfx .thumb i { display: block; width: 62px; height: 36px; background: #fff url(../../kit/sample-content/png/a-harbor-backup.png) center/cover; }
+  .qfx .name { font-weight: 700; display: flex; align-items: center; gap: 4px; }
+  .qfx.selected { box-shadow: 0 0 0 2px var(--accent-bg); }
+  .qfx .sub { opacity: .55; font-size: 12px; }
+  .sel-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border-radius: var(--radius-s); background: var(--fill-1); font-size: var(--fs-small); }
+  .sel-chip .dot { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgb(0 0 6 / 20%); }
+  .before-after { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 4; }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+
+  <div class="headerbar">
+    <div class="start">
+      <button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button>
+      <div class="linked">
+        <button class="btn image-button" title="Undo (Ctrl+Z)"><svg class="icon"><use href="#i-undo"/></svg></button>
+        <button class="btn image-button" title="Redo (Ctrl+Shift+Z)" disabled><svg class="icon"><use href="#i-redo"/></svg></button>
+      </div>
+    </div>
+    <div class="title-widget"><span class="title">September overview</span><span class="subtitle">Screen capture · 1600 × 1000 · Edited</span></div>
+    <div class="end">
+      <button class="btn image-button" title="Copy (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button>
+      <button class="btn text-button suggested-action" title="Export (Ctrl+E)">Export</button>
+      <button class="btn flat image-button" title="Main Menu"><svg class="icon"><use href="#i-open-menu"/></svg></button>
+      <div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div>
+    </div>
+  </div>
+  <div class="split-view">
+    <div class="tool-strip">
+<button class="btn flat active" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button>
+<button class="btn flat" title="Selection (Q)"><svg class="icon"><use href="#i-selection"/></svg></button>
+<button class="btn flat" title="Magic Wand (W)"><svg class="icon"><use href="#i-magic-wand"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button>
+<button class="btn flat" title="Line (L)"><svg class="icon"><use href="#i-line"/></svg></button>
+<button class="btn flat" title="Pen (P)"><svg class="icon"><use href="#i-pen"/></svg></button>
+<button class="btn flat" title="Shape (U)"><svg class="icon"><use href="#i-shape"/></svg></button>
+<button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button>
+<button class="btn flat" title="Callout (K)"><svg class="icon"><use href="#i-callout"/></svg></button>
+<button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button>
+<button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Redact (B)"><svg class="icon"><use href="#i-redact"/></svg></button>
+<button class="btn flat" title="Magnify (M)"><svg class="icon"><use href="#i-magnify"/></svg></button>
+<button class="btn flat" title="Spotlight (G)"><svg class="icon"><use href="#i-spotlight"/></svg></button>
+<button class="btn flat" title="Stamp (I)"><svg class="icon"><use href="#i-stamp"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Crop (C)"><svg class="icon"><use href="#i-crop"/></svg></button>
+<button class="btn flat" title="Cut-Out (X)"><svg class="icon"><use href="#i-cut-out"/></svg></button>
+<button class="btn flat" title="Fill (F)"><svg class="icon"><use href="#i-fill"/></svg></button>
+<button class="btn flat" title="Eraser (E)"><svg class="icon"><use href="#i-eraser"/></svg></button>
+
+</div>
+    <div class="content-pane" style="position:relative">
+      <div class="canvas-area">
+        <div class="fx-stage checker" style="padding:28px;"><div style="">
+      <div class="fx-img" style="">
+        <div style="width:640px;height:400px;border-radius:0px;overflow:hidden;position:relative;background:#fff"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" style="filter:none"></div>
+        <div class="info-footer"><span>30 Oct 2026, 14:31</span><span>Ubuntu 26.04 LTS</span><span>1600 × 1000</span><span style="margin-left:auto">Release notes 0.4 · draft</span></div>
+      </div></div><span class="fx-size">1600 × 1066</span></div>
+        <div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px;z-index:4">
+          <button class="btn image-button"><svg class="icon"><use href="#i-zoom-out"/></svg></button>
+          <span class="label">50 %</span>
+          <button class="btn image-button"><svg class="icon"><use href="#i-zoom-in"/></svg></button>
+        </div>
+      </div>
+      
+    </div>
+    <div class="sidebar-pane end props">
+      <div class="scroll">
+<div class="toggle-group full pane-switch"><span class="toggle">Tool</span><span class="toggle active" title="Effects (Ctrl+Shift+E)">Effects <span class="badge neutral">1</span></span></div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Effect Stack</span><span class="description">Whole Image · applied top to bottom</span></div><button class="btn flat image-button" title="Add Effect"><svg class="icon"><use href="#i-plus"/></svg></button></div>
+  <div class="boxed-list stack"><div class="row selected "><div class="prefix"><svg class="icon drag"><use href="#i-drag-handle"/></svg></div><div class="text"><span class="title">Capture Info</span><span class="subtitle">4 fields</span></div><div class="suffix"><span class="switch on"></span></div></div></div>
+</div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Fields</span><span class="description">Screen captures carry no application or window data</span></div></div>
+  <div class="boxed-list check-list"><div class="row "><div class="prefix"><span class="check checked"></span></div><div class="text"><span class="title">Date and Time</span><span class="subtitle">30 Oct 2026, 14:31</span></div><div class="suffix"></div></div><div class="row disabled"><div class="prefix"><span class="check"></span></div><div class="text"><span class="title">Application Name</span><span class="subtitle">Not available for screen captures</span></div><div class="suffix"></div></div><div class="row disabled"><div class="prefix"><span class="check"></span></div><div class="text"><span class="title">Window Title</span><span class="subtitle">Not available for screen captures</span></div><div class="suffix"></div></div><div class="row "><div class="prefix"><span class="check checked"></span></div><div class="text"><span class="title">Operating System</span><span class="subtitle">Ubuntu 26.04 LTS</span></div><div class="suffix"></div></div><div class="row "><div class="prefix"><span class="check checked"></span></div><div class="text"><span class="title">Image Size</span><span class="subtitle">1600 × 1000</span></div><div class="suffix"></div></div><div class="row "><div class="prefix"><span class="check checked"></span></div><div class="text"><span class="title">Custom Text</span><span class="subtitle">Release notes 0.4 · draft</span></div><div class="suffix"></div></div></div>
+</div>
+      </div>
+      <div class="foot"><button class="btn text-button">Save as Quick Effect…</button></div>
+    </div>
+  </div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

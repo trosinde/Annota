@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Preferences – shortcuts fallback</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+.keys{display:inline-flex;gap:4px;align-items:center}
+kbd.okey{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:5px;background:var(--osd-fill-hover);color:var(--osd-fg);font-family:var(--font-ui);font-size:var(--fs-caption);font-weight:var(--fw-bold)}
+/* ---------- overlay ---------- */
+.ov{position:relative;width:1920px;height:1080px;overflow:hidden;background:#000}
+.desk{position:absolute;inset:0;background-size:1920px 1080px;background-repeat:no-repeat}
+.dim-all{position:absolute;inset:0;background:rgb(0 0 6 / 48%)}
+.selr{position:absolute;border:1px solid #ffffff;box-shadow:0 0 0 1px rgb(0 0 6 / 40%),0 0 0 9999px rgb(0 0 6 / 48%)}
+.selr.live{box-shadow:0 0 0 1px rgb(0 0 6 / 40%),0 0 0 9999px rgb(0 0 6 / 32%)}
+.selr.plain{box-shadow:0 0 0 1px rgb(0 0 6 / 40%)}
+.selr .h{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#ffffff;border:2px solid var(--accent-bg);box-shadow:0 1px 3px rgb(0 0 6 / 35%)}
+.ochip{position:absolute;display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:var(--radius-s);background:var(--osd-bg-solid);color:var(--osd-fg);font-size:var(--fs-small);font-weight:var(--fw-bold);font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:0 1px 4px rgb(0 0 6 / 35%)}
+.ochip .icon{width:14px;height:14px}
+.ochip.violet{background:var(--annota-violet)}
+.ochip.accent{background:var(--accent-bg);color:var(--accent-fg)}
+.ochip .sw{width:14px;height:14px;border-radius:3px;box-shadow:inset 0 0 0 1px rgb(255 255 255 / 45%)}
+.ochip .dimt{opacity:.7;font-weight:var(--fw-regular)}
+.hint{position:absolute;left:50%;transform:translateX(-50%);display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:var(--radius-pill);background:var(--osd-bg);color:var(--osd-fg);font-size:var(--fs-small);white-space:nowrap;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:var(--shadow-osd)}
+.hint .dot{opacity:.5}
+.otb{position:absolute;left:50%;transform:translateX(-50%);display:inline-flex;align-items:center;gap:6px;padding:7px;border-radius:var(--radius-xl);background:var(--osd-bg);color:var(--osd-fg);box-shadow:var(--shadow-osd);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.otb .btn{background:transparent;color:inherit}
+.otb .btn.active{background:var(--osd-fill-active)}
+.otb .btn.suggested-action{background:var(--accent-bg);color:var(--accent-fg)}
+.otb .sep{width:1px;height:24px;background:rgb(255 255 255 / 20%);margin:0 4px}
+.otb .tg{display:inline-flex;gap:3px;padding:3px;border-radius:var(--radius-m);background:var(--osd-fill)}
+.otb .tg .btn{min-height:30px;border-radius:var(--radius-s);padding:0 10px;font-size:var(--fs-small)}
+.otb .tg .btn.image-button{width:34px;padding:0}
+.otb .tg .btn.active{background:var(--osd-fill-active)}
+.otb .oentry{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 8px;border-radius:var(--radius-s);background:var(--osd-fill);font-variant-numeric:tabular-nums;min-width:74px;outline:2px solid transparent;outline-offset:-2px}
+.otb .oentry .k{opacity:.6;font-size:var(--fs-small)}
+.otb .oentry.focus{outline-color:rgb(120 174 237 / 80%)}
+.otb .oentry .caret{display:inline-block;width:1px;height:18px;background:currentColor;margin-left:-4px}
+.otb .times{opacity:.6}
+.otb .lbl{font-size:var(--fs-small);padding:0 4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.otb .odrop{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 8px 0 10px;border-radius:var(--radius-s);font-weight:var(--fw-bold);font-size:var(--fs-small)}
+.otb .odrop:after{content:"";width:16px;height:16px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.3 5.8a1 1 0 0 1 1.4 0L8 9.1l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z'/%3E%3C/svg%3E") center/16px no-repeat}
+.loupe{position:absolute;width:136px;height:136px;border-radius:50%;overflow:hidden;image-rendering:pixelated;background-repeat:no-repeat;box-shadow:0 0 0 2px #ffffff,0 0 0 3px rgb(0 0 6 / 35%),0 8px 22px rgb(0 0 6 / 45%)}
+.loupe:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgb(0 0 6 / 9%) 0 1px,transparent 1px 8px),repeating-linear-gradient(0deg,rgb(0 0 6 / 9%) 0 1px,transparent 1px 8px)}
+.loupe .cx{position:absolute;left:64px;top:64px;width:8px;height:8px;outline:2px solid #ffffff;box-shadow:0 0 0 3px rgb(0 0 6 / 55%)}
+.loupe .lv{position:absolute;left:67px;width:2px;background:rgb(255 90 78 / 85%)}
+.loupe .lh{position:absolute;top:67px;height:2px;background:rgb(255 90 78 / 85%)}
+.ptr{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px}
+.note{position:absolute;max-width:360px;padding:10px 14px;border-radius:var(--radius-m);border:2px dashed var(--annota-violet);background:rgb(139 92 246 / 14%);color:#ffffff;font-size:var(--fs-small);line-height:1.4;text-shadow:0 1px 2px rgb(0 0 6 / 60%)}
+.note b{display:block;margin-bottom:2px}
+/* ---------- editor ---------- */
+.tool-strip{width:52px;flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;background:var(--window-bg);box-shadow:inset -1px 0 var(--separator)}
+.tool-strip .btn{width:40px;min-height:40px}
+.tool-strip .separator-h{width:28px;margin:2px 0}
+.props .scroll{padding:18px 12px;display:flex;flex-direction:column;gap:18px}
+.props .lbl{font-size:var(--fs-small);opacity:var(--dim-opacity);padding:0 2px}
+.props .field{display:flex;flex-direction:column;gap:6px}
+.props .boxed-list .row{min-height:46px;padding:6px 12px}
+.props .hint2{font-size:var(--fs-small);opacity:var(--dim-opacity);line-height:1.35;padding:0 2px}
+.editor-col{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+.editor-col>.canvas-area{flex:1}
+.tray{flex:none;height:107px;display:flex;align-items:flex-start;gap:12px;padding:9px 12px 12px;background:var(--window-bg);box-shadow:inset 0 1px var(--separator);position:relative}
+.tray .tgroup{display:flex;flex-direction:column;gap:6px;min-width:0}
+.tray .tgroup.grow{flex:1;overflow:hidden}
+.tray .tlabel{font-size:var(--fs-caption);font-weight:var(--fw-bold);opacity:var(--dim-opacity);height:15px;line-height:15px}
+.tray .thumbs{display:flex;gap:6px}
+.tray .thumb{width:100px;height:62px;flex:none;border-radius:var(--radius-s);overflow:hidden;position:relative;box-shadow:0 0 0 1px var(--borders);background:var(--view-bg)}
+.tray .thumb>img,.tray .thumb>div{width:100%;height:100%;object-fit:cover;display:block}
+.tray .thumb.current{box-shadow:0 0 0 2px var(--window-bg),0 0 0 4px var(--accent-bg)}
+.tray .thumb .unsaved{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--accent-bg);box-shadow:0 0 0 2px var(--view-bg)}
+.tray .fade{position:absolute;right:0;top:0;bottom:0;width:60px;background:linear-gradient(to right,transparent,var(--window-bg))}
+.crop{background-repeat:no-repeat}
+
+.pref-dlg{width:660px;max-width:660px;height:720px}
+.pref-dlg .vs{display:flex;justify-content:center}
+.pref-dlg .pbody{flex:1;overflow:hidden;background:var(--dialog-bg)}
+.pref-dlg .preferences-page{padding:18px 30px;max-width:none;gap:24px}
+.pref-dlg .banner{margin:0;border-radius:0}
+.accel{display:inline-flex;gap:4px}
+.accel kbd.key{font-size:var(--fs-caption)}
+.pref-dlg .row .suffix .lbl{font-size:var(--fs-small);opacity:var(--dim-opacity)}
+.pref-dlg .sct{font-size:var(--fs-small);opacity:var(--dim-opacity)}
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+  <div class="headerbar">
+    <div class="start">
+      <button class="btn image-button " title="New Capture (Shift+Print)"><svg class="icon"><use href="#i-capture-region"/></svg></button>
+      <div class="linked"><button class="btn image-button disabled" title="Undo (Ctrl+Z)"><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button disabled" title="Redo (Ctrl+Shift+Z)"><svg class="icon"><use href="#i-redo"/></svg></button></div>
+    </div>
+    <div class="title-widget"><span class="title">Checkout flow</span><span class="subtitle">1600 × 1000 · Edited</span></div>
+    <div class="end">
+      <button class="btn image-button" title="Copy (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button>
+      <button class="btn text-button suggested-action" title="Export (Ctrl+E)">Export</button>
+      <button class="btn flat image-button" title="Main Menu"><svg class="icon"><use href="#i-open-menu"/></svg></button>
+      <div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div>
+    </div>
+  </div>
+  <div class="split-view">
+    <div class="tool-strip"><button class="btn flat" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button><span class="separator-h"></span><button class="btn flat active" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button><button class="btn flat" title="Line (L)"><svg class="icon"><use href="#i-line"/></svg></button><button class="btn flat" title="Pen (P)"><svg class="icon"><use href="#i-pen"/></svg></button><button class="btn flat" title="Shape (U)"><svg class="icon"><use href="#i-shape"/></svg></button><button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button><button class="btn flat" title="Callout (K)"><svg class="icon"><use href="#i-callout"/></svg></button><button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button><span class="separator-h"></span><button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button><button class="btn flat" title="Redact (B)"><svg class="icon"><use href="#i-blur"/></svg></button><button class="btn flat" title="Magnify (M)"><svg class="icon"><use href="#i-magnify"/></svg></button><button class="btn flat" title="Spotlight (G)"><svg class="icon"><use href="#i-spotlight"/></svg></button><button class="btn flat" title="Stamp (I)"><svg class="icon"><use href="#i-stamp"/></svg></button><span class="separator-h"></span><button class="btn flat" title="Crop (C)"><svg class="icon"><use href="#i-crop"/></svg></button><button class="btn flat" title="More Tools"><svg class="icon"><use href="#i-view-more"/></svg></button></div>
+    <div class="editor-col">
+      <div class="canvas-area ">
+        <div class="canvas-image" style="width:768px;height:480px"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt="">
+<svg class="annotations" viewBox="0 0 1600 1000"><path d="M1000 985 L1114 873" stroke="var(--annota-coral)" stroke-width="8" stroke-linecap="round"/><path d="M1130 858 L1119 883 L1104 868Z" fill="var(--annota-coral)" stroke="var(--annota-coral)" stroke-width="3" stroke-linejoin="round"/><rect x="100" y="512" width="438" height="66" rx="10" fill="none" stroke="var(--annota-coral)" stroke-width="6"/></svg></div>
+        <div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px">
+          <button class="btn image-button" title="Zoom Out (Ctrl+−)"><svg class="icon"><use href="#i-zoom-out"/></svg></button><span class="label">48 %</span><button class="btn image-button" title="Zoom In (Ctrl++)"><svg class="icon"><use href="#i-zoom-in"/></svg></button>
+        </div>
+      </div>
+      <div class="tray">
+      <div class="tgroup"><span class="tlabel">Open</span><div class="thumbs"><div class="thumb current"><img src="../../kit/sample-content/png/b-lumen-checkout.png" style="object-position:0% 0%" alt=""></div><div class="thumb "><img src="../../kit/sample-content/png/d-tidewater-analytics.png" style="object-position:0% 0%" alt=""><span class="unsaved"></span></div></div></div>
+      <span class="separator-v" style="margin:21px 0 0"></span>
+      <div class="tgroup grow"><span class="tlabel">Recent</span><div class="thumbs"><div class="thumb "><img src="../../kit/sample-content/png/d-tidewater-analytics.png" style="object-position:0% 0%" alt=""></div><div class="thumb "><img src="../../kit/sample-content/png/a-harbor-backup.png" style="object-position:50% 50%" alt=""></div><div class="thumb "><img src="../../kit/sample-content/png/e-relay-chat.png" style="object-position:0% 0%" alt=""></div><div class="thumb "><img src="../../kit/sample-content/png/c-code-editor.png" style="object-position:0% 0%" alt=""></div><div class="thumb "><img src="../../kit/sample-content/png/b-lumen-checkout.png" style="object-position:100% 0%" alt=""></div><div class="thumb "><img src="../../kit/sample-content/png/f-field-notes.png" style="object-position:0% 0%" alt=""></div></div></div>
+      <div class="fade"></div>
+    </div>
+    </div>
+    <div class="sidebar-pane end props"><div class="scroll">
+      
+      <div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Arrow</span></div></div>
+        <div class="field"><span class="lbl">Colour</span><div class="swatch-row"><span class="swatch selected" style="--c:var(--annota-coral)"></span><span class="swatch" style="--c:var(--annota-amber)"></span><span class="swatch" style="--c:var(--annota-lime)"></span><span class="swatch" style="--c:var(--annota-teal)"></span><span class="swatch" style="--c:var(--annota-azure)"></span><span class="swatch" style="--c:var(--annota-violet)"></span><span class="swatch" style="--c:var(--annota-ink)"></span></div></div></div>
+      <div class="boxed-list">
+        <div class="row"><div class="text"><span class="title">Width</span></div><div class="suffix"><span class="spin" style="width:120px"><span class="value">6 px</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div>
+        <div class="row"><div class="text"><span class="title">Shadow</span></div><div class="suffix"><span class="switch on"></span></div></div>
+      </div>
+    </div></div>
+  </div>
+  <div class="dialog-host"><div class="dialog pref-dlg">
+<div class="headerbar"><div class="start"></div><div class="title-widget" style="flex:0 0 auto"><div class="toggle-group flat vs"><span class="toggle"><svg class="icon"><use href="#i-settings"/></svg>General</span><span class="toggle active"><svg class="icon"><use href="#i-camera"/></svg>Capture</span><span class="toggle"><svg class="icon"><use href="#i-library"/></svg>Library</span></div></div><div class="end"><button class="btn flat circular"><svg class="icon"><use href="#i-close"/></svg></button></div></div>
+<div class="banner warning"><span class="banner-title">Global shortcuts are not active yet</span><button class="btn">Create GNOME Shortcuts</button></div>
+<div class="pbody"><div class="preferences-page">
+ <div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Global Shortcuts</span><span class="description">This system has no global-shortcuts portal. Annota adds GNOME keyboard shortcuts instead.</span></div></div>
+  <div class="boxed-list"><div class="row"><div class="text"><span class="title">Region capture</span><span class="subtitle">Not active yet</span></div><div class="suffix"><span class="accel"><kbd class="key">Shift</kbd><kbd class="key">Print</kbd></span><span class="icon" style="opacity:.55"><svg class="icon"><use href="#i-go-next"/></svg></span></div></div><div class="row"><div class="text"><span class="title">Window capture</span><span class="subtitle">Not active yet</span></div><div class="suffix"><span class="accel"><kbd class="key">Super</kbd><kbd class="key">Shift</kbd><kbd class="key">W</kbd></span><span class="icon" style="opacity:.55"><svg class="icon"><use href="#i-go-next"/></svg></span></div></div><div class="row"><div class="text"><span class="title">Screen capture</span><span class="subtitle">Not active yet</span></div><div class="suffix"><span class="accel"><kbd class="key">Super</kbd><kbd class="key">Shift</kbd><kbd class="key">S</kbd></span><span class="icon" style="opacity:.55"><svg class="icon"><use href="#i-go-next"/></svg></span></div></div></div></div>
+ <div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Capture</span></div></div>
+  <div class="boxed-list">
+   <div class="row"><div class="text"><span class="title">Include pointer</span><span class="subtitle">Show the mouse pointer in captures</span></div><div class="suffix"><span class="switch"></span></div></div>
+   <div class="row"><div class="text"><span class="title">Default delay</span></div><div class="suffix"><span class="spin" style="width:118px"><span class="value">0 s</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div>
+   <div class="row"><div class="text"><span class="title">Capture all monitors</span><span class="subtitle">Screen mode captures every monitor instead of the one under the pointer</span></div><div class="suffix"><span class="switch"></span></div></div>
+   <div class="row"><div class="text"><span class="title">After capture</span></div><div class="suffix"><span class="dropdown flat">Open in Editor</span></div></div>
+  </div></div>
+</div></div>
+</div></div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

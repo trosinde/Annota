@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — stamps</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); position: relative; z-index: 5; }
+  .tool-strip .btn { width: 36px; min-height: 34px; padding: 0; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props { display: flex; flex-direction: column; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .props .side-head { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
+  .props .side-head .heading { font-weight: var(--fw-bold); flex: 1; }
+  .props .foot { margin-top: auto; padding: 12px; display: flex; gap: 6px; box-shadow: inset 0 1px var(--separator); }
+  .props .foot .btn { flex: 1; }
+  .lbl { font-size: var(--fs-small); }
+  .field-label { font-size: var(--fs-small); font-weight: var(--fw-bold); opacity: var(--dim-opacity); padding: 0 2px; }
+  .row-stack { display: flex; flex-direction: column; gap: 6px; }
+  .full { width: 100%; }
+  .toggle-group.full { display: flex; }
+  .toggle-group.full > .toggle { flex: 1; justify-content: center; padding: 0 4px; font-size: var(--fs-small); white-space: nowrap; }
+  .toggle-group.full.four > .toggle { font-size: var(--fs-caption); padding: 0 2px; }
+  .canvas-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  svg.annotations text { font-family: var(--font-ui); }
+  .ants { fill: none; stroke: #ffffff; stroke-width: 1; }
+  .ants2 { fill: none; stroke: #1f1f24; stroke-width: 1; stroke-dasharray: 4 4; }
+  .hint { font-size: var(--fs-caption); opacity: var(--dim-opacity); padding: 0 2px; line-height: 1.4; }
+  .scale .trough { flex: 1; }
+  .scale .lbl { width: 84px; flex: none; }
+
+  .stamp-grid { display: grid; grid-template-columns: repeat(5, 48px); gap: 6px; justify-content: space-between; }
+  .stamp-cell { width: 48px; height: 48px; border-radius: var(--radius-s); display: grid; place-items: center; background: var(--fill-flat-hover); position: relative; }
+  .stamp-cell svg { width: 36px; height: 36px; }
+  .stamp-cell.selected { box-shadow: inset 0 0 0 2px var(--accent-bg); background: var(--accent-a12); }
+  .stamp-cell.focus { outline: 2px solid var(--accent-a50); outline-offset: 1px; }
+  .stamp-cell.add { background: transparent; box-shadow: inset 0 0 0 1px var(--borders); }
+  .stamp-cell.add .icon { opacity: .7; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { height: 28px; padding: 0 12px; border-radius: var(--radius-pill); background: var(--fill-1); display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-small); }
+  .chip.active { background: var(--accent-bg); color: var(--accent-fg); }
+  .chip .badge { height: 16px; min-width: 16px; font-size: 10px; }
+  .edge-ico { width: 40px; height: 16px; display: block; }
+  .lens { position: absolute; overflow: hidden; }
+  .lens img { position: absolute; max-width: none; }
+  .dim-layer { position: absolute; inset: 0; }
+  .brush-cursor { position: absolute; border: 1.5px solid #1f1f24; box-shadow: 0 0 0 1px #fff; border-radius: 50%; }
+  .measure { position: absolute; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent-bg); padding: 2px 6px; border-radius: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sel-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border-radius: var(--radius-s); background: var(--fill-1); font-size: var(--fs-small); }
+  .sel-chip .dot { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgb(0 0 6 / 20%); }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+
+  <div class="headerbar">
+    <div class="start">
+      <button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button>
+      <div class="linked">
+        <button class="btn image-button" title="Undo (Ctrl+Z)"><svg class="icon"><use href="#i-undo"/></svg></button>
+        <button class="btn image-button" title="Redo (Ctrl+Shift+Z)" disabled><svg class="icon"><use href="#i-redo"/></svg></button>
+      </div>
+    </div>
+    <div class="title-widget"><span class="title">Checkout flow</span><span class="subtitle">1600 × 1000 · Edited</span></div>
+    <div class="end">
+      <button class="btn image-button" title="Copy (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button>
+      <button class="btn text-button suggested-action" title="Export (Ctrl+E)">Export</button>
+      <button class="btn flat image-button" title="Main Menu"><svg class="icon"><use href="#i-open-menu"/></svg></button>
+      <div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div>
+    </div>
+  </div>
+  <div class="split-view">
+    <div class="tool-strip">
+<button class="btn flat" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button>
+<button class="btn flat" title="Selection (Q)"><svg class="icon"><use href="#i-selection"/></svg></button>
+<button class="btn flat" title="Magic Wand (W)"><svg class="icon"><use href="#i-magic-wand"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button>
+<button class="btn flat" title="Line (L)"><svg class="icon"><use href="#i-line"/></svg></button>
+<button class="btn flat" title="Pen (P)"><svg class="icon"><use href="#i-pen"/></svg></button>
+<button class="btn flat" title="Shape (U)"><svg class="icon"><use href="#i-shape"/></svg></button>
+<button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button>
+<button class="btn flat" title="Callout (K)"><svg class="icon"><use href="#i-callout"/></svg></button>
+<button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button>
+<button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Redact (B)"><svg class="icon"><use href="#i-redact"/></svg></button>
+<button class="btn flat" title="Magnify (M)"><svg class="icon"><use href="#i-magnify"/></svg></button>
+<button class="btn flat" title="Spotlight (G)"><svg class="icon"><use href="#i-spotlight"/></svg></button>
+<button class="btn flat active" title="Stamp (I)"><svg class="icon"><use href="#i-stamp"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Crop (C)"><svg class="icon"><use href="#i-crop"/></svg></button>
+<button class="btn flat" title="Cut-Out (X)"><svg class="icon"><use href="#i-cut-out"/></svg></button>
+<button class="btn flat" title="Fill (F)"><svg class="icon"><use href="#i-fill"/></svg></button>
+<button class="btn flat" title="Eraser (E)"><svg class="icon"><use href="#i-eraser"/></svg></button>
+<span class="tooltip" style="left:56px;top:537px">Stamp <span class="shortcut">I</span></span>
+</div>
+    <div class="content-pane" style="position:relative">
+      <div class="canvas-area">
+        <div class="canvas-image" style="width:800px;height:500px;">
+          <img src="../../kit/sample-content/png/b-lumen-checkout.png" alt="">
+          
+          <svg class="annotations" viewBox="0 0 800 500"><g transform="translate(238 255) scale(0.7083333333333334)"><circle cx="24" cy="24" r="20" fill="#e01b24"/><path d="M17 17l14 14M31 17L17 31" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/></g><g transform="translate(238 175) scale(0.7083333333333334)"><circle cx="24" cy="24" r="20" fill="#2ec27e"/><circle cx="24" cy="24" r="20" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2" transform="scale(.9) translate(2.7 2.7)"/><path d="M15 24.5l6 6 12-13" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="translate(466 175) scale(0.7083333333333334)"><circle cx="24" cy="24" r="20" fill="#2ec27e"/><circle cx="24" cy="24" r="20" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2" transform="scale(.9) translate(2.7 2.7)"/><path d="M15 24.5l6 6 12-13" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="translate(522 396) scale(0.8333333333333334)"><g transform="rotate(0 24 24) translate(48 0) scale(-1 1)"><rect x="3" y="16" width="8" height="26" rx="2.5" fill="#ff5a4e" stroke="#1f1f24" stroke-width="2.4"/><g fill="#fff" stroke="#1f1f24" stroke-width="2.4" stroke-linejoin="round"><path d="M10 16h11c2 0 3.5-.6 5-1.6l1.5-1h13.5a4.3 4.3 0 0 1 0 8.6H31v.2a4 4 0 0 1-.4 7.8 4 4 0 0 1-1 7.7 3.7 3.7 0 0 1-2.6 6.3H16c-3.3 0-6-2.7-6-6z"/></g><path d="M31 21.8h-6M30.6 29.6h-5M29.6 37.3h-4" stroke="#1f1f24" stroke-width="2.2" stroke-linecap="round"/></g></g><rect x="519" y="393" width="46" height="46" fill="none" stroke="var(--accent-bg)" stroke-width="1"/><circle cx="519" cy="393" r="5" fill="#fff" stroke="var(--accent-bg)" stroke-width="1.5"/><circle cx="542.0" cy="393" r="5" fill="#fff" stroke="var(--accent-bg)" stroke-width="1.5"/><circle cx="565" cy="393" r="5" fill="#fff" stroke="var(--accent-bg)" stroke-width="1.5"/><circle cx="519" cy="416.0" r="5" fill="#fff" stroke="var(--accent-bg)" stroke-width="1.5"/><circle cx="565" cy="416.0" r="5" fill="#fff" stroke="var(--accent-bg)" stroke-width="1.5"/><circle cx="519" cy="439" r="5" fill="#fff" stroke="var(--accent-bg)" stroke-width="1.5"/><circle cx="542.0" cy="439" r="5" fill="#fff" stroke="var(--accent-bg)" stroke-width="1.5"/><circle cx="565" cy="439" r="5" fill="#fff" stroke="var(--accent-bg)" stroke-width="1.5"/></svg>
+        </div>
+        <div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px;z-index:4">
+          <button class="btn image-button"><svg class="icon"><use href="#i-zoom-out"/></svg></button>
+          <span class="label">50 %</span>
+          <button class="btn image-button"><svg class="icon"><use href="#i-zoom-in"/></svg></button>
+        </div>
+      </div>
+      
+    </div>
+    <div class="sidebar-pane end props">
+      <div class="scroll">
+<div class="side-head"><svg class="icon"><use href="#i-stamp"/></svg><span class="heading">Stamps</span></div>
+<span class="search-entry"><svg class="icon"><use href="#i-search"/></svg><span class="placeholder">Search stamps</span></span>
+<div class="chips"><span class="chip active">All</span><span class="chip">Status</span><span class="chip">Numbers</span><span class="chip">Pointers</span><span class="chip">Faces</span><span class="chip">Keys</span><span class="chip">My Stamps</span></div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Status</span></div></div>
+  <div class="stamp-grid"><span class="stamp-cell selected" title="Done"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#2ec27e"/><circle cx="24" cy="24" r="20" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2" transform="scale(.9) translate(2.7 2.7)"/><path d="M15 24.5l6 6 12-13" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="stamp-cell" title="Wrong"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#e01b24"/><path d="M17 17l14 14M31 17L17 31" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/></svg></span><span class="stamp-cell" title="Question"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#2f80ed"/><path d="M18.5 19a5.5 5.5 0 1 1 8 4.9c-1.6.8-2.5 1.9-2.5 3.6v1" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="24" cy="34.5" r="2.6" fill="#fff"/></svg></span><span class="stamp-cell" title="Warning"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><path d="M24 5.5c1.4 0 2.6.7 3.3 1.9l16 27.8c1.5 2.6-.4 5.8-3.3 5.8H8c-3 0-4.8-3.2-3.3-5.8l16-27.8c.7-1.2 1.9-1.9 3.3-1.9z" fill="#f5a524"/><path d="M24 16v11" stroke="#1f1f24" stroke-width="4.5" stroke-linecap="round"/><circle cx="24" cy="33.5" r="2.7" fill="#1f1f24"/></svg></span><span class="stamp-cell" title="Info"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="4" width="40" height="40" rx="12" fill="#14b8a6"/><circle cx="24" cy="15" r="3" fill="#fff"/><path d="M24 22v13" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/></svg></span></div>
+</div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Numbers</span></div></div>
+  <div class="stamp-grid"><span class="stamp-cell" title="1"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ff5a4e"/><circle cx="24" cy="24" r="17" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/><text x="24" y="31.5" text-anchor="middle" style="font-family:Inter,Cantarell,sans-serif;font-weight:800;font-size:21px" fill="#fff">1</text></svg></span><span class="stamp-cell" title="2"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ff5a4e"/><circle cx="24" cy="24" r="17" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/><text x="24" y="31.5" text-anchor="middle" style="font-family:Inter,Cantarell,sans-serif;font-weight:800;font-size:21px" fill="#fff">2</text></svg></span><span class="stamp-cell" title="3"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ff5a4e"/><circle cx="24" cy="24" r="17" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/><text x="24" y="31.5" text-anchor="middle" style="font-family:Inter,Cantarell,sans-serif;font-weight:800;font-size:21px" fill="#fff">3</text></svg></span><span class="stamp-cell" title="4"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ff5a4e"/><circle cx="24" cy="24" r="17" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/><text x="24" y="31.5" text-anchor="middle" style="font-family:Inter,Cantarell,sans-serif;font-weight:800;font-size:21px" fill="#fff">4</text></svg></span><span class="stamp-cell" title="5"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ff5a4e"/><circle cx="24" cy="24" r="17" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/><text x="24" y="31.5" text-anchor="middle" style="font-family:Inter,Cantarell,sans-serif;font-weight:800;font-size:21px" fill="#fff">5</text></svg></span></div>
+</div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Pointers</span></div></div>
+  <div class="stamp-grid"><span class="stamp-cell" title="Point right"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(0 24 24)"><rect x="3" y="16" width="8" height="26" rx="2.5" fill="#ff5a4e" stroke="#1f1f24" stroke-width="2.4"/><g fill="#fff" stroke="#1f1f24" stroke-width="2.4" stroke-linejoin="round"><path d="M10 16h11c2 0 3.5-.6 5-1.6l1.5-1h13.5a4.3 4.3 0 0 1 0 8.6H31v.2a4 4 0 0 1-.4 7.8 4 4 0 0 1-1 7.7 3.7 3.7 0 0 1-2.6 6.3H16c-3.3 0-6-2.7-6-6z"/></g><path d="M31 21.8h-6M30.6 29.6h-5M29.6 37.3h-4" stroke="#1f1f24" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="stamp-cell" title="Point up"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-90 24 24)"><rect x="3" y="16" width="8" height="26" rx="2.5" fill="#ff5a4e" stroke="#1f1f24" stroke-width="2.4"/><g fill="#fff" stroke="#1f1f24" stroke-width="2.4" stroke-linejoin="round"><path d="M10 16h11c2 0 3.5-.6 5-1.6l1.5-1h13.5a4.3 4.3 0 0 1 0 8.6H31v.2a4 4 0 0 1-.4 7.8 4 4 0 0 1-1 7.7 3.7 3.7 0 0 1-2.6 6.3H16c-3.3 0-6-2.7-6-6z"/></g><path d="M31 21.8h-6M30.6 29.6h-5M29.6 37.3h-4" stroke="#1f1f24" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="stamp-cell selected" title="Point left"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(0 24 24) translate(48 0) scale(-1 1)"><rect x="3" y="16" width="8" height="26" rx="2.5" fill="#ff5a4e" stroke="#1f1f24" stroke-width="2.4"/><g fill="#fff" stroke="#1f1f24" stroke-width="2.4" stroke-linejoin="round"><path d="M10 16h11c2 0 3.5-.6 5-1.6l1.5-1h13.5a4.3 4.3 0 0 1 0 8.6H31v.2a4 4 0 0 1-.4 7.8 4 4 0 0 1-1 7.7 3.7 3.7 0 0 1-2.6 6.3H16c-3.3 0-6-2.7-6-6z"/></g><path d="M31 21.8h-6M30.6 29.6h-5M29.6 37.3h-4" stroke="#1f1f24" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="stamp-cell" title="Point down"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(90 24 24)"><rect x="3" y="16" width="8" height="26" rx="2.5" fill="#ff5a4e" stroke="#1f1f24" stroke-width="2.4"/><g fill="#fff" stroke="#1f1f24" stroke-width="2.4" stroke-linejoin="round"><path d="M10 16h11c2 0 3.5-.6 5-1.6l1.5-1h13.5a4.3 4.3 0 0 1 0 8.6H31v.2a4 4 0 0 1-.4 7.8 4 4 0 0 1-1 7.7 3.7 3.7 0 0 1-2.6 6.3H16c-3.3 0-6-2.7-6-6z"/></g><path d="M31 21.8h-6M30.6 29.6h-5M29.6 37.3h-4" stroke="#1f1f24" stroke-width="2.2" stroke-linecap="round"/></g></svg></span><span class="stamp-cell" title="Pointer"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><path d="M12 6l26 15.5-11 2.8 6.5 12.3-5 2.6-6.5-12.3L14 34z" fill="#fff" stroke="#1f1f24" stroke-width="2.6" stroke-linejoin="round"/></svg></span></div>
+</div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Faces</span></div></div>
+  <div class="stamp-grid"><span class="stamp-cell" title="Smile"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ffc93c" stroke="#d99a00" stroke-width="1.5"/><circle cx="17.5" cy="20" r="2.8" fill="#1f1f24"/><circle cx="30.5" cy="20" r="2.8" fill="#1f1f24"/><path d="M15.5 28q8.5 9 17 0" fill="none" stroke="#1f1f24" stroke-width="2.8" stroke-linecap="round"/></svg></span><span class="stamp-cell" title="Happy"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ffc93c" stroke="#d99a00" stroke-width="1.5"/><path d="M14 20q3.5-3 7 0M27 20q3.5-3 7 0" fill="none" stroke="#1f1f24" stroke-width="2.4" stroke-linecap="round"/><path d="M14.5 27h19q-1.5 9-9.5 9t-9.5-9z" fill="#1f1f24"/></svg></span><span class="stamp-cell" title="Neutral"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ffc93c" stroke="#d99a00" stroke-width="1.5"/><circle cx="17.5" cy="20" r="2.8" fill="#1f1f24"/><circle cx="30.5" cy="20" r="2.8" fill="#1f1f24"/><path d="M17 31h14" stroke="#1f1f24" stroke-width="2.8" stroke-linecap="round"/></svg></span><span class="stamp-cell" title="Sad"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ffc93c" stroke="#d99a00" stroke-width="1.5"/><circle cx="17.5" cy="20" r="2.8" fill="#1f1f24"/><circle cx="30.5" cy="20" r="2.8" fill="#1f1f24"/><path d="M16 33q8-7 16 0" fill="none" stroke="#1f1f24" stroke-width="2.8" stroke-linecap="round"/></svg></span><span class="stamp-cell" title="Surprised"><svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="20" fill="#ffc93c" stroke="#d99a00" stroke-width="1.5"/><circle cx="17.5" cy="19.5" r="4" fill="#fff" stroke="#1f1f24" stroke-width="2"/><circle cx="30.5" cy="19.5" r="4" fill="#fff" stroke="#1f1f24" stroke-width="2"/><circle cx="17.5" cy="20" r="1.6" fill="#1f1f24"/><circle cx="30.5" cy="20" r="1.6" fill="#1f1f24"/><ellipse cx="24" cy="31.5" rx="4" ry="5" fill="#1f1f24"/></svg></span></div>
+</div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

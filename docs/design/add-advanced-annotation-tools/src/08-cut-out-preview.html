@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — cut-out preview</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); position: relative; z-index: 5; }
+  .tool-strip .btn { width: 36px; min-height: 34px; padding: 0; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props { display: flex; flex-direction: column; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .props .side-head { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
+  .props .side-head .heading { font-weight: var(--fw-bold); flex: 1; }
+  .props .foot { margin-top: auto; padding: 12px; display: flex; gap: 6px; box-shadow: inset 0 1px var(--separator); }
+  .props .foot .btn { flex: 1; }
+  .lbl { font-size: var(--fs-small); }
+  .field-label { font-size: var(--fs-small); font-weight: var(--fw-bold); opacity: var(--dim-opacity); padding: 0 2px; }
+  .row-stack { display: flex; flex-direction: column; gap: 6px; }
+  .full { width: 100%; }
+  .toggle-group.full { display: flex; }
+  .toggle-group.full > .toggle { flex: 1; justify-content: center; padding: 0 4px; font-size: var(--fs-small); white-space: nowrap; }
+  .toggle-group.full.four > .toggle { font-size: var(--fs-caption); padding: 0 2px; }
+  .canvas-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  svg.annotations text { font-family: var(--font-ui); }
+  .ants { fill: none; stroke: #ffffff; stroke-width: 1; }
+  .ants2 { fill: none; stroke: #1f1f24; stroke-width: 1; stroke-dasharray: 4 4; }
+  .hint { font-size: var(--fs-caption); opacity: var(--dim-opacity); padding: 0 2px; line-height: 1.4; }
+  .scale .trough { flex: 1; }
+  .scale .lbl { width: 84px; flex: none; }
+
+  .stamp-grid { display: grid; grid-template-columns: repeat(5, 48px); gap: 6px; justify-content: space-between; }
+  .stamp-cell { width: 48px; height: 48px; border-radius: var(--radius-s); display: grid; place-items: center; background: var(--fill-flat-hover); position: relative; }
+  .stamp-cell svg { width: 36px; height: 36px; }
+  .stamp-cell.selected { box-shadow: inset 0 0 0 2px var(--accent-bg); background: var(--accent-a12); }
+  .stamp-cell.focus { outline: 2px solid var(--accent-a50); outline-offset: 1px; }
+  .stamp-cell.add { background: transparent; box-shadow: inset 0 0 0 1px var(--borders); }
+  .stamp-cell.add .icon { opacity: .7; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { height: 28px; padding: 0 12px; border-radius: var(--radius-pill); background: var(--fill-1); display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-small); }
+  .chip.active { background: var(--accent-bg); color: var(--accent-fg); }
+  .chip .badge { height: 16px; min-width: 16px; font-size: 10px; }
+  .edge-ico { width: 40px; height: 16px; display: block; }
+  .lens { position: absolute; overflow: hidden; }
+  .lens img { position: absolute; max-width: none; }
+  .dim-layer { position: absolute; inset: 0; }
+  .brush-cursor { position: absolute; border: 1.5px solid #1f1f24; box-shadow: 0 0 0 1px #fff; border-radius: 50%; }
+  .measure { position: absolute; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent-bg); padding: 2px 6px; border-radius: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sel-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border-radius: var(--radius-s); background: var(--fill-1); font-size: var(--fs-small); }
+  .sel-chip .dot { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgb(0 0 6 / 20%); }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+
+  <div class="headerbar">
+    <div class="start">
+      <button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button>
+      <div class="linked">
+        <button class="btn image-button" title="Undo (Ctrl+Z)"><svg class="icon"><use href="#i-undo"/></svg></button>
+        <button class="btn image-button" title="Redo (Ctrl+Shift+Z)" disabled><svg class="icon"><use href="#i-redo"/></svg></button>
+      </div>
+    </div>
+    <div class="title-widget"><span class="title">The tide clock</span><span class="subtitle">1600 × 2600</span></div>
+    <div class="end">
+      <button class="btn image-button" title="Copy (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button>
+      <button class="btn text-button suggested-action" title="Export (Ctrl+E)">Export</button>
+      <button class="btn flat image-button" title="Main Menu"><svg class="icon"><use href="#i-open-menu"/></svg></button>
+      <div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div>
+    </div>
+  </div>
+  <div class="split-view">
+    <div class="tool-strip">
+<button class="btn flat" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button>
+<button class="btn flat" title="Selection (Q)"><svg class="icon"><use href="#i-selection"/></svg></button>
+<button class="btn flat" title="Magic Wand (W)"><svg class="icon"><use href="#i-magic-wand"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button>
+<button class="btn flat" title="Line (L)"><svg class="icon"><use href="#i-line"/></svg></button>
+<button class="btn flat" title="Pen (P)"><svg class="icon"><use href="#i-pen"/></svg></button>
+<button class="btn flat" title="Shape (U)"><svg class="icon"><use href="#i-shape"/></svg></button>
+<button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button>
+<button class="btn flat" title="Callout (K)"><svg class="icon"><use href="#i-callout"/></svg></button>
+<button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button>
+<button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Redact (B)"><svg class="icon"><use href="#i-redact"/></svg></button>
+<button class="btn flat" title="Magnify (M)"><svg class="icon"><use href="#i-magnify"/></svg></button>
+<button class="btn flat" title="Spotlight (G)"><svg class="icon"><use href="#i-spotlight"/></svg></button>
+<button class="btn flat" title="Stamp (I)"><svg class="icon"><use href="#i-stamp"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Crop (C)"><svg class="icon"><use href="#i-crop"/></svg></button>
+<button class="btn flat active" title="Cut-Out (X)"><svg class="icon"><use href="#i-cut-out"/></svg></button>
+<button class="btn flat" title="Fill (F)"><svg class="icon"><use href="#i-fill"/></svg></button>
+<button class="btn flat" title="Eraser (E)"><svg class="icon"><use href="#i-eraser"/></svg></button>
+<span class="tooltip" style="left:56px;top:620px">Cut-Out <span class="shortcut">X</span></span>
+</div>
+    <div class="content-pane" style="position:relative">
+      <div class="canvas-area">
+        <div class="canvas-image" style="width:448px;height:728px;">
+          <img src="../../kit/sample-content/png/f-field-notes.png" alt="">
+          <span class="measure" style="left:458px;top:400.0px">− 450 px</span>
+          <svg class="annotations" viewBox="0 0 448 728"><rect x="0" y="347" width="448" height="126" fill="var(--annota-coral)" fill-opacity=".18"/>
+  <path d="M0 347 L6.0 351 L12.0 343 L18.0 351 L24.0 343 L30.0 351 L36.0 343 L42.0 351 L48.0 343 L54.0 351 L60.0 343 L66.0 351 L72.0 343 L78.0 351 L84.0 343 L90.0 351 L96.0 343 L102.0 351 L108.0 343 L114.0 351 L120.0 343 L126.0 351 L132.0 343 L138.0 351 L144.0 343 L150.0 351 L156.0 343 L162.0 351 L168.0 343 L174.0 351 L180.0 343 L186.0 351 L192.0 343 L198.0 351 L204.0 343 L210.0 351 L216.0 343 L222.0 351 L228.0 343 L234.0 351 L240.0 343 L246.0 351 L252.0 343 L258.0 351 L264.0 343 L270.0 351 L276.0 343 L282.0 351 L288.0 343 L294.0 351 L300.0 343 L306.0 351 L312.0 343 L318.0 351 L324.0 343 L330.0 351 L336.0 343 L342.0 351 L348.0 343 L354.0 351 L360.0 343 L366.0 351 L372.0 343 L378.0 351 L384.0 343 L390.0 351 L396.0 343 L402.0 351 L408.0 343 L414.0 351 L420.0 343 L426.0 351 L432.0 343 L438.0 351 L444.0 343 L448 351" fill="none" stroke="var(--annota-coral)" stroke-width="2"/>
+  <path d="M0 473 L6.0 477 L12.0 469 L18.0 477 L24.0 469 L30.0 477 L36.0 469 L42.0 477 L48.0 469 L54.0 477 L60.0 469 L66.0 477 L72.0 469 L78.0 477 L84.0 469 L90.0 477 L96.0 469 L102.0 477 L108.0 469 L114.0 477 L120.0 469 L126.0 477 L132.0 469 L138.0 477 L144.0 469 L150.0 477 L156.0 469 L162.0 477 L168.0 469 L174.0 477 L180.0 469 L186.0 477 L192.0 469 L198.0 477 L204.0 469 L210.0 477 L216.0 469 L222.0 477 L228.0 469 L234.0 477 L240.0 469 L246.0 477 L252.0 469 L258.0 477 L264.0 469 L270.0 477 L276.0 469 L282.0 477 L288.0 469 L294.0 477 L300.0 469 L306.0 477 L312.0 469 L318.0 477 L324.0 469 L330.0 477 L336.0 469 L342.0 477 L348.0 469 L354.0 477 L360.0 469 L366.0 477 L372.0 469 L378.0 477 L384.0 469 L390.0 477 L396.0 469 L402.0 477 L408.0 469 L414.0 477 L420.0 469 L426.0 477 L432.0 469 L438.0 477 L444.0 469 L448 477" fill="none" stroke="var(--annota-coral)" stroke-width="2"/>
+  <line x1="0" x2="448" y1="410.0" y2="410.0" stroke="var(--annota-coral)" stroke-width="1" stroke-dasharray="3 4" opacity=".6"/>
+  <circle cx="224.0" cy="347" r="5" fill="#fff" stroke="var(--accent-bg)" stroke-width="1.5"/>
+  <circle cx="224.0" cy="473" r="5" fill="#fff" stroke="var(--accent-bg)" stroke-width="1.5"/></svg>
+        </div>
+        <div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px;z-index:4">
+          <button class="btn image-button"><svg class="icon"><use href="#i-zoom-out"/></svg></button>
+          <span class="label">28 %</span>
+          <button class="btn image-button"><svg class="icon"><use href="#i-zoom-in"/></svg></button>
+        </div>
+      </div>
+      
+    </div>
+    <div class="sidebar-pane end props">
+      <div class="scroll">
+<div class="side-head"><svg class="icon"><use href="#i-cut-out"/></svg><span class="heading">Cut-Out</span></div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Direction</span></div></div>
+  <div class="toggle-group full"><span class="toggle active">Horizontal</span><span class="toggle">Vertical</span></div>
+</div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Seam</span></div></div>
+  <div class="toggle-group full" style="height:auto"><span class="toggle" style="flex-direction:column;gap:2px;height:auto;padding:6px 0" title="Straight"><svg class="edge-ico" viewBox="0 0 40 16"><path d="M2 8H38" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="caption">Straight</span></span><span class="toggle active" style="flex-direction:column;gap:2px;height:auto;padding:6px 0" title="Zigzag"><svg class="edge-ico" viewBox="0 0 40 16"><path d="M2 8L6 4L10 12L14 4L18 12L22 4L26 12L30 4L34 12L38 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="caption">Zigzag</span></span><span class="toggle" style="flex-direction:column;gap:2px;height:auto;padding:6px 0" title="Wave"><svg class="edge-ico" viewBox="0 0 40 16"><path d="M2 8 Q6 2 10 8 T18 8 T26 8 T34 8 T38 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="caption">Wave</span></span><span class="toggle" style="flex-direction:column;gap:2px;height:auto;padding:6px 0" title="Torn"><svg class="edge-ico" viewBox="0 0 40 16"><path d="M2 8 L5 6 L7 10 L10 5 L13 9 L15 7 L18 11 L21 6 L24 9 L27 5 L30 10 L33 7 L36 9 L38 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="caption">Torn</span></span></div>
+</div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Seam Size</span></div></div>
+  <div class="scale"><span class="lbl">Size</span><div class="trough"><div class="fill" style="width:30%"></div><div class="knob" style="left:30%"></div></div><span class="value">10 px</span></div>
+</div>
+<div class="boxed-list"><div class="row "><div class="text"><span class="title">Strip</span><span class="subtitle">Height 450 px</span></div><div class="suffix"><span class="numeric">y 1240 – 1690</span></div></div><div class="row "><div class="text"><span class="title">Result</span></div><div class="suffix"><span class="numeric">1600 × 2150</span></div></div></div>
+<div class="hint">Drag across the image to mark the strip to remove. Drag the handles to adjust it.</div>
+      </div>
+      <div class="foot"><button class="btn text-button" title="Esc">Cancel</button><button class="btn text-button suggested-action" title="Enter">Cut Out</button></div>
+    </div>
+  </div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — simplify preview</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); position: relative; z-index: 5; }
+  .tool-strip .btn { width: 36px; min-height: 34px; padding: 0; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props { display: flex; flex-direction: column; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .props .side-head { display: flex; align-items: center; gap: 8px; padding: 0 2px; }
+  .props .side-head .heading { font-weight: var(--fw-bold); flex: 1; }
+  .props .foot { margin-top: auto; padding: 12px; display: flex; gap: 6px; box-shadow: inset 0 1px var(--separator); }
+  .props .foot .btn { flex: 1; }
+  .lbl { font-size: var(--fs-small); }
+  .field-label { font-size: var(--fs-small); font-weight: var(--fw-bold); opacity: var(--dim-opacity); padding: 0 2px; }
+  .row-stack { display: flex; flex-direction: column; gap: 6px; }
+  .full { width: 100%; }
+  .toggle-group.full { display: flex; }
+  .toggle-group.full > .toggle { flex: 1; justify-content: center; padding: 0 4px; font-size: var(--fs-small); white-space: nowrap; }
+  .toggle-group.full.four > .toggle { font-size: var(--fs-caption); padding: 0 2px; }
+  .canvas-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  svg.annotations text { font-family: var(--font-ui); }
+  .ants { fill: none; stroke: #ffffff; stroke-width: 1; }
+  .ants2 { fill: none; stroke: #1f1f24; stroke-width: 1; stroke-dasharray: 4 4; }
+  .hint { font-size: var(--fs-caption); opacity: var(--dim-opacity); padding: 0 2px; line-height: 1.4; }
+  .scale .trough { flex: 1; }
+  .scale .lbl { width: 84px; flex: none; }
+
+  .det { fill: none; stroke: var(--annota-azure); stroke-width: 2; stroke-dasharray: 6 4; }
+  .det.text { stroke: var(--annota-violet); }
+  .det.hover { stroke-dasharray: none; stroke-width: 3; fill: rgb(47 128 237 / 10%); }
+  .legend { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-small); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .legend i { width: 18px; height: 12px; border-radius: 2px; border: 2px dashed var(--annota-azure); }
+  .legend i.t { border-color: var(--annota-violet); }
+  .pal { display: flex; flex-direction: column; gap: 6px; }
+  .pal .row { min-height: 50px; }
+  .pal-dots { display: inline-flex; gap: 3px; }
+  .pal-dots b { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgb(0 0 6 / 15%); }
+  .ba-label { position: absolute; top: 10px; z-index: 3; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--osd-bg); color: #fff; }
+  .split-canvas { display: flex; gap: 18px; align-items: center; }
+  .split-canvas .canvas-image { position: relative; }
+  .busy { position: absolute; inset: 0; display: grid; place-items: center; z-index: 3; }
+  .busy .osd-toolbar { gap: 10px; padding: 10px 16px; }
+  .drag-ghost { filter: drop-shadow(0 6px 10px rgb(0 0 6 / 35%)); }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+
+  <div class="headerbar">
+    <div class="start">
+      <button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button>
+      <div class="linked">
+        <button class="btn image-button" title="Undo (Ctrl+Z)"><svg class="icon"><use href="#i-undo"/></svg></button>
+        <button class="btn image-button" title="Redo (Ctrl+Shift+Z)" disabled><svg class="icon"><use href="#i-redo"/></svg></button>
+      </div>
+    </div>
+    <div class="title-widget"><span class="title">Harbor preferences</span><span class="subtitle">1600 × 1000</span></div>
+    <div class="end">
+      <button class="btn image-button" title="Copy (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button>
+      <button class="btn text-button suggested-action" title="Export (Ctrl+E)">Export</button>
+      <button class="btn flat image-button" title="Main Menu"><svg class="icon"><use href="#i-open-menu"/></svg></button>
+      <div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div>
+    </div>
+  </div>
+  <div class="split-view">
+    <div class="tool-strip">
+<button class="btn flat active" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button>
+<button class="btn flat" title="Selection (Q)"><svg class="icon"><use href="#i-selection"/></svg></button>
+<button class="btn flat" title="Magic Wand (W)"><svg class="icon"><use href="#i-magic-wand"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button>
+<button class="btn flat" title="Line (L)"><svg class="icon"><use href="#i-line"/></svg></button>
+<button class="btn flat" title="Pen (P)"><svg class="icon"><use href="#i-pen"/></svg></button>
+<button class="btn flat" title="Shape (U)"><svg class="icon"><use href="#i-shape"/></svg></button>
+<button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button>
+<button class="btn flat" title="Callout (K)"><svg class="icon"><use href="#i-callout"/></svg></button>
+<button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button>
+<button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Redact (B)"><svg class="icon"><use href="#i-redact"/></svg></button>
+<button class="btn flat" title="Magnify (M)"><svg class="icon"><use href="#i-magnify"/></svg></button>
+<button class="btn flat" title="Spotlight (G)"><svg class="icon"><use href="#i-spotlight"/></svg></button>
+<button class="btn flat" title="Stamp (I)"><svg class="icon"><use href="#i-stamp"/></svg></button>
+<span class="separator-h"></span>
+<button class="btn flat" title="Crop (C)"><svg class="icon"><use href="#i-crop"/></svg></button>
+<button class="btn flat" title="Cut-Out (X)"><svg class="icon"><use href="#i-cut-out"/></svg></button>
+<button class="btn flat" title="Fill (F)"><svg class="icon"><use href="#i-fill"/></svg></button>
+<button class="btn flat" title="Eraser (E)"><svg class="icon"><use href="#i-eraser"/></svg></button>
+
+</div>
+    <div class="content-pane" style="position:relative">
+      <div class="canvas-area">
+        <div class="split-canvas" style="display:flex;gap:18px;align-items:center;position:relative"><div class="canvas-image" style="width:400px;height:250px"><img src="../../kit/sample-content/png/a-harbor-backup.png" style="display:block;width:100%;height:100%"><span class="ba-label" style="left:10px">Before</span></div><div class="canvas-image" style="width:400px;height:250px"><span class="ba-label" style="left:10px">After · preview</span><svg class="annotations" viewBox="0 0 1600 1000" style="position:absolute;inset:0"><rect width="1600" height="1000" fill="#cfcfd6"/><rect x="250" y="120" width="1100" height="760" rx="12" fill="#ffffff"/><path d="M262 120h247v760H262a12 12 0 0 1-12-12V132a12 12 0 0 1 12-12z" fill="#f0f0f3"/><line x1="509" y1="167" x2="1350" y2="167" stroke="#d4d4da" stroke-width="2"/><rect x="336" y="138.9" width="87" height="9.1" rx="4.5" fill="#4a4a52"/><rect x="903" y="139.9" width="53" height="9.1" rx="4.5" fill="#4a4a52"/><circle cx="1325" cy="143" r="12" fill="#c4c4cc"/><circle cx="485" cy="143" r="8" fill="#c4c4cc"/><rect x="256" y="213" width="247" height="37" rx="8" fill="#dcdce2"/><rect x="266" y="184" width="15" height="15" rx="4" fill="#c4c4cc"/><rect x="294" y="186.2" width="56" height="10.5" rx="5.2" fill="#8a8a94"/><rect x="266" y="264" width="15" height="15" rx="4" fill="#c4c4cc"/><rect x="294" y="266.2" width="66" height="10.5" rx="5.2" fill="#8a8a94"/><rect x="266" y="304" width="15" height="15" rx="4" fill="#c4c4cc"/><rect x="294" y="306.2" width="55" height="10.5" rx="5.2" fill="#8a8a94"/><rect x="266" y="344" width="15" height="15" rx="4" fill="#c4c4cc"/><rect x="294" y="346.2" width="42" height="10.5" rx="5.2" fill="#8a8a94"/><rect x="294" y="226.2" width="52" height="10.5" rx="5.2" fill="#4a4a52"/><rect x="266" y="224" width="15" height="15" rx="4" fill="#4a4a52"/><rect x="639" y="234" width="581" height="180" rx="12" fill="#ffffff" stroke="#d4d4da" stroke-width="2"/><rect x="639" y="465" width="581" height="172" rx="12" fill="#ffffff" stroke="#d4d4da" stroke-width="2"/><rect x="639" y="688" width="581" height="89" rx="12" fill="#ffffff" stroke="#d4d4da" stroke-width="2"/><line x1="641" y1="295" x2="1218" y2="295" stroke="#d4d4da" stroke-width="2"/><line x1="641" y1="353" x2="1218" y2="353" stroke="#d4d4da" stroke-width="2"/><line x1="641" y1="517" x2="1218" y2="517" stroke="#d4d4da" stroke-width="2"/><line x1="641" y1="576" x2="1218" y2="576" stroke="#d4d4da" stroke-width="2"/><rect x="645" y="189.9" width="70" height="9.1" rx="4.5" fill="#4a4a52"/><rect x="645" y="211.8" width="386" height="8.4" rx="4.2" fill="#8a8a94"/><rect x="645" y="440.8" width="67" height="8.4" rx="4.2" fill="#4a4a52"/><rect x="645" y="663.2" width="130" height="10.5" rx="5.2" fill="#4a4a52"/><rect x="655" y="250.8" width="94" height="8.4" rx="4.2" fill="#4a4a52"/><rect x="655" y="310.6" width="77" height="7.7" rx="3.8" fill="#4a4a52"/><rect x="655" y="369.1" width="117" height="9.8" rx="4.9" fill="#4a4a52"/><rect x="655" y="488.6" width="64" height="7.7" rx="3.8" fill="#4a4a52"/><rect x="655" y="532.8" width="132" height="8.4" rx="4.2" fill="#4a4a52"/><rect x="655" y="596.6" width="99" height="7.7" rx="3.8" fill="#4a4a52"/><rect x="659" y="708.8" width="152" height="8.4" rx="4.2" fill="#4a4a52"/><rect x="655" y="272.6" width="80" height="7.7" rx="3.8" fill="#8a8a94"/><rect x="655" y="330.9" width="102" height="9.1" rx="4.5" fill="#8a8a94"/><rect x="655" y="390.8" width="175" height="8.4" rx="4.2" fill="#8a8a94"/><rect x="655" y="554.6" width="247" height="7.7" rx="3.8" fill="#8a8a94"/><rect x="655" y="613.5" width="243" height="7.0" rx="3.5" fill="#8a8a94"/><rect x="933" y="709.1" width="267" height="9.8" rx="4.9" fill="#8a8a94"/><rect x="1181" y="259" width="16" height="13" rx="3" fill="#c4c4cc"/><rect x="1181" y="318" width="16" height="13" rx="3" fill="#c4c4cc"/><path d="M1195 376l6 5.5-6 5.5" fill="none" stroke="#4a4a52" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="1043" y="487.9" width="133" height="9.1" rx="4.5" fill="#8a8a94"/><rect x="1158" y="534" width="47" height="26" rx="13" fill="#c4c4cc"/><circle cx="1171" cy="547" r="10" fill="#fff"/><rect x="1100" y="588" width="105" height="34" rx="8" fill="#c4c4cc"/><rect x="658" y="730" width="543" height="10" rx="5" fill="#dcdce2"/><rect x="658" y="730" width="125" height="10" rx="5" fill="#ff5a4e"/><rect x="659" y="748.5" width="334" height="7.0" rx="3.5" fill="#8a8a94"/><rect x="992" y="798" width="86" height="34" rx="8" fill="#c4c4cc"/><rect x="1090" y="798" width="128" height="34" rx="8" fill="#ff5a4e"/></svg></div></div>
+        <div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px;z-index:4">
+          <button class="btn image-button"><svg class="icon"><use href="#i-zoom-out"/></svg></button>
+          <span class="label">24 %</span>
+          <button class="btn image-button"><svg class="icon"><use href="#i-zoom-in"/></svg></button>
+        </div>
+      </div>
+      
+    </div>
+    <div class="sidebar-pane end props">
+      <div class="scroll">
+<div class="side-head"><svg class="icon"><use href="#i-shape"/></svg><span class="heading">Simplify</span></div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Detail</span></div></div>
+  <div class="scale"><span class="lbl">Detail</span><div class="trough"><div class="fill" style="width:60%"></div><div class="knob" style="left:60%"></div><span class="mark" style="left:0%"></span><span class="mark" style="left:50%"></span><span class="mark" style="left:100%"></span></div><span class="value">60</span></div><div class="hint">Low keeps only headings and controls. High keeps every text line and icon.</div>
+</div>
+<div class="preferences-group">
+  <div class="group-header"><div class="text"><span class="heading">Palette</span><span class="description">Colours used for bars and shapes</span></div></div>
+  <div class="boxed-list pal"><div class="row selected"><div class="prefix"><span class="radio checked"></span></div><div class="text"><span class="title">Annota Neutral</span></div><div class="suffix"><span class="pal-dots"><b style="background:#4a4a52"></b><b style="background:#8a8a94"></b><b style="background:#c4c4cc"></b><b style="background:#ff5a4e"></b></span></div></div><div class="row "><div class="prefix"><span class="radio"></span></div><div class="text"><span class="title">Coral</span></div><div class="suffix"><span class="pal-dots"><b style="background:#e0463b"></b><b style="background:#ffaaa1"></b><b style="background:#ffc1b9"></b><b style="background:#ff5a4e"></b></span></div></div><div class="row "><div class="prefix"><span class="radio"></span></div><div class="text"><span class="title">Azure</span></div><div class="suffix"><span class="pal-dots"><b style="background:#2f6fc9"></b><b style="background:#98bbec"></b><b style="background:#b4cff4"></b><b style="background:#2f80ed"></b></span></div></div><div class="row "><div class="prefix"><span class="radio"></span></div><div class="text"><span class="title">Ink on Paper</span></div><div class="suffix"><span class="pal-dots"><b style="background:#1f1f24"></b><b style="background:#1f1f24"></b><b style="background:#ffffff"></b><b style="background:#1f1f24"></b></span></div></div><div class="row button-row"><div class="text"><span class="title">New Palette…</span></div><div class="suffix"></div></div></div>
+</div>
+<div class="boxed-list"><div class="row "><div class="text"><span class="title">Show Original</span><span class="subtitle">Compare with the capture while you adjust</span></div><div class="suffix"><span class="switch"></span></div></div></div>
+      </div>
+      <div class="foot"><button class="btn text-button">Cancel</button><button class="btn text-button suggested-action" title="Enter">Apply</button></div>
+    </div>
+  </div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>
