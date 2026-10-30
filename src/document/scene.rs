@@ -3,7 +3,9 @@
 //! Objects are kept bottom-to-top in a `Vec`. Every object's bounds are cached and kept in an
 //! R*-tree (`rstar`); above [`INDEX_THRESHOLD`] objects, hit-testing and render culling ask the
 //! tree for candidates instead of scanning (design.md: spatial index beyond 100 objects).
-//! Groups (task 3.4) will be an object type whose children are nodes of their own.
+//! Groups (`crate::tools::group`) are an object type whose children are nodes of their own:
+//! their ids are unique in the whole document and tracked here ([`Scene::owner`]), but only
+//! top-level nodes are in the stacking order, the spatial index and the selection.
 //!
 //! The scene is changed only by `Command`s (`super::command`); its mutators are crate-private.
 
@@ -46,7 +48,7 @@ impl Node {
     }
 
     /// This node's id and the ids of every object nested in it.
-    fn all_ids(&self) -> impl Iterator<Item = ObjectId> {
+    pub(crate) fn all_ids(&self) -> impl Iterator<Item = ObjectId> {
         std::iter::once(self.id).chain(self.object.nested_ids())
     }
 }
@@ -92,6 +94,8 @@ pub struct Scene {
     /// Cached `bounds()` per node, parallel to `nodes`.
     bounds: Vec<Rect>,
     positions: HashMap<ObjectId, usize>,
+    /// Nested id → the top-level node that contains it.
+    nested: HashMap<ObjectId, ObjectId>,
     tree: RTree<Entry>,
     next_id: u64,
 }
@@ -143,10 +147,15 @@ impl Scene {
             .filter_map(|(n, b)| entry(n.id, b))
             .collect();
         let next_id = nodes.iter().map(next_after).max().unwrap_or(1).max(1);
+        let nested = nodes
+            .iter()
+            .flat_map(|n| n.object.nested_ids().into_iter().map(move |id| (id, n.id)))
+            .collect();
         let mut scene = Self {
             nodes,
             bounds,
             positions: HashMap::new(),
+            nested,
             tree: RTree::bulk_load(entries),
             next_id,
         };
@@ -178,6 +187,35 @@ impl Scene {
 
     pub fn ids(&self) -> Vec<ObjectId> {
         self.nodes.iter().map(|n| n.id).collect()
+    }
+
+    /// The top-level object that is or contains `id` (a group for one of its members).
+    pub fn owner(&self, id: ObjectId) -> Option<ObjectId> {
+        if self.positions.contains_key(&id) {
+            Some(id)
+        } else {
+            self.nested.get(&id).copied()
+        }
+    }
+
+    /// Whether any object in the document, top-level or nested, has `id`.
+    pub fn contains_id(&self, id: ObjectId) -> bool {
+        self.owner(id).is_some()
+    }
+
+    /// The first id of `object`'s nested objects that would collide with another object if
+    /// `object` became (or replaced) the top-level node `id`: one that repeats inside `object`,
+    /// is `id` itself, or belongs to any other object.
+    pub(crate) fn nested_conflict(
+        &self,
+        id: ObjectId,
+        object: &dyn Annotation,
+    ) -> Option<ObjectId> {
+        let mut seen = std::collections::HashSet::new();
+        object
+            .nested_ids()
+            .into_iter()
+            .find(|&n| n == id || !seen.insert(n) || self.owner(n).is_some_and(|o| o != id))
     }
 
     /// `n` ids no object has had in this session — neither a top-level nor a nested one — for
@@ -243,8 +281,11 @@ impl Scene {
     }
 
     pub(crate) fn insert(&mut self, position: usize, node: Node) -> Result<(), SceneError> {
-        if self.positions.contains_key(&node.id) {
+        if self.contains_id(node.id) {
             return Err(SceneError::Duplicate(node.id));
+        }
+        if let Some(id) = self.nested_conflict(node.id, node.object.as_ref()) {
+            return Err(SceneError::Duplicate(id));
         }
         if position > self.nodes.len() {
             return Err(SceneError::Index(position));
@@ -254,6 +295,9 @@ impl Scene {
             self.tree.insert(e);
         }
         self.next_id = self.next_id.max(next_after(&node));
+        for nested in node.object.nested_ids() {
+            self.nested.insert(nested, node.id);
+        }
         self.nodes.insert(position, node);
         self.bounds.insert(position, b);
         self.reindex_positions(position);
@@ -268,6 +312,9 @@ impl Scene {
             self.tree.remove(&e);
         }
         self.positions.remove(&id);
+        for nested in node.object.nested_ids() {
+            self.nested.remove(&nested);
+        }
         self.reindex_positions(position);
         Ok((position, node))
     }
@@ -278,6 +325,9 @@ impl Scene {
         object: Box<dyn Annotation>,
     ) -> Result<Box<dyn Annotation>, SceneError> {
         let position = self.position(id).ok_or(SceneError::Unknown(id))?;
+        if let Some(conflict) = self.nested_conflict(id, object.as_ref()) {
+            return Err(SceneError::Duplicate(conflict));
+        }
         let new_bounds = object.bounds();
         let (Some(node), Some(cached)) =
             (self.nodes.get_mut(position), self.bounds.get_mut(position))
@@ -293,6 +343,12 @@ impl Scene {
         *cached = new_bounds;
         let previous = std::mem::replace(&mut node.object, object);
         self.next_id = self.next_id.max(next_after(node));
+        for nested in previous.nested_ids() {
+            self.nested.remove(&nested);
+        }
+        for nested in node.object.nested_ids() {
+            self.nested.insert(nested, id);
+        }
         Ok(previous)
     }
 

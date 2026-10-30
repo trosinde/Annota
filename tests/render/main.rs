@@ -6,12 +6,14 @@
 
 use std::path::PathBuf;
 
+use annota::document::annotation::HandleId;
 use annota::document::bitmap::Bitmap;
 use annota::document::color::palette;
 use annota::document::command::{Command, History};
 use annota::document::geometry::{IRect, Point, Rect};
 use annota::document::{Background, BaseImage, Canvas, Document};
 use annota::render::{self, Options, Viewport};
+use annota::tools::group::group_command;
 use annota::tools::image::Image;
 
 fn golden_path(name: &str) -> PathBuf {
@@ -211,4 +213,39 @@ fn transparent_canvas_on_screen() {
     assert_eq!(export.pixel(2, 2).map(|p| p.a), Some(0));
     assert_eq!(export.pixel(21, 11).map(|p| p.a), Some(0), "rounded corner");
     assert_eq!(export.pixel(80, 50).map(|p| p.a), Some(255));
+}
+
+#[test]
+fn group_object() {
+    // Mockup 06: a group of two objects. Here two inserted images, grouped, then the group
+    // turned by 20° as a whole and moved: the members turn around the group's centre.
+    let mut doc = Document::new(test_card(240, 150));
+    let mut history = History::new();
+    for centre in [Point::new(70.0, 60.0), Point::new(150.0, 90.0)] {
+        let insert = Image::insert_command(&doc, test_card(160, 100), centre);
+        history.execute(&mut doc, "Insert Image", insert).unwrap();
+    }
+    let ids = doc.scene().ids();
+    let (group, cmd) = group_command(&doc, &ids).unwrap();
+    history.execute(&mut doc, "Group", cmd).unwrap();
+    let mut object = doc.scene().get(group).unwrap().object.clone();
+    let centre = object.arrange().rect.centre();
+    let angle = 20f64.to_radians();
+    // Drag the rotation handle to 20° clockwise of straight up.
+    let to = Point::new(
+        centre.x + 100.0 * angle.sin(),
+        centre.y - 100.0 * angle.cos(),
+    );
+    object.drag_handle(HandleId::Rotate, to, Default::default());
+    object.translate(10.0, -5.0);
+    history
+        .execute(
+            &mut doc,
+            "Rotate Group",
+            Command::Replace {
+                objects: vec![(group, object)],
+            },
+        )
+        .unwrap();
+    assert_golden("group-object", &render::flatten(&doc, 1.0).unwrap());
 }

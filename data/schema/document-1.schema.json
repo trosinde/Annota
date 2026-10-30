@@ -111,8 +111,26 @@
         {
           "if": { "properties": { "type": { "const": "image" } } },
           "then": { "$ref": "#/$defs/image_object" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "group" } } },
+          "then": { "$ref": "#/$defs/group_object" }
         }
       ]
+    },
+    "group_object": {
+      "description": "Objects selected, moved and stacked as one. Members are scene nodes themselves; their ids are unique in the whole document, top-level and nested objects together. A reader that does not know a member's type keeps the whole group unchanged.",
+      "type": "object",
+      "required": ["rotation", "children"],
+      "properties": {
+        "rotation": { "type": "number", "description": "Orientation of the group's box, degrees clockwise; members store their own placement." },
+        "children": {
+          "description": "The members, bottom to top.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/object" }
+        }
+      }
     },
     "image_object": {
       "description": "A bitmap placed as an object (picture in picture).",

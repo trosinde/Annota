@@ -9,7 +9,9 @@
 //! (`super::residual`) and merged back on write. Objects of an unknown type become
 //! [`UnknownObject`]s that are neither drawn nor selectable but are saved unchanged. In a file
 //! of a newer minor version, an object of a *known* type that this version cannot read (e.g. a
-//! new value of one of its enums) is kept the same way instead of failing the whole file.
+//! new value of one of its enums) is kept the same way instead of failing the whole file. A
+//! container (group) with such an object anywhere inside is kept the same way as a whole, so
+//! it is never moved or resized without the parts this version cannot move.
 
 use serde::de::DeserializeOwned;
 use serde::{Serialize, Serializer};
@@ -19,6 +21,7 @@ use super::annotation::{Annotation, Property, PropertyError, PropertyValue, Rend
 use super::geometry::{Arrange, Point, Rect};
 use super::residual;
 use super::scene::{Node, ObjectId};
+use crate::tools::group::Group;
 use crate::tools::image::Image;
 
 type Decoder = fn(Value) -> Result<Box<dyn Annotation>, serde_json::Error>;
@@ -30,7 +33,10 @@ fn decode<T: Annotation + DeserializeOwned + 'static>(
 }
 
 /// Every object type this version reads, by its serialisation tag.
-const TYPES: &[(&str, Decoder)] = &[(Image::TYPE, decode::<Image>)];
+const TYPES: &[(&str, Decoder)] = &[
+    (Image::TYPE, decode::<Image>),
+    (Group::TYPE, decode::<Group>),
+];
 
 /// The tags of all known object types.
 pub fn types() -> impl Iterator<Item = &'static str> {
@@ -183,11 +189,25 @@ pub fn node_from_json(value: Value, keep_unreadable: bool) -> Result<Node, serde
         }
         Err(err) => return Err(invalid(format!("object {id} ({type_tag}): {err}"))),
     };
+    if contains_unknown(object.as_ref()) {
+        let Value::Object(fields) = original else {
+            return Err(invalid("an object must be a JSON object"));
+        };
+        let object = UnknownObject::new(type_tag, fields);
+        return Ok(Node::new(ObjectId(id), Box::new(object)));
+    }
     // Whatever the type does not write back is unknown to this version: keep it aside.
     let written = object.to_json()?;
     let mut node = Node::new(ObjectId(id), object);
     node.residual = residual::diff(&original, &written);
     Ok(node)
+}
+
+/// Whether an object this version cannot interpret is nested anywhere inside `object`.
+fn contains_unknown(object: &dyn Annotation) -> bool {
+    object.children().iter().any(|child| {
+        child.object.as_any().is::<UnknownObject>() || contains_unknown(child.object.as_ref())
+    })
 }
 
 /// Writes one node for `document.json`.
@@ -246,11 +266,18 @@ mod tests {
     fn every_registered_type_round_trips_with_its_tag() {
         for name in types() {
             let sample = match name {
-                Image::TYPE => Image::new("images/1.png", Rect::new(1.0, 2.0, 30.0, 40.0)),
+                Image::TYPE => {
+                    Box::new(Image::new("images/1.png", Rect::new(1.0, 2.0, 30.0, 40.0)))
+                        as Box<dyn Annotation>
+                }
+                Group::TYPE => Box::new(Group::new(vec![Node::new(
+                    ObjectId(8),
+                    Box::new(Image::new("images/1.png", Rect::new(1.0, 2.0, 30.0, 40.0))),
+                )])),
                 other => panic!("add a sample for new type '{other}'"),
             };
             assert_eq!(sample.type_name(), name);
-            let node = Node::new(ObjectId(7), Box::new(sample));
+            let node = Node::new(ObjectId(7), sample);
             let value = node_to_json(&node).unwrap();
             assert_eq!(value["type"], json!(name));
             assert_eq!(value["id"], json!(7));

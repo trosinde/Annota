@@ -87,14 +87,21 @@ fn finite_rect(r: &Rect) -> bool {
     r.x.is_finite() && r.y.is_finite() && r.width.is_finite() && r.height.is_finite()
 }
 
-/// Finite `bounds()` and `arrange()` (also checked when a file is read).
+/// Finite `bounds()` and `arrange()`, also of nested objects (also checked when a file is
+/// read). A group's bounds skip children whose bounds are not finite, so each child is checked
+/// on its own.
 pub(crate) fn check_geometry(id: ObjectId, object: &dyn Annotation) -> Result<(), CommandError> {
     let arrange = object.arrange();
-    if finite_rect(&object.bounds()) && finite_rect(&arrange.rect) && arrange.rotation.is_finite() {
-        Ok(())
-    } else {
-        Err(CommandError::NonFinite(id))
+    if !(finite_rect(&object.bounds())
+        && finite_rect(&arrange.rect)
+        && arrange.rotation.is_finite())
+    {
+        return Err(CommandError::NonFinite(id));
     }
+    object
+        .children()
+        .iter()
+        .try_for_each(|child| check_geometry(child.id, child.object.as_ref()))
 }
 
 /// Everything an object must satisfy to enter the document; `has_resource` says whether an
@@ -214,10 +221,12 @@ impl Command {
         let scene = doc.scene();
         match self {
             Command::Insert { nodes, resources } => {
-                no_repeats(nodes.iter().map(|(_, n)| n.id))?;
+                // Ids are unique in the whole document, nested objects (group members)
+                // included: a group must not bring ids that exist already.
+                no_repeats(nodes.iter().flat_map(|(_, n)| n.all_ids()))?;
                 for (k, (position, node)) in nodes.iter().enumerate() {
-                    if scene.position(node.id).is_some() {
-                        return Err(SceneError::Duplicate(node.id).into());
+                    if let Some(id) = node.all_ids().find(|&id| scene.contains_id(id)) {
+                        return Err(SceneError::Duplicate(id).into());
                     }
                     let previous = k.checked_sub(1).and_then(|p| nodes.get(p)).map(|(p, _)| *p);
                     if *position > scene.len() + k || previous.is_some_and(|p| p >= *position) {
@@ -254,6 +263,13 @@ impl Command {
                 if let Some((id, _)) = objects.iter().find(|(id, _)| scene.position(*id).is_none())
                 {
                     return Err(SceneError::Unknown(*id).into());
+                }
+                // A replacement may keep its own nested ids but not take anybody else's.
+                no_repeats(objects.iter().flat_map(|(_, o)| o.nested_ids()))?;
+                for (id, object) in objects {
+                    if let Some(conflict) = scene.nested_conflict(*id, object.as_ref()) {
+                        return Err(SceneError::Duplicate(conflict).into());
+                    }
                 }
                 for (id, object) in objects {
                     check_object(*id, object.as_ref(), |r| doc.resources().contains(r))?;

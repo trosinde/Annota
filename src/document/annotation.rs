@@ -35,7 +35,7 @@ use serde::Serialize;
 
 use super::color::Rgba;
 use super::geometry::{normalize_degrees, Arrange, Point, Rect};
-use super::scene::ObjectId;
+use super::scene::{Node, ObjectId};
 use super::style::Shadow;
 use super::Document;
 
@@ -284,11 +284,26 @@ pub trait Annotation: AnnotationBase + fmt::Debug {
         Vec::new()
     }
 
-    /// Ids of objects nested inside this one (a group's children, at any depth). The scene
-    /// never hands out these ids again, so ungrouping cannot create duplicates.
-    fn nested_ids(&self) -> Vec<ObjectId> {
-        Vec::new()
+    /// Objects nested inside this one, bottom to top (a group's members). They are nodes with
+    /// ids of their own, unique in the whole document; they are not in the scene's top level, so
+    /// they cannot be selected on their own.
+    fn children(&self) -> &[Node] {
+        &[]
     }
+
+    /// Ids of objects nested inside this one (a group's children, at any depth). The scene
+    /// never hands out these ids again, so ungrouping cannot create duplicates. The default
+    /// collects [`Annotation::children`] recursively.
+    fn nested_ids(&self) -> Vec<ObjectId> {
+        self.children()
+            .iter()
+            .flat_map(|child| std::iter::once(child.id).chain(child.object.nested_ids()))
+            .collect()
+    }
+
+    /// Gives every nested object a new id from `next` (Duplicate: the copy of a group must not
+    /// share its members' ids with the original). Types without children do nothing.
+    fn renumber_nested(&mut self, _next: &mut dyn FnMut() -> ObjectId) {}
 }
 
 impl Clone for Box<dyn Annotation> {

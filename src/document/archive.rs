@@ -1050,6 +1050,18 @@ pub(crate) mod tests {
         assert_eq!(keys(&object), props(image));
         let shadow = &schema["$defs"]["shadow"];
         assert_eq!(keys(&object["shadow"]), required(shadow));
+        // Groups likewise.
+        let group = crate::tools::group::Group::new(vec![crate::document::scene::Node::new(
+            crate::document::scene::ObjectId(90),
+            Box::new(crate::tools::image::Image::new(
+                "images/1.png",
+                crate::document::geometry::Rect::new(0.0, 0.0, 1.0, 1.0),
+            )),
+        )]);
+        let group_json = crate::document::annotation::AnnotationBase::to_json(&group).unwrap();
+        let group_schema = &schema["$defs"]["group_object"];
+        assert_eq!(keys(&group_json), required(group_schema));
+        assert_eq!(keys(&group_json), props(group_schema));
         assert_eq!(
             schema["properties"]["format"]["pattern"],
             json!(format!("^{}\\.[0-9]+$", FORMAT.major))
