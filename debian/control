@@ -1,0 +1,43 @@
+Source: annota
+Section: graphics
+Priority: optional
+Maintainer: Thorsten Rosin <thorsten.rosin@gmail.com>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 13),
+ meson (>= 1.0),
+ ninja-build,
+ pkgconf,
+ cargo-1.85 | cargo (>= 1.85),
+ rustc-1.85 | rustc (>= 1.85),
+ libgtk-4-dev (>= 4.14),
+ libadwaita-1-dev (>= 1.5),
+ blueprint-compiler,
+ gettext,
+ desktop-file-utils,
+ appstream,
+ libglib2.0-bin,
+Standards-Version: 4.7.0
+Homepage: https://github.com/trosinde/Annota
+Vcs-Browser: https://github.com/trosinde/Annota
+Vcs-Git: https://github.com/trosinde/Annota.git
+
+Package: annota
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ xdg-desktop-portal,
+ xdg-desktop-portal-gnome | xdg-desktop-portal-backend,
+Recommends:
+ tesseract-ocr,
+Description: screenshot, annotation and screen recording for GNOME
+ Annota captures a region, a window or the whole screen and lets you mark
+ it up with arrows, callouts, numbered steps, highlights and redaction.
+ Every mark stays editable until export.
+ .
+ Annota works entirely offline: no account, no cloud service and no
+ telemetry. Screen access goes through xdg-desktop-portal, so it works on
+ Wayland and X11.
+ .
+ This is a pre-release; capturing and editing arrive with milestone 0.1.

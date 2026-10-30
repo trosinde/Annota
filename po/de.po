@@ -1,0 +1,131 @@
+# German translations for annota package.
+# Copyright (C) 2026 THE annota'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the annota package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: annota\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-30 13:11+0000\n"
+"PO-Revision-Date: 2026-10-30 13:11+0000\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: data/io.github.trosinde.Annota.desktop.in:3
+#: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:21
+#: data/ui/window.blp:42
+msgid "Annota"
+msgstr "Annota"
+
+#: data/io.github.trosinde.Annota.desktop.in:4
+msgid "Screenshot Tool"
+msgstr "Bildschirmfoto-Werkzeug"
+
+#: data/io.github.trosinde.Annota.desktop.in:5
+#: data/io.github.trosinde.Annota.metainfo.xml.in:8
+msgid "Capture, mark up and record your screen"
+msgstr "Bildschirm aufnehmen, markieren und aufzeichnen"
+
+#. Translators: search terms, separated by semicolons, ending with a semicolon
+#: data/io.github.trosinde.Annota.desktop.in:12
+msgid "screenshot;capture;annotate;arrow;markup;redact;screen;recording;"
+msgstr "Bildschirmfoto;Screenshot;Aufnahme;Anmerken;Pfeil;Markieren;Schwärzen;Bildschirm;Aufzeichnung;"
+
+#: data/io.github.trosinde.Annota.desktop.in:18
+msgid "Capture Region"
+msgstr "Bereich aufnehmen"
+
+#: data/io.github.trosinde.Annota.desktop.in:22
+msgid "Capture Window"
+msgstr "Fenster aufnehmen"
+
+#: data/io.github.trosinde.Annota.desktop.in:26
+msgid "Capture Screen"
+msgstr "Bildschirm aufnehmen"
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in:14
+msgid ""
+"Annota is a screenshot and annotation tool for GNOME. Capture a region, a "
+"window or the whole screen and mark it up with arrows, callouts, numbered "
+"steps, highlights and redaction. Every mark stays editable until you export."
+msgstr "Annota ist ein Werkzeug für Bildschirmfotos und Anmerkungen unter GNOME. Nehmen Sie einen Bereich, ein Fenster oder den ganzen Bildschirm auf und markieren Sie ihn mit Pfeilen, Sprechblasen, nummerierten Schritten, Hervorhebungen und Schwärzungen. Jede Markierung bleibt bis zum Export bearbeitbar."
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in:19
+msgid ""
+"Annota works entirely on your computer: no account, no cloud service and no "
+"telemetry."
+msgstr "Annota arbeitet vollständig auf Ihrem Computer: kein Konto, kein Cloud-Dienst und keine Telemetrie."
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in:22
+msgid "This is a pre-release. Capturing and editing arrive with milestone 0.1."
+msgstr "Dies ist eine Vorabversion. Aufnehmen und Bearbeiten folgen mit Meilenstein 0.1."
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in:53
+msgid "Project skeleton: application shell and Debian packaging."
+msgstr "Projektgerüst: Anwendungsrahmen und Debian-Paket."
+
+#: data/io.github.trosinde.Annota.gschema.xml:18
+msgid "Default save folder"
+msgstr "Standard-Speicherordner"
+
+#: data/io.github.trosinde.Annota.gschema.xml:19
+msgid ""
+"Folder for quick saves and the capture library. Empty means ~/Pictures/"
+"Annota."
+msgstr "Ordner für Schnellspeicherungen und die Aufnahme-Bibliothek. Leer bedeutet ~/Bilder/Annota."
+
+#: data/io.github.trosinde.Annota.gschema.xml:23
+msgid "Default export format"
+msgstr "Standard-Exportformat"
+
+#: data/io.github.trosinde.Annota.gschema.xml:27
+msgid "What happens after a capture"
+msgstr "Was nach einer Aufnahme passiert"
+
+#: data/io.github.trosinde.Annota.gschema.xml:31
+msgid "Editor window width"
+msgstr "Breite des Editorfensters"
+
+#: data/io.github.trosinde.Annota.gschema.xml:35
+msgid "Editor window height"
+msgstr "Höhe des Editorfensters"
+
+#: data/io.github.trosinde.Annota.gschema.xml:39
+msgid "Editor window maximized"
+msgstr "Editorfenster maximiert"
+
+#: data/ui/window.blp:7
+msgid "_About Annota"
+msgstr "_Info zu Annota"
+
+#: data/ui/window.blp:14
+msgid "_Quit"
+msgstr "_Beenden"
+
+#: data/ui/window.blp:34
+msgid "Main Menu"
+msgstr "Hauptmenü"
+
+#: data/ui/window.blp:43
+msgid "Pre-release build. Capturing and editing arrive with milestone 0.1."
+msgstr "Vorabversion. Aufnehmen und Bearbeiten folgen mit Meilenstein 0.1."
+
+#: src/application.rs:93
+msgid "Capturing arrives in milestone 0.1"
+msgstr "Aufnehmen folgt mit Meilenstein 0.1"
+
+#: src/application.rs:95
+msgid "Opening files arrives in milestone 0.1"
+msgstr "Dateien öffnen folgt mit Meilenstein 0.1"
+
+#: src/application.rs:167
+msgid ""
+"Capture, mark up and record your screen. Everything stays on this computer."
+msgstr "Bildschirm aufnehmen, markieren und aufzeichnen. Alles bleibt auf diesem "
+"Computer."

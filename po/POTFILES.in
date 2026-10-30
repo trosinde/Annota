@@ -1,0 +1,5 @@
+data/io.github.trosinde.Annota.desktop.in
+data/io.github.trosinde.Annota.metainfo.xml.in
+data/io.github.trosinde.Annota.gschema.xml
+data/ui/window.blp
+src/application.rs

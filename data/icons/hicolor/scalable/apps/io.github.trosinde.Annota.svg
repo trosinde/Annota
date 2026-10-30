@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Annota app icon — original artwork, CC-BY-SA-4.0. GNOME app icon grid: 128 px, rounded square, 4 px lip. -->
+  <defs>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eceef3"/>
+    </linearGradient>
+    <linearGradient id="lip" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9aa1b1"/>
+      <stop offset=".05" stop-color="#c0c5d1"/>
+      <stop offset=".95" stop-color="#c0c5d1"/>
+      <stop offset="1" stop-color="#9aa1b1"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b3f63"/>
+      <stop offset="1" stop-color="#1c2a45"/>
+    </linearGradient>
+    <linearGradient id="coral" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff7466"/>
+      <stop offset="1" stop-color="#ec4234"/>
+    </linearGradient>
+    <clipPath id="screen"><rect x="24" y="26" width="80" height="62" rx="6"/></clipPath>
+  </defs>
+  <!-- base: lip then face -->
+  <rect x="12" y="16" width="104" height="100" rx="18" fill="url(#lip)"/>
+  <rect x="12" y="12" width="104" height="100" rx="18" fill="url(#face)"/>
+  <!-- captured "glass" screen -->
+  <rect x="24" y="26" width="80" height="62" rx="6" fill="url(#glass)"/>
+  <g clip-path="url(#screen)" opacity=".9">
+    <rect x="24" y="26" width="80" height="10" fill="#3a5280"/>
+    <circle cx="31" cy="31" r="2" fill="#8ea4cc"/>
+    <rect x="32" y="44" width="34" height="5" rx="2.5" fill="#6d84b0"/>
+    <rect x="32" y="54" width="46" height="4" rx="2" fill="#4c6390"/>
+    <rect x="32" y="62" width="40" height="4" rx="2" fill="#4c6390"/>
+    <rect x="32" y="70" width="28" height="4" rx="2" fill="#4c6390"/>
+  </g>
+  <!-- capture frame corners (selection brackets) -->
+  <g fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 38 V24 a4 4 0 0 1 4 -4 H37"/>
+    <path d="M91 20 H105 a4 4 0 0 1 4 4 V38"/>
+    <path d="M109 76 V90 a4 4 0 0 1 -4 4 H91"/>
+    <path d="M37 94 H23 a4 4 0 0 1 -4 -4 V76"/>
+  </g>
+  <g fill="none" stroke="#5c6680" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 38 V24 a4 4 0 0 1 4 -4 H37"/>
+    <path d="M91 20 H105 a4 4 0 0 1 4 4 V38"/>
+    <path d="M109 76 V90 a4 4 0 0 1 -4 4 H91"/>
+    <path d="M37 94 H23 a4 4 0 0 1 -4 -4 V76"/>
+  </g>
+  <!-- coral annotation arrow sweeping in from bottom-right, with ink shadow -->
+  <g transform="translate(0 2)" opacity=".22" fill="none" stroke="#000" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M102 100 Q88 72 63.5 57.5"/>
+    <path d="M62.1 73.0 L62 56 L78.9 57.7"/>
+  </g>
+  <g fill="none" stroke="url(#coral)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M102 100 Q88 72 63.5 57.5"/>
+    <path d="M62.1 73.0 L62 56 L78.9 57.7"/>
+  </g>
+  <!-- glossy face highlight -->
+  <rect x="12.5" y="12.5" width="103" height="99" rx="17.5" fill="none" stroke="#ffffff" stroke-opacity=".7"/>
+</svg>

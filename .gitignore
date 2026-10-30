@@ -4,3 +4,14 @@
 *.swp
 __pycache__/
 docs/design/*/png/*@2x.png.tmp
+/vendor/
+/.cargo/
+/src/config.rs
+/obj-*/
+/debian/.debhelper/
+/debian/annota/
+/debian/cargo-home/
+/debian/files
+/debian/*.substvars
+/debian/debhelper-build-stamp
+*.deb

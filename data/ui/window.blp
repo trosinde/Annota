@@ -1,0 +1,47 @@
+using Gtk 4.0;
+using Adw 1;
+
+menu primary_menu {
+  section {
+    item {
+      label: _("_About Annota");
+      action: "app.about";
+    }
+  }
+
+  section {
+    item {
+      label: _("_Quit");
+      action: "app.quit";
+    }
+  }
+}
+
+Adw.ApplicationWindow window {
+  title: _("Annota");
+  default-width: 900;
+  default-height: 640;
+  width-request: 360;
+  height-request: 294;
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      [end]
+      MenuButton {
+        primary: true;
+        icon-name: "open-menu-symbolic";
+        tooltip-text: _("Main Menu");
+        menu-model: primary_menu;
+      }
+    }
+
+    content: Adw.ToastOverlay toast_overlay {
+      child: Adw.StatusPage {
+        icon-name: "io.github.trosinde.Annota-symbolic";
+        title: _("Annota");
+        description: _("Pre-release build. Capturing and editing arrive with milestone 0.1.");
+      };
+    };
+  };
+}

@@ -5,16 +5,21 @@
 - [ ] 1.2 Maintainer approval recorded in design.md
 
 ## 2. Application skeleton
-- [ ] 2.1 Cargo + Meson project, AdwApplication, main window placeholder
-- [ ] 2.2 CLI parsing and D-Bus forwarding
-- [ ] 2.3 Preferences window + GSettings schema
-- [ ] 2.4 About dialog, shortcuts window
-- [ ] 2.5 gettext setup with `en` and `de`
+
+> Packaging scaffold built on 2026-10-30 before design approval: only non-visual parts and a
+> placeholder window. UI items from the mockups (welcome page, preferences, shortcuts window)
+> start after the design gate.
+
+- [x] 2.1 Cargo + Meson project, AdwApplication, main window placeholder
+- [x] 2.2 CLI parsing and D-Bus forwarding
+- [ ] 2.3 Preferences window + GSettings schema _(schema done; window waits for design approval)_
+- [ ] 2.4 About dialog, shortcuts window _(About done; shortcuts window waits for design approval)_
+- [x] 2.5 gettext setup with `en` and `de`
 
 ## 3. Packaging
-- [ ] 3.1 `debian/` directory, vendoring script, offline build
-- [ ] 3.2 Desktop file, metainfo, icons from design kit
-- [ ] 3.3 GitHub Actions CI incl. .deb artifact
+- [x] 3.1 `debian/` directory, vendoring script, offline build
+- [x] 3.2 Desktop file, metainfo, icons from design kit
+- [x] 3.3 GitHub Actions CI incl. .deb artifact
 
 ## 4. Verify
 - [ ] 4.1 Tests for every scenario (unit, golden-image or documented manual check)

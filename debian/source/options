@@ -1,0 +1,5 @@
+tar-ignore = .git
+tar-ignore = target
+tar-ignore = _build
+tar-ignore = obj-*
+tar-ignore = docs/design

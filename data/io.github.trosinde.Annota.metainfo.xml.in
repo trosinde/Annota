@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.trosinde.Annota</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Annota</name>
+  <summary>Capture, mark up and record your screen</summary>
+  <developer id="io.github.trosinde">
+    <name translate="no">Thorsten Rosin</name>
+  </developer>
+
+  <description>
+    <p>
+      Annota is a screenshot and annotation tool for GNOME. Capture a region, a window or the
+      whole screen and mark it up with arrows, callouts, numbered steps, highlights and redaction.
+      Every mark stays editable until you export.
+    </p>
+    <p>
+      Annota works entirely on your computer: no account, no cloud service and no telemetry.
+    </p>
+    <p>This is a pre-release. Capturing and editing arrive with milestone 0.1.</p>
+  </description>
+
+  <launchable type="desktop-id">io.github.trosinde.Annota.desktop</launchable>
+
+  <url type="homepage">https://github.com/trosinde/Annota</url>
+  <url type="bugtracker">https://github.com/trosinde/Annota/issues</url>
+  <url type="vcs-browser">https://github.com/trosinde/Annota</url>
+
+  <provides>
+    <binary>annota</binary>
+  </provides>
+
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#ffd9d5</color>
+    <color type="primary" scheme_preference="dark">#5c1f1a</color>
+  </branding>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.1.0~dev" date="2026-10-30" type="development">
+      <description>
+        <p>Project skeleton: application shell and Debian packaging.</p>
+      </description>
+    </release>
+  </releases>
+</component>

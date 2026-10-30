@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+# Annota: Meson drives Cargo. Crates are vendored (vendor/, created by
+# build-aux/vendor.sh) so the build never needs network access.
+
+export DH_VERBOSE = 1
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# Prefer the versioned toolchain on Ubuntu 24.04 (rustc-1.85); Debian 13 has 1.85 as default.
+RUST_VERSIONED := $(wildcard /usr/lib/rust-1.85/bin)
+ifneq ($(RUST_VERSIONED),)
+export PATH := $(RUST_VERSIONED):$(PATH)
+endif
+
+export CARGO_HOME = $(CURDIR)/debian/cargo-home
+export CARGO_NET_OFFLINE = true
+export RUSTFLAGS = -C debuginfo=1 -C strip=none
+
+%:
+	dh $@ --buildsystem=meson
+
+override_dh_auto_configure:
+	test -d vendor || { echo "vendor/ missing: run build-aux/vendor.sh first"; exit 1; }
+	dh_auto_configure -- -Dprofile=release
+
+override_dh_auto_test:
+	dh_auto_test --no-parallel
+
+override_dh_dwz:
+	# Rust debug info is not dwz-friendly; skip.

@@ -1,0 +1,26 @@
+[Desktop Entry]
+Name=Annota
+GenericName=Screenshot Tool
+Comment=Capture, mark up and record your screen
+Exec=annota
+Icon=io.github.trosinde.Annota
+Terminal=false
+Type=Application
+Categories=Graphics;GTK;GNOME;
+# Translators: search terms, separated by semicolons, ending with a semicolon
+Keywords=screenshot;capture;annotate;arrow;markup;redact;screen;recording;
+StartupNotify=true
+SingleMainWindow=false
+Actions=capture-region;capture-window;capture-screen;
+
+[Desktop Action capture-region]
+Name=Capture Region
+Exec=annota --capture region
+
+[Desktop Action capture-window]
+Name=Capture Window
+Exec=annota --capture window
+
+[Desktop Action capture-screen]
+Name=Capture Screen
+Exec=annota --capture screen

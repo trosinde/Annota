@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Annota symbolic app icon — capture brackets + annotation arrow -->
+  <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        d="M1.5 5 V2.5 a1 1 0 0 1 1 -1 H5 M11 1.5 h2.5 a1 1 0 0 1 1 1 V5 M5 14.5 H2.5 a1 1 0 0 1 -1 -1 V11"/>
+  <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        d="M14 14 C11.5 12.5 10 10.5 9 7.5 M6.5 8.5 L8.7 6 L11.3 7.7"/>
+</svg>

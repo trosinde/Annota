@@ -1,0 +1,18 @@
+[package]
+name = "annota"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "GPL-3.0-or-later"
+description = "Screenshot, annotation and screen recording for GNOME"
+repository = "https://github.com/trosinde/Annota"
+publish = false
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.9", features = ["v4_14"] }
+adw = { package = "libadwaita", version = "0.7", features = ["v1_5"] }
+gettext-rs = { version = "0.7", features = ["gettext-system"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

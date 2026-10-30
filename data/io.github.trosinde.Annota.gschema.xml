@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="annota">
+  <enum id="io.github.trosinde.Annota.ExportFormat">
+    <value nick="png" value="0"/>
+    <value nick="jpg" value="1"/>
+    <value nick="webp" value="2"/>
+    <value nick="pdf" value="3"/>
+  </enum>
+  <enum id="io.github.trosinde.Annota.AfterCapture">
+    <value nick="editor" value="0"/>
+    <value nick="clipboard" value="1"/>
+    <value nick="both" value="2"/>
+  </enum>
+
+  <schema id="io.github.trosinde.Annota" path="/io/github/trosinde/Annota/">
+    <key name="default-save-folder" type="s">
+      <default>''</default>
+      <summary>Default save folder</summary>
+      <description>Folder for quick saves and the capture library. Empty means ~/Pictures/Annota.</description>
+    </key>
+    <key name="default-export-format" enum="io.github.trosinde.Annota.ExportFormat">
+      <default>'png'</default>
+      <summary>Default export format</summary>
+    </key>
+    <key name="after-capture" enum="io.github.trosinde.Annota.AfterCapture">
+      <default>'editor'</default>
+      <summary>What happens after a capture</summary>
+    </key>
+    <key name="window-width" type="i">
+      <default>1280</default>
+      <summary>Editor window width</summary>
+    </key>
+    <key name="window-height" type="i">
+      <default>800</default>
+      <summary>Editor window height</summary>
+    </key>
+    <key name="window-maximized" type="b">
+      <default>false</default>
+      <summary>Editor window maximized</summary>
+    </key>
+  </schema>
+</schemalist>
