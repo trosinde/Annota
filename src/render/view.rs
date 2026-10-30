@@ -1,8 +1,10 @@
 //! Zoom and scroll arithmetic for the canvas (spec editor-canvas: View control), kept free of
 //! widgets so it can be tested.
 //!
-//! The canvas is drawn into a scrollable area of [`content_size`]: the zoomed canvas plus a
-//! [`FIT_MARGIN`] on every side. When the view is larger than that, the canvas is centred.
+//! The canvas scrolls over a content area of [`content_size`]: the zoomed canvas plus a
+//! [`FIT_MARGIN`] on every side (at least the view). When the view is larger than that, the
+//! canvas is centred. The widget itself is only as large as the view; [`view_origin`] maps
+//! document space into it for a scroll position.
 
 use crate::document::geometry::{IRect, Point};
 
@@ -73,6 +75,15 @@ pub fn origin(canvas: IRect, zoom: f64, area: (f64, f64)) -> Point {
         axis(canvas.width, canvas.x, area.0),
         axis(canvas.height, canvas.y, area.1),
     )
+}
+
+/// Where document (0, 0) lands in the *view* (the visible, viewport-sized widget) for a view
+/// of `view` pixels scrolled to `scroll` (content coordinates). Rounded to whole pixels so that
+/// 100 % shows the exported pixels exactly.
+pub fn view_origin(canvas: IRect, zoom: f64, view: (f64, f64), scroll: (f64, f64)) -> Point {
+    let (cw, ch) = content_size(canvas, zoom);
+    let o = origin(canvas, zoom, (cw.max(view.0), ch.max(view.1)));
+    Point::new((o.x - scroll.0).round(), (o.y - scroll.1).round())
 }
 
 /// Scroll position after zooming from `old_zoom` to `new_zoom` so that the document point
@@ -160,6 +171,36 @@ mod tests {
         assert_eq!(clamp_zoom(100.0), MAX_ZOOM);
         assert_eq!(clamp_zoom(0.01), MIN_ZOOM);
         assert_eq!(clamp_zoom(f64::NAN), 1.0);
+    }
+
+    #[test]
+    fn view_origin_follows_the_scroll_position() {
+        let canvas = IRect::new(0, 0, 4000, 3000);
+        let view = (1000.0, 700.0);
+        // Zoomed in: the content is larger than the view, scrolling moves the canvas.
+        let o = view_origin(canvas, 16.0, view, (0.0, 0.0));
+        assert_eq!(o, Point::new(FIT_MARGIN, FIT_MARGIN));
+        let o = view_origin(canvas, 16.0, view, (30_000.0, 2_000.4));
+        assert_eq!(o, Point::new(FIT_MARGIN - 30_000.0, FIT_MARGIN - 2_000.0));
+        // The far edge of the content at the far end of the scroll range.
+        let (cw, _) = content_size(canvas, 16.0);
+        let o = view_origin(canvas, 16.0, view, (cw - view.0, 0.0));
+        assert_eq!(o.x + 4000.0 * 16.0 + FIT_MARGIN, view.0);
+        // Fitted: centred in the view whatever its size.
+        for v in [(928.0, 646.0), (900.0, 564.0), (600.0, 400.0)] {
+            let z = fit_zoom(canvas, v);
+            let o = view_origin(canvas, z, v, (0.0, 0.0));
+            let right = v.0 - (o.x + 4000.0 * z);
+            let bottom = v.1 - (o.y + 3000.0 * z);
+            assert!(
+                (o.x - right).abs() <= 1.0 && (o.y - bottom).abs() <= 1.0,
+                "{v:?}"
+            );
+            assert!(
+                o.x >= 0.0 && o.y >= 0.0 && right >= -0.5 && bottom >= -0.5,
+                "{v:?}"
+            );
+        }
     }
 
     #[test]

@@ -91,11 +91,20 @@ integration (3.2–4.5) follow in phase 2.
   crate). All MIT/Apache/Zlib/0BSD-compatible.
 - **Damage regions.** GTK 4 cannot invalidate part of a drawing area, so "damage-region
   redraws" became culling: the renderer draws only objects whose bounds touch the cairo clip,
-  through the R-tree above 100 objects. Shadows are blurred offscreen at device resolution,
-  limited to the visible area. Caching (e.g. of shadows) is left for phase 2 if profiling
-  needs it.
-- **Canvas.** Fit leaves 44 px around the canvas (mockup 10: 2000 px at 42 % in a 928 px area)
-  and never enlarges beyond 100 %. Bitmaps use the nearest-neighbour filter from 200 % up
+  through the R-tree above 100 objects. This only works because the canvas widget is
+  viewport-sized (see Canvas): GTK records a widget's drawing at its full allocation, so a
+  content-sized drawing area made the clip the whole zoomed document (review finding: 17.5 s
+  and 1.4 GB for one frame at 1600 % with 301 objects; now 0.09 s and +17 MB, release build,
+  Xvfb). Shadows are blurred offscreen at device resolution,
+  limited to the visible area. Caching (e.g. of shadows) is left for phase 2: profiling after
+  the review fix shows shadows dominate (301 shadowed images: ~55 ms per frame fitted, ~80 ms
+  at 1600 %; ~20 ms without shadows; release build on Xvfb), above the 60 fps budget.
+- **Canvas.** `CanvasView` (`src/ui/canvas.rs`) is a widget implementing `GtkScrollable`
+  inside a `GtkScrolledWindow`: it is allocated the visible area (no minimum size, so it
+  shrinks with the window and Fit stays centred) and owns the scroll adjustments, whose range
+  it sets to the zoomed content; `view::view_origin` maps document space into the view for the
+  current scroll position. Fit leaves 44 px around the canvas (mockup 10: 2000 px at 42 % in
+  a 928 px area) and never enlarges beyond 100 %. Bitmaps use the nearest-neighbour filter from 200 % up
   (pixel inspection), smooth below. The zoom OSD and window-level actions arrive with 4.1.
 - **Preview window.** Until the editor window exists, debug builds accept a hidden
   `--dev-canvas FILE` that shows a `.annota` file or image in a bare window

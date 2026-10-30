@@ -17,6 +17,8 @@
 - [x] 3.1 Rendering, zoom, pan (`src/render/`, `src/ui/canvas.rs`; golden tests in
       `tests/render/`; debug-only preview `annota --dev-canvas FILE`). The zoom OSD/popover
       (mockup 07) is part of 4.1.
+      Reviewer fixes (phase 1): viewport-sized scrollable canvas (culling, fit on shrink),
+      command validation keeps documents saveable, unknown data kept at any depth.
 - [ ] 3.2 Selection, handles, rotation
 - [ ] 3.3 Snapping guides
 - [ ] 3.4 Grouping and z-order

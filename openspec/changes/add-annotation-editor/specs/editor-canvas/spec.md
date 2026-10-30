@@ -55,6 +55,10 @@ Users SHALL zoom with `Ctrl+scroll` (around the pointer), `Ctrl++`/`Ctrl+-` (thr
 - **WHEN** the user zooms with Ctrl+scroll
 - **THEN** the point of the document under the pointer stays under the pointer
 
+#### Scenario: Fit follows the window
+- **WHEN** the canvas is fitted and the window is made smaller (for example from 1280 × 800 to 900 × 600)
+- **THEN** the whole canvas stays visible and centred at the new fit zoom
+
 ### Requirement: Shared renderer
 The canvas SHALL draw the document with the same renderer as export, so that at 100 % zoom the canvas shows exactly the exported pixels. A transparent canvas SHALL appear as a checkerboard on screen and stay transparent in exports. Only objects inside the visible area SHALL be drawn, using a spatial index for documents with more than 100 objects.
 
@@ -65,6 +69,10 @@ The canvas SHALL draw the document with the same renderer as export, so that at 
 #### Scenario: Transparent canvas
 - **WHEN** the canvas background is transparent
 - **THEN** the canvas shows a checkerboard there and the export has transparent pixels there
+
+#### Scenario: Only the visible area is drawn
+- **WHEN** a document with 300 objects is zoomed to 1600 %
+- **THEN** a redraw covers only the visible area of the view, not the whole zoomed document, and draws only the objects in it
 
 ### Requirement: Undo and redo
 Every document change SHALL be undoable with `Ctrl+Z` and redoable with `Ctrl+Shift+Z`, with at least 200 steps per document.
