@@ -528,6 +528,11 @@ and tested without a display; the UI is `src/ui/canvas.rs`, `src/ui/editor/{mod,
   metadata in the document and add-capture-library.
 - **Canvas edge drags at fit zoom** can take the edge out of the visible area during the drag
   (the view refits on release); a live refit or auto-scroll would need a design decision.
+- **Canvas extension has no keyboard path** (CLAUDE.md §7: every action without a mouse): the
+  redline offers only dragging an edge and the hint "Drag a canvas edge …"; a keyboard route
+  (e.g. canvas size entries) needs a design decision. Crop, resize, rotate, flip, corner radius,
+  background (Custom colour) and flatten are keyboard-reachable; the eyedropper is pointer-only
+  by nature.
 - **Image content is not mirrored by Flip** (positions and angles are) — a deliberate choice for
   readability; confirm with the maintainer when text and stamps arrive.
 - **Not verified live:** a real portal capture landing in the editor, the welcome cards starting a
