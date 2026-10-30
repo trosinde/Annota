@@ -16,16 +16,41 @@ Documents SHALL be saved as `.annota` ZIP files containing `document.json` (vers
 - **WHEN** saving over an existing file fails part-way (for example because the folder is not writable)
 - **THEN** the existing file is unchanged
 
-### Requirement: Forward compatibility
-`document.json` SHALL contain its format version as `"format": "MAJOR.MINOR"` and the oldest Annota version that reads it as `"requires"`. Files of a newer minor version SHALL open without any message; keys and object types this version does not know SHALL be kept and written back when the document is saved. Files of a newer major version SHALL NOT be opened: the error SHALL name the file's format version and the Annota version it requires, and the file SHALL NOT be changed.
+### Requirement: Documents stay saveable
+Every change to a document SHALL keep it saveable and reopenable. A change that would give an object a position, size or rotation that is not a finite number, make it use an embedded image the document does not have, or give it a value that cannot be written and read back SHALL be refused with an error, and the document SHALL stay unchanged.
+
+#### Scenario: Invalid change refused
+- **WHEN** an edit would set an object coordinate to a non-finite value (for example a size computed by dividing by zero) or point an object at an embedded image that does not exist
+- **THEN** the edit fails with an error, the document is unchanged, and it still saves, autosaves and reopens
+
+### Requirement: Format versions
+`document.json` SHALL contain its format version as `"format": "MAJOR.MINOR"` and the oldest Annota version that reads it as `"requires"`. Files of a newer minor version SHALL open without any message. Files of a newer major version SHALL NOT be opened: the error SHALL name the file's format version and the Annota version it requires, and the file SHALL NOT be changed.
 
 #### Scenario: Newer major
 - **WHEN** the user opens a file whose format major version is higher than supported
 - **THEN** opening fails with an error that names the file's format version and the required Annota version (shown as the "Newer Annota Version Needed" alert of mockup 15), and the file is unchanged
 
+### Requirement: Forward compatibility
+When a file of a newer minor version is saved, everything this version does not know SHALL be kept and written back: unknown keys at any depth (top level, inside sections such as `canvas.background`, inside objects and their nested values such as `shadow`), objects of unknown types, and the embedded images such objects use. Known keys SHALL be written with their current values. When a value with a `"type"` (such as the background) changes type, the unknown keys of its old type SHALL be dropped.
+
 #### Scenario: Newer minor
 - **WHEN** the user opens a file of a newer minor format version that contains properties and object types this version does not know, and saves it
 - **THEN** the file opens without a message and the saved file still contains those properties and objects
+
+#### Scenario: Unknown nested keys
+- **WHEN** a file of a newer minor version has unknown keys inside `canvas.background` and inside an object's `shadow`, and the user moves that object and saves
+- **THEN** the saved file contains those keys unchanged, and the object's new position
+
+### Requirement: Unknown values
+A value this version cannot interpret SHALL NOT prevent a file of a newer minor version from opening. An unknown canvas background type SHALL be shown and exported as transparent and written back unchanged until the user picks another background. An object of a known type that cannot be read SHALL be kept like an object of an unknown type: not drawn, not selectable, written back unchanged. In files of this or an older minor version such values are damage, and the file SHALL NOT open.
+
+#### Scenario: Unknown background type
+- **WHEN** a file of a newer minor version has a canvas background whose `"type"` this version does not know
+- **THEN** the file opens, the background is shown and exported as transparent, and saving writes the background back unchanged
+
+#### Scenario: Unreadable object in a newer minor file
+- **WHEN** a file of a newer minor version contains an object of a known type with a value this version cannot read
+- **THEN** the file opens, that object is kept and written back unchanged together with its embedded image, and the other objects can be edited
 
 ### Requirement: Autosave and recovery
 Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files in `~/.cache/annota/autosave/` (a directory only the user can read), each also recording the file the document belongs to. Nothing SHALL be written while a document does not change, and a document's autosave SHALL be removed when it is saved, closed, or back at its saved state. Autosaves left over from a previous run SHALL be offered for recovery, each with its name, autosave time, object count and thumbnail.

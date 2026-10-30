@@ -19,6 +19,10 @@
 //!   original image for magnifiers and redactions, other objects for spotlights).
 //! * **Bounds.** `bounds` covers everything `render` can touch, including stroke width and
 //!   shadow; the renderer culls and the spatial index hit-tests by it.
+//! * **Validity.** `Command`s refuse an object whose `bounds`/`arrange` are not finite, that
+//!   uses an embedded image the document does not have, or whose serialised form does not
+//!   read back (e.g. a NaN field, which JSON stores as `null`). The UI therefore does not have
+//!   to guard every division by zero itself: the command fails and nothing changes.
 //!
 //! Default methods cover the generic parts (box handles, translate, rotation), so a simple
 //! boxed type only implements geometry, rendering and its properties. New capabilities are
@@ -31,6 +35,7 @@ use serde::Serialize;
 
 use super::color::Rgba;
 use super::geometry::{normalize_degrees, Arrange, Point, Rect};
+use super::scene::ObjectId;
 use super::style::Shadow;
 use super::Document;
 
@@ -276,6 +281,12 @@ pub trait Annotation: AnnotationBase + fmt::Debug {
 
     /// Ids of document resources (embedded images) this object draws; they are saved with it.
     fn resources(&self) -> Vec<&str> {
+        Vec::new()
+    }
+
+    /// Ids of objects nested inside this one (a group's children, at any depth). The scene
+    /// never hands out these ids again, so ungrouping cannot create duplicates.
+    fn nested_ids(&self) -> Vec<ObjectId> {
         Vec::new()
     }
 }

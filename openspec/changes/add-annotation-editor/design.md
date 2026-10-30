@@ -53,12 +53,25 @@ integration (3.2–4.5) follow in phase 2.
   types compute from start + pointer. Clone/serialise/downcast plumbing comes from a blanket
   `AnnotationBase` impl. Serialisation is serde per type plus an explicit registry
   (`src/document/registry.rs`, one line per type) — no linker-section magic (`typetag`).
-- **Forward compatibility.** Keys a known type does not write back, and objects of unknown
-  types, are kept and re-written; same for unknown keys in every top-level section. Types must
-  therefore not use `skip_serializing_if`.
+- **Forward compatibility** (`src/document/residual.rs`; fixed after review). When a node or
+  section is read, its original JSON is diffed against what this version writes for the typed
+  value; the difference (unknown keys at any depth, per-element for arrays of unchanged length)
+  is kept as a *residual* and deep-merged back on write, so known keys always show the current
+  state. A residual remembers its value's `"type"` and is dropped when that type changes.
+  Objects of unknown types are kept verbatim (with the `images/<n>.png` entries they appear to
+  use). Unknown enum values: an unknown canvas background type reads as
+  `Background::Unknown` (`#[serde(other)]`), is drawn as transparent and writes nothing of its
+  own, so the residual restores it; in a newer-minor file an object of a known type that does
+  not parse is kept as an unknown object instead of failing the file (in a same-version file it
+  is damage). Types with enums of their own should add a similar fallback variant. Types must
+  not use `skip_serializing_if`.
 - **Commands.** `Command` is an enum of generic operations (Insert, Remove, Replace, Reorder,
-  SetCanvas, SetImage, SetMetadata, Batch). `apply` validates first, then returns the exact
-  inverse; `History` keeps inverses (200 steps), with a revision number for dirty tracking and
+  SetCanvas, SetImage, SetMetadata, Batch). `apply` (crate-private; the UI only uses
+  `History`) validates first, then returns the exact inverse. Validation keeps the document
+  saveable: inserted/replacing objects need finite `bounds`/`arrange`, embedded images that
+  exist (or come with the `Insert`), and JSON that reads back (catches NaN in any field). A
+  failing `Batch` undoes its applied steps and drops the images it added; if undoing fails too,
+  `CommandError::Rollback` reports both errors; `History` keeps inverses (200 steps), with a revision number for dirty tracking and
   autosave. Whole-object replacement instead of inverse deltas makes undo exact; bitmaps are
   shared (`Rc`), so snapshots are cheap.
 - **Bitmaps.** `document::bitmap::Bitmap` wraps an immutable cairo `ImageSurface` (drawn

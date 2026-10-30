@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/trosinde/Annota/data/schema/document-1.schema.json",
   "title": "Annota document.json, format 1.x",
-  "description": "The scene graph inside a .annota file (a ZIP archive with document.json, original.png, thumbnail.png and images/<n>.png for embedded images). Coordinates are document pixels: one unit is one pixel of original.png, origin at its top-left corner, y down, angles in degrees clockwise. Readers of format 1.x accept every minor version: unknown keys and unknown object types are preserved and written back. A higher major version is refused.",
+  "description": "The scene graph inside a .annota file (a ZIP archive with document.json, original.png, thumbnail.png and images/<n>.png for embedded images). Coordinates are document pixels: one unit is one pixel of original.png, origin at its top-left corner, y down, angles in degrees clockwise. Readers of format 1.x accept every minor version: unknown keys at any depth, unknown object types, unknown background types and objects a reader cannot interpret are preserved and written back. A higher major version is refused.",
   "type": "object",
   "required": ["format", "requires", "image", "canvas", "objects"],
   "properties": {
@@ -70,6 +70,7 @@
       "pattern": "^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"
     },
     "background": {
+      "description": "The types format 1.0 defines. Readers treat a background type they do not know (from a newer minor version) as transparent and write it back unchanged.",
       "oneOf": [
         {
           "type": "object",

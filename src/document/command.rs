@@ -8,11 +8,18 @@
 //! of `SetImage` and `Remove`. Replacing whole objects makes undo exact (no floating-point
 //! drift from applying inverse deltas) and costs little, because objects hold bitmaps by
 //! reference.
+//!
+//! Every command is validated before it changes anything. Besides structural checks (ids,
+//! positions, permutations) this keeps the document saveable and reopenable at all times: an
+//! inserted or replacing object must have finite geometry, may only use embedded images the
+//! document (or the same `Insert`) provides, and must read back from its own JSON.
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::{BTreeSet, HashSet, VecDeque};
 
 use super::annotation::Annotation;
 use super::bitmap::Bitmap;
+use super::geometry::Rect;
+use super::registry;
 use super::scene::{Node, ObjectId, SceneError};
 use super::{BaseImage, Canvas, Document, Metadata};
 
@@ -58,6 +65,56 @@ pub enum CommandError {
     ResourceId(String),
     #[error("invalid value: {0}")]
     Value(&'static str),
+    /// E.g. a size computed by dividing by zero.
+    #[error("object {0:?} has a position, size or rotation that is not a finite number")]
+    NonFinite(ObjectId),
+    #[error(
+        "object {object:?} uses the embedded image '{resource}', which the document does not have"
+    )]
+    MissingResource { object: ObjectId, resource: String },
+    #[error("object {object:?} could not be saved and reopened: {reason}")]
+    Unsaveable { object: ObjectId, reason: String },
+    /// A step of a `Batch` failed, and undoing the steps before it failed as well: the
+    /// document may be left partly changed.
+    #[error("{error}; undoing the partial change also failed: {rollback}")]
+    Rollback {
+        error: Box<CommandError>,
+        rollback: Box<CommandError>,
+    },
+}
+
+fn finite_rect(r: &Rect) -> bool {
+    r.x.is_finite() && r.y.is_finite() && r.width.is_finite() && r.height.is_finite()
+}
+
+/// Finite `bounds()` and `arrange()` (also checked when a file is read).
+pub(crate) fn check_geometry(id: ObjectId, object: &dyn Annotation) -> Result<(), CommandError> {
+    let arrange = object.arrange();
+    if finite_rect(&object.bounds()) && finite_rect(&arrange.rect) && arrange.rotation.is_finite() {
+        Ok(())
+    } else {
+        Err(CommandError::NonFinite(id))
+    }
+}
+
+/// Everything an object must satisfy to enter the document; `has_resource` says whether an
+/// embedded image will exist once the command is applied.
+fn check_object(
+    id: ObjectId,
+    object: &dyn Annotation,
+    has_resource: impl Fn(&str) -> bool,
+) -> Result<(), CommandError> {
+    check_geometry(id, object)?;
+    if let Some(missing) = object.resources().into_iter().find(|r| !has_resource(r)) {
+        return Err(CommandError::MissingResource {
+            object: id,
+            resource: missing.to_string(),
+        });
+    }
+    registry::check_reads_back(object).map_err(|err| CommandError::Unsaveable {
+        object: id,
+        reason: err.to_string(),
+    })
 }
 
 fn no_repeats(ids: impl IntoIterator<Item = ObjectId>) -> Result<(), CommandError> {
@@ -85,8 +142,12 @@ impl Command {
         }
     }
 
-    /// Applies the command and returns its inverse. On error the document is unchanged.
-    pub fn apply(self, doc: &mut Document) -> Result<Command, CommandError> {
+    /// Applies the command and returns its inverse. On error the document is unchanged
+    /// (except for [`CommandError::Rollback`]).
+    ///
+    /// Crate-private: outside the model, every change goes through [`History::execute`], so
+    /// nothing can bypass undo/redo and dirty tracking (CLAUDE.md §7).
+    pub(crate) fn apply(self, doc: &mut Document) -> Result<Command, CommandError> {
         self.validate(doc)?;
         match self {
             Command::Insert { nodes, resources } => {
@@ -133,17 +194,13 @@ impl Command {
                 Ok(Command::SetMetadata(doc.replace_metadata(metadata)))
             }
             Command::Batch(commands) => {
+                let resources_before: BTreeSet<String> =
+                    doc.resources().ids().map(str::to_string).collect();
                 let mut inverses: Vec<Command> = Vec::with_capacity(commands.len());
                 for command in commands {
                     match command.apply(doc) {
                         Ok(inverse) => inverses.push(inverse),
-                        Err(err) => {
-                            // Roll back what was applied, newest first.
-                            for inverse in inverses.into_iter().rev() {
-                                let _ = inverse.apply(doc);
-                            }
-                            return Err(err);
-                        }
+                        Err(err) => return Err(roll_back(doc, inverses, &resources_before, err)),
                     }
                 }
                 inverses.reverse();
@@ -177,6 +234,12 @@ impl Command {
                         }
                     }
                 }
+                let has_resource = |r: &str| {
+                    doc.resources().contains(r) || resources.iter().any(|(id, _)| id == r)
+                };
+                for (_, node) in nodes {
+                    check_object(node.id, node.object.as_ref(), has_resource)?;
+                }
                 Ok(())
             }
             Command::Remove { ids } => {
@@ -188,10 +251,14 @@ impl Command {
             }
             Command::Replace { objects } => {
                 no_repeats(objects.iter().map(|(id, _)| *id))?;
-                match objects.iter().find(|(id, _)| scene.position(*id).is_none()) {
-                    Some((id, _)) => Err(SceneError::Unknown(*id).into()),
-                    None => Ok(()),
+                if let Some((id, _)) = objects.iter().find(|(id, _)| scene.position(*id).is_none())
+                {
+                    return Err(SceneError::Unknown(*id).into());
                 }
+                for (id, object) in objects {
+                    check_object(*id, object.as_ref(), |r| doc.resources().contains(r))?;
+                }
+                Ok(())
             }
             Command::Reorder { order } => {
                 if scene.is_permutation(order) {
@@ -224,6 +291,39 @@ impl Command {
             // Sub-commands are validated as they are applied; failures roll back.
             Command::Batch(_) => Ok(()),
         }
+    }
+}
+
+/// Undoes the applied part of a failed `Batch`, newest first, and drops the embedded images
+/// it added. Returns the error to report: `error`, or [`CommandError::Rollback`] if undoing
+/// failed too (every inverse is still attempted).
+fn roll_back(
+    doc: &mut Document,
+    inverses: Vec<Command>,
+    resources_before: &BTreeSet<String>,
+    error: CommandError,
+) -> CommandError {
+    let mut failed = None;
+    for inverse in inverses.into_iter().rev() {
+        if let Err(err) = inverse.apply(doc) {
+            failed.get_or_insert(err);
+        }
+    }
+    let added: Vec<String> = doc
+        .resources()
+        .ids()
+        .filter(|id| !resources_before.contains(*id))
+        .map(str::to_string)
+        .collect();
+    for id in added {
+        doc.resources_mut().remove(&id);
+    }
+    match failed {
+        None => error,
+        Some(rollback) => CommandError::Rollback {
+            error: Box::new(error),
+            rollback: Box::new(rollback),
+        },
     }
 }
 
@@ -680,6 +780,153 @@ mod tests {
         h.redo(&mut d).unwrap();
         assert_eq!(h.revision(), r);
         assert!(h.is_dirty());
+    }
+
+    /// A document with one image object (registered type, so it is saved for real).
+    fn doc_with_image() -> (Document, History, ObjectId) {
+        let mut d = doc();
+        let mut h = History::new();
+        let pip = Bitmap::filled(20, 10, Rgba::opaque(9, 9, 9)).unwrap();
+        let cmd = crate::tools::image::Image::insert_command(&d, pip, Point::new(50.0, 40.0));
+        h.execute(&mut d, "Insert", cmd).unwrap();
+        let id = d.scene().ids()[0];
+        (d, h, id)
+    }
+
+    fn edited_image(
+        d: &Document,
+        id: ObjectId,
+        edit: impl FnOnce(&mut crate::tools::image::Image),
+    ) -> Command {
+        let mut object = d.scene().get(id).unwrap().object.clone();
+        edit(
+            object
+                .as_any_mut()
+                .downcast_mut::<crate::tools::image::Image>()
+                .unwrap(),
+        );
+        Command::Replace {
+            objects: vec![(id, object)],
+        }
+    }
+
+    /// Saves and reopens, also through an autosave slot (crash recovery path).
+    fn assert_saves_and_reopens(d: &Document) {
+        use crate::document::archive;
+        use crate::document::autosave::{AutosaveId, Store};
+        let back = archive::decode(&archive::encode(d).unwrap()).unwrap();
+        assert_eq!(
+            archive::document_json(&back).unwrap(),
+            archive::document_json(d).unwrap()
+        );
+        let dir = std::env::temp_dir().join(format!(
+            "annota-cmd-{}-{}",
+            std::process::id(),
+            AutosaveId::generate().as_str()
+        ));
+        let store = Store::new(&dir);
+        let id = AutosaveId::generate();
+        store.write(&id, d, None).unwrap();
+        let entry = store.list().entries.pop().unwrap();
+        store.restore(&entry).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn nan_coordinate_is_rejected() {
+        // Reviewer repro (B3): Replace with a NaN coordinate used to be accepted, saved as
+        // `null`, and then neither the file nor its autosave reopened.
+        let (mut d, mut h, id) = doc_with_image();
+        let before = archive_json(&d);
+        let nan = edited_image(&d, id, |img| img.x = f64::NAN);
+        assert_eq!(
+            h.execute(&mut d, "Move", nan),
+            Err(CommandError::NonFinite(id))
+        );
+        // Division by zero, e.g. setting H on something 0 px high: infinite scale.
+        let inf = edited_image(&d, id, |img| {
+            let scale = 30.0 / 0.0;
+            img.width *= scale;
+        });
+        assert_eq!(
+            h.execute(&mut d, "Resize", inf),
+            Err(CommandError::NonFinite(id))
+        );
+        // Non-geometric NaN: serialises as `null`, which does not read back.
+        let opacity = edited_image(&d, id, |img| img.opacity = f64::NAN);
+        assert!(matches!(
+            h.execute(&mut d, "Opacity", opacity),
+            Err(CommandError::Unsaveable { object, .. }) if object == id
+        ));
+        // Also inside a batch, and on insert.
+        let batch = Command::Batch(vec![edited_image(&d, id, |img| img.y = f64::INFINITY)]);
+        assert!(h.execute(&mut d, "Batch", batch).is_err());
+        let (_, insert) = insert(&d, Rect::new(f64::NAN, 0.0, 1.0, 1.0));
+        assert!(matches!(
+            h.execute(&mut d, "Add", insert),
+            Err(CommandError::NonFinite(_))
+        ));
+        assert_eq!(archive_json(&d), before, "nothing changed");
+        assert_eq!(h.undo_len(), 1);
+        assert_saves_and_reopens(&d);
+    }
+
+    #[test]
+    fn dangling_resource_reference_is_rejected() {
+        // Reviewer repro (B3): pointing an object at a missing embedded image used to be
+        // accepted, after which every save and autosave failed.
+        let (mut d, mut h, id) = doc_with_image();
+        let dangling = edited_image(&d, id, |img| img.source = "images/77.png".into());
+        assert_eq!(
+            h.execute(&mut d, "Replace", dangling),
+            Err(CommandError::MissingResource {
+                object: id,
+                resource: "images/77.png".into()
+            })
+        );
+        // An insert must bring the images it uses unless the document has them.
+        let new_id = d.scene().fresh_ids(1)[0];
+        let object = crate::tools::image::Image::new("images/5.png", Rect::new(0.0, 0.0, 4.0, 4.0));
+        let node = || Node::new(new_id, Box::new(object.clone()));
+        let without = Command::Insert {
+            nodes: vec![(1, node())],
+            resources: Vec::new(),
+        };
+        assert!(matches!(
+            h.execute(&mut d, "Add", without),
+            Err(CommandError::MissingResource { .. })
+        ));
+        let with = Command::Insert {
+            nodes: vec![(1, node())],
+            resources: vec![("images/5.png".into(), d.image().bitmap.clone())],
+        };
+        h.execute(&mut d, "Add", with).unwrap();
+        // An existing embedded image may be shared.
+        let shared = edited_image(&d, id, |img| img.source = "images/5.png".into());
+        h.execute(&mut d, "Share", shared).unwrap();
+        assert_saves_and_reopens(&d);
+    }
+
+    #[test]
+    fn failed_batch_drops_the_images_it_added() {
+        // Reviewer finding: a rolled-back Insert left its embedded image behind (1 → 2).
+        let (mut d, mut h, _) = doc_with_image();
+        assert_eq!(d.resources().len(), 1);
+        let pip = Bitmap::filled(5, 5, Rgba::WHITE).unwrap();
+        let batch = Command::Batch(vec![
+            crate::tools::image::Image::insert_command(&d, pip, Point::new(10.0, 10.0)),
+            Command::Remove {
+                ids: vec![ObjectId(424242)],
+            },
+        ]);
+        assert!(h.execute(&mut d, "Both", batch).is_err());
+        assert_eq!(d.resources().len(), 1);
+        assert_eq!(d.object_count(), 1);
+        assert_eq!(h.undo_len(), 1);
+    }
+
+    fn archive_json(d: &Document) -> serde_json::Value {
+        crate::document::archive::document_json(d).unwrap()
     }
 
     #[test]

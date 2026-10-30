@@ -12,26 +12,57 @@ pub mod color;
 pub mod command;
 pub mod geometry;
 pub mod registry;
+pub(crate) mod residual;
 pub mod scene;
 pub mod style;
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Serialize, Serializer};
 
 use bitmap::Bitmap;
 use color::Rgba;
 use geometry::IRect;
+use residual::Residual;
 use scene::Scene;
 
 /// What fills the canvas outside (and under transparent parts of) the image.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Background {
     /// Exported as transparent pixels; shown as a checkerboard on screen (mockup 10).
     Transparent,
     /// Palette swatch, Paper (white), custom colour or eyedropper — all store the colour.
     Color { color: Rgba },
+    /// A background type from a newer minor format version (e.g. a future `"gradient"`).
+    /// It is drawn like [`Background::Transparent`]; its JSON is kept by the document's
+    /// residual (`residual.rs`) and written back unchanged as long as the user does not pick
+    /// another background. This version never creates it.
+    #[serde(other)]
+    Unknown,
+}
+
+/// `{"type": "transparent"}`, `{"type": "color", "color": "#RRGGBBAA"}`; an unknown
+/// background writes nothing of its own (`{}`) so its original keys, `"type"` included, come
+/// back from the residual.
+impl Serialize for Background {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Background::Transparent => {
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry("type", "transparent")?;
+                map.end()
+            }
+            Background::Color { color } => {
+                let mut map = serializer.serialize_map(Some(2))?;
+                map.serialize_entry("type", "color")?;
+                map.serialize_entry("color", color)?;
+                map.end()
+            }
+            Background::Unknown => serializer.serialize_map(Some(0))?.end(),
+        }
+    }
 }
 
 /// The canvas: the exported area, in document pixels. It starts as the image bounds and grows
@@ -104,8 +135,20 @@ impl Resources {
         format!("images/{next}.png")
     }
 
+    pub fn contains(&self, id: &str) -> bool {
+        self.map.contains_key(id)
+    }
+
     pub(crate) fn insert(&mut self, id: String, bitmap: Bitmap) {
         self.map.insert(id, bitmap);
+    }
+
+    pub(crate) fn ids(&self) -> impl Iterator<Item = &str> {
+        self.map.keys().map(String::as_str)
+    }
+
+    pub(crate) fn remove(&mut self, id: &str) -> Option<Bitmap> {
+        self.map.remove(id)
     }
 }
 
@@ -118,15 +161,6 @@ pub fn parse_resource_id(id: &str) -> Option<u32> {
     n.parse().ok()
 }
 
-/// Unknown keys from a newer minor format version, per JSON section.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct Extras {
-    pub root: serde_json::Map<String, serde_json::Value>,
-    pub image: serde_json::Map<String, serde_json::Value>,
-    pub canvas: serde_json::Map<String, serde_json::Value>,
-    pub metadata: serde_json::Map<String, serde_json::Value>,
-}
-
 #[derive(Clone, Debug)]
 pub struct Document {
     image: BaseImage,
@@ -134,7 +168,9 @@ pub struct Document {
     metadata: Metadata,
     scene: Scene,
     resources: Resources,
-    pub(crate) extras: Extras,
+    /// What this version did not understand of `document.json` outside `objects` (unknown
+    /// keys at any depth, unknown background types), written back on save.
+    pub(crate) residual: Option<Residual>,
     /// Minor format version of the file this came from (written back if newer than ours).
     pub(crate) format_minor: u32,
 }
@@ -155,7 +191,7 @@ impl Document {
             metadata: Metadata::default(),
             scene: Scene::new(),
             resources: Resources::default(),
-            extras: Extras::default(),
+            residual: None,
             format_minor: 0,
         }
     }
@@ -225,7 +261,7 @@ impl Document {
             metadata,
             scene,
             resources,
-            extras: Extras::default(),
+            residual: None,
             format_minor: 0,
         }
     }
@@ -272,5 +308,18 @@ mod tests {
             .unwrap(),
             serde_json::json!({"type": "color", "color": "#FFFFFFFF"})
         );
+        // Unknown types from a newer minor version read as `Unknown` and write nothing.
+        let unknown: Background =
+            serde_json::from_value(serde_json::json!({"type": "gradient", "stops": []})).unwrap();
+        assert_eq!(unknown, Background::Unknown);
+        assert_eq!(
+            serde_json::to_value(unknown).unwrap(),
+            serde_json::json!({})
+        );
+        // A malformed known type is still an error.
+        assert!(serde_json::from_value::<Background>(
+            serde_json::json!({"type": "color", "color": 7})
+        )
+        .is_err());
     }
 }

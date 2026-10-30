@@ -11,8 +11,10 @@
 //!
 //! **Versioning.** `document.json` carries `"format": "MAJOR.MINOR"` and `"requires"`, the
 //! oldest Annota release that reads that format. A newer *minor* version only adds data: it
-//! opens silently, and keys or object types this version does not know are kept and written
-//! back. A newer *major* version is refused with [`ArchiveError::NewerFormat`], which names the
+//! opens silently, and whatever this version does not know is kept and written back — keys at
+//! any depth (`super::residual`), object types, unknown canvas background types
+//! ([`Background::Unknown`], drawn as transparent), objects of known types this version cannot
+//! read (kept as `UnknownObject`s), and the embedded images such objects use. A newer *major* version is refused with [`ArchiveError::NewerFormat`], which names the
 //! format and the required Annota version, before anything else in the file is interpreted.
 
 use std::collections::BTreeSet;
@@ -26,9 +28,10 @@ use serde_json::{Map, Value};
 
 use super::bitmap::{Bitmap, BitmapError};
 use super::geometry::IRect;
-use super::registry::{node_from_json, node_to_json};
+use super::registry::{node_from_json, node_to_json, UnknownObject};
+use super::residual;
 use super::scene::Scene;
-use super::{Background, BaseImage, Canvas, Document, Extras, Metadata, Resources};
+use super::{Background, BaseImage, Canvas, Document, Metadata, Resources};
 
 /// The format this version writes.
 pub const FORMAT: FormatVersion = FormatVersion { major: 1, minor: 0 };
@@ -112,8 +115,6 @@ struct FileJson {
     objects: Vec<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     autosave: Option<AutosaveJson>,
-    #[serde(flatten)]
-    extra: Map<String, Value>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -123,8 +124,6 @@ struct ImageJson {
     height: i32,
     #[serde(default)]
     corner_radius: f64,
-    #[serde(flatten)]
-    extra: Map<String, Value>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -134,8 +133,6 @@ struct CanvasJson {
     width: i32,
     height: i32,
     background: Background,
-    #[serde(flatten)]
-    extra: Map<String, Value>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -144,8 +141,6 @@ struct MetadataJson {
     title: Option<String>,
     #[serde(default = "one")]
     scale_factor: f64,
-    #[serde(flatten)]
-    extra: Map<String, Value>,
 }
 
 fn one() -> f64 {
@@ -157,7 +152,6 @@ impl Default for MetadataJson {
         Self {
             title: None,
             scale_factor: 1.0,
-            extra: Map::new(),
         }
     }
 }
@@ -170,18 +164,17 @@ pub(crate) struct AutosaveJson {
     pub source: Option<String>,
 }
 
+/// Keys of `document.json` that are not sections of the typed document: objects are kept per
+/// node, the autosave key belongs to the autosave copy only.
+const NOT_SECTIONS: [&str; 2] = ["objects", "autosave"];
+
 /// `document.json` of `doc` as a JSON value (the file's content, minus autosave data).
 pub fn document_json(doc: &Document) -> Result<Value, ArchiveError> {
-    Ok(serde_json::to_value(file_json(doc, None)?)?)
+    file_json(doc, None)
 }
 
-fn file_json(doc: &Document, autosave: Option<AutosaveJson>) -> Result<FileJson, ArchiveError> {
-    let objects = doc
-        .scene()
-        .nodes()
-        .iter()
-        .map(node_to_json)
-        .collect::<Result<Vec<_>, _>>()?;
+/// Everything but `objects` and `autosave`, as this version writes it (no residual).
+fn sections_json(doc: &Document) -> Result<Map<String, Value>, ArchiveError> {
     let canvas = doc.canvas();
     let image = doc.image();
     let metadata = doc.metadata();
@@ -194,7 +187,7 @@ fn file_json(doc: &Document, autosave: Option<AutosaveJson>) -> Result<FileJson,
             FORMAT.minor
         },
     };
-    Ok(FileJson {
+    let json = FileJson {
         format: format.to_string(),
         requires: Some(REQUIRES.to_string()),
         generator: Some(format!("Annota {}", env!("CARGO_PKG_VERSION"))),
@@ -203,7 +196,6 @@ fn file_json(doc: &Document, autosave: Option<AutosaveJson>) -> Result<FileJson,
             width: image.bitmap.width(),
             height: image.bitmap.height(),
             corner_radius: image.corner_radius,
-            extra: doc.extras.image.clone(),
         },
         canvas: CanvasJson {
             x: canvas.rect.x,
@@ -211,17 +203,51 @@ fn file_json(doc: &Document, autosave: Option<AutosaveJson>) -> Result<FileJson,
             width: canvas.rect.width,
             height: canvas.rect.height,
             background: canvas.background,
-            extra: doc.extras.canvas.clone(),
         },
         metadata: MetadataJson {
             title: metadata.title.clone(),
             scale_factor: metadata.scale_factor,
-            extra: doc.extras.metadata.clone(),
         },
-        objects,
-        autosave,
-        extra: doc.extras.root.clone(),
-    })
+        objects: Vec::new(),
+        autosave: None,
+    };
+    let Value::Object(mut map) = serde_json::to_value(json)? else {
+        return Err(ArchiveError::Invalid(
+            "document.json is not an object".into(),
+        ));
+    };
+    for key in NOT_SECTIONS {
+        map.remove(key);
+    }
+    Ok(map)
+}
+
+fn file_json(doc: &Document, autosave: Option<AutosaveJson>) -> Result<Value, ArchiveError> {
+    let mut root = Value::Object(sections_json(doc)?);
+    if let Some(r) = &doc.residual {
+        residual::merge(&mut root, r);
+    }
+    // An unknown background writes nothing of its own; its keys come from the residual. If
+    // there are none (it can only come from a file, so this is defensive), fall back to the
+    // background it is drawn as.
+    if let Some(background) = root.pointer_mut("/canvas/background") {
+        if background.get("type").is_none() {
+            *background = serde_json::json!({"type": "transparent"});
+        }
+    }
+    let objects = doc
+        .scene()
+        .nodes()
+        .iter()
+        .map(node_to_json)
+        .collect::<Result<Vec<_>, _>>()?;
+    if let Value::Object(map) = &mut root {
+        map.insert("objects".into(), Value::Array(objects));
+        if let Some(autosave) = autosave {
+            map.insert("autosave".into(), serde_json::to_value(autosave)?);
+        }
+    }
+    Ok(root)
 }
 
 /// Resource ids the objects use, each once, in a stable order.
@@ -324,10 +350,11 @@ fn read_entry<R: Read + Seek>(
     Ok(bytes)
 }
 
-/// Reads `document.json` and refuses newer major versions.
+/// Reads `document.json` and refuses newer major versions. Also returns the parsed JSON as
+/// it was, for forward compatibility.
 fn read_document_json<R: Read + Seek>(
     zip: &mut zip::ZipArchive<R>,
-) -> Result<(FileJson, FormatVersion), ArchiveError> {
+) -> Result<(FileJson, FormatVersion, Value), ArchiveError> {
     let bytes = read_entry(zip, DOCUMENT_JSON, MAX_JSON)?;
     let value: Value = serde_json::from_slice(&bytes)?;
     let format = value
@@ -347,7 +374,7 @@ fn read_document_json<R: Read + Seek>(
     if format.major < FORMAT.major {
         return Err(ArchiveError::Invalid(format!("unknown format {format}")));
     }
-    Ok((serde_json::from_value(value)?, format))
+    Ok((serde_json::from_value(value.clone())?, format, value))
 }
 
 /// A document read from a file, plus what an autosave copy remembers.
@@ -358,7 +385,9 @@ pub(crate) struct Opened {
 
 pub(crate) fn decode_from<R: Read + Seek>(reader: R) -> Result<Opened, ArchiveError> {
     let mut zip = zip::ZipArchive::new(reader)?;
-    let (json, format) = read_document_json(&mut zip)?;
+    let (json, format, original) = read_document_json(&mut zip)?;
+    // A newer minor version may add values this version cannot read: keep those objects.
+    let newer_minor = format.minor > FORMAT.minor;
 
     if json.image.file != ORIGINAL_PNG {
         return Err(ArchiveError::Invalid(format!(
@@ -382,16 +411,14 @@ pub(crate) fn decode_from<R: Read + Seek>(reader: R) -> Result<Opened, ArchiveEr
         return Err(ArchiveError::Invalid("invalid scale factor".into()));
     }
 
-    let nodes = json
+    let mut nodes = json
         .objects
         .into_iter()
-        .map(node_from_json)
+        .map(|v| node_from_json(v, newer_minor))
         .collect::<Result<Vec<_>, _>>()?;
-    let scene = Scene::try_from_nodes(nodes).map_err(|e| ArchiveError::Invalid(e.to_string()))?;
 
     let mut resources = Resources::default();
-    let ids: BTreeSet<String> = scene
-        .nodes()
+    let ids: BTreeSet<String> = nodes
         .iter()
         .flat_map(|n| n.object.resources().into_iter().map(str::to_string))
         .collect();
@@ -404,6 +431,30 @@ pub(crate) fn decode_from<R: Read + Seek>(reader: R) -> Result<Opened, ArchiveEr
         let png = read_entry(&mut zip, &id, MAX_PNG)?;
         resources.insert(id, Bitmap::from_png(png)?);
     }
+    // Objects this version cannot interpret keep the embedded images they appear to use, so
+    // saving does not drop them. Anything that is not a readable image entry is ignored.
+    for node in &mut nodes {
+        let Some(unknown) = node.object.as_any_mut().downcast_mut::<UnknownObject>() else {
+            continue;
+        };
+        for id in unknown.resource_candidates() {
+            if !resources.contains(&id) {
+                let Ok(png) = read_entry(&mut zip, &id, MAX_PNG) else {
+                    continue;
+                };
+                let Ok(bitmap) = Bitmap::from_png(png) else {
+                    continue;
+                };
+                resources.insert(id.clone(), bitmap);
+            }
+            unknown.resources.push(id);
+        }
+    }
+    for node in &nodes {
+        super::command::check_geometry(node.id, node.object.as_ref())
+            .map_err(|e| ArchiveError::Invalid(e.to_string()))?;
+    }
+    let scene = Scene::try_from_nodes(nodes).map_err(|e| ArchiveError::Invalid(e.to_string()))?;
 
     let mut document = Document::from_parts(
         BaseImage {
@@ -426,13 +477,16 @@ pub(crate) fn decode_from<R: Read + Seek>(reader: R) -> Result<Opened, ArchiveEr
         scene,
         resources,
     );
-    document.extras = Extras {
-        root: json.extra,
-        image: json.image.extra,
-        canvas: json.canvas.extra,
-        metadata: json.metadata.extra,
-    };
     document.format_minor = format.minor;
+    // Whatever this version does not write back of the sections (unknown keys at any depth,
+    // an unknown background type) stays with the document.
+    let mut original = original;
+    if let Value::Object(map) = &mut original {
+        for key in NOT_SECTIONS {
+            map.remove(key);
+        }
+    }
+    document.residual = residual::diff(&original, &Value::Object(sections_json(&document)?));
     Ok(Opened {
         document,
         autosave: json.autosave,
@@ -464,7 +518,7 @@ pub struct Summary {
 
 pub fn read_summary(path: &Path) -> Result<Summary, ArchiveError> {
     let mut zip = zip::ZipArchive::new(BufReader::new(File::open(path)?))?;
-    let (json, format) = read_document_json(&mut zip)?;
+    let (json, format, _) = read_document_json(&mut zip)?;
     let thumbnail_png = match read_entry(&mut zip, THUMBNAIL_PNG, MAX_PNG) {
         Ok(bytes) => Some(bytes),
         Err(ArchiveError::Missing(_)) => None,
@@ -715,6 +769,192 @@ pub(crate) mod tests {
         // And through a full save/load cycle.
         let again = document_json(&decode(&encode(&doc).unwrap()).unwrap()).unwrap();
         assert_eq!(again, saved);
+    }
+
+    /// A `.annota` file from a hand-written `document.json`, a 40 × 20 original and the
+    /// given embedded images.
+    fn hand_written(json: &str, images: &[&str]) -> Vec<u8> {
+        let original = Bitmap::filled(40, 20, palette::CORAL).unwrap();
+        let mut out = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let opts = zip::write::SimpleFileOptions::default();
+        out.start_file(DOCUMENT_JSON, opts).unwrap();
+        out.write_all(json.as_bytes()).unwrap();
+        out.start_file(ORIGINAL_PNG, opts).unwrap();
+        out.write_all(&original.png().unwrap()).unwrap();
+        for name in images {
+            out.start_file(*name, opts).unwrap();
+            out.write_all(&Bitmap::filled(8, 8, palette::AZURE).unwrap().png().unwrap())
+                .unwrap();
+        }
+        out.finish().unwrap().into_inner()
+    }
+
+    /// `document.json` as saved after opening `bytes` (save, then read the JSON back out).
+    fn resaved(doc: &Document) -> Value {
+        let mut zip = zip::ZipArchive::new(Cursor::new(encode(doc).unwrap())).unwrap();
+        serde_json::from_slice(&read_entry(&mut zip, DOCUMENT_JSON, MAX_JSON).unwrap()).unwrap()
+    }
+
+    const IMAGE_FIELDS: &str = r##""source": "images/1.png", "x": 4, "y": 2, "width": 10, "height": 6,
+        "rotation": 0, "opacity": 1, "border_color": "#FFFFFFFF", "border_width": 2,
+        "corner_radius": 0"##;
+
+    #[test]
+    fn unknown_nested_keys_survive_a_round_trip() {
+        // Reviewer repro (B4): unknown keys *inside* known sections and objects were dropped.
+        let json = format!(
+            r##"{{
+            "format": "1.3", "requires": "0.1", "generator": "Annota 0.4.0",
+            "image": {{"file": "original.png", "width": 40, "height": 20, "corner_radius": 0,
+                       "exif": {{"camera": "none", "dpi": [144, 144]}}}},
+            "canvas": {{"x": 0, "y": 0, "width": 40, "height": 20,
+                        "background": {{"type": "color", "color": "#FFFFFFFF",
+                                        "pattern": {{"kind": "dots", "spacing": 8}}}}}},
+            "metadata": {{"title": "Nested", "scale_factor": 2, "source_app": {{"name": "Firefox"}}}},
+            "objects": [{{"id": 1, "type": "image", {IMAGE_FIELDS},
+                "shadow": {{"enabled": true, "color": "#000006FF", "opacity": 0.4, "angle": 45,
+                            "distance": 3, "blur": 2, "spread": 1.5, "inset": {{"on": false}}}},
+                "filters": [{{"kind": "sepia", "amount": 0.3}}]}}]
+        }}"##
+        );
+        let original: Value = serde_json::from_str(&json).unwrap();
+        let doc = decode(&hand_written(&json, &["images/1.png"])).unwrap();
+        let saved = resaved(&doc);
+        for pointer in [
+            "/image/exif",
+            "/canvas/background/pattern",
+            "/metadata/source_app",
+            "/objects/0/shadow/spread",
+            "/objects/0/shadow/inset",
+            "/objects/0/filters",
+        ] {
+            assert_eq!(
+                saved.pointer(pointer),
+                original.pointer(pointer),
+                "{pointer}"
+            );
+        }
+        assert_eq!(saved["format"], json!("1.3"));
+
+        // Editing keeps them, and known keys show the edit: move the object and change its
+        // shadow blur through commands.
+        let mut doc = doc;
+        let mut h = History::new();
+        let id = doc.scene().ids()[0];
+        let mut object = doc.scene().get(id).unwrap().object.clone();
+        object.translate(5.0, 0.0);
+        let mut shadow = Image::DEFAULT_SHADOW;
+        shadow.blur = 9.0;
+        object
+            .set_property(
+                "shadow",
+                &crate::document::annotation::PropertyValue::Shadow(shadow),
+            )
+            .unwrap();
+        h.execute(
+            &mut doc,
+            "Edit",
+            Command::Replace {
+                objects: vec![(id, object)],
+            },
+        )
+        .unwrap();
+        let mut canvas = *doc.canvas();
+        canvas.rect.width = 60;
+        h.execute(&mut doc, "Extend", Command::SetCanvas(canvas))
+            .unwrap();
+        let saved = resaved(&doc);
+        assert_eq!(saved["objects"][0]["x"], json!(9.0));
+        assert_eq!(saved["objects"][0]["shadow"]["blur"], json!(9.0));
+        assert_eq!(saved["objects"][0]["shadow"]["spread"], json!(1.5));
+        assert_eq!(saved["canvas"]["width"], json!(60));
+        assert_eq!(
+            saved["canvas"]["background"]["pattern"],
+            json!({"kind": "dots", "spacing": 8})
+        );
+        // And the saved file reads back to the same JSON.
+        assert_eq!(resaved(&decode(&encode(&doc).unwrap()).unwrap()), saved);
+    }
+
+    #[test]
+    fn unknown_background_type_opens_and_is_kept() {
+        // Reviewer repro (B4): a new background variant made the whole file fail to open.
+        let json = r##"{
+            "format": "1.2", "requires": "0.1",
+            "image": {"file": "original.png", "width": 40, "height": 20},
+            "canvas": {"x": 0, "y": 0, "width": 60, "height": 20,
+                       "background": {"type": "gradient", "angle": 90,
+                                      "stops": [{"at": 0, "color": "#FF0000FF"}, {"at": 1, "color": "#0000FFFF"}]}},
+            "objects": []
+        }"##;
+        let original: Value = serde_json::from_str(json).unwrap();
+        let doc = decode(&hand_written(json, &[])).unwrap();
+        assert_eq!(doc.canvas().background, Background::Unknown);
+        // Drawn as transparent: the extension exports as transparent pixels.
+        let flat = crate::render::flatten(&doc, 1.0).unwrap();
+        assert_eq!(flat.pixel(50, 10).unwrap().a, 0);
+        assert_eq!(flat.pixel(10, 10), Some(palette::CORAL));
+        assert_eq!(
+            resaved(&doc)["canvas"]["background"],
+            original["canvas"]["background"]
+        );
+        // Picking another background replaces it cleanly; undo brings the original back.
+        let mut doc = doc;
+        let mut h = History::new();
+        let mut canvas = *doc.canvas();
+        canvas.background = Background::Color {
+            color: palette::PAPER,
+        };
+        h.execute(&mut doc, "Background", Command::SetCanvas(canvas))
+            .unwrap();
+        assert_eq!(
+            resaved(&doc)["canvas"]["background"],
+            json!({"type": "color", "color": "#FFFFFFFF"})
+        );
+        h.undo(&mut doc).unwrap();
+        assert_eq!(
+            resaved(&doc)["canvas"]["background"],
+            original["canvas"]["background"]
+        );
+    }
+
+    #[test]
+    fn unreadable_object_of_a_known_type_is_kept_in_newer_minor_files() {
+        // A newer minor version may give a known type a value this version cannot read (here
+        // a new shadow representation). Only that object degrades; it keeps its image.
+        let json = format!(
+            r##"{{
+            "format": "1.5", "requires": "0.1",
+            "image": {{"file": "original.png", "width": 40, "height": 20}},
+            "canvas": {{"x": 0, "y": 0, "width": 40, "height": 20, "background": {{"type": "transparent"}}}},
+            "objects": [
+                {{"id": 1, "type": "image", {IMAGE_FIELDS}, "shadow": {{"preset": "soft"}}}},
+                {{"id": 2, "type": "image", "source": "images/2.png", "x": 0, "y": 0, "width": 8,
+                  "height": 8, "rotation": 0, "opacity": 1, "border_color": "#FFFFFFFF",
+                  "border_width": 0, "corner_radius": 0,
+                  "shadow": {{"enabled": false, "color": "#000006FF", "opacity": 0.3, "angle": 45,
+                              "distance": 3, "blur": 2}}}}
+            ]
+        }}"##
+        );
+        let original: Value = serde_json::from_str(&json).unwrap();
+        let bytes = hand_written(&json, &["images/1.png", "images/2.png"]);
+        let doc = decode(&bytes).unwrap();
+        assert_eq!(doc.object_count(), 2);
+        assert_eq!(doc.scene().nodes()[0].object.type_name(), "unknown");
+        assert_eq!(doc.scene().nodes()[1].object.type_name(), Image::TYPE);
+        let saved = resaved(&doc);
+        assert_eq!(saved["objects"][0], original["objects"][0]);
+        let zip = zip::ZipArchive::new(Cursor::new(encode(&doc).unwrap())).unwrap();
+        let mut names: Vec<&str> = zip
+            .file_names()
+            .filter(|n| n.starts_with("images/"))
+            .collect();
+        names.sort_unstable();
+        assert_eq!(names, vec!["images/1.png", "images/2.png"]);
+        // In a file of this version the same object is damage, not a newer feature.
+        let current = json.replace("\"1.5\"", "\"1.0\"");
+        assert!(decode(&hand_written(&current, &["images/1.png", "images/2.png"])).is_err());
     }
 
     #[test]

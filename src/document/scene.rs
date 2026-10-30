@@ -15,11 +15,14 @@ use serde::{Deserialize, Serialize};
 
 use super::annotation::Annotation;
 use super::geometry::{Point, Rect};
+use super::residual::Residual;
 
 /// Above this many objects, queries use the R-tree.
 pub const INDEX_THRESHOLD: usize = 100;
 
-/// Stable identity of an object within a document; never reused within a session.
+/// Stable identity of an object within a document; never reused within a session. Ids are
+/// unique across the whole document, including objects nested inside other objects (groups),
+/// so ungrouping never produces a duplicate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ObjectId(pub u64);
 
@@ -28,8 +31,9 @@ pub struct ObjectId(pub u64);
 pub struct Node {
     pub id: ObjectId,
     pub object: Box<dyn Annotation>,
-    /// Keys a newer Annota wrote that this version does not know; written back unchanged.
-    pub(crate) extra: serde_json::Map<String, serde_json::Value>,
+    /// What a newer Annota wrote for this node that this version does not know (keys at any
+    /// depth); written back unchanged. It stays with the node when the object is replaced.
+    pub(crate) residual: Option<Residual>,
 }
 
 impl Node {
@@ -37,9 +41,22 @@ impl Node {
         Self {
             id,
             object,
-            extra: serde_json::Map::new(),
+            residual: None,
         }
     }
+
+    /// This node's id and the ids of every object nested in it.
+    fn all_ids(&self) -> impl Iterator<Item = ObjectId> {
+        std::iter::once(self.id).chain(self.object.nested_ids())
+    }
+}
+
+/// The id after the largest one used by `node`, including nested objects.
+fn next_after(node: &Node) -> u64 {
+    node.all_ids()
+        .map(|id| id.0.saturating_add(1))
+        .max()
+        .unwrap_or(1)
 }
 
 type Entry = GeomWithData<Rectangle<[f64; 2]>, ObjectId>;
@@ -106,12 +123,13 @@ impl Scene {
         Self::default()
     }
 
-    /// Builds a scene from nodes in stacking order (load). Duplicate ids are rejected.
+    /// Builds a scene from nodes in stacking order (load). Duplicate ids, also among nested
+    /// objects, are rejected.
     pub(crate) fn try_from_nodes(nodes: Vec<Node>) -> Result<Self, SceneError> {
         let mut seen = std::collections::HashSet::new();
-        for n in &nodes {
-            if !seen.insert(n.id) {
-                return Err(SceneError::Duplicate(n.id));
+        for id in nodes.iter().flat_map(Node::all_ids) {
+            if !seen.insert(id) {
+                return Err(SceneError::Duplicate(id));
             }
         }
         Ok(Self::from_nodes(nodes))
@@ -124,7 +142,7 @@ impl Scene {
             .zip(&bounds)
             .filter_map(|(n, b)| entry(n.id, b))
             .collect();
-        let next_id = nodes.iter().map(|n| n.id.0 + 1).max().unwrap_or(1).max(1);
+        let next_id = nodes.iter().map(next_after).max().unwrap_or(1).max(1);
         let mut scene = Self {
             nodes,
             bounds,
@@ -162,7 +180,8 @@ impl Scene {
         self.nodes.iter().map(|n| n.id).collect()
     }
 
-    /// `n` ids no object has had in this session, for `Command::Insert`.
+    /// `n` ids no object has had in this session — neither a top-level nor a nested one — for
+    /// `Command::Insert`.
     pub fn fresh_ids(&self, n: usize) -> Vec<ObjectId> {
         (0..n as u64).map(|i| ObjectId(self.next_id + i)).collect()
     }
@@ -234,7 +253,7 @@ impl Scene {
         if let Some(e) = entry(node.id, &b) {
             self.tree.insert(e);
         }
-        self.next_id = self.next_id.max(node.id.0 + 1);
+        self.next_id = self.next_id.max(next_after(&node));
         self.nodes.insert(position, node);
         self.bounds.insert(position, b);
         self.reindex_positions(position);
@@ -272,7 +291,9 @@ impl Scene {
             self.tree.insert(e);
         }
         *cached = new_bounds;
-        Ok(std::mem::replace(&mut node.object, object))
+        let previous = std::mem::replace(&mut node.object, object);
+        self.next_id = self.next_id.max(next_after(node));
+        Ok(previous)
     }
 
     /// Puts the objects into `order` (bottom to top); returns the previous order.
@@ -503,6 +524,41 @@ pub(crate) mod tests {
             Node::new(ObjectId(1), TestBox::boxed(0.0, 0.0, 1.0, 1.0)),
         ])
         .is_err());
+    }
+
+    #[test]
+    fn nested_ids_are_never_handed_out() {
+        // Reviewer finding: only top-level ids were considered, so a new object could take
+        // the id of a group's child and collide after ungrouping.
+        let container = |id: u64, child: u64| {
+            let fields = serde_json::json!({"children": [{"id": child, "type": "arrow"}]});
+            let serde_json::Value::Object(fields) = fields else {
+                unreachable!()
+            };
+            Node::new(
+                ObjectId(id),
+                Box::new(crate::document::registry::UnknownObject::new(
+                    "stack", fields,
+                )),
+            )
+        };
+        let mut scene = Scene::try_from_nodes(vec![
+            Node::new(ObjectId(1), TestBox::boxed(0.0, 0.0, 1.0, 1.0)),
+            container(2, 40),
+        ])
+        .unwrap();
+        assert_eq!(scene.fresh_ids(1), vec![ObjectId(41)]);
+        scene.insert(0, container(50, 90)).unwrap();
+        assert_eq!(scene.fresh_ids(1), vec![ObjectId(91)]);
+        // A nested id that repeats a top-level one makes the file invalid.
+        assert_eq!(
+            Scene::try_from_nodes(vec![
+                Node::new(ObjectId(40), TestBox::boxed(0.0, 0.0, 1.0, 1.0)),
+                container(2, 40),
+            ])
+            .err(),
+            Some(SceneError::Duplicate(ObjectId(40)))
+        );
     }
 
     #[test]

@@ -4,9 +4,12 @@
 //! `{"id": 3, "type": "image", "source": "images/1.png", "x": 940, …}`.
 //! New object types are added to [`TYPES`] (one line per type).
 //!
-//! Forward compatibility (spec document-format): keys of a known type that this version does
-//! not write are kept in [`Node::extra`] and written back; objects of an unknown type become
-//! [`UnknownObject`]s that are neither drawn nor selectable but are saved unchanged.
+//! Forward compatibility (spec document-format): whatever a node contains that its type does
+//! not write back — keys at any depth, e.g. `shadow.spread` — is kept as the node's residual
+//! (`super::residual`) and merged back on write. Objects of an unknown type become
+//! [`UnknownObject`]s that are neither drawn nor selectable but are saved unchanged. In a file
+//! of a newer minor version, an object of a *known* type that this version cannot read (e.g. a
+//! new value of one of its enums) is kept the same way instead of failing the whole file.
 
 use serde::de::DeserializeOwned;
 use serde::{Serialize, Serializer};
@@ -14,6 +17,7 @@ use serde_json::{Map, Value};
 
 use super::annotation::{Annotation, Property, PropertyError, PropertyValue, RenderContext};
 use super::geometry::{Arrange, Point, Rect};
+use super::residual;
 use super::scene::{Node, ObjectId};
 use crate::tools::image::Image;
 
@@ -33,18 +37,55 @@ pub fn types() -> impl Iterator<Item = &'static str> {
     TYPES.iter().map(|(name, _)| *name)
 }
 
+fn decoder(type_tag: &str) -> Option<Decoder> {
+    TYPES
+        .iter()
+        .find(|(name, _)| *name == type_tag)
+        .map(|(_, d)| *d)
+}
+
 /// Keys of a node that belong to the scene, not to the object.
 pub const RESERVED_KEYS: [&str; 2] = ["id", "type"];
 
-/// An object of a type this version does not know (written by a newer minor version).
+/// An object this version cannot interpret: a type it does not know, or (in a newer minor
+/// file) a known type it cannot read. Kept verbatim, not drawn, not selectable.
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnknownObject {
     pub type_tag: String,
     pub fields: Map<String, Value>,
+    /// Embedded images it appears to use (`images/<n>.png` strings anywhere in its fields)
+    /// that the file actually contains; they are kept and saved with it. Set when the
+    /// document is read.
+    pub(crate) resources: Vec<String>,
 }
 
 impl UnknownObject {
     pub const TYPE: &'static str = "unknown";
+
+    pub fn new(type_tag: impl Into<String>, fields: Map<String, Value>) -> Self {
+        Self {
+            type_tag: type_tag.into(),
+            fields,
+            resources: Vec::new(),
+        }
+    }
+
+    /// Every string in its fields that is a valid resource id, each once.
+    pub(crate) fn resource_candidates(&self) -> Vec<String> {
+        fn walk(v: &Value, out: &mut std::collections::BTreeSet<String>) {
+            match v {
+                Value::String(s) if super::parse_resource_id(s).is_some() => {
+                    out.insert(s.clone());
+                }
+                Value::Array(items) => items.iter().for_each(|i| walk(i, out)),
+                Value::Object(map) => map.values().for_each(|i| walk(i, out)),
+                _ => {}
+            }
+        }
+        let mut out = std::collections::BTreeSet::new();
+        self.fields.values().for_each(|v| walk(v, &mut out));
+        out.into_iter().collect()
+    }
 }
 
 impl Serialize for UnknownObject {
@@ -80,14 +121,40 @@ impl Annotation for UnknownObject {
         Vec::new()
     }
     fn translate(&mut self, _: f64, _: f64) {}
+    fn resources(&self) -> Vec<&str> {
+        self.resources.iter().map(String::as_str).collect()
+    }
+    /// Anything inside that looks like a scene node (`"id"` and `"type"`): a newer version's
+    /// container type may hold children, whose ids must stay unique.
+    fn nested_ids(&self) -> Vec<ObjectId> {
+        fn walk(v: &Value, out: &mut Vec<ObjectId>) {
+            match v {
+                Value::Object(map) => {
+                    if let (Some(id), Some(Value::String(_))) =
+                        (map.get("id").and_then(Value::as_u64), map.get("type"))
+                    {
+                        out.push(ObjectId(id));
+                    }
+                    map.values().for_each(|i| walk(i, out));
+                }
+                Value::Array(items) => items.iter().for_each(|i| walk(i, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        self.fields.values().for_each(|v| walk(v, &mut out));
+        out
+    }
 }
 
 fn invalid(message: impl std::fmt::Display) -> serde_json::Error {
     <serde_json::Error as serde::de::Error>::custom(message)
 }
 
-/// Reads one node of `document.json`.
-pub fn node_from_json(value: Value) -> Result<Node, serde_json::Error> {
+/// Reads one node of `document.json`. With `keep_unreadable` (files of a newer minor
+/// version), an object of a known type that does not parse is kept as an [`UnknownObject`]
+/// instead of failing.
+pub fn node_from_json(value: Value, keep_unreadable: bool) -> Result<Node, serde_json::Error> {
     let Value::Object(mut fields) = value else {
         return Err(invalid("an object must be a JSON object"));
     };
@@ -100,49 +167,73 @@ pub fn node_from_json(value: Value) -> Result<Node, serde_json::Error> {
         Some(Value::String(t)) => t,
         _ => return Err(invalid("an object needs a string \"type\"")),
     };
-    let Some((_, decoder)) = TYPES.iter().find(|(name, _)| *name == type_tag) else {
-        let object = UnknownObject { type_tag, fields };
+    let Some(decoder) = decoder(&type_tag) else {
+        let object = UnknownObject::new(type_tag, fields);
         return Ok(Node::new(ObjectId(id), Box::new(object)));
     };
-    let object = decoder(Value::Object(fields.clone()))
-        .map_err(|err| invalid(format!("object {id} ({type_tag}): {err}")))?;
-    // Whatever the type does not write back is unknown to this version: keep it aside.
-    let written = match object.to_json()? {
-        Value::Object(map) => map,
-        _ => Map::new(),
+    let original = Value::Object(fields);
+    let object = match decoder(original.clone()) {
+        Ok(object) => object,
+        Err(_) if keep_unreadable => {
+            let Value::Object(fields) = original else {
+                return Err(invalid("an object must be a JSON object"));
+            };
+            let object = UnknownObject::new(type_tag, fields);
+            return Ok(Node::new(ObjectId(id), Box::new(object)));
+        }
+        Err(err) => return Err(invalid(format!("object {id} ({type_tag}): {err}"))),
     };
-    let extra = fields
-        .into_iter()
-        .filter(|(key, _)| !written.contains_key(key))
-        .collect();
+    // Whatever the type does not write back is unknown to this version: keep it aside.
+    let written = object.to_json()?;
     let mut node = Node::new(ObjectId(id), object);
-    node.extra = extra;
+    node.residual = residual::diff(&original, &written);
     Ok(node)
 }
 
 /// Writes one node for `document.json`.
 pub fn node_to_json(node: &Node) -> Result<Value, serde_json::Error> {
     let (type_tag, own) = match node.object.as_any().downcast_ref::<UnknownObject>() {
-        Some(unknown) => (unknown.type_tag.clone(), unknown.fields.clone()),
-        None => match node.object.to_json()? {
-            Value::Object(map) => (node.object.type_name().to_string(), map),
-            _ => return Err(invalid("an object must serialise to a JSON object")),
-        },
+        Some(unknown) => (
+            unknown.type_tag.clone(),
+            Value::Object(unknown.fields.clone()),
+        ),
+        None => (node.object.type_name().to_string(), node.object.to_json()?),
     };
+    let mut own = match own {
+        Value::Object(_) => own,
+        _ => return Err(invalid("an object must serialise to a JSON object")),
+    };
+    if let Some(r) = &node.residual {
+        residual::merge(&mut own, r);
+    }
     let mut map = Map::new();
     map.insert("id".into(), Value::from(node.id.0));
     map.insert("type".into(), Value::String(type_tag));
-    for (key, value) in own {
-        if !RESERVED_KEYS.contains(&key.as_str()) {
-            map.insert(key, value);
-        }
-    }
-    for (key, value) in &node.extra {
-        if !map.contains_key(key) {
-            map.insert(key.clone(), value.clone());
+    if let Value::Object(own) = own {
+        for (key, value) in own {
+            if !RESERVED_KEYS.contains(&key.as_str()) {
+                map.insert(key, value);
+            }
         }
     }
     Ok(Value::Object(map))
+}
+
+/// Checks that `object` reads back from what it writes, so a document holding it stays
+/// saveable *and* reopenable (a NaN field serialises as `null`, which does not read back).
+/// Unknown objects and types that are not registered (tests) pass.
+pub(crate) fn check_reads_back(object: &dyn Annotation) -> Result<(), serde_json::Error> {
+    if object.as_any().is::<UnknownObject>() {
+        return Ok(());
+    }
+    let Some(decoder) = decoder(object.type_name()) else {
+        return Ok(());
+    };
+    let json = object.to_json()?;
+    if !json.is_object() {
+        return Err(invalid("an object must serialise to a JSON object"));
+    }
+    decoder(json).map(|_| ())
 }
 
 #[cfg(test)]
@@ -167,8 +258,8 @@ mod tests {
             for key in RESERVED_KEYS {
                 assert!(own.get(key).is_none(), "{name} must not write '{key}'");
             }
-            let back = node_from_json(value.clone()).unwrap();
-            assert!(back.extra.is_empty());
+            let back = node_from_json(value.clone(), false).unwrap();
+            assert!(back.residual.is_none());
             assert_eq!(node_to_json(&back).unwrap(), value);
         }
     }
@@ -181,15 +272,16 @@ mod tests {
         ))
         .unwrap();
         value["glow"] = json!({"radius": 4});
-        let node = node_from_json(value.clone()).unwrap();
-        assert_eq!(node.extra.get("glow"), Some(&json!({"radius": 4})));
+        value["shadow"]["spread"] = json!(2.5);
+        let node = node_from_json(value.clone(), false).unwrap();
+        assert!(node.residual.is_some());
         assert_eq!(node_to_json(&node).unwrap(), value);
     }
 
     #[test]
     fn unknown_types_are_kept_verbatim() {
         let value = json!({"id": 4, "type": "hologram", "x": 1, "colour": "#FF0000FF"});
-        let node = node_from_json(value.clone()).unwrap();
+        let node = node_from_json(value.clone(), false).unwrap();
         assert_eq!(node.object.type_name(), UnknownObject::TYPE);
         assert!(node.object.bounds().is_none());
         assert!(!node.object.hit_test(Point::new(1.0, 0.0), 10.0));
@@ -198,10 +290,49 @@ mod tests {
 
     #[test]
     fn malformed_nodes_are_rejected() {
-        assert!(node_from_json(json!([1, 2])).is_err());
-        assert!(node_from_json(json!({"type": "image"})).is_err());
-        assert!(node_from_json(json!({"id": 0, "type": "image"})).is_err());
-        assert!(node_from_json(json!({"id": 1})).is_err());
-        assert!(node_from_json(json!({"id": 1, "type": "image", "x": "left"})).is_err());
+        assert!(node_from_json(json!([1, 2]), false).is_err());
+        assert!(node_from_json(json!({"type": "image"}), false).is_err());
+        assert!(node_from_json(json!({"id": 0, "type": "image"}), false).is_err());
+        assert!(node_from_json(json!({"id": 1}), false).is_err());
+        assert!(node_from_json(json!({"id": 1, "type": "image", "x": "left"}), false).is_err());
+        // Only id/type problems stay fatal in a newer minor file.
+        assert!(node_from_json(json!({"type": "image"}), true).is_err());
+    }
+
+    #[test]
+    fn unreadable_known_type_is_kept_in_newer_minor_files() {
+        let value = json!({"id": 5, "type": "image", "source": "images/2.png",
+                           "x": 1, "border_style": {"kind": "wavy"}, "shadow": "soft"});
+        let node = node_from_json(value.clone(), true).unwrap();
+        let unknown = node
+            .object
+            .as_any()
+            .downcast_ref::<UnknownObject>()
+            .unwrap();
+        assert_eq!(unknown.type_tag, "image");
+        assert_eq!(
+            unknown.resource_candidates(),
+            vec!["images/2.png".to_string()]
+        );
+        assert_eq!(node_to_json(&node).unwrap(), value);
+    }
+
+    #[test]
+    fn unknown_containers_report_nested_ids() {
+        let value = json!({"id": 4, "type": "stack", "children": [
+            {"id": 9, "type": "arrow"}, {"id": 12, "type": "stack", "children": [{"id": 30, "type": "text"}]}
+        ], "meta": {"id": 99}});
+        let node = node_from_json(value, false).unwrap();
+        let mut ids = node.object.nested_ids();
+        ids.sort();
+        assert_eq!(ids, vec![ObjectId(9), ObjectId(12), ObjectId(30)]);
+    }
+
+    #[test]
+    fn nan_fields_do_not_read_back() {
+        let mut img = Image::new("images/1.png", Rect::new(0.0, 0.0, 10.0, 10.0));
+        assert!(check_reads_back(&img).is_ok());
+        img.opacity = f64::NAN;
+        assert!(check_reads_back(&img).is_err());
     }
 }

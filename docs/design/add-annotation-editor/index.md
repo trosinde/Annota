@@ -26,7 +26,7 @@ Sample captures: `kit/sample-content/png/` (b-lumen-checkout, d-tidewater-analyt
 | editor-canvas · Flatten | Flatten all | [05](png/05-context-menu-light@1x.png), [17](png/17-main-menu-light@1x.png), [18-flatten-all-result](png/18-flatten-all-result-light@1x.png) | No confirmation dialog (undoable) — toast with Undo instead. |
 | editor-canvas · Recent captures tray | Picture in picture | [11-tray-drag-to-canvas](png/11-tray-drag-to-canvas-light@1x.png), [12-inserted-image-object](png/12-inserted-image-object-light@1x.png) | Drop target highlight on canvas area; inserted image is a normal object (border, shadow, arrange). |
 | document-format · Editable file | Round trip | [16-many-objects](png/16-many-objects-light@1x.png) | No UI of its own; 16 shows a dense document (64 objects) and the per-type object summary. |
-| document-format · Forward compatibility | Newer major | [15-newer-format-error](png/15-newer-format-error-light@1x.png) | Alert names file, file format, required Annota version, current version. |
+| document-format · Format versions | Newer major | [15-newer-format-error](png/15-newer-format-error-light@1x.png) | Alert names file, file format, required Annota version, current version. |
 | document-format · Autosave and recovery | Crash recovery | [14-crash-recovery](png/14-crash-recovery-light@1x.png) | Shown at start before any window content; one row per autosaved document, all checked by default. |
 
 ## Redlines

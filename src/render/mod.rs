@@ -127,11 +127,12 @@ fn render_inner(
             color.set_source(cr);
             cr.paint()?;
         }
-        Background::Transparent if options.target == Target::Screen => {
+        // An unknown background type (newer minor format) is drawn as transparent.
+        Background::Transparent | Background::Unknown if options.target == Target::Screen => {
             let corner = viewport.to_device(Point::new(canvas.x, canvas.y));
             paint_checker(cr, base, corner, options.checker)?;
         }
-        Background::Transparent => {}
+        Background::Transparent | Background::Unknown => {}
     }
 
     paint_base_image(cr, doc, viewport.zoom)?;
