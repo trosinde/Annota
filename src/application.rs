@@ -221,10 +221,15 @@ fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builde
                 move |settings, key| fill_keycaps(&keys, &settings.string(key))
             ),
         );
+        // The card keeps the settings object (and with it the keycap updates) alive.
+        let keep = settings.clone();
         card.connect_clicked(glib::clone!(
             #[weak]
             app,
-            move |_| app.activate_action("capture", Some(&mode.as_str().to_variant()))
+            move |_| {
+                let _ = &keep;
+                app.activate_action("capture", Some(&mode.as_str().to_variant()))
+            }
         ));
         first.get_or_insert(card);
     }
