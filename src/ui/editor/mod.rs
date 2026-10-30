@@ -576,6 +576,10 @@ impl Editor {
         self.inner.sessions.borrow_mut().push(session.clone());
         self.render_thumbnail(&session);
         self.switch_to(uid);
+        // Exclude the file this session was opened from (if any) from Recent immediately,
+        // rather than waiting for the window to next be activated — otherwise reopening it
+        // from its own Recent tile is still offered until then.
+        self.refresh_recent_tray();
         uid
     }
 
@@ -1898,8 +1902,8 @@ mod tests {
         );
         assert_eq!(sidebar.objects_row.title(), "2 editable objects");
         assert!(sidebar.properties_box.is_ancestor(&w.sidebar_scroller));
-        // Tray: one open document; the open file is not listed under Recent.
-        editor.refresh_recent_tray();
+        // Tray: one open document; the open file is excluded from Recent as soon as it opens
+        // (add_session refreshes Recent itself now — no manual refresh needed here).
         assert_eq!(editor.inner.tray.counts(), (1, 0));
         // Mockup 17: the image operations are live, with their shortcuts.
         assert!(editor.inner.actions.image.iter().all(|a| a.is_enabled()));

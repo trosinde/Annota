@@ -34,10 +34,16 @@ Adw.Dialog restore_dialog {
       max-width-chars: 48;
     }
 
-    ListBox entries_list {
-      selection-mode: none;
+    ScrolledWindow {
       margin-top: 6;
-      styles ["boxed-list"]
+      hscrollbar-policy: never;
+      propagate-natural-height: true;
+      max-content-height: 320;
+
+      child: ListBox entries_list {
+        selection-mode: none;
+        styles ["boxed-list"]
+      };
     }
 
     Box {

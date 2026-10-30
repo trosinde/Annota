@@ -103,7 +103,7 @@ The system SHALL deliver every region, window and screen capture according to th
 - **THEN** the image is on the clipboard
 - **AND** no window opens
 
-#### Scenario: Editor destination before the editor exists
+#### Scenario: Editor destination
 - **WHEN** the after-capture preference is "Open in Editor" and the user captures a 400×300 region
 - **THEN** a 400×300 PNG named by the file-name pattern appears in the save folder
 - **AND** a toast "Region captured · 400 × 300" names the saved file

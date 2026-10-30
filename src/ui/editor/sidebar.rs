@@ -179,8 +179,12 @@ pub fn state(doc: &Document, selection: &[ObjectId]) -> State {
         }
         by_type.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
         let canvas = doc.canvas();
+        let image = doc.image();
         return State::Document(DocumentInfo {
-            size: (canvas.rect.width, canvas.rect.height),
+            // Image · Size is the original image's pixel size, not the (possibly extended)
+            // canvas rect — matches mockup 10 and the Resize Image dialog, which both use the
+            // image size.
+            size: (image.bitmap.width(), image.bitmap.height()),
             corner_radius: doc.image().corner_radius,
             max_corner_radius: image_ops::max_corner_radius(doc),
             background: canvas.background,
