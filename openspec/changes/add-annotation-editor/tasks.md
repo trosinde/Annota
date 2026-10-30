@@ -19,9 +19,17 @@
       (mockup 07) is part of 4.1.
       Reviewer fixes (phase 1): viewport-sized scrollable canvas (culling, fit on shrink),
       command validation keeps documents saveable, unknown data kept at any depth.
-- [ ] 3.2 Selection, handles, rotation
-- [ ] 3.3 Snapping guides
-- [ ] 3.4 Grouping and z-order
+- [x] 3.2 Selection, handles, rotation (`src/editing/{selection,drag,ops}.rs`,
+      `src/render/overlay.rs`, `src/ui/canvas.rs`): click / Shift+click / Ctrl+click / rubber
+      band, select all of a type (model; the sidebar button is 4.1), move, 8 resize handles and
+      the rotation handle (15° steps with Shift) via `Annotation::handles`/`drag_handle`,
+      multi-selection as one box, nudge, delete, duplicate; one undo step per gesture; chips.
+- [x] 3.3 Snapping guides (`src/editing/snap.rs`): canvas edges/centre and object
+      edges/centres within 6 screen px, guides and a chip naming the target, Alt suspends,
+      Ctrl+; toggles (persisted with the sidebar switch in 4.1).
+- [x] 3.4 Grouping and z-order (`src/tools/group.rs`, `src/editing/ops.rs`): `Group` object type
+      (dashed box, golden image), group/ungroup keeping ids, front/forward/backward/back;
+      document-wide id checks on insert/replace.
 
 ## 4. Editor UI
 - [ ] 4.1 Header bar, properties sidebar, adaptive layout; zoom OSD and popover; autosave timer

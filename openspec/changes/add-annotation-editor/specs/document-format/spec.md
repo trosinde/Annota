@@ -23,6 +23,17 @@ Every change to a document SHALL keep it saveable and reopenable. A change that 
 - **WHEN** an edit would set an object coordinate to a non-finite value (for example a size computed by dividing by zero) or point an object at an embedded image that does not exist
 - **THEN** the edit fails with an error, the document is unchanged, and it still saves, autosaves and reopens
 
+### Requirement: Unique object ids
+Every object SHALL have an id that is unique in the whole document, members of groups included, and ids SHALL never be handed out again within a session. A change that would give an object an id another object already has SHALL be refused with an error, and the document SHALL stay unchanged; a file with duplicate ids SHALL NOT open.
+
+#### Scenario: Duplicate id refused
+- **WHEN** an edit would insert a group whose member has the id of an object already in the document (top-level or inside another group)
+- **THEN** the edit fails with an error and the document is unchanged
+
+#### Scenario: Group ids survive saving
+- **WHEN** objects are grouped, the document is saved and reopened, and the group is ungrouped
+- **THEN** the objects come back with their ids, and new objects get ids no object has had
+
 ### Requirement: Format versions
 `document.json` SHALL contain its format version as `"format": "MAJOR.MINOR"` and the oldest Annota version that reads it as `"requires"`. Files of a newer minor version SHALL open without any message. Files of a newer major version SHALL NOT be opened: the error SHALL name the file's format version and the Annota version it requires, and the file SHALL NOT be changed.
 
@@ -51,6 +62,13 @@ A value this version cannot interpret SHALL NOT prevent a file of a newer minor 
 #### Scenario: Unreadable object in a newer minor file
 - **WHEN** a file of a newer minor version contains an object of a known type with a value this version cannot read
 - **THEN** the file opens, that object is kept and written back unchanged together with its embedded image, and the other objects can be edited
+
+### Requirement: Groups with unknown members
+A group that contains an object of a type this version does not know SHALL be kept as a whole like an object of an unknown type: not drawn, not selectable, written back unchanged, so that it is never moved without its unknown parts.
+
+#### Scenario: Group with an unknown member
+- **WHEN** a file contains a group one of whose members has a type this version does not know
+- **THEN** the file opens and the whole group is kept and written back unchanged, not drawn and not selectable
 
 ### Requirement: Autosave and recovery
 Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files in `~/.cache/annota/autosave/` (a directory only the user can read), each also recording the file the document belongs to. Nothing SHALL be written while a document does not change, and a document's autosave SHALL be removed when it is saved, closed, or back at its saved state. Autosaves left over from a previous run SHALL be offered for recovery, each with its name, autosave time, object count and thumbnail.

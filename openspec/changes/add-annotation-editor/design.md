@@ -117,6 +117,86 @@ integration (3.2–4.5) follow in phase 2.
   test against what the code writes; full validation of a written file with Python
   `jsonschema` 4.19 passed during apply (no JSON-schema engine is a build dependency).
 
+### Decided during apply — phase 2a (2026-10-30: selection, handles, snapping, groups, z-order)
+Tasks 3.2–3.4. The logic is in the library (`src/editing/`, `src/tools/group.rs`,
+`src/render/overlay.rs`) and tested without a display; `src/ui/canvas.rs` feeds it events.
+
+- **Selection is editor state, not document content.** It is not saved and is not an undo step
+  (Ctrl+Z after a click undoes the last *change*; mockup 06 names the step "Move Group"). It holds
+  top-level ids in stacking order and is re-synced after undo/redo. Shift+click *adds* (the spec
+  says "add"; it never removes), Ctrl+click toggles (GNOME's convention). The rubber band selects
+  objects whose box (`arrange`, rotated) lies *entirely* inside it, with the same modifiers.
+  Pressing an object that is part of a multi-selection keeps the selection (to drag all of it);
+  releasing without moving then selects only that object. "Select all of a type" is
+  `Selection::select_type` / `select_where`; its sidebar button and the "5 arrows" count chip of
+  mockup 04 arrive with the sidebar (4.1).
+- **Gestures commit once.** `editing::drag::Drag` decides on press: a handle of the selection
+  (nearest within half its size + 3 screen px), else the topmost object (4 screen px tolerance),
+  else a rubber band. While the pointer moves it keeps *preview copies* computed from the press
+  state (as `drag_handle` requires); the renderer draws them in their objects' stacking places
+  (`render::render_preview`), moved originals as a 35 % ghost (mockups 02, 06). Below 3 screen px
+  of travel it is a click. On release the copies become one `Command::Replace` — one undo step
+  per gesture, labelled from `ops::Action` + `Subject` ("Move Group", "Rotate 3 Objects"). Moves
+  are rounded to whole document pixels before snapping. Escape cancels a gesture (a rubber band
+  restores the selection it started from); editing keys are ignored while a drag is in progress.
+- **Handles.** A single object uses its own `Annotation::handles` / `drag_handle` (so arrow end
+  points etc. plug in); the box is drawn only if it has `Resize` handles. A multi-selection is
+  edited as a *transient* `Group` of copies, so it resizes and rotates as one box (the box turns
+  while rotating and is upright again afterwards — a multi-selection has no orientation of its
+  own). Edge handles are hidden on boxes under 30 screen px so corners stay reachable. The drag
+  anchor of a handle is where it is drawn (the rotation handle sits 24 screen px above the box).
+- **Snapping** (`editing::snap`). Targets are collected at the press: canvas edges and centre,
+  edges and centres of every other selectable object's box. Each axis snaps on its own to the
+  nearest line within 6 screen px (tolerance `6 / zoom`); ties go canvas centre > canvas edge >
+  object centre > object edge. Moving snaps the box's left/centre/right (top/middle/bottom);
+  resize and type-specific handles snap as points on the axes they move, only on upright boxes.
+  Every line the box matches after snapping is a guide; the chip names the targets. Alt suspends
+  snapping (as on the capture overlay); `Ctrl+;` toggles it — in memory until the sidebar switch
+  (4.1) gives it a home.
+- **Groups** (`tools::group::Group`): `{rotation, children: [node…]}`; members are scene nodes
+  with their own ids. The box is derived — the tight box around the members in the group's
+  orientation — so it can never disagree with them; `rotation` is the only geometry stored.
+  `translate` moves members exactly; `set_arrange` maps each member's centre and size from the
+  old box to the new (exact for uniform scaling and for members at multiples of 90° to the group;
+  otherwise the size is scaled along the member's own axes). Group/ungroup are one `Batch` each
+  (remove + insert), members keep their ids, the group takes the topmost member's stacking place.
+  A group with a member of an unknown type is kept whole as an unknown object (never moved without
+  its unknown parts); `Annotation` gained defaulted `children()` and `renumber_nested()`
+  (Duplicate gives a copied group's members new ids).
+- **Ids, checked against the real `Group`.** The scene now indexes nested ids (`Scene::owner`);
+  `Insert` and `Replace` refuse an object that brings an id any other object has (top-level or
+  nested, or repeated inside itself), and `check_geometry` recurses into members (a group's
+  bounds skip non-finite members). Phase 1's `next_id` high-water mark already covered nested ids;
+  tests now cover group → save → reopen → ungroup, collisions on insert/replace and duplicate.
+- **Z-order** needs nothing beyond `Command::Reorder`: `ops::restacked` computes front/back and
+  one step past the next unselected object (not overlap-aware, as in most editors' "one level").
+- **Duplicate** (`Ctrl+D`) puts copies on top, offset 10 × 10 document px (no redline; chosen so
+  the copy is visible), and selects them.
+- **Overlay** (`render::overlay`, view pixels): redline values; accent `#3584E4` (libadwaita 1.5
+  has no accent-colour API), member boxes at 50 %, group box dashed 3/3, guides `#8B5CF6` reaching
+  30 px beyond the canvas (mockup 02's HTML), rubber band GTK-style (accent border, 20 % fill).
+- **Chips** are `GtkLabel`s with the existing `.annota-chip` / `.annota-snap-chip` classes plus
+  `.annota-canvas-chip` (12 px, redline) in a `GtkOverlay` around the scrolled canvas, built in
+  code like the rest of the canvas. Move: "X 580 · Y 467" for one object (mockup 02), "Δ X +560 ·
+  Y +330" for a group or several (mockup 06), right of the pointer and below the moving box.
+  Rotate: centred above the pointer (mockup 03); "· Shift: 15° steps" is shown while Shift is held
+  (the mockup's state; the redline does not say whether it is a hint or a mode indicator). Resize:
+  "W × H". Snap chip beside the top end of the vertical guide, else the left end of the horizontal.
+- **Keys** are handled by the canvas until the editor window's actions exist (4.1): arrows /
+  Shift+arrows, Del, Ctrl+D, Ctrl+A, Esc, Ctrl+G, Ctrl+Shift+G, Ctrl+] / Ctrl+[ (+Shift),
+  Ctrl+;, Ctrl+Z / Ctrl+Shift+Z. Each nudge is its own undo step (no coalescing).
+- **Not in this phase:** context menu and main-menu items (4.x), the Undo tooltip (4.1; the label
+  is `History::undo_label`), double-clicking a group member to edit it alone (mockup 06's sidebar
+  note; no spec requirement), Shift-constrained moves (not specified).
+- **Verification.** Unit tests for selection, gestures, snapping, ops, groups and overlay pixels;
+  a golden image of a rotated group; two `#[ignore]`d GTK tests
+  (`GDK_BACKEND=x11 xvfb-run -a cargo test --bin annota -- --ignored`), one driving the live
+  canvas through move + centre snap + chips, nudge, undo, group, group drag and Shift-rotation.
+  The real `--dev-canvas` window was also driven with `xdotool` on a private Xvfb display inside
+  `dbus-run-session` (screenshots compared with mockups 02, 03, 04, 06); a stale
+  `/usr/local/share/annota/resources.gresource` from an earlier install had to be bypassed with
+  `G_RESOURCE_OVERLAYS` for that run.
+
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.
 

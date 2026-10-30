@@ -565,6 +565,24 @@ mod tests {
                     .max()
                     .unwrap()
         );
+        // Spec "Group ids survive saving": ungrouped after reopening, the members are back
+        // with their ids and unchanged, and new ids stay new.
+        let mut reopened = reopened;
+        let mut h = History::new();
+        let (members, cmd) = ungroup_command(&reopened, &[gid]).unwrap();
+        assert_eq!(members, vec![ids[0], ids[2]]);
+        h.execute(&mut reopened, "Ungroup", cmd).unwrap();
+        for id in [ids[0], ids[2]] {
+            let before = group_of(&doc, gid)
+                .children
+                .iter()
+                .find(|c| c.id == id)
+                .unwrap()
+                .object
+                .arrange();
+            assert_eq!(arrange_of(&reopened, id), before);
+        }
+        assert_eq!(reopened.scene().fresh_ids(1)[0], fresh);
     }
 
     #[test]
