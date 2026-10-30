@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — detecting</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .native { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .native > img { display: block; }
+  .native > svg.ov { position: absolute; left: 0; top: 0; overflow: visible; }
+  .patch { position: absolute; display: flex; align-items: center; white-space: nowrap; }
+  .sec-title { font-size: var(--fs-caption-heading); font-weight: var(--fw-bold); opacity: var(--dim-opacity); padding: 0 2px; }
+  .hint { font-size: var(--fs-small); opacity: var(--dim-opacity); line-height: 1.4; }
+  .local-note { display: flex; gap: 8px; align-items: flex-start; font-size: var(--fs-small); line-height: 1.4; }
+  .local-note .icon { margin-top: 1px; opacity: var(--dim-opacity); }
+  .local-note span { opacity: var(--dim-opacity); }
+  /* desktop scene (GNOME Shell) — the panel is shell chrome, black in GNOME 46 */
+  .desktop { position: relative; width: 1280px; height: 800px; overflow: hidden; background: var(--desktop-bg); }
+  .shell-panel { position: absolute; left: 0; right: 0; top: 0; height: 32px; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 14px; font-weight: var(--fw-bold); z-index: 60; }
+  .shell-panel .ws { display: flex; gap: 6px; align-items: center; }
+  .shell-panel .ws i { width: 8px; height: 8px; border-radius: 4px; background: rgb(255 255 255 / 45%); }
+  .shell-panel .ws i.on { width: 30px; background: #fff; }
+  .shell-panel .sys { display: flex; gap: 12px; align-items: center; }
+  .shell-panel .rec-ind { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px; border-radius: 11px; background: var(--destructive-bg); font-variant-numeric: tabular-nums; }
+  .shell-notif { position: absolute; left: 50%; top: 44px; width: 420px; margin-left: -210px; z-index: 61; background: var(--osd-bg-solid); color: #fff; border-radius: 18px; padding: 12px; display: flex; gap: 12px; box-shadow: 0 4px 18px rgb(0 0 6 / 35%); }
+  .shell-notif .t { font-weight: var(--fw-bold); }
+  .shell-notif .b { font-size: var(--fs-small); opacity: .8; }
+  .shell-notif .acts { display: flex; gap: 6px; margin-top: 10px; }
+  .shell-notif .acts .btn { background: var(--osd-fill); color: #fff; flex: 1; }
+  .screen-img { position: absolute; left: 0; top: 32px; width: 1280px; height: 800px; }
+  .scrim { position: absolute; background: rgb(0 0 6 / 45%); }
+  .mic-off { position: relative; }
+  .mic-off::after { content: ""; position: absolute; left: 50%; top: 50%; width: 22px; height: 2px; margin: -1px 0 0 -11px; background: currentColor; transform: rotate(-45deg); box-shadow: 0 0 0 1.5px var(--osd-bg-solid); border-radius: 1px; }
+  .kbd-row { display: inline-flex; gap: 4px; align-items: center; }
+
+
+</style>
+</head>
+<body class="mock-frame flush">
+<style>
+  .cat-list .row { min-height: 44px; padding: 4px 12px; }
+  .cat-list .row .title { font-size: var(--fs-small); }
+  .cat-list .row.empty .title, .cat-list .row.empty .badge { opacity: .5; }
+  .cat-list .item { min-height: 36px; padding: 2px 12px 2px 42px; background: rgb(0 0 6 / 3%); }
+  .cat-list .item .title { font-family: var(--font-mono); font-size: 12px; }
+  .warn-note { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-m); background: rgb(229 165 10 / 18%); font-size: var(--fs-small); line-height: 1.4; }
+  .warn-note .icon { color: var(--warning); margin-top: 1px; }
+</style><div class="window" style="width:1280px;height:800px">
+<div class="headerbar"><div class="start"><button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button><div class="linked"><button class="btn image-button"><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button"><svg class="icon"><use href="#i-redo"/></svg></button></div></div><div class="title-widget"><span class="title">Venue chat</span><span class="subtitle">1600 × 1000 · Edited</span></div><div class="end"><button class="btn image-button" title="Copy (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button><button class="btn text-button suggested-action" title="Export (Ctrl+E)">Export</button><button class="btn flat image-button"><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+
+<div class="split-view">
+<div class="tool-strip"><button class="btn flat" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button><button class="btn flat" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button><button class="btn flat" title="Shape (R)"><svg class="icon"><use href="#i-shape"/></svg></button><button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button><button class="btn flat" title="Callout (C)"><svg class="icon"><use href="#i-callout"/></svg></button><button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button><button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button><span class="separator-h"></span><button class="btn flat active" title="Redact (B)"><svg class="icon"><use href="#i-redact"/></svg></button><button class="btn flat" title="Magnify (M)"><svg class="icon"><use href="#i-magnify"/></svg></button><button class="btn flat" title="Spotlight (L)"><svg class="icon"><use href="#i-spotlight"/></svg></button><button class="btn flat" title="Stamp (K)"><svg class="icon"><use href="#i-stamp"/></svg></button><button class="btn flat" title="Crop (X)"><svg class="icon"><use href="#i-crop"/></svg></button><button class="btn flat" title="Recognise Text (O)"><svg class="icon"><use href="#i-ocr-text"/></svg></button></div>
+<div class="content-pane" style="position:relative">
+  <div class="canvas-area">
+    <div class="canvas-image" style="width:880px;height:550px;overflow:hidden"><div class="native" style="width:1600px;height:1000px;transform:scale(0.55) translateY(-0px)"><img src="../../kit/sample-content/png/e-relay-chat.png" style="width:1600px;height:1000px" alt=""><svg class="ov" width="1600" height="1000" viewBox="0 0 1600 1000"><rect x="0" y="420" width="1600" height="6" fill="var(--accent-bg)" opacity=".7"/><rect x="0" y="0" width="1600" height="420" fill="var(--accent-a12)"/></svg></div></div>
+    <div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px">
+      <button class="btn image-button"><svg class="icon"><use href="#i-zoom-out"/></svg></button><span class="label">55 %</span><button class="btn image-button"><svg class="icon"><use href="#i-zoom-in"/></svg></button>
+    </div>
+  </div>
+</div>
+<div class="sidebar-pane end props"><div class="scroll"><div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Smart Redact</span><span class="description">Looking for personal data…</span></div></div><div class="card pad-2 vbox" style="--gap:12px;align-items:center;padding:24px 12px"><span class="spinner large"></span><span>Reading text and looking for faces</span><div class="progress" style="width:200px"><div class="bar" style="width:40%"></div></div><span class="caption dim-label">E-mail, phone, IP, web address, card, IBAN, date, key, face</span></div><button class="btn text-button" style="width:100%">Cancel</button><div class="local-note"><svg class="icon"><use href="#i-info"/></svg><span>Runs on this computer. Nothing is uploaded, and it works offline.</span></div></div></div></div>
+</div>
+
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

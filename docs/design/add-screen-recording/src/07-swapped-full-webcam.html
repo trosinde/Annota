@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — swap webcam</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .native { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .native > img { display: block; }
+  .native > svg.ov { position: absolute; left: 0; top: 0; overflow: visible; }
+  .patch { position: absolute; display: flex; align-items: center; white-space: nowrap; }
+  .sec-title { font-size: var(--fs-caption-heading); font-weight: var(--fw-bold); opacity: var(--dim-opacity); padding: 0 2px; }
+  .hint { font-size: var(--fs-small); opacity: var(--dim-opacity); line-height: 1.4; }
+  .local-note { display: flex; gap: 8px; align-items: flex-start; font-size: var(--fs-small); line-height: 1.4; }
+  .local-note .icon { margin-top: 1px; opacity: var(--dim-opacity); }
+  .local-note span { opacity: var(--dim-opacity); }
+  /* desktop scene (GNOME Shell) — the panel is shell chrome, black in GNOME 46 */
+  .desktop { position: relative; width: 1280px; height: 800px; overflow: hidden; background: var(--desktop-bg); }
+  .shell-panel { position: absolute; left: 0; right: 0; top: 0; height: 32px; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 14px; font-weight: var(--fw-bold); z-index: 60; }
+  .shell-panel .ws { display: flex; gap: 6px; align-items: center; }
+  .shell-panel .ws i { width: 8px; height: 8px; border-radius: 4px; background: rgb(255 255 255 / 45%); }
+  .shell-panel .ws i.on { width: 30px; background: #fff; }
+  .shell-panel .sys { display: flex; gap: 12px; align-items: center; }
+  .shell-panel .rec-ind { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px; border-radius: 11px; background: var(--destructive-bg); font-variant-numeric: tabular-nums; }
+  .shell-notif { position: absolute; left: 50%; top: 44px; width: 420px; margin-left: -210px; z-index: 61; background: var(--osd-bg-solid); color: #fff; border-radius: 18px; padding: 12px; display: flex; gap: 12px; box-shadow: 0 4px 18px rgb(0 0 6 / 35%); }
+  .shell-notif .t { font-weight: var(--fw-bold); }
+  .shell-notif .b { font-size: var(--fs-small); opacity: .8; }
+  .shell-notif .acts { display: flex; gap: 6px; margin-top: 10px; }
+  .shell-notif .acts .btn { background: var(--osd-fill); color: #fff; flex: 1; }
+  .screen-img { position: absolute; left: 0; top: 32px; width: 1280px; height: 800px; }
+  .scrim { position: absolute; background: rgb(0 0 6 / 45%); }
+  .mic-off { position: relative; }
+  .mic-off::after { content: ""; position: absolute; left: 50%; top: 50%; width: 22px; height: 2px; margin: -1px 0 0 -11px; background: currentColor; transform: rotate(-45deg); box-shadow: 0 0 0 1.5px var(--osd-bg-solid); border-radius: 1px; }
+  .kbd-row { display: inline-flex; gap: 4px; align-items: center; }
+
+
+</style>
+</head>
+<body class="mock-frame flush">
+<style>
+  .rec-panel { position: absolute; z-index: 62; background: var(--popover-bg); color: var(--popover-fg); border-radius: 12px; box-shadow: var(--shadow-popover); padding: 12px; width: 380px; display: flex; flex-direction: column; gap: 12px; }
+  .rec-panel .boxed-list { box-shadow: 0 0 0 1px var(--borders); }
+  .rec-panel .row { min-height: 44px; padding: 4px 12px; }
+  .rec-panel .row .title { font-size: var(--fs-small); }
+  .rec-panel .row .subtitle { font-size: var(--fs-caption); }
+  .meter { display: inline-flex; gap: 2px; align-items: center; }
+  .meter i { width: 4px; height: 10px; border-radius: 1px; background: var(--fill-2); }
+  .meter i.on { background: var(--success-bg); }
+  .meter i.hot { background: var(--warning-bg); }
+  .osd-meter i { background: rgb(255 255 255 / 25%); }
+  .sel-frame { position: absolute; outline: 2px solid #fff; box-shadow: 0 0 0 1px rgb(0 0 6 / 40%); }
+  .sel-frame .h { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; background: #fff; border-radius: 50%; box-shadow: 0 0 0 1px rgb(0 0 6 / 40%); }
+  .rec-frame { position: absolute; outline: 2px dashed var(--destructive-bg); outline-offset: 2px; }
+  .rec-ctl { position: absolute; z-index: 63; gap: 2px; }
+  .rec-ctl .label.time { font-size: 15px; min-width: 62px; }
+  .countdown { position: absolute; width: 180px; height: 180px; border-radius: 50%; background: var(--osd-bg); color: #fff; display: grid; place-items: center; font-size: 96px; font-weight: 800; font-variant-numeric: tabular-nums; box-shadow: var(--shadow-osd); }
+  .shape-pick { display: flex; gap: 6px; }
+  .shape-pick .opt { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--radius-s); background: var(--fill-1); }
+  .shape-pick .opt.active { background: var(--accent-bg); color: #fff; }
+  .shape-pick .opt i { width: 16px; height: 16px; border: 2px solid currentColor; display: block; }
+  .pos-grid { display: grid; grid-template-columns: repeat(3, 14px); gap: 3px; padding: 4px; border-radius: var(--radius-s); background: var(--fill-1); }
+  .pos-grid i { width: 14px; height: 9px; border-radius: 2px; background: var(--fill-2); }
+  .pos-grid i.on { background: var(--accent-bg); }
+</style><div class="desktop"><div class="shell-panel"><span class="ws"><i class="on"></i><i></i><i></i></span><span>Fri 30 Oct  10:42</span><span class="sys"><span class="rec-ind"><svg class="icon"><use href="#i-record"/></svg>00:41</span><svg class="icon"><use href="#i-speaker"/></svg><svg class="icon"><use href="#i-settings"/></svg></span></div><img class="screen-img" src="../../kit/sample-content/png/d-tidewater-analytics.png" style="height:800px" alt=""><div class="rec-frame" style="left:130px;top:92px;width:700px;height:470px"></div><div style="position:absolute;left:130px;top:92px;width:700px;height:470px;overflow:hidden;z-index:57"><svg width="700" height="470" viewBox="0 0 700 470"><rect width="700" height="470" fill="#bcd0dc"/><rect y="291.4" width="700" height="470" fill="#a9bfcd"/><circle cx="350.0" cy="188.0" r="79.9" fill="#e3b394"/><ellipse cx="350.0" cy="479.40000000000003" rx="188.0" ry="178.6" fill="#3d5a73"/></svg><div class="osd-toolbar" style="position:absolute;left:18px;top:18px"><span class="label"><svg class="icon"><use href="#i-camera"/></svg> Webcam only</span></div></div><div class="osd-toolbar pill rec-ctl" style="left:270px;top:580px"><span style="padding-left:8px;display:flex"><span class="rec-dot"></span></span><span class="label time">00:41</span><span class="sep"></span><button class="btn image-button" title="Pause"><svg class="icon"><use href="#i-pause"/></svg></button><button class="btn image-button destructive-action" title="Stop (Shift+Ctrl+Print)" style="border-radius:50%"><svg class="icon"><use href="#i-stop"/></svg></button><span class="sep"></span><button class="btn image-button" title="Draw"><svg class="icon"><use href="#i-pen"/></svg></button><button class="btn" title="Mute Microphone" style="gap:6px;padding:0 8px"><span class="" style="display:flex"><svg class="icon"><use href="#i-microphone"/></svg></span><span class="meter osd-meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></button><button class="btn active" title="Swap Screen and Webcam" style="gap:6px;padding:0 10px"><svg class="icon"><use href="#i-camera"/></svg><span style="font-size:13px">Show Screen</span></button><button class="btn image-button"><svg class="icon"><use href="#i-view-more"/></svg></button></div><svg style="position:absolute;inset:0;z-index:59" width="1280" height="800"></svg></div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

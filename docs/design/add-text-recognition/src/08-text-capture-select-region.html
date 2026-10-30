@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — text capture region</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .native { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .native > img { display: block; }
+  .native > svg.ov { position: absolute; left: 0; top: 0; overflow: visible; }
+  .patch { position: absolute; display: flex; align-items: center; white-space: nowrap; }
+  .sec-title { font-size: var(--fs-caption-heading); font-weight: var(--fw-bold); opacity: var(--dim-opacity); padding: 0 2px; }
+  .hint { font-size: var(--fs-small); opacity: var(--dim-opacity); line-height: 1.4; }
+  .local-note { display: flex; gap: 8px; align-items: flex-start; font-size: var(--fs-small); line-height: 1.4; }
+  .local-note .icon { margin-top: 1px; opacity: var(--dim-opacity); }
+  .local-note span { opacity: var(--dim-opacity); }
+  /* desktop scene (GNOME Shell) — the panel is shell chrome, black in GNOME 46 */
+  .desktop { position: relative; width: 1280px; height: 800px; overflow: hidden; background: var(--desktop-bg); }
+  .shell-panel { position: absolute; left: 0; right: 0; top: 0; height: 32px; background: #000; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 14px; font-weight: var(--fw-bold); z-index: 60; }
+  .shell-panel .ws { display: flex; gap: 6px; align-items: center; }
+  .shell-panel .ws i { width: 8px; height: 8px; border-radius: 4px; background: rgb(255 255 255 / 45%); }
+  .shell-panel .ws i.on { width: 30px; background: #fff; }
+  .shell-panel .sys { display: flex; gap: 12px; align-items: center; }
+  .shell-panel .rec-ind { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px; border-radius: 11px; background: var(--destructive-bg); font-variant-numeric: tabular-nums; }
+  .shell-notif { position: absolute; left: 50%; top: 44px; width: 420px; margin-left: -210px; z-index: 61; background: var(--osd-bg-solid); color: #fff; border-radius: 18px; padding: 12px; display: flex; gap: 12px; box-shadow: 0 4px 18px rgb(0 0 6 / 35%); }
+  .shell-notif .t { font-weight: var(--fw-bold); }
+  .shell-notif .b { font-size: var(--fs-small); opacity: .8; }
+  .shell-notif .acts { display: flex; gap: 6px; margin-top: 10px; }
+  .shell-notif .acts .btn { background: var(--osd-fill); color: #fff; flex: 1; }
+  .screen-img { position: absolute; left: 0; top: 32px; width: 1280px; height: 800px; }
+  .scrim { position: absolute; background: rgb(0 0 6 / 45%); }
+  .mic-off { position: relative; }
+  .mic-off::after { content: ""; position: absolute; left: 50%; top: 50%; width: 22px; height: 2px; margin: -1px 0 0 -11px; background: currentColor; transform: rotate(-45deg); box-shadow: 0 0 0 1.5px var(--osd-bg-solid); border-radius: 1px; }
+  .kbd-row { display: inline-flex; gap: 4px; align-items: center; }
+
+
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="desktop">
+<div class="shell-panel"><span class="ws"><i class="on"></i><i></i><i></i></span><span>Fri 30 Oct  10:42</span><span class="sys"><svg class="icon"><use href="#i-speaker"/></svg><svg class="icon"><use href="#i-settings"/></svg></span></div>
+<img class="screen-img" src="../../kit/sample-content/png/e-relay-chat.png" style="height:800px" alt="">
+<div class="scrim" style="left:0;top:32px;width:1280px;height:96px"></div>
+<div class="scrim" style="left:0;top:128px;width:380px;height:84px"></div>
+<div class="scrim" style="left:832px;top:128px;width:448px;height:84px"></div>
+<div class="scrim" style="left:0;top:212px;width:1280px;height:588px"></div>
+<div style="position:absolute;left:380px;top:128px;width:452px;height:84px;outline:2px solid #fff;box-shadow:0 0 0 1px rgb(0 0 6 / 40%)"></div>
+<div style="position:absolute;left:380px;top:220px;" class="osd-toolbar"><span class="label">452 × 84</span></div>
+<div class="osd-toolbar pill" style="position:absolute;left:50%;transform:translateX(-50%);bottom:36px;gap:6px">
+  <svg class="icon"><use href="#i-ocr-text"/></svg><span class="label">Select text to copy</span><span class="sep"></span>
+  <span class="label" style="font-weight:400;opacity:.8">Enter to confirm · Esc to cancel</span>
+</div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>
