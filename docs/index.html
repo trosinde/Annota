@@ -345,12 +345,12 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
   <div class="sec-head">
     <span class="eyebrow">Feature coverage</span>
     <h2>Benchmarked against a full commercial capture suite.</h2>
-    <p class="lede">The catalogue lists 67 documented features of today's leading Windows/Mac capture tool. Annota plans 63 of them, half in the first release. The rest are cloud or Windows-only functions that don't fit a private, native GNOME app.</p>
+    <p class="lede">The catalogue lists 73 documented features of today's leading Windows/Mac capture tool. Annota plans 69 of them, half in the first release. The rest are cloud or Windows-only functions that don't fit a private, native GNOME app.</p>
   </div>
   <div class="cov">
     <div>
-      <div class="bignum" id="covNum">94%<small>of benchmark features are planned</small></div>
-      <div class="bar" id="covBar" role="img" aria-label="33 MVP, 27 Phase 2, 3 Phase 3, 4 not planned"></div>
+      <div class="bignum" id="covNum">95%<small>of benchmark features are planned</small></div>
+      <div class="bar" id="covBar" role="img" aria-label="35 MVP, 31 Phase 2, 3 Phase 3, 4 not planned"></div>
       <div class="legend" id="covLegend"></div>
     </div>
     <div class="groups" id="groups"></div>
@@ -360,7 +360,7 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
 <section id="roadmap"><div class="wrap">
   <div class="sec-head">
     <span class="eyebrow">Roadmap · OpenSpec changes</span>
-    <h2>17 specified changes, ready to build in order.</h2>
+    <h2>18 specified changes, ready to build in order.</h2>
     <p class="lede">Each card is a validated change in <code>openspec/changes/</code> with proposal, spec deltas, design and tasks. None has passed the design gate yet.</p>
   </div>
   <div class="filters" id="filters" role="group" aria-label="Filter by phase"></div>
@@ -450,11 +450,11 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
 <span class="p">›</span> /design add-screen-capture</pre>
     <div class="files" aria-label="Repository map">
       <div><span>CLAUDE.md</span><em>stack, rules, workflow</em></div>
-      <div><span>openspec/changes/</span><em>17 roadmap changes</em></div>
+      <div><span>openspec/changes/</span><em>18 roadmap changes</em></div>
       <div><span>openspec/config.yaml</span><em>project context and artifact rules</em></div>
       <div><span>.claude/agents/</span><em>designer, gtk-engineer, reviewer, debian-packager</em></div>
       <div><span>.claude/commands/design.md</span><em>design gate command</em></div>
-      <div><span>docs/feature-catalog.md</span><em>67 benchmark features → phase</em></div>
+      <div><span>docs/feature-catalog.md</span><em>73 benchmark features → phase</em></div>
       <div><span>tools/render-mockups.py</span><em>HTML mockups → PNG, light/dark, 1×/2×</em></div>
     </div>
   </div>
@@ -529,11 +529,11 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
   /* coverage */
   var css=getComputedStyle(document.documentElement);
   var phases=[{k:'MVP',label:'MVP · 0.1',c:'var(--coral)'},{k:'P2',label:'Phase 2',c:'var(--blue)'},{k:'P3',label:'Phase 3',c:'var(--ok)'},{k:'NA',label:'not planned',c:'var(--na)'}];
-  var tot={MVP:33,P2:27,P3:3,NA:4};
-  var all=67;
+  var tot={MVP:35,P2:31,P3:3,NA:4};
+  var all=73;
   document.getElementById('covBar').innerHTML=phases.map(function(p){return '<i style="width:'+(tot[p.k]/all*100)+'%;background:'+p.c+'"></i>'}).join('');
   document.getElementById('covLegend').innerHTML=phases.map(function(p){return '<span><i style="background:'+p.c+'"></i>'+p.label+' <b class="mono">'+tot[p.k]+'</b></span>'}).join('');
-  var groups=[['Capture',{MVP:8,P2:4,P3:2,NA:2}],['Editor & document',{MVP:9}],['Annotation tools',{MVP:9,P2:6,P3:1}],['Styles & effects',{MVP:2,P2:6}],['Privacy & text',{P2:3}],['Video',{P2:7}],['Organise & share',{MVP:5,P2:1,NA:2}]];
+  var groups=[['Capture',{MVP:8,P2:4,P3:2,NA:2}],['Editor & document',{MVP:9}],['Annotation tools',{MVP:9,P2:6,P3:1}],['Styles & effects',{MVP:2,P2:6}],['Privacy & text',{P2:3}],['Video',{P2:7}],['Library & share',{MVP:7,P2:5,NA:2}]];
   var max=16;
   document.getElementById('groups').innerHTML=groups.map(function(g){
     var n=0,bars=phases.map(function(p){var v=g[1][p.k]||0;n+=v;return v?'<i style="width:'+(v/max*100)+'%;background:'+p.c+'"></i>':''}).join('');
@@ -548,12 +548,13 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
     ['add-core-annotation-tools','Core annotation tools','MVP',['annotation-tools'],18],
     ['add-style-system','Quick styles & themes','MVP',['style-system'],10],
     ['add-export-share','Export & sharing','MVP',['export-share'],11],
+    ['add-capture-library','Capture library: browse & manage','MVP',['capture-library'],18],
     ['add-advanced-annotation-tools','Magnifier, spotlight, stamps, cut-out','P2',['annotation-tools'],16],
     ['add-image-effects','Borders, edges, shadows, capture info','P2',['image-effects'],10],
     ['add-capture-presets','Presets, multi-area, time-lapse','P2',['capture'],10],
     ['add-text-recognition','Grab & edit text (local OCR)','P2',['text-recognition'],10],
     ['add-smart-redaction','Smart redaction','P2',['privacy-redaction'],9],
-    ['add-capture-library','Searchable capture library','P2',['capture-library'],11],
+    ['add-library-organisation','Search, tags, collections, filters','P2',['capture-library'],17],
     ['add-templates','Templates & combine images','P2',['templates'],11],
     ['add-screen-recording','Screen recording & GIF','P2',['screen-recording'],16],
     ['add-scrolling-capture','Scrolling capture','P3',['scrolling-capture'],10],
@@ -571,7 +572,7 @@ footer{padding-block:40px 60px;border-top:1px solid var(--line);color:var(--mute
         (cs.length?cs.map(function(c){return '<article class="card"><code>'+c[0]+'</code><b>'+c[1]+'</b><div class="tags">'+c[3].map(function(t){return '<span>'+t+'</span>'}).join('')+'</div><div class="meta"><span class="gate"><i></i>design gate open</span><span>0 / '+c[4]+' tasks</span></div></article>'}).join(''):'<p style="color:var(--muted);font-size:14px">No change touches this capability here.</p>')+'</div>';
     }).join('');
   }
-  var caps=['all','capture','annotation-tools','editor-canvas','export-share','screen-recording','privacy-redaction'];
+  var caps=['all','capture','capture-library','annotation-tools','editor-canvas','export-share','screen-recording'];
   var fwrap=document.getElementById('filters');
   caps.forEach(function(c){var b=document.createElement('button');b.type='button';b.textContent=c==='all'?'All capabilities':c;b.setAttribute('aria-pressed',c==='all'?'true':'false');
     b.addEventListener('click',function(){filter=c;[].forEach.call(fwrap.children,function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});renderLanes()});fwrap.appendChild(b)});

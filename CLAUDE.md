@@ -17,8 +17,9 @@ Press a hotkey, select a region (or a window, or the whole screen), and the capt
 Annota editor. Mark it up with arrows, callouts, numbered steps, shapes, highlighter, magnifier,
 spotlight, stamps and redaction. Every annotation stays an editable object until export. Save as
 `.annota` (editable) or export to PNG/JPG/WebP/PDF, copy to clipboard, or drag into another app.
-Later phases add screen recording, scrolling capture, step capture, OCR, smart redaction,
-templates and a searchable capture library.
+Every capture lands automatically in the capture library, where it can be browsed, previewed,
+renamed, dragged out and later searched, tagged and grouped into collections.
+Later phases add screen recording, scrolling capture, step capture, OCR, smart redaction and templates.
 
 Feature catalogue and phasing: `docs/feature-catalog.md`. Behaviour contracts: `openspec/`.
 
@@ -66,6 +67,7 @@ annota/
 │   ├── tools/                 ← one module per annotation tool (arrow.rs, callout.rs, step.rs …)
 │   ├── styles/                ← quick styles, themes (palette + fonts), tool presets
 │   ├── export/                ← PNG/JPG/WebP/PDF, clipboard, drag-and-drop
+│   ├── library/               ← automatic storage, index (SQLite), folder watcher, library window
 │   ├── ui/                    ← windows, panels, widgets (Blueprint .blp files in data/ui/)
 │   └── i18n.rs
 ├── data/

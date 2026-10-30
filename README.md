@@ -26,8 +26,8 @@ Built in Rust with GTK 4 and libadwaita, shipped as a native Debian package, pri
 
 | Phase | Changes |
 |---|---|
-| **MVP 0.1** | app shell & packaging · screen capture · editor & `.annota` format · core tools · quick styles & themes · export & share |
-| **Phase 2** | advanced tools · effects · capture presets · text recognition · smart redaction · library · templates · screen recording |
+| **MVP 0.1** | app shell & packaging · screen capture · editor & `.annota` format · core tools · quick styles & themes · export & share · capture library |
+| **Phase 2** | advanced tools · effects · capture presets · text recognition · smart redaction · library search, tags & collections · templates · screen recording |
 | **Phase 3** | scrolling capture · step capture · smart move & simplify |
 
 ## How it is built

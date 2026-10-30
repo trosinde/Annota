@@ -1,4 +1,4 @@
-# Design: Add capture library
+# Design: Add capture library (browse and manage captures)
 
 ## Mockups (design gate)
 
@@ -8,7 +8,10 @@ Scenario-to-mockup mapping: `docs/design/add-capture-library/index.md`.
 Design approved: _pending_
 
 ## Technical decisions
-- SQLite index (`rusqlite`) next to files in `~/Pictures/Annota`; files remain the source of truth
+- Files stay the source of truth; SQLite index (`rusqlite`) in `~/.cache/annota/library.db` is rebuildable
+- Thumbnails cached per XDG thumbnail spec (normal/large) in `~/.cache/thumbnails`
+- `GtkGridView`/`GtkColumnView` with lazy thumbnail loading; `notify` crate for folder watching
+- Metadata: application/window title via portal response where available, else from X11 properties; URL only where the capture source provides it
 
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.

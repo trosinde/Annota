@@ -96,7 +96,7 @@ Feasibility: 🟢 straightforward · 🟡 platform limits/extra work · 🔴 har
 | Trim, cut, combine, frame grab | P2 | add-screen-recording | 🟢 |
 | MP4 / WebM / GIF export | P2 | add-screen-recording | 🟢 |
 
-## Organise & share
+## Organise & share (library, export)
 
 | Feature | Phase | Change |
 |---|---|---|
@@ -105,6 +105,12 @@ Feasibility: 🟢 straightforward · 🟡 platform limits/extra work · 🔴 har
 | Clipboard, drag & drop out | MVP | add-export-share |
 | Share via e-mail / open with | MVP | add-export-share |
 | Batch export | MVP | add-export-share |
-| Library with search, tags, filters, retention | P2 | add-capture-library |
+| Automatic storage of every capture with metadata | MVP | add-capture-library |
+| Library window: grid/list, day grouping, sorting, preview, quick look | MVP | add-capture-library |
+| Open, rename, duplicate, trash with undo, drag out, bulk actions | MVP | add-capture-library |
+| Full-text search (metadata, annotation text, OCR text) | P2 | add-library-organisation |
+| Filters: date, type, application, website, tag | P2 | add-library-organisation |
+| Tags, collections, favourites, saved searches | P2 | add-library-organisation |
+| Import folders (e.g. GNOME Screenshots), retention, duplicates | P2 | add-library-organisation |
 | Cloud share links, comments, AI captions | ✗ | — (privacy-first, no hosted service) |
 | Office/Teams/OneDrive integrations | ✗ | — (use clipboard / drag & drop) |
