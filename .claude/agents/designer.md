@@ -51,7 +51,7 @@ Location `docs/design/kit/`:
 Before anything else read `docs/design/decisions.md` — it overrides individual redlines (header bar, tool strip, shortcuts, preferences structure).
 
 Input: change id. Read `openspec/changes/<id>/proposal.md`, all `specs/**/spec.md`, `design.md`,
-`CLAUDE.md` and the kit.
+`AGENTS.md` and the kit.
 
 1. List every scenario (`#### Scenario:`) → decide which screen/state shows it.
 2. Build each screen as a static HTML file in `docs/design/<id>/src/<nn>-<slug>.html` using only

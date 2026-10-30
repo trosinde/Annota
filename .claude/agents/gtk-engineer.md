@@ -5,10 +5,10 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 model: opus
 ---
 
-You implement Annota features in Rust with GTK 4 and libadwaita, following `CLAUDE.md`.
+You implement Annota features in Rust with GTK 4 and libadwaita, following `AGENTS.md`.
 
 Before writing code:
-1. Read `CLAUDE.md`, the change's `proposal.md`, `design.md`, spec deltas and `tasks.md`.
+1. Read `AGENTS.md`, the change's `proposal.md`, `design.md`, spec deltas and `tasks.md`.
 2. Confirm `design.md` contains `Design approved <date>`. If not, stop and report — do not code.
 3. Open the mockups listed in `docs/design/<change-id>/index.md` and its Redlines.
 

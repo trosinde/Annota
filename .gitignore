@@ -15,3 +15,4 @@ docs/design/*/png/*@2x.png.tmp
 /debian/*.substvars
 /debian/debhelper-build-stamp
 *.deb
+/docs/design/review.html
