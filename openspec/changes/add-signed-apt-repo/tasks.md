@@ -50,25 +50,34 @@
 - [x] 4.1 Extend the `build-deb` job in `.github/workflows/ci.yml` (or add a dependent job) so
   that, gated on `startsWith(github.ref, 'refs/tags/v')`, it imports
   `ANNOTA_RELEASE_SIGNING_KEY`, runs `build-aux/make-apt-repo.sh`, and assembles a Pages artifact
-  combining the existing `docs/` tree with the generated `docs/apt/` tree — job `publish-apt-repo`
-  added; **not yet run** — no `v*` tag has been pushed since this job was added, so the workflow
-  itself is untested on real CI
+  combining the existing `docs/` tree with the generated `docs/apt/` tree — verified end-to-end on
+  tag `v0.1.0-test3` (run 41083044009): `build-deb` green in 10m24s (full vendored build, clippy,
+  tests, `openspec validate --all --strict`, lintian), `publish-apt-repo` green in 1m19s. Two
+  unrelated pre-existing CI gaps were found and fixed along the way (both apply to `build-deb`,
+  not specific to this change): `rustup component add rustfmt clippy` installed clippy for the
+  runner's default toolchain instead of the pinned `rustc-1.85`, and `build-essential` was
+  missing from the install list
 - [x] 4.2 Add the `actions/deploy-pages` step (and required `pages: write`/`id-token: write`
-  permissions) to publish that artifact — step added; repo was private and Pages was never
-  enabled before this change (`gh api .../pages` → 404, then `422` while private); with the
-  maintainer's approval the repo was made public and Pages enabled with `build_type: workflow`
-  (`https://trosinde.github.io/Annota/`). **Still open:** no run has happened yet to actually
-  populate that URL — needs a `v*` tag push to verify end-to-end
-- [ ] 4.3 Keep the existing unsigned-`.deb`-to-GitHub-Release attachment step unchanged; verify a
-  test tag's Release still has the `.deb` asset attached exactly as before this change — step
-  itself untouched in the diff; verification still needs a real tag push
+  permissions) to publish that artifact — repo was private and Pages was never enabled before
+  this change; with the maintainer's approval the repo was made public and Pages enabled with
+  `build_type: workflow`. The auto-created `github-pages` environment only allowed deployments
+  from `main`; with the maintainer's approval a `v*` tag deployment-branch-policy was added.
+  Verified live: `https://trosinde.github.io/Annota/apt/dists/noble/InRelease` and
+  `.../annota-archive-keyring.asc` both return 200, and `gpg --verify` against the fetched
+  `InRelease` with the fetched public key reports "Good signature"
+- [x] 4.3 Keep the existing unsigned-`.deb`-to-GitHub-Release attachment step unchanged; verify a
+  test tag's Release still has the `.deb` asset attached exactly as before this change — verified:
+  `gh release view v0.1.0-test3` shows asset `annota_0.1.0.dev1_amd64.deb` attached
 
 ## 5. Documentation
 
-- [ ] 5.1 Add an "Install" section to `README.md` documenting both paths: the signed-repo
+- [x] 5.1 Add an "Install" section to `README.md` documenting both paths: the signed-repo
   `add-repo` + `apt install annota` flow (with the exact commands from `design.md`) and the
-  direct-`.deb`-download flow; verify by following the documented signed-repo commands verbatim
-  in a clean Ubuntu 24.04 container and confirming `annota --help` runs afterward
+  direct-`.deb`-download flow — written. Verified the two URLs the documented commands fetch
+  (`.../annota-archive-keyring.asc`, the repo under `.../apt/`) are live and correct; did not run
+  a full `apt install annota` in a clean container (the shipped `.deb` only installs a CLI skeleton
+  so far per `bootstrap-app-shell` — a real GNOME session is needed to see it do anything, which
+  is out of scope here)
 
 ## 6. Verify
 
@@ -81,8 +90,9 @@
 
 ## Workflow follow-up
 
-- Archive this change (`/opsx:archive add-signed-apt-repo`) only after `bootstrap-app-shell` has
-  already archived, since this change's delta modifies `debian-packaging` and needs that capability
-  to exist as an archived base spec first.
-- After archiving, confirm `openspec/specs/debian-packaging/spec.md` carries the three new
-  requirements from this change's delta.
+- `bootstrap-app-shell` has archived (`openspec/specs/debian-packaging/spec.md` now exists with
+  4 requirements) — the earlier ordering blocker is gone; this change is ready to archive once
+  task 6.1 (reviewer pass) is done.
+- Archive this change (`/opsx:archive add-signed-apt-repo`) and then confirm
+  `openspec/specs/debian-packaging/spec.md` carries the three new requirements from this
+  change's delta (should read 7 requirements total afterward).
