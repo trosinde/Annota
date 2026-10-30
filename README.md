@@ -31,6 +31,32 @@ Built in Rust with GTK 4 and libadwaita, shipped as a native Debian package, pri
 | **Phase 2** | advanced tools · effects · capture presets · text recognition · smart redaction · library search, tags & collections · templates · screen recording |
 | **Phase 3** | scrolling capture · step capture · smart move & simplify |
 
+## Install
+
+**From the signed APT repository (recommended)** — every release is signed with Annota's GPG
+release key, so `apt` verifies it on install and every later upgrade:
+
+```bash
+curl -fsSL https://trosinde.github.io/Annota/annota-archive-keyring.asc \
+  | sudo tee /usr/share/keyrings/annota-archive-keyring.asc
+echo "deb [signed-by=/usr/share/keyrings/annota-archive-keyring.asc] \
+  https://trosinde.github.io/Annota/apt noble main" \
+  | sudo tee /etc/apt/sources.list.d/annota.list
+sudo apt update && sudo apt install annota
+```
+
+**Direct download** — grab the `.deb` from the [latest release](https://github.com/trosinde/Annota/releases)
+and install it without adding a repository (not verified by `apt` itself):
+
+```bash
+sudo apt install ./annota_*.deb
+```
+
+Every release tag (`vX.Y.Z`) publishes both paths: the unsigned `.deb` on the GitHub Release and
+the signed APT repository on GitHub Pages. See `packaging/annota-archive-keyring.asc` for the
+raw public key, and [`docs/adr/0001-signed-apt-repo.md`](docs/adr/0001-signed-apt-repo.md) for how
+the key is generated, rotated and revoked.
+
 ## Build the Debian/Ubuntu package
 
 On Ubuntu 24.04 (or Debian 13):

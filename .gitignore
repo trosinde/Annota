@@ -16,3 +16,5 @@ docs/design/*/png/*@2x.png.tmp
 /debian/debhelper-build-stamp
 *.deb
 /docs/design/review.html
+/docs/apt/
+/docs/annota-archive-keyring.asc
