@@ -11,12 +11,40 @@ pub enum CaptureMode {
 impl CaptureMode {
     pub const VALID: &'static str = "region, window, screen";
 
+    pub const ALL: [CaptureMode; 3] = [Self::Region, Self::Window, Self::Screen];
+
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "region" => Some(Self::Region),
             "window" => Some(Self::Window),
             "screen" => Some(Self::Screen),
             _ => None,
+        }
+    }
+
+    /// The command-line spelling, inverse of [`CaptureMode::parse`].
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Region => "region",
+            Self::Window => "window",
+            Self::Screen => "screen",
+        }
+    }
+
+    /// Index in the GSettings enum `io.github.trosinde.Annota.CaptureMode`.
+    pub fn from_index(index: i32) -> Self {
+        match index {
+            1 => Self::Window,
+            2 => Self::Screen,
+            _ => Self::Region,
+        }
+    }
+
+    pub fn index(self) -> i32 {
+        match self {
+            Self::Region => 0,
+            Self::Window => 1,
+            Self::Screen => 2,
         }
     }
 }
@@ -36,6 +64,14 @@ mod tests {
         assert_eq!(CaptureMode::parse("region"), Some(CaptureMode::Region));
         assert_eq!(CaptureMode::parse("window"), Some(CaptureMode::Window));
         assert_eq!(CaptureMode::parse("screen"), Some(CaptureMode::Screen));
+    }
+
+    #[test]
+    fn modes_round_trip() {
+        for mode in CaptureMode::ALL {
+            assert_eq!(CaptureMode::parse(mode.as_str()), Some(mode));
+            assert_eq!(CaptureMode::from_index(mode.index()), mode);
+        }
     }
 
     #[test]

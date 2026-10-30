@@ -81,10 +81,15 @@
 
 ## 6. Verify
 
-- [ ] 6.1 Run the `reviewer` agent against this change: specs have scenarios with a test or
+- [x] 6.1 Run the `reviewer` agent against this change: specs have scenarios with a test or
   documented manual check (§6.3 matches 3.2/4.2/5.1 above), `cargo fmt`/`clippy`/tests green
   (unaffected by this change but re-verify no regression), `.deb` still builds and is
-  lintian-clean, and the new `docs/apt/` tree verifies with `gpg --verify`
+  lintian-clean, and the new `docs/apt/` tree verifies with `gpg --verify` — independent reviewer
+  pass completed: **READY TO ARCHIVE**, no blocking findings. Non-blocking: no test yet ran a
+  real `apt install` against the live `https://` repo (only `file://` + signature-verify checks
+  so far — do once on the first real release); secret scanning/push protection are off on the now
+  public repo (cheap hardening, not a bug); unrelated in-progress work from another change is
+  sitting uncommitted in the tree (not part of this change's commits)
 - [x] 6.2 `openspec validate --all --strict` passes with this change's deltas applied — confirmed:
   19/19 items pass
 

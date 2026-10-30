@@ -1,4 +1,5 @@
 mod application;
+mod capture;
 mod cli;
 mod config;
 mod preferences;

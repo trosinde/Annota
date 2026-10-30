@@ -12,6 +12,10 @@ publish = false
 gtk = { package = "gtk4", version = "0.9", features = ["v4_14"] }
 adw = { package = "libadwaita", version = "0.7", features = ["v1_5"] }
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
+ashpd = { version = "0.11.1", default-features = false, features = ["async-std"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+thiserror = "2"
+futures-channel = "0.3"
 
 [profile.release]
 lto = "thin"
