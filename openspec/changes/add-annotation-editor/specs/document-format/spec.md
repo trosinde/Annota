@@ -35,7 +35,7 @@ Every object SHALL have an id that is unique in the whole document, members of g
 - **THEN** the objects come back with their ids, and new objects get ids no object has had
 
 ### Requirement: Format versions
-`document.json` SHALL contain its format version as `"format": "MAJOR.MINOR"` and the oldest Annota version that reads it as `"requires"`. Files of a newer minor version SHALL open without any message. Files of a newer major version SHALL NOT be opened: the error SHALL name the file's format version and the Annota version it requires, and the file SHALL NOT be changed.
+`document.json` SHALL contain its format version as `"format": "MAJOR.MINOR"` and the oldest Annota version that reads it as `"requires"`. Files of a newer minor version SHALL open without any message. Files of a newer major version SHALL NOT be opened: the error SHALL name the file's format version and the Annota version it requires, and the file SHALL NOT be changed. The editor SHALL show it as the "Newer Annota Version Needed" alert, which also offers to show the file in the file manager.
 
 #### Scenario: Newer major
 - **WHEN** the user opens a file whose format major version is higher than supported
@@ -75,7 +75,11 @@ Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files 
 
 #### Scenario: Crash recovery
 - **WHEN** Annota is killed with an unsaved document and restarted
-- **THEN** the user is offered to restore the document
+- **THEN** the user is offered to restore the document, and Restore opens it in the editor with its changes
+
+#### Scenario: Closed document leaves no autosave
+- **WHEN** the editor window with an autosaved document is closed
+- **THEN** the document's autosave is removed
 
 #### Scenario: Recoverable entry
 - **WHEN** an unsaved document was autosaved and its autosave was never removed
@@ -84,3 +88,10 @@ Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files 
 #### Scenario: Saved document leaves no autosave
 - **WHEN** a document that has an autosave is saved
 - **THEN** its autosave is removed at the next autosave tick
+
+### Requirement: Recovery dialog
+When Annota starts and autosaves of a previous run are left, it SHALL show "Restore Unsaved Captures?" with one checked row per autosave. Restore SHALL open the checked ones in the editor, Discard SHALL delete them; unchecked ones, or all if the dialog is closed otherwise, SHALL be kept and offered again.
+
+#### Scenario: Restore
+- **WHEN** the dialog lists an autosave and the user presses Restore
+- **THEN** the document opens in the editor with its changes and stays recoverable until it is saved or closed

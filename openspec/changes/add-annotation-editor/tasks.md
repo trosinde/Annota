@@ -32,10 +32,17 @@
       document-wide id checks on insert/replace.
 
 ## 4. Editor UI
-- [ ] 4.1 Header bar, properties sidebar, adaptive layout; zoom OSD and popover; autosave timer
+- [x] 4.1 Header bar, properties sidebar, adaptive layout; zoom OSD and popover; autosave timer
       and "Restore Unsaved Captures?" dialog (mockup 14); "Newer Annota Version Needed" alert
       (mockup 15); replace the `--dev-canvas` preview window
-- [ ] 4.2 Recent captures tray
+      (`src/ui/editor/{mod,sidebar,session,dialogs,text}.rs`, `data/ui/editor-window.blp`,
+      `restore-dialog.blp`, `newer-version-dialog.blp`; header bar per D1 with export-share
+      placeholders, tool strip per D2 with Select only, GSettings keys `snap-to-guides`,
+      `show-properties`, `show-tray`). Reachable in debug builds only (`--dev-canvas`, startup
+      recovery) until 4.4/4.5. Decisions and open points in design.md, phase 2b-i.
+- [x] 4.2 Recent captures tray (`src/ui/editor/tray.rs`): open documents (switch, current ring,
+      unsaved dot) and the newest 50 `.annota`/`.png` files of the save folder until
+      add-capture-library provides the index; drag a thumbnail onto the canvas to insert it.
 - [ ] 4.3 Crop/resize/rotate/flip, canvas extension, flatten
 - [ ] 4.4 `--open <file>` actually opens the editor: add `specs/app-shell/spec.md` with a
       `## MODIFIED Requirements` delta completing bootstrap-app-shell's "Command-line

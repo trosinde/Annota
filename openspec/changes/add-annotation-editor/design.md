@@ -108,7 +108,7 @@ integration (3.2–4.5) follow in phase 2.
   (pixel inspection), smooth below. The zoom OSD and window-level actions arrive with 4.1.
 - **Preview window.** Until the editor window exists, debug builds accept a hidden
   `--dev-canvas FILE` that shows a `.annota` file or image in a bare window
-  (`data/ui/canvas-preview.blp`). Release builds compile neither the option nor `src/ui/`.
+  (`data/ui/canvas-preview.blp`). Release builds compile neither the option nor `src/ui/`. (Replaced in phase 2b-i: the option now opens the editor window.)
 - **Autosave** (`src/document/autosave.rs`): one `<id>.annota` per open document in a `0700`
   directory; `Schedule::tick(revision, dirty)` → Write / Discard / Nothing keeps idle documents
   idle; `Store::list` reports name, mtime, object count and thumbnail without decoding images.
@@ -197,6 +197,116 @@ Tasks 3.2–3.4. The logic is in the library (`src/editing/`, `src/tools/group.r
   `/usr/local/share/annota/resources.gresource` from an earlier install had to be bypassed with
   `G_RESOURCE_OVERLAYS` for that run.
 
+### Decided during apply — phase 2b-i (2026-10-30: editor window, sidebar, zoom OSD, autosave UI, tray)
+Tasks 4.1 and 4.2 (`src/ui/editor/`, `data/ui/editor-window.blp`, `restore-dialog.blp`,
+`newer-version-dialog.blp`). Crop/resize/flatten (4.3) and the `--open`/capture integration
+(4.4, 4.5) are still open.
+
+- **Reachability.** The editor window replaces the `--dev-canvas` preview: debug builds open
+  `--dev-canvas FILE` in it, and the first start of a debug build offers leftover autosaves in
+  it. Release builds still compile neither, and `--open` and captures still take their
+  stand-in paths until 4.4/4.5. The main window is unchanged; `present_window` skips the editor
+  window (style class `annota-editor`).
+- **One window, several documents.** Each open document is a `Session` (its own `Canvas`:
+  document, history, selection, view; origin; autosave slot); the canvases sit in a `GtkStack`
+  and the tray's "Open" group switches between them (add-screen-capture's mockups 12/13 open
+  captures as new "tabs" there). Header bar, sidebar, OSD and tray always show the current
+  session, refreshed through `Canvas::connect_changed` (new: after edits, undo/redo, selection
+  and snapping changes) and `connect_view_changed` (deferred to idle: Fit changes the zoom
+  inside the canvas's size allocation, where label updates were lost). The window's state is
+  owned by the application (a thread-local) until the window closes — found during apply: with
+  only weak references the state was dropped right after opening while the widgets lived on.
+  There is no per-document close yet (no redline); closing the window closes all.
+- **Header bar per D1.** New Capture (starts a capture in the launcher's default mode) · linked
+  Undo/Redo (disabled when empty; tooltip "Undo Move Group" with keycaps, mockup 06) | title =
+  document name, subtitle `W × H · Edited` / `· Not saved` (new capture, add-screen-capture
+  mockup 12) / `· 200 %` while not fitted / `Crop · W × H` (ready for 4.3) | Show Properties
+  (F9) · Copy · Export split button (arrow: Email…, Open With…, Copy to Folder…) · main menu
+  (mockup 17). Copy, Export, Save and Save As belong to add-export-share and show "… arrives in
+  milestone 0.1" toasts (the existing `--open` placeholder wording); the Share items are
+  insensitive; dragging the title out (D1) is not built. Menu items of task 4.3 (Resize Image…,
+  Rotate, Flip, Flatten All) exist with their shortcuts but are insensitive.
+- **Tool strip per D2: only Select.** Later-phase tools are *hidden*, not greyed out — that
+  includes Crop (task 4.3) and More Tools, whose entries all belong to later changes. `V`
+  selects the tool.
+- **Keys.** A capture-phase key controller on the window hands keys to the current canvas
+  unless a text field or a dialog has the focus, or Space/Enter would activate the focused
+  button; the canvas takes the focus when clicked. Application accelerators are used only for
+  keys text fields do not use (F9, Ctrl+E/S/Shift+S, Ctrl+0/1/+/−, Ctrl+R, …): they run before
+  the focused widget, so Ctrl+C (Copy, placeholder), Ctrl+Z and the editing keys stay with the
+  window controller. One accelerator per action: GTK 4.22 shows no accelerator in menus for
+  actions with several (found during apply); keypad and `Ctrl+=` variants are the canvas's.
+- **Sidebar** (Blueprint, a `GtkStack` of document/selection pages; `sidebar::state` computes
+  what to show without widgets). Document: Image (size; Resize…, Rotate & Flip and Corner
+  radius show the real values but stay insensitive until 4.3), Canvas (the current background
+  is ringed; the swatches stay insensitive until 4.3), Objects ("Snap to guides", "N editable
+  objects", Flatten All insensitive until 4.3). Above 40 objects a per-type summary with Select
+  buttons sits on top (mockup 16 draws it in place of Image/Canvas; the redline says "adds", so
+  those groups stay below it). Selection: type heading with caption ("Image · 1 selected",
+  "Group · 2 objects", "3 Images · Shared properties"), a group's member list and Ungroup,
+  Arrange (X/Y/W/H entries apply on Enter or leaving the field, Rotation spin; one undo step
+  via `ops::arrange`; several objects are placed as one box without orientation, so Rotation
+  is insensitive for them), Select All <Type>. Type property panels (add-core-annotation-tools)
+  go between heading and Arrange.
+- **"Snap to guides" is a standalone GSettings key `snap-to-guides`** (also `Ctrl+;`). D6's
+  Preferences "Editor" page does not exist yet; it can show the same key later. `show-properties`
+  and `show-tray` are new keys too; the existing `window-width/-height/-maximized` keys are now
+  bound by the editor window.
+- **Bottom sheet below 900 px.** libadwaita 1.5 has no `AdwBottomSheet` (1.6), so the sheet is a
+  `GtkRevealer` over the canvas, and an `AdwBreakpoint` (built in code) moves the properties
+  between sidebar and sheet on apply/unapply; its setters hide Copy and the tray and swap in a
+  main menu that starts with Copy. The canvas is not refitted above the sheet.
+- **Zoom OSD and popover (mockup 07)** on the existing `render::view` math; new are only
+  `view::fit_width_zoom` ("Fit Width", never above 100 % like Fit) and `view::preset` (the
+  checked preset). The OSD is styled in `style.css`, not with libadwaita's `.osd`, which also
+  restyled the popover. GTK draws the preset items as radio buttons, not the mockup's trailing
+  check mark.
+- **Autosave timer and recovery.** A 30 s `glib` timer per editor window runs
+  `Session::autosave_tick` → `session::tick` (Schedule + Store from phase 1). Whether a
+  document counts as unsaved depends on its origin: opened `.annota` files are their own saved
+  state; images opened from files are new captures (autosaved, "Not saved"); restored autosaves
+  are "Edited" and keep their slot. Closing the window removes every document's autosave (spec)
+  — with no Save yet (add-export-share) that means closing discards changes without asking.
+  "Restore Unsaved Captures?" appears once at the primary instance's start (not for `--capture`
+  or forwarded launches) over an empty editor window; all rows start checked, Restore opens the
+  checked ones, Discard deletes them, unchecked ones stay for next time. Built as an `AdwDialog`
+  like the existing alerts (no `AdwAlertDialog` response syntax: Ubuntu 24.04's Blueprint is
+  0.10). The thumbnail is drawn in a `GtkDrawingArea` (a `GtkPicture` asks for its texture's
+  size where nothing limits its height).
+- **"Newer Annota Version Needed" (mockup 15)** is shown for `ArchiveError::NewerFormat` when a
+  file is opened (dev option, tray); Show in Files uses `GtkFileLauncher` (OpenURI portal under
+  Flatpak). The file is only read.
+- **Tray data source (4.2).** "Open" = the window's documents (current one ringed, unsaved dot).
+  "Recent" is meant to come from the capture library's index (add-capture-library, not built):
+  until then it lists the newest 50 `.annota` and `.png` files of the save folder that are not
+  open. Thumbnails come from `thumbnail.png` or the scaled image, decoded on a worker thread and
+  cached by path and mtime; the listing is refreshed when the window is activated. Tiles of open
+  documents are updated in place (never rebuilt during a drag). Dragging a tile onto the canvas
+  (a string payload that stays inside Annota) inserts the flattened open document or the file's
+  image via `ops::insert_image` (one undo step "Insert Image"); "Image inserted" offers Undo,
+  which only undoes if nothing happened since. Hide Tray collapses it; with no redline for
+  getting it back, an OSD-style "Show Tray" button appears bottom-left of the canvas.
+  Open Library (and Ctrl+L, which bootstrap-app-shell only listed in the shortcuts window) is a
+  new `app.open-library` action showing "The capture library arrives in milestone 0.1" in
+  whichever window it came from.
+- **Styling notes.** The empty canvas is painted in code with the canvas's own colours
+  (`style-dark.css` is deprecated from libadwaita 1.6, and GTK 4.14 has no CSS media queries).
+  New icons `annota-select` and `annota-library` come from the kit (strokes converted to fills).
+- **Verification.** Unit tests: texts (subtitle, zoom label, headings, recovery rows, newer-version
+  body, tooltips), session status and autosave ticks, sidebar state, swatches and number parsing,
+  tray payloads, recent listing and thumbnails, `ops::arrange`/`insert_image`, Fit Width. One
+  `#[ignore]`d live test drives the real window (open, sidebar, Select All, Arrange, zoom
+  popover with its accelerators, narrow sheet and back, F9 action, snapping switch, tray
+  insert/undo/redo, recent file, autosave, restore, newer-format alert, close). The live-test
+  harness now fails when GTK cannot initialise and documents one test per process
+  (`crate::ui::test_support`). Manually, on a private Xvfb with `dbus-run-session`, isolated
+  `HOME`/cache and a memory GSettings backend, the real binary was driven with `xdotool` and
+  compared with mockups 01, 06, 07, 11, 13, 14, 15, 17 in light and dark: a real drag from the
+  tray, a crash (30 s autosave, `kill -9`, restart → dialog → Restore), a newer-format file sent
+  to the running instance (unchanged afterwards, by checksum), F9 (xdotool sends Alt+F9 on that
+  keymap; the raw key code works), Ctrl+E and Ctrl+L. In-process `WidgetPaintable` snapshots
+  drop dim (opacity) text on that setup; X screenshots are reliable.
+
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.
 
@@ -219,6 +329,9 @@ Tasks 3.2–3.4. The logic is in the library (`src/editing/`, `src/tools/group.r
   without doing anything — a failed `gtk::init` doesn't fail the test. Fix before phase 2b adds
   more live tests: make a failed `gtk::init` an actual test failure, and run one GTK test per
   process (or switch to a `harness = false` integration test for these).
+  *Phase 2b-i:* a failed `gtk::init` now fails the test (all three live tests, via
+  `ui::test_support::init`), and one-test-per-process is documented there; nothing enforces it
+  yet (a `harness = false` runner would).
 - **SHALL-level decisions added during apply need a maintainer look**, not just an implementer
   judgement call, before this change archives: Ctrl+click-toggles-selection, the rubber band
   requiring objects "entirely inside", Duplicate's 10px offset, images keeping aspect ratio
@@ -234,3 +347,19 @@ Tasks 3.2–3.4. The logic is in the library (`src/editing/`, `src/tools/group.r
   forward-compatibility rule as phase 1, but now it can hide content the user *can* see correctly
   elsewhere in the document. Worth a note in the eventual "opened with an older/newer version"
   UI (4.1) so this isn't surprising.
+
+### Open after phase 2b-i (tasks 4.1, 4.2)
+- **Closing the editor discards unsaved changes without asking.** The spec removes a document's
+  autosave when it is closed, and Save does not exist until add-export-share. A "Save changes?"
+  confirmation has no redline in any change; it should come with Save.
+- **No way to close a single document** (only the whole window); no redline either.
+- **The context menu (redline "Context menu", mockup 05) belongs to no task**; its keys work on
+  the canvas, the menu itself is not built.
+- **The tool strip shows only Select** (D2). Arrow … Stamp arrive with add-core-annotation-tools,
+  Crop with 4.3; the shortcuts window (bootstrap-app-shell 07, "exactly as drawn") still lists
+  them all — left unchanged here. The German-keyboard Ctrl+Shift+]/[ point above is still open.
+- **Image/Canvas controls are insensitive until 4.3**, which dims the background swatches
+  compared with mockup 01.
+- **Recent is the save folder, not the library.** add-capture-library should replace
+  `tray::recent_files` with its index and keep the "Open Library" tile wiring (`app.open-library`).
+
