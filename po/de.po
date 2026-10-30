@@ -105,12 +105,12 @@ msgid "Export folder"
 msgstr "Exportordner"
 
 #: data/io.github.trosinde.Annota.gschema.xml:38
-#, fuzzy
 msgid ""
 "Folder offered by the export dialog. Empty means the save folder's Exports "
 "subfolder."
 msgstr ""
-"Ordner, den der Exportdialog vorschlägt. Leer bedeutet den Speicherordner."
+"Ordner, den der Exportdialog vorschlägt. Leer bedeutet den Unterordner "
+"„Exports“ des Speicherordners."
 
 #: data/io.github.trosinde.Annota.gschema.xml:42
 msgid "What happens after a capture"

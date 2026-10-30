@@ -19,9 +19,11 @@
 - [ ] 4.3 Global shortcuts + fallback keybinding
 - [ ] 4.4 Clipboard/file import
 - [ ] 4.5 `--capture` actually starts a capture: add `specs/app-shell/spec.md` with a
-      `## MODIFIED Requirements` delta completing bootstrap-app-shell's "Second launch
-      forwards request" and "Invalid mode" requirements for this case (see the note left in
-      `openspec/specs/app-shell/spec.md` after that change archives)
+      `## MODIFIED Requirements` delta completing bootstrap-app-shell's "Single application
+      instance" requirement (its "Second launch forwards request" scenario currently stops at
+      "handles the request" — extend it to "starts a region/window/screen capture" for this
+      case; "Command-line interface" and its "Invalid mode" scenario are already correct as
+      they are and don't need to change)
 
 ## 5. Verify
 - [ ] 5.1 Tests for every scenario (unit, golden-image or documented manual check)
