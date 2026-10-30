@@ -1,0 +1,227 @@
+/* Annota stylesheet, loaded automatically by AdwApplication from the resource base path.
+ * Values follow docs/design/kit/tokens.css and the redlines in docs/design/<change>/index.md. */
+
+/* --- Region overlay (add-screen-capture 02–04) --------------------------------------- */
+
+window.annota-overlay {
+  background-color: black;
+}
+
+.annota-chip {
+  background-color: #303034; /* --osd-bg-solid */
+  color: white;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.annota-chip.annota-chip-accent {
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+}
+
+.annota-chip.annota-snap-chip {
+  background-color: #8b5cf6; /* --annota-violet */
+}
+
+.annota-chip-dim {
+  opacity: 0.72;
+  font-weight: normal;
+}
+
+.annota-overlay-toolbar {
+  background-color: rgba(0, 0, 6, 0.7); /* --osd-bg */
+  color: white;
+  border-radius: 18px;
+  padding: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 6, 0.25), 0 4px 16px rgba(0, 0, 6, 0.18);
+}
+
+.annota-overlay-toolbar separator {
+  background-color: rgba(255, 255, 255, 0.15);
+  margin: 6px 2px;
+}
+
+.annota-overlay-toolbar button {
+  color: white;
+}
+
+.annota-toolbar-modes {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 2px;
+}
+
+.annota-toolbar-icon {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.annota-toolbar-icon:checked {
+  background-color: rgba(255, 255, 255, 0.28);
+}
+
+.annota-toolbar-text {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-weight: bold;
+}
+
+.annota-size-field {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0 8px;
+  min-height: 34px;
+  min-width: 74px;
+}
+
+.annota-size-field:focus-within {
+  outline: 2px solid @accent_bg_color;
+  outline-offset: -2px;
+}
+
+.annota-size-field text {
+  color: white;
+  font-feature-settings: "tnum";
+}
+
+.annota-hint {
+  background-color: rgba(0, 0, 6, 0.7);
+  color: white;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.annota-keycap {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  padding: 0 6px;
+  min-height: 22px;
+  min-width: 10px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* --- Countdown OSD (07) ----------------------------------------------------------------- */
+
+window.annota-countdown-window {
+  background: none;
+  box-shadow: none;
+}
+
+.annota-countdown {
+  background-color: rgba(36, 36, 40, 0.88);
+  color: white;
+  border-radius: 30px;
+  padding: 28px 36px;
+  box-shadow: 0 1px 3px rgba(0, 0, 6, 0.25), 0 4px 16px rgba(0, 0, 6, 0.18);
+}
+
+.annota-countdown-number {
+  font-size: 72px;
+  font-weight: 900;
+}
+
+.annota-countdown-message {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+/* --- Capture launcher popover (01) ------------------------------------------------------ */
+
+popover.annota-launcher > contents {
+  padding: 12px;
+}
+
+.annota-mode-group {
+  background-color: alpha(currentColor, 0.06);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.annota-mode-toggle {
+  min-height: 76px;
+  border-radius: 9px;
+  padding: 4px;
+}
+
+.annota-mode-toggle:checked {
+  background-color: @view_bg_color;
+  box-shadow: 0 0 0 1px alpha(currentColor, 0.12), 0 1px 3px alpha(black, 0.1);
+}
+
+.annota-mode-label {
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.annota-mode-accel {
+  font-size: 11px;
+}
+
+.annota-launcher-row {
+  min-height: 44px;
+  padding: 0 6px;
+}
+
+.annota-launcher-capture {
+  min-height: 38px;
+}
+
+.annota-launcher-accel {
+  opacity: 0.75;
+}
+
+.annota-menu-row {
+  padding: 6px 8px;
+  font-weight: normal;
+}
+
+/* --- Drop zone (14) --------------------------------------------------------------------- */
+
+.annota-drop-zone {
+  background-color: alpha(@window_bg_color, 0.9);
+  border: 2px dashed @accent_bg_color;
+  border-radius: 12px;
+  margin: 6px;
+}
+
+.annota-drop-circle {
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+  border-radius: 9999px;
+  min-width: 72px;
+  min-height: 72px;
+}
+
+/* --- Set Shortcut dialog (11) and permission alert (08) --------------------------------- */
+
+.annota-keyboard-art {
+  background-color: alpha(currentColor, 0.1);
+  border-radius: 12px;
+}
+
+.annota-live-keys label {
+  min-height: 34px;
+  min-width: 22px;
+  padding: 0 10px;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.annota-dialog-button {
+  min-height: 40px;
+  font-weight: bold;
+}
+
+/* --- Preferences › Capture banner (09) -------------------------------------------------- */
+
+banner.annota-warning-banner > revealer > widget {
+  background-color: mix(@warning_bg_color, @window_bg_color, 0.72);
+  color: @window_fg_color;
+}

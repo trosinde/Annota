@@ -4,5 +4,16 @@ data/io.github.trosinde.Annota.gschema.xml
 data/ui/window.blp
 data/ui/preferences.blp
 data/ui/help-overlay.blp
+data/ui/region-overlay.blp
+data/ui/countdown.blp
+data/ui/permission-dialog.blp
+data/ui/shortcut-dialog.blp
 src/application.rs
+src/capture/countdown.rs
+src/capture/delivery.rs
+src/capture/import.rs
+src/capture/mod.rs
+src/capture/overlay.rs
+src/capture/shortcut_dialog.rs
+src/capture/shortcuts.rs
 src/preferences.rs

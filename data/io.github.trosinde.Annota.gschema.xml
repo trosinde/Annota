@@ -54,6 +54,36 @@
       <default>false</default>
       <summary>Include the mouse pointer in captures</summary>
     </key>
+    <key name="capture-all-monitors" type="b">
+      <default>false</default>
+      <summary>Capture all monitors</summary>
+      <description>Screen mode captures every monitor instead of the one under the pointer.</description>
+    </key>
+    <key name="shortcut-region" type="s">
+      <default>'Print'</default>
+      <summary>Region capture shortcut</summary>
+      <description>Global shortcut (GTK accelerator syntax) that starts a region capture. Empty disables it.</description>
+    </key>
+    <key name="shortcut-window" type="s">
+      <default>'&lt;Alt&gt;Print'</default>
+      <summary>Window capture shortcut</summary>
+      <description>Global shortcut (GTK accelerator syntax) that starts a window capture. Empty disables it.</description>
+    </key>
+    <key name="shortcut-screen" type="s">
+      <default>'&lt;Shift&gt;Print'</default>
+      <summary>Screen capture shortcut</summary>
+      <description>Global shortcut (GTK accelerator syntax) that starts a screen capture. Empty disables it.</description>
+    </key>
+    <key name="gnome-shortcuts-created" type="b">
+      <default>false</default>
+      <summary>GNOME shortcuts created</summary>
+      <description>Whether Annota has written GNOME custom keybindings that run annota --capture (used when the GlobalShortcuts portal is unavailable).</description>
+    </key>
+    <key name="moved-gnome-keys" type="a(ss)">
+      <default>[]</default>
+      <summary>GNOME screenshot keys moved aside</summary>
+      <description>GNOME Shell keybindings (key, accelerator) that Annota took over. They are given back when the Annota shortcut is disabled or changed.</description>
+    </key>
     <key name="window-width" type="i">
       <default>1280</default>
       <summary>Editor window width</summary>

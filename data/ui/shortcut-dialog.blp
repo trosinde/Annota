@@ -1,0 +1,83 @@
+using Gtk 4.0;
+using Adw 1;
+
+// Set Shortcut dialog (mockup 11 of add-screen-capture).
+
+Adw.Dialog shortcut_dialog {
+  content-width: 440;
+  title: _("Set Shortcut");
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      show-start-title-buttons: false;
+      show-end-title-buttons: false;
+
+      [start]
+      Button cancel_button {
+        label: _("Cancel");
+      }
+
+      [end]
+      Button set_button {
+        label: _("Set");
+        sensitive: false;
+        styles ["suggested-action"]
+      }
+    }
+
+    content: Box {
+      orientation: vertical;
+      spacing: 12;
+      margin-top: 12;
+      margin-bottom: 24;
+      margin-start: 24;
+      margin-end: 24;
+
+      Label prompt_label {
+        use-markup: true;
+        wrap: true;
+        justify: center;
+      }
+
+      Box {
+        halign: center;
+        width-request: 160;
+        height-request: 96;
+        styles ["annota-keyboard-art"]
+
+        Image {
+          icon-name: "input-keyboard-symbolic";
+          pixel-size: 32;
+          hexpand: true;
+          vexpand: true;
+        }
+      }
+
+      ShortcutLabel live_keys {
+        halign: center;
+        disabled-text: "";
+        styles ["annota-live-keys"]
+      }
+
+      Label {
+        label: _("Esc cancels · Backspace disables the shortcut");
+        wrap: true;
+        justify: center;
+        styles ["dim-label", "caption"]
+      }
+
+      Box status_box {
+        visible: false;
+        halign: center;
+        spacing: 6;
+
+        Image status_icon {}
+
+        Label status_label {
+          wrap: true;
+        }
+      }
+    };
+  };
+}

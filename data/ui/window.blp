@@ -30,6 +30,224 @@ Adw.ApplicationWindow window {
   content: Adw.ToolbarView {
     [top]
     Adw.HeaderBar {
+      [start]
+      MenuButton capture_menu_button {
+        icon-name: "annota-capture-region-symbolic";
+        tooltip-text: _("New Capture (Ctrl+N)");
+
+        // Capture launcher (mockup 01 of add-screen-capture).
+        popover: Popover capture_launcher {
+          styles ["annota-launcher"]
+
+          child: Box {
+            orientation: vertical;
+            spacing: 6;
+            width-request: 332;
+
+            Box {
+              homogeneous: true;
+              spacing: 4;
+              styles ["annota-mode-group"]
+
+              ToggleButton launcher_region_button {
+                active: true;
+                tooltip-text: _("Region");
+                styles ["flat", "annota-mode-toggle"]
+
+                child: Box {
+                  orientation: vertical;
+                  spacing: 2;
+                  valign: center;
+
+                  Image {
+                    icon-name: "annota-capture-region-symbolic";
+                    pixel-size: 24;
+                  }
+
+                  Label {
+                    label: _("Region");
+                    styles ["annota-mode-label"]
+                  }
+
+                  Label launcher_region_accel {
+                    styles ["annota-mode-accel", "dim-label"]
+                  }
+                };
+              }
+
+              ToggleButton launcher_window_button {
+                group: launcher_region_button;
+                tooltip-text: _("Window");
+                styles ["flat", "annota-mode-toggle"]
+
+                child: Box {
+                  orientation: vertical;
+                  spacing: 2;
+                  valign: center;
+
+                  Image {
+                    icon-name: "annota-capture-window-symbolic";
+                    pixel-size: 24;
+                  }
+
+                  Label {
+                    label: _("Window");
+                    styles ["annota-mode-label"]
+                  }
+
+                  Label launcher_window_accel {
+                    styles ["annota-mode-accel", "dim-label"]
+                  }
+                };
+              }
+
+              ToggleButton launcher_screen_button {
+                group: launcher_region_button;
+                tooltip-text: _("Screen");
+                styles ["flat", "annota-mode-toggle"]
+
+                child: Box {
+                  orientation: vertical;
+                  spacing: 2;
+                  valign: center;
+
+                  Image {
+                    icon-name: "annota-capture-screen-symbolic";
+                    pixel-size: 24;
+                  }
+
+                  Label {
+                    label: _("Screen");
+                    styles ["annota-mode-label"]
+                  }
+
+                  Label launcher_screen_accel {
+                    styles ["annota-mode-accel", "dim-label"]
+                  }
+                };
+              }
+            }
+
+            Box {
+              spacing: 12;
+              styles ["annota-launcher-row"]
+
+              Box {
+                orientation: vertical;
+                hexpand: true;
+                valign: center;
+
+                Label {
+                  label: _("Delay");
+                  xalign: 0;
+                }
+
+                Label {
+                  label: _("Countdown before capturing");
+                  xalign: 0;
+                  styles ["caption", "dim-label"]
+                }
+              }
+
+              SpinButton launcher_delay {
+                valign: center;
+                tooltip-text: _("Delay in seconds");
+                adjustment: Adjustment {
+                  lower: 0;
+                  upper: 60;
+                  step-increment: 1;
+                  page-increment: 5;
+                };
+              }
+            }
+
+            Box {
+              spacing: 12;
+              styles ["annota-launcher-row"]
+
+              Label {
+                label: _("Include pointer");
+                hexpand: true;
+                xalign: 0;
+              }
+
+              Switch launcher_pointer {
+                valign: center;
+                tooltip-text: _("Include Pointer");
+              }
+            }
+
+            Button launcher_capture_button {
+              styles ["suggested-action", "annota-launcher-capture"]
+
+              child: Box {
+                halign: center;
+                spacing: 12;
+
+                Label launcher_capture_label {
+                  styles ["heading"]
+                }
+
+                Label launcher_capture_accel {
+                  styles ["annota-launcher-accel"]
+                }
+              };
+            }
+
+            Separator {
+              margin-top: 6;
+              margin-bottom: 6;
+            }
+
+            Button {
+              action-name: "app.paste-image";
+              styles ["flat", "annota-menu-row"]
+
+              child: Box {
+                spacing: 12;
+
+                Image {
+                  icon-name: "edit-copy-symbolic";
+                }
+
+                Label {
+                  label: _("Paste Image From Clipboard");
+                  hexpand: true;
+                  xalign: 0;
+                }
+
+                Label launcher_paste_accel {
+                  styles ["dim-label"]
+                }
+              };
+            }
+
+            Button {
+              action-name: "app.open-image";
+              styles ["flat", "annota-menu-row"]
+
+              child: Box {
+                spacing: 12;
+
+                Image {
+                  icon-name: "image-x-generic-symbolic";
+                }
+
+                Label {
+                  label: _("Open Image…");
+                  hexpand: true;
+                  xalign: 0;
+                }
+
+                Label launcher_open_accel {
+                  styles ["dim-label"]
+                }
+              };
+            }
+          };
+        };
+      }
+
       [end]
       MenuButton {
         primary: true;
@@ -40,10 +258,51 @@ Adw.ApplicationWindow window {
     }
 
     content: Adw.ToastOverlay toast_overlay {
-      child: Adw.StatusPage {
-        icon-name: "io.github.trosinde.Annota-symbolic";
-        title: _("Annota");
-        description: _("Pre-release build. Capturing and editing arrive with milestone 0.1.");
+      child: Overlay {
+        child: Adw.StatusPage {
+          icon-name: "io.github.trosinde.Annota-symbolic";
+          title: _("Annota");
+          description: _("Pre-release build. Editing arrives with milestone 0.1.");
+        };
+
+        // Drop zone (mockup 14 of add-screen-capture), shown while an image is dragged in.
+        [overlay]
+        Box drop_zone {
+          visible: false;
+          can-target: false;
+          orientation: vertical;
+          styles ["annota-drop-zone"]
+
+          Box {
+            orientation: vertical;
+            spacing: 12;
+            halign: center;
+            valign: center;
+            vexpand: true;
+
+            Box {
+              halign: center;
+              styles ["annota-drop-circle"]
+
+              Image {
+                icon-name: "image-x-generic-symbolic";
+                pixel-size: 32;
+                hexpand: true;
+                vexpand: true;
+              }
+            }
+
+            Label {
+              label: _("Drop to Open as New Capture");
+              styles ["title-4"]
+            }
+
+            Label {
+              label: _("PNG, JPG or WebP");
+              styles ["dim-label"]
+            }
+          }
+        }
       };
     };
   };

@@ -1,0 +1,66 @@
+using Gtk 4.0;
+
+// Delay countdown OSD (mockup 07 of add-screen-capture). The window is transparent and lets
+// all pointer input through; only the centred OSD is visible.
+
+Window countdown_window {
+  title: _("Capture Countdown");
+  decorated: false;
+  styles ["annota-countdown-window"]
+
+  child: Box countdown_box {
+    halign: center;
+    valign: center;
+    orientation: vertical;
+    spacing: 14;
+    styles ["annota-countdown"]
+
+    Overlay {
+      halign: center;
+
+      child: DrawingArea ring {
+        content-width: 148;
+        content-height: 148;
+      };
+
+      [overlay]
+      Label number {
+        halign: center;
+        valign: center;
+        styles ["annota-countdown-number", "numeric"]
+      }
+    }
+
+    Label message {
+      styles ["annota-countdown-message"]
+    }
+
+    Box {
+      halign: center;
+      spacing: 6;
+
+      Label {
+        label: C_("keyboard key", "Esc");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("Cancel");
+      }
+
+      Label {
+        label: "·";
+        styles ["annota-chip-dim"]
+      }
+
+      Label {
+        label: C_("keyboard key", "Enter");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("Capture now");
+      }
+    }
+  };
+}

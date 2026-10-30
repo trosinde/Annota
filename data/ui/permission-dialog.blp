@@ -1,0 +1,63 @@
+using Gtk 4.0;
+using Adw 1;
+
+// "Screen Access Denied" alert (mockup 08 of add-screen-capture).
+
+Adw.Dialog permission_dialog {
+  content-width: 420;
+  title: _("Screen Access Denied");
+
+  child: Box {
+    orientation: vertical;
+    spacing: 12;
+    margin-top: 32;
+    margin-bottom: 24;
+    margin-start: 24;
+    margin-end: 24;
+
+    Image {
+      icon-name: "dialog-warning-symbolic";
+      pixel-size: 32;
+      styles ["warning"]
+    }
+
+    Label {
+      label: _("Screen Access Denied");
+      wrap: true;
+      justify: center;
+      styles ["title-1"]
+    }
+
+    Label {
+      label: _("GNOME did not allow Annota to take a screenshot. To allow it, open <b>Settings</b>, choose <b>Apps → Annota</b> and turn on <b>Screenshots</b>. Then try again.");
+      use-markup: true;
+      wrap: true;
+      justify: center;
+      max-width-chars: 44;
+    }
+
+    Label {
+      label: _("Nothing was captured.");
+      wrap: true;
+      justify: center;
+      styles ["dim-label", "caption"]
+    }
+
+    Box {
+      homogeneous: true;
+      spacing: 12;
+      margin-top: 12;
+
+      Button close_button {
+        label: _("Close");
+        styles ["annota-dialog-button"]
+      }
+
+      Button open_settings_button {
+        label: _("Open Settings");
+        receives-default: true;
+        styles ["annota-dialog-button", "suggested-action"]
+      }
+    }
+  };
+}

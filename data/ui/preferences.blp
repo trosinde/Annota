@@ -4,8 +4,8 @@ using Adw 1;
 Adw.PreferencesDialog preferences_dialog {
   title: _("Preferences");
   search-enabled: true;
-  content-width: 640;
-  content-height: 680;
+  content-width: 660;
+  content-height: 720;
 
   Adw.PreferencesPage general_page {
     title: _("General");
@@ -102,57 +102,73 @@ Adw.PreferencesDialog preferences_dialog {
     title: _("Capture");
     icon-name: "camera-photo-symbolic";
 
-    Adw.PreferencesGroup {
-      title: _("After Capture");
-      description: _("What happens when a capture is taken");
+    // Holds the banner on libadwaita < 1.7, which has no AdwPreferencesPage:banner.
+    Adw.PreferencesGroup banner_group {
+      visible: false;
+    }
 
-      Adw.ActionRow {
-        title: _("Open in editor");
-        activatable-widget: after_capture_editor;
+    Adw.PreferencesGroup shortcuts_group {
+      title: _("Global Shortcuts");
 
-        [prefix]
-        CheckButton after_capture_editor {
+      Adw.ActionRow shortcut_region_row {
+        title: _("Region capture");
+        activatable: true;
+
+        [suffix]
+        ShortcutLabel shortcut_region_label {
           valign: center;
+          disabled-text: "";
+        }
+
+        [suffix]
+        Image {
+          icon-name: "go-next-symbolic";
         }
       }
 
-      Adw.ActionRow {
-        title: _("Copy to clipboard");
-        subtitle: _("No window opens");
-        activatable-widget: after_capture_clipboard;
+      Adw.ActionRow shortcut_window_row {
+        title: _("Window capture");
+        activatable: true;
 
-        [prefix]
-        CheckButton after_capture_clipboard {
+        [suffix]
+        ShortcutLabel shortcut_window_label {
           valign: center;
-          group: after_capture_editor;
+          disabled-text: "";
+        }
+
+        [suffix]
+        Image {
+          icon-name: "go-next-symbolic";
         }
       }
 
-      Adw.ActionRow {
-        title: _("Open in editor and copy to clipboard");
-        activatable-widget: after_capture_both;
+      Adw.ActionRow shortcut_screen_row {
+        title: _("Screen capture");
+        activatable: true;
 
-        [prefix]
-        CheckButton after_capture_both {
+        [suffix]
+        ShortcutLabel shortcut_screen_label {
           valign: center;
-          group: after_capture_editor;
+          disabled-text: "";
+        }
+
+        [suffix]
+        Image {
+          icon-name: "go-next-symbolic";
         }
       }
     }
 
     Adw.PreferencesGroup {
-      title: _("Capture Defaults");
+      title: _("Capture");
 
-      Adw.ComboRow capture_mode_row {
-        title: _("Default mode");
-        model: StringList {
-          strings [_("Region"), _("Window"), _("Screen")]
-        };
+      Adw.SwitchRow include_pointer_row {
+        title: _("Include pointer");
+        subtitle: _("Show the mouse pointer in captures");
       }
 
       Adw.SpinRow capture_delay_row {
-        title: _("Delay");
-        subtitle: _("Seconds to wait before capturing (0–60)");
+        title: _("Default delay");
         adjustment: Adjustment {
           lower: 0;
           upper: 60;
@@ -161,25 +177,24 @@ Adw.PreferencesDialog preferences_dialog {
         };
       }
 
-      Adw.SwitchRow include_pointer_row {
-        title: _("Include pointer");
+      Adw.SwitchRow capture_all_monitors_row {
+        title: _("Capture all monitors");
+        subtitle: _("Screen mode captures every monitor instead of the one under the pointer");
       }
-    }
 
-    Adw.PreferencesGroup {
-      title: _("Shortcut");
-
-      Adw.ActionRow {
-        title: _("Capture region");
-        subtitle: _("Registered as a system shortcut");
-        sensitive: false;
-
-        [suffix]
-        ShortcutLabel {
-          valign: center;
-          accelerator: "Print";
-        }
+      Adw.ComboRow after_capture_row {
+        title: _("After capture");
+        model: StringList {
+          strings [_("Open in Editor"), _("Copy to Clipboard"), _("Both")]
+        };
       }
     }
   }
+}
+
+Adw.Banner shortcuts_banner {
+  title: _("Global shortcuts are not active yet");
+  button-label: _("Create GNOME Shortcuts");
+  revealed: true;
+  styles ["annota-warning-banner"]
 }

@@ -1,0 +1,471 @@
+using Gtk 4.0;
+
+// Region-selection overlay (mockups 02–04 of add-screen-capture), one per monitor.
+// The frozen screenshot, dimming, selection, handles, snap guide and loupe are drawn on
+// `canvas`; chips, toolbar and hint bar are widgets positioned by src/capture/overlay.rs.
+
+menu delay_menu {
+  section {
+    item {
+      label: _("Off");
+      action: "overlay.delay";
+      target: "0";
+    }
+
+    item {
+      label: _("1 s");
+      action: "overlay.delay";
+      target: "1";
+    }
+
+    item {
+      label: _("2 s");
+      action: "overlay.delay";
+      target: "2";
+    }
+
+    item {
+      label: _("3 s");
+      action: "overlay.delay";
+      target: "3";
+    }
+
+    item {
+      label: _("5 s");
+      action: "overlay.delay";
+      target: "5";
+    }
+
+    item {
+      label: _("10 s");
+      action: "overlay.delay";
+      target: "10";
+    }
+
+    item {
+      label: _("Custom…");
+      action: "overlay.delay";
+      target: "custom";
+    }
+  }
+}
+
+Window overlay_window {
+  title: _("Select Region");
+  decorated: false;
+  styles ["annota-overlay"]
+
+  child: Overlay overlay {
+    child: DrawingArea canvas {
+      hexpand: true;
+      vexpand: true;
+      focusable: true;
+      can-focus: true;
+      accessible-role: img;
+    };
+
+    [overlay]
+    Box size_chip {
+      visible: false;
+      halign: start;
+      valign: start;
+      spacing: 6;
+      styles ["annota-chip"]
+
+      Label size_label {
+        styles ["numeric"]
+      }
+
+      Label size_position_label {
+        visible: false;
+        styles ["annota-chip-dim", "numeric"]
+      }
+    }
+
+    [overlay]
+    Box loupe_chip {
+      visible: false;
+      halign: start;
+      valign: start;
+      spacing: 6;
+      styles ["annota-chip"]
+
+      DrawingArea loupe_swatch {
+        content-width: 14;
+        content-height: 14;
+        valign: center;
+      }
+
+      Label loupe_hex {
+        styles ["numeric"]
+      }
+
+      Label loupe_coordinates {
+        styles ["annota-chip-dim", "numeric"]
+      }
+    }
+
+    [overlay]
+    Box snap_chip {
+      visible: false;
+      halign: start;
+      valign: start;
+      spacing: 6;
+      styles ["annota-chip", "annota-snap-chip"]
+
+      Image {
+        icon-name: "object-select-symbolic";
+      }
+
+      Label {
+        label: _("Snapped to window edge");
+      }
+    }
+
+    [overlay]
+    Box toolbar {
+      visible: false;
+      halign: start;
+      valign: start;
+      spacing: 6;
+      styles ["annota-overlay-toolbar"]
+
+      Box {
+        spacing: 2;
+        styles ["annota-toolbar-modes"]
+
+        ToggleButton mode_region_button {
+          icon-name: "annota-capture-region-symbolic";
+          tooltip-text: _("Region");
+          active: true;
+          styles ["flat", "annota-toolbar-icon"]
+        }
+
+        ToggleButton mode_window_button {
+          icon-name: "annota-capture-window-symbolic";
+          tooltip-text: _("Window");
+          group: mode_region_button;
+          styles ["flat", "annota-toolbar-icon"]
+        }
+
+        ToggleButton mode_screen_button {
+          icon-name: "annota-capture-screen-symbolic";
+          tooltip-text: _("Screen");
+          group: mode_region_button;
+          styles ["flat", "annota-toolbar-icon"]
+        }
+      }
+
+      Separator {
+        orientation: vertical;
+      }
+
+      Box width_field {
+        spacing: 6;
+        valign: center;
+        styles ["annota-size-field"]
+
+        Label {
+          label: C_("width", "W");
+          styles ["annota-chip-dim"]
+        }
+
+        Text width_text {
+          input-purpose: digits;
+          max-width-chars: 5;
+          width-chars: 5;
+          max-length: 5;
+          accessibility {
+            label: _("Width in pixels");
+          }
+        }
+      }
+
+      Label {
+        label: "×";
+        styles ["annota-chip-dim"]
+      }
+
+      Box height_field {
+        spacing: 6;
+        valign: center;
+        styles ["annota-size-field"]
+
+        Label {
+          label: C_("height", "H");
+          styles ["annota-chip-dim"]
+        }
+
+        Text height_text {
+          input-purpose: digits;
+          max-width-chars: 5;
+          width-chars: 5;
+          max-length: 5;
+          accessibility {
+            label: _("Height in pixels");
+          }
+        }
+      }
+
+      Label {
+        label: _("px");
+        styles ["annota-chip-dim"]
+      }
+
+      Separator {
+        orientation: vertical;
+      }
+
+      ToggleButton pointer_button {
+        icon-name: "annota-cursor-symbolic";
+        tooltip-text: _("Include Pointer");
+        styles ["flat", "annota-toolbar-icon"]
+      }
+
+      MenuButton delay_button {
+        tooltip-text: _("Delay");
+        menu-model: delay_menu;
+        always-show-arrow: true;
+        styles ["flat"]
+
+        child: Box {
+          spacing: 6;
+
+          Image {
+            icon-name: "annota-timer-symbolic";
+          }
+
+          Label delay_label {
+            label: _("Off");
+          }
+        };
+      }
+
+      SpinButton custom_delay_spin {
+        visible: false;
+        valign: center;
+        numeric: true;
+        tooltip-text: _("Delay in seconds");
+        adjustment: Adjustment {
+          lower: 1;
+          upper: 60;
+          step-increment: 1;
+          page-increment: 5;
+          value: 5;
+        };
+      }
+
+      Separator {
+        orientation: vertical;
+      }
+
+      Button cancel_button {
+        label: _("Cancel");
+        styles ["flat", "annota-toolbar-text"]
+      }
+
+      Button capture_button {
+        styles ["suggested-action", "annota-toolbar-text"]
+
+        child: Box {
+          spacing: 6;
+
+          Image {
+            icon-name: "camera-photo-symbolic";
+          }
+
+          Label {
+            label: _("Capture");
+          }
+        };
+      }
+    }
+
+    [overlay]
+    Box hint_drag {
+      halign: center;
+      valign: end;
+      margin-bottom: 36;
+      spacing: 6;
+      styles ["annota-hint"]
+
+      Label {
+        label: _("Drag to select");
+      }
+
+      Label {
+        label: "·";
+        styles ["annota-chip-dim"]
+      }
+
+      Label {
+        label: C_("keyboard key", "Shift");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("Square");
+      }
+
+      Label {
+        label: "·";
+        styles ["annota-chip-dim"]
+      }
+
+      Label {
+        label: C_("keyboard key", "Alt");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("No snapping");
+      }
+
+      Label {
+        label: "·";
+        styles ["annota-chip-dim"]
+      }
+
+      Label {
+        label: C_("keyboard key", "Esc");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("Cancel");
+      }
+    }
+
+    [overlay]
+    Box hint_snap {
+      visible: false;
+      halign: center;
+      valign: end;
+      margin-bottom: 36;
+      spacing: 6;
+      styles ["annota-hint"]
+
+      Label {
+        label: _("Edges snap within 8 px");
+      }
+
+      Label {
+        label: "·";
+        styles ["annota-chip-dim"]
+      }
+
+      Label {
+        label: C_("keyboard key", "Alt");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("Hold to place freely");
+      }
+
+      Label {
+        label: "·";
+        styles ["annota-chip-dim"]
+      }
+
+      Label {
+        label: C_("keyboard key", "Esc");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("Cancel");
+      }
+    }
+
+    [overlay]
+    Box hint_adjust {
+      visible: false;
+      halign: center;
+      valign: end;
+      margin-bottom: 36;
+      spacing: 6;
+      styles ["annota-hint"]
+
+      Label {
+        label: C_("keyboard key", "Enter");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("Capture");
+      }
+
+      Label {
+        label: "·";
+        styles ["annota-chip-dim"]
+      }
+
+      Label {
+        label: C_("keyboard key", "Esc");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("Cancel");
+      }
+
+      Label {
+        label: "·";
+        styles ["annota-chip-dim"]
+      }
+
+      Label {
+        label: "←";
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: "↑";
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: "→";
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: "↓";
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("Nudge 1 px");
+      }
+
+      Label {
+        label: "·";
+        styles ["annota-chip-dim"]
+      }
+
+      Label {
+        label: C_("keyboard key", "Shift");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: "×10";
+      }
+
+      Label {
+        label: "·";
+        styles ["annota-chip-dim"]
+      }
+
+      Label {
+        label: C_("keyboard key", "Space");
+        styles ["annota-keycap"]
+      }
+
+      Label {
+        label: _("Move selection");
+      }
+    }
+  };
+}

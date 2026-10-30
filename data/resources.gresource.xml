@@ -4,5 +4,15 @@
     <file compressed="true" preprocess="xml-stripblanks">ui/window.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">ui/preferences.ui</file>
     <file compressed="true" preprocess="xml-stripblanks" alias="gtk/help-overlay.ui">ui/help-overlay.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/region-overlay.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/countdown.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/permission-dialog.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/shortcut-dialog.ui</file>
+    <file compressed="true">style.css</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-capture-region-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-capture-window-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-capture-screen-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-cursor-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-timer-symbolic.svg</file>
   </gresource>
 </gresources>
