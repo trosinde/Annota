@@ -63,6 +63,11 @@
 ## 5. Verify
 - [x] 5.1 Tests for every scenario (unit, golden-image or documented manual check) — unit tests in
       `src/capture/*.rs` and `src/cli.rs`; live checks in `manual-checks.md` (not yet run, see there)
-- [ ] 5.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
-- [ ] 5.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean
+- [x] 5.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green — found 2 blockers
+      (a cold-start bug that broke the GNOME-keybinding hotkey entirely, and a spec/tasks
+      honesty gap about D9 not applying on the GlobalShortcuts portal path) plus 2 non-blocking
+      robustness gaps in the GNOME-keybinding takeover's write ordering; all fixed and verified
+- [x] 5.3 `.deb` builds, `lintian -I --pedantic` clean (verified by the reviewer in this dev
+      container — rustc 1.93, not the pinned 1.85, same caveat as bootstrap-app-shell). Actual
+      install on Ubuntu 24.04 not separately verified.
 - [x] 5.4 German translation updated
