@@ -107,37 +107,45 @@ annota/
 
 ## 4. Project status and build
 
-**Status (2026-10-30)**
+**Status (2026-10-31)**
 - Roadmap: 18 OpenSpec changes in `openspec/changes/`, all validated. `bootstrap-app-shell` is
-  archived. `add-screen-capture` is implemented and reviewer-verified but **not archived yet**:
-  it needs either live testing against a real xdg-desktop-portal/GNOME session or a designer
-  mockup for its first-launch takeover prompt (task 4.6) — both deliberately left for the
-  maintainer, see `openspec/changes/add-screen-capture/manual-checks.md`. The other 16 MVP/P2/P3
-  changes have no implementation yet.
+  archived. `add-screen-capture` and `add-annotation-editor` are both **fully implemented and
+  reviewer-verified, but not archived yet** — both need live testing against a real
+  xdg-desktop-portal/GNOME session (screenshot/window capture, global shortcuts, the Print-key
+  takeover) that was deliberately left to the maintainer rather than run from a dev session; see
+  `openspec/changes/add-screen-capture/manual-checks.md`. **Archive order matters: archive
+  add-screen-capture first**, since `add-annotation-editor`'s spec deltas build on it (task 5.6
+  in its `tasks.md`). `add-screen-capture` task 4.6 (a first-launch Print-key-takeover prompt)
+  also still needs a designer mockup before it can be built. The other 16 MVP/P2/P3 changes have
+  no implementation yet.
 - Design: kit in `docs/design/kit/`, mockups for all 18 changes (267 screens) in `docs/design/<change>/`,
   cross-change decisions in `docs/design/decisions.md`. **The 7 MVP (0.1) changes are
   design-approved** (bootstrap-app-shell, add-screen-capture, add-annotation-editor,
   add-core-annotation-tools, add-style-system, add-export-share, add-capture-library);
-  P2/P3 changes stay `_pending_`. All cross-change decisions (D1–D13) are settled, including
-  the former Q1–Q5 maintainer questions, confirmed 2026-10-30 — none block implementation now.
+  P2/P3 changes stay `_pending_`. All cross-change decisions (D1–D13) are settled; none block
+  implementation.
 - Code: `bootstrap-app-shell` (archived) — AdwApplication, CLI, GSettings-backed preferences
-  dialog (General + Capture pages), keyboard shortcuts window (`Ctrl+?`), About dialog. Plus
-  `add-screen-capture` (not archived) — `src/capture/`: Screenshot-portal access, the region
-  overlay (selection, handles, loupe, snapping, nudging), window/screen/delayed capture, the
-  GlobalShortcuts portal and GNOME-custom-keybinding fallback (including the D9 Print-key
-  takeover, reversible, GNOME-keybinding path only — not on the GlobalShortcuts portal path, see
-  that change's spec), clipboard/file import. "Open in Editor" quick-saves a PNG and shows a
-  toast, since `add-annotation-editor` doesn't exist yet. Both changes' welcome-page mode cards
-  and full main-menu redline (D1) still wait for `add-annotation-editor` — see
-  `openspec/specs/app-shell/spec.md`. `add-annotation-editor` is next.
-- Packaging: `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean for both
-  implemented changes, verified end-to-end in this dev container (cargo/rustc 1.93, not the
-  pinned 1.85 — real bugs surfaced and got fixed here regardless, see each change's `tasks.md`
-  for specifics). CI should be green (its known step-order bug is fixed) but hasn't been
-  confirmed on an actual ubuntu-24.04 runner — check the Actions tab before trusting it blindly.
-- Next step: `add-annotation-editor` (canvas, scene graph, `.annota` format, undo/redo) — it also
-  has two follow-up tasks waiting from `add-screen-capture`: route captures into the real editor
-  (4.5) and make `--open <file>` actually open it (4.4), both via `MODIFIED` deltas.
+  dialog, keyboard shortcuts window, About dialog. `add-screen-capture` — `src/capture/`:
+  Screenshot-portal access, the region overlay (selection, handles, loupe, snapping, nudging),
+  window/screen/delayed capture, the GlobalShortcuts portal and GNOME-custom-keybinding fallback
+  (D9 Print-key takeover, GNOME-keybinding path only). `add-annotation-editor` — `src/document/`,
+  `src/render/`, `src/editing/`, `src/tools/`, `src/ui/editor/`: full scene graph, undo/redo,
+  `.annota` format with forward-compatible unknown-data preservation, a viewport-sized canvas,
+  selection/handles/rotation/snapping/grouping, the real editor window (header bar, sidebar,
+  tray, zoom, autosave/recovery), crop/resize/rotate/flip/canvas-extension/flatten. `--open
+  <file>` and captures/paste/drop now really open in this editor (the previous PNG-quick-save
+  and placeholder-toast stand-ins are gone). This took 4 implementation phases and 5 review
+  rounds — see `openspec/changes/add-annotation-editor/design.md`'s full "Decided during apply"
+  history before touching this code again.
+- Packaging: `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean for all three
+  implemented changes, verified repeatedly in this dev container (cargo/rustc 1.93, not the
+  pinned 1.85 — several real bugs surfaced and got fixed here regardless, see each change's
+  `tasks.md`). CI should be green (its known step-order bug is fixed) but hasn't been confirmed
+  on an actual ubuntu-24.04 runner — check the Actions tab before trusting it blindly.
+- Next step: the maintainer runs the live portal/hotkey checks for `add-screen-capture`
+  (`manual-checks.md`), then both changes archive in order. After that, `add-core-annotation-tools`
+  is next in the roadmap (arrow/line/pen/shape/text/callout/step/highlighter/redact — the first
+  change that implements concrete `Annotation` trait types beyond `Image`/`Group`).
 
 **Build dependencies (Ubuntu 24.04)**
 ```bash
