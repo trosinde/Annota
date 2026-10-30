@@ -18,6 +18,10 @@
 - [ ] 4.2 Delay with countdown
 - [ ] 4.3 Global shortcuts + fallback keybinding
 - [ ] 4.4 Clipboard/file import
+- [ ] 4.5 `--capture` actually starts a capture: add `specs/app-shell/spec.md` with a
+      `## MODIFIED Requirements` delta completing bootstrap-app-shell's "Second launch
+      forwards request" and "Invalid mode" requirements for this case (see the note left in
+      `openspec/specs/app-shell/spec.md` after that change archives)
 
 ## 5. Verify
 - [ ] 5.1 Tests for every scenario (unit, golden-image or documented manual check)

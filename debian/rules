@@ -27,3 +27,9 @@ override_dh_auto_test:
 
 override_dh_dwz:
 	# Rust debug info is not dwz-friendly; skip.
+
+override_dh_clean:
+	# dh_clean's default *.orig sweep also deletes vendor/*/Cargo.toml.orig, which
+	# every vendored crate's .cargo-checksum.json still references; a later
+	# `cargo build --locked` then fails recomputing that checksum. Keep them.
+	dh_clean -XCargo.toml.orig

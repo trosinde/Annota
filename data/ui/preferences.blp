@@ -9,7 +9,7 @@ Adw.PreferencesDialog preferences_dialog {
 
   Adw.PreferencesPage general_page {
     title: _("General");
-    icon-name: "settings-symbolic";
+    icon-name: "preferences-system-symbolic";
 
     Adw.PreferencesGroup {
       title: _("Saving");
@@ -22,7 +22,7 @@ Adw.PreferencesDialog preferences_dialog {
         Button save_folder_button {
           valign: center;
           icon-name: "folder-symbolic";
-          tooltip-text: _("Choose Folder…");
+          tooltip-text: _("Choose Save Folder…");
           styles ["flat"]
         }
       }
@@ -61,6 +61,7 @@ Adw.PreferencesDialog preferences_dialog {
 
       Adw.ComboRow default_format_row {
         title: _("Default format");
+        subtitle: _("Pre-selected in the Export dialog");
         model: StringList {
           strings [_("PNG"), _("JPG"), _("WebP"), _("PDF")]
         };
@@ -73,7 +74,7 @@ Adw.PreferencesDialog preferences_dialog {
         Button export_folder_button {
           valign: center;
           icon-name: "folder-symbolic";
-          tooltip-text: _("Choose Folder…");
+          tooltip-text: _("Choose Export Folder…");
           styles ["flat"]
         }
       }
@@ -103,6 +104,7 @@ Adw.PreferencesDialog preferences_dialog {
 
     Adw.PreferencesGroup {
       title: _("After Capture");
+      description: _("What happens when a capture is taken");
 
       Adw.ActionRow {
         title: _("Open in editor");
@@ -149,8 +151,8 @@ Adw.PreferencesDialog preferences_dialog {
       }
 
       Adw.SpinRow capture_delay_row {
-        title: _("Delay (seconds)");
-        subtitle: _("Time between pressing the shortcut and the capture");
+        title: _("Delay");
+        subtitle: _("Seconds to wait before capturing (0–60)");
         adjustment: Adjustment {
           lower: 0;
           upper: 60;
@@ -169,6 +171,7 @@ Adw.PreferencesDialog preferences_dialog {
 
       Adw.ActionRow {
         title: _("Capture region");
+        subtitle: _("Registered as a system shortcut");
         sensitive: false;
 
         [suffix]

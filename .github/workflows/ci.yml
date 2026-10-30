@@ -22,14 +22,14 @@ jobs:
             nodejs npm
           rustup component add rustfmt clippy
 
-      - name: Format
-        run: cargo fmt --check
-
       - name: Configure (generates src/config.rs)
         run: PATH=/usr/lib/rust-1.85/bin:$PATH meson setup _build -Dprofile=development
 
+      - name: Format
+        run: PATH=/usr/lib/rust-1.85/bin:$PATH cargo fmt --check
+
       - name: Clippy
-        run: cargo clippy --locked --all-targets -- -D warnings
+        run: PATH=/usr/lib/rust-1.85/bin:$PATH cargo clippy --locked --all-targets -- -D warnings
 
       - name: Tests
         run: PATH=/usr/lib/rust-1.85/bin:$PATH meson test -C _build --print-errorlogs

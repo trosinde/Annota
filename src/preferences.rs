@@ -12,9 +12,25 @@ use crate::config;
 
 const UI_PREFERENCES: &str = "/io/github/trosinde/Annota/ui/preferences.ui";
 
+/// Looks up a builder object, or logs and bails out of the enclosing `()`-returning function.
+/// `preferences.ui` is a compiled-in resource built from `data/ui/preferences.blp` in lock-step
+/// with this module, so a miss here means the two drifted apart, not a user-facing error —
+/// but it must never panic (see CLAUDE.md §7: no `unwrap()` outside tests).
+macro_rules! obj {
+    ($builder:expr, $name:expr) => {
+        match $builder.object($name) {
+            Some(widget) => widget,
+            None => {
+                eprintln!("annota: preferences.ui is missing object '{}'", $name);
+                return;
+            }
+        }
+    };
+}
+
 pub fn present(parent: &impl IsA<gtk::Widget>) {
     let builder = gtk::Builder::from_resource(UI_PREFERENCES);
-    let dialog: adw::PreferencesDialog = builder.object("preferences_dialog").unwrap();
+    let dialog: adw::PreferencesDialog = obj!(builder, "preferences_dialog");
     let settings = gio::Settings::new(config::APP_ID);
 
     bind_saving(&builder, &settings);
@@ -25,12 +41,15 @@ pub fn present(parent: &impl IsA<gtk::Widget>) {
 }
 
 fn bind_saving(builder: &gtk::Builder, settings: &gio::Settings) {
-    let save_folder_row: adw::ActionRow = builder.object("save_folder_row").unwrap();
-    let save_folder_button: gtk::Button = builder.object("save_folder_button").unwrap();
-    let filename_pattern_row: adw::EntryRow = builder.object("filename_pattern_row").unwrap();
-    let filename_example_row: adw::ActionRow = builder.object("filename_example_row").unwrap();
+    let save_folder_row: adw::ActionRow = obj!(builder, "save_folder_row");
+    let save_folder_button: gtk::Button = obj!(builder, "save_folder_button");
+    let filename_pattern_row: adw::EntryRow = obj!(builder, "filename_pattern_row");
+    let filename_example_row: adw::ActionRow = obj!(builder, "filename_example_row");
 
-    update_folder_subtitle(&save_folder_row, &settings.string("save-folder"));
+    update_folder_subtitle(
+        &save_folder_row,
+        &resolved_save_folder(&settings.string("save-folder")),
+    );
     settings
         .bind("filename-pattern", &filename_pattern_row, "text")
         .build();
@@ -55,7 +74,7 @@ fn bind_saving(builder: &gtk::Builder, settings: &gio::Settings) {
 }
 
 fn bind_export(builder: &gtk::Builder, settings: &gio::Settings) {
-    let default_format_row: adw::ComboRow = builder.object("default_format_row").unwrap();
+    let default_format_row: adw::ComboRow = obj!(builder, "default_format_row");
     default_format_row.set_selected(settings.enum_("default-export-format") as u32);
     default_format_row.connect_selected_notify(glib::clone!(
         #[strong]
@@ -65,9 +84,12 @@ fn bind_export(builder: &gtk::Builder, settings: &gio::Settings) {
         }
     ));
 
-    let export_folder_row: adw::ActionRow = builder.object("export_folder_row").unwrap();
-    let export_folder_button: gtk::Button = builder.object("export_folder_button").unwrap();
-    update_folder_subtitle(&export_folder_row, &settings.string("export-folder"));
+    let export_folder_row: adw::ActionRow = obj!(builder, "export_folder_row");
+    let export_folder_button: gtk::Button = obj!(builder, "export_folder_button");
+    update_folder_subtitle(
+        &export_folder_row,
+        &resolved_export_folder(&settings.string("export-folder")),
+    );
     export_folder_button.connect_clicked(glib::clone!(
         #[weak]
         export_folder_row,
@@ -78,10 +100,9 @@ fn bind_export(builder: &gtk::Builder, settings: &gio::Settings) {
 }
 
 fn bind_capture(builder: &gtk::Builder, settings: &gio::Settings) {
-    let after_capture_editor: gtk::CheckButton = builder.object("after_capture_editor").unwrap();
-    let after_capture_clipboard: gtk::CheckButton =
-        builder.object("after_capture_clipboard").unwrap();
-    let after_capture_both: gtk::CheckButton = builder.object("after_capture_both").unwrap();
+    let after_capture_editor: gtk::CheckButton = obj!(builder, "after_capture_editor");
+    let after_capture_clipboard: gtk::CheckButton = obj!(builder, "after_capture_clipboard");
+    let after_capture_both: gtk::CheckButton = obj!(builder, "after_capture_both");
 
     match settings.enum_("after-capture") {
         1 => after_capture_clipboard.set_active(true),
@@ -104,7 +125,7 @@ fn bind_capture(builder: &gtk::Builder, settings: &gio::Settings) {
         ));
     }
 
-    let capture_mode_row: adw::ComboRow = builder.object("capture_mode_row").unwrap();
+    let capture_mode_row: adw::ComboRow = obj!(builder, "capture_mode_row");
     capture_mode_row.set_selected(settings.enum_("capture-mode") as u32);
     capture_mode_row.connect_selected_notify(glib::clone!(
         #[strong]
@@ -114,12 +135,12 @@ fn bind_capture(builder: &gtk::Builder, settings: &gio::Settings) {
         }
     ));
 
-    let capture_delay_row: adw::SpinRow = builder.object("capture_delay_row").unwrap();
+    let capture_delay_row: adw::SpinRow = obj!(builder, "capture_delay_row");
     settings
         .bind("capture-delay", &capture_delay_row, "value")
         .build();
 
-    let include_pointer_row: adw::SwitchRow = builder.object("include_pointer_row").unwrap();
+    let include_pointer_row: adw::SwitchRow = obj!(builder, "include_pointer_row");
     settings
         .bind("include-pointer", &include_pointer_row, "active")
         .build();
@@ -140,17 +161,27 @@ fn pick_folder(
         if let Ok(folder) = dialog.select_folder_future(parent.as_ref()).await {
             if let Some(path) = folder.path() {
                 let _ = settings.set_string(key, &path.to_string_lossy());
-                update_folder_subtitle(&row, &path.to_string_lossy());
+                row.set_subtitle(&display_path(&path));
             }
         }
     });
 }
 
-fn resolved_folder(value: &str) -> PathBuf {
+fn resolved_save_folder(value: &str) -> PathBuf {
     if value.is_empty() {
         let mut path =
             glib::user_special_dir(glib::UserDirectory::Pictures).unwrap_or_else(glib::home_dir);
         path.push("Annota");
+        path
+    } else {
+        PathBuf::from(value)
+    }
+}
+
+fn resolved_export_folder(value: &str) -> PathBuf {
+    if value.is_empty() {
+        let mut path = resolved_save_folder("");
+        path.push("Exports");
         path
     } else {
         PathBuf::from(value)
@@ -166,12 +197,14 @@ fn display_path(path: &Path) -> String {
     }
 }
 
-fn update_folder_subtitle(row: &adw::ActionRow, raw: &str) {
-    row.set_subtitle(&display_path(&resolved_folder(raw)));
+fn update_folder_subtitle(row: &adw::ActionRow, resolved: &Path) {
+    row.set_subtitle(&display_path(resolved));
 }
 
 fn update_filename_example(row: &adw::ActionRow, pattern: &str) {
-    let now = glib::DateTime::now_local().expect("local time is always available");
+    let Ok(now) = glib::DateTime::now_local() else {
+        return;
+    };
     let stem = now
         .format(pattern)
         .map(|s| s.to_string())

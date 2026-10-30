@@ -32,5 +32,11 @@
 ## 4. Verify
 - [x] 4.1 Tests for every scenario (unit, golden-image or documented manual check) — see `manual-checks.md`
 - [ ] 4.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
-- [ ] 4.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean _(verified by CI on ubuntu-24.04; this sandbox only has cargo/rustc 1.93, so `build-aux/make-deb.sh` can't be exercised locally)_
+- [x] 4.3 `.deb` builds, `lintian -I --pedantic` clean — `build-aux/make-deb.sh` run end to end in
+      this dev container (cargo/rustc 1.93) after fixing `debian/rules` (`dh_clean` was deleting
+      `vendor/*/Cargo.toml.orig`, not a toolchain artifact — confirmed the same way on the
+      original skeleton) and `debian/copyright` (missing the Apache-2.0 common-license pointer
+      lintian requires). CI itself was also broken (fmt step ran before `meson setup` generated
+      `src/config.rs`) and is fixed in `.github/workflows/ci.yml`; not yet confirmed green on an
+      actual ubuntu-24.04 runner.
 - [x] 4.4 German translation updated

@@ -113,6 +113,9 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (Apache-2.0) AND (Apache-2.0 
  windows_x86_64_gnullvm 0.52.6: MIT OR Apache-2.0
  windows_x86_64_msvc 0.52.6: MIT OR Apache-2.0
  winnow 1.0.4: MIT
+ .
+ The Apache-2.0 license referenced above can be found in full at
+ /usr/share/common-licenses/Apache-2.0.
 # END VENDORED CRATES
 
 License: MIT

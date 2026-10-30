@@ -35,7 +35,7 @@
     <key name="export-folder" type="s">
       <default>''</default>
       <summary>Export folder</summary>
-      <description>Folder offered by the export dialog. Empty means the save folder.</description>
+      <description>Folder offered by the export dialog. Empty means the save folder's Exports subfolder.</description>
     </key>
     <key name="after-capture" enum="io.github.trosinde.Annota.AfterCapture">
       <default>'editor'</default>
@@ -51,7 +51,7 @@
       <summary>Capture delay in seconds</summary>
     </key>
     <key name="include-pointer" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Include the mouse pointer in captures</summary>
     </key>
     <key name="window-width" type="i">

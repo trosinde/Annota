@@ -6,23 +6,24 @@ Provides the application lifecycle, windows, settings and command-line entry poi
 ## ADDED Requirements
 
 ### Requirement: Single application instance
-The application SHALL run as a single instance per user session; a second launch SHALL forward its command-line request to the running instance.
+The application SHALL run as a single instance per user session; a second launch SHALL forward its command-line request to the running instance, which SHALL act on it (this change raises the window and shows a toast for requests no other capability handles yet; `--capture` and `--open` get their real behaviour from the requirements below once `add-screen-capture` and `add-annotation-editor` exist).
 
 #### Scenario: Second launch forwards request
-- **WHEN** Annota is running and the user runs `annota --capture region`
-- **THEN** the running instance starts a region capture
+- **WHEN** Annota is running and the user runs `annota` with any command-line arguments
+- **THEN** the running instance raises its window and handles the request
 - **AND** no second process remains running
 
 ### Requirement: Command-line interface
-The `annota` binary SHALL accept `--capture region|window|screen`, `--delay <seconds>` (0–60), `--open <file>` and `--version`.
+The `annota` binary SHALL accept `--capture region|window|screen`, `--delay <seconds>` (0–60), `--open <file>` and `--version`. Starting a capture and opening a file are delivered by `add-screen-capture` and `add-annotation-editor`; until then, the running instance acknowledges the request without performing it.
 
 #### Scenario: Invalid mode
 - **WHEN** the user runs `annota --capture banana`
 - **THEN** the process exits with status 2 and prints the valid modes
 
-#### Scenario: Open file
+#### Scenario: Open file acknowledged before the editor exists
 - **WHEN** the user runs `annota --open shot.annota`
-- **THEN** the file opens in an editor window
+- **THEN** the running instance's window is raised and a toast says opening files is not available yet
+- **AND** once `add-annotation-editor` ships, this scenario is superseded by that change's own "opens in an editor window" scenario via a `MODIFIED Requirements` delta here
 
 ### Requirement: Preferences
 The application SHALL provide a libadwaita preferences window persisted via GSettings schema `io.github.trosinde.Annota`, including default save folder, default export format, and after-capture behaviour (open editor / copy to clipboard / both).
