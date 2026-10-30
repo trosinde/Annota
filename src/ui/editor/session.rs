@@ -18,9 +18,13 @@ use crate::ui::canvas::{Canvas, HistoryInfo};
 /// Where a document came from; decides what "unsaved" means (header subtitle, tray dot).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Origin {
-    /// Opened from a file: unsaved once it differs from the file.
+    /// Opened from a `.annota` file: unsaved once it differs from the file.
     File,
-    /// A new capture: unsaved until it is saved.
+    /// Opened from an image file (PNG, JPG, WebP): not an Annota document until saved, but
+    /// its pixels are on disk, so it is autosaved only once it is changed.
+    Image,
+    /// A new capture (or pasted image): it exists nowhere else, so it is unsaved — and
+    /// autosaved — until it is saved.
     New,
     /// Restored from an autosave: it holds changes no file has.
     Restored,
@@ -31,8 +35,8 @@ pub fn status(origin: Origin, info: &HistoryInfo) -> Status {
     match origin {
         Origin::File if info.dirty => Status::Edited,
         Origin::File => Status::Clean,
-        Origin::New if info.revision == 0 => Status::NotSaved,
-        Origin::New | Origin::Restored => Status::Edited,
+        Origin::New | Origin::Image if info.revision == 0 => Status::NotSaved,
+        Origin::New | Origin::Image | Origin::Restored => Status::Edited,
     }
 }
 
@@ -43,6 +47,9 @@ pub struct Session {
     pub origin: Origin,
     /// The `.annota` file the document belongs to, if any (written into its autosave).
     pub source: Option<PathBuf>,
+    /// The file it was opened from, of any type (canonical): an open file is not listed
+    /// under "Recent" and opening it again switches to it.
+    pub path: Option<PathBuf>,
     /// Window title: the document title, else the file name, else "Untitled Capture".
     pub name: String,
     pub autosave: AutosaveId,
@@ -89,8 +96,20 @@ impl Session {
         }
     }
 
-    /// The document is closed: its autosave goes (spec: removed when it is closed).
+    /// The document is closed. Until Annota can save (add-export-share), closing keeps the
+    /// autosave as the only safety net: a last tick writes what changed since the previous
+    /// one, so the document is offered again at the next start. Only "Discard" in "Restore
+    /// Unsaved Captures?" (or getting back to the saved state) removes it.
     pub fn close(&self, store: &Store) {
+        if let Some(id) = self.thumbnail_pending.take() {
+            id.remove();
+        }
+        self.autosave_tick(store);
+    }
+
+    /// The document is dropped on purpose (the Undo of a new capture's toast): its autosave
+    /// goes too.
+    pub fn discard(&self, store: &Store) {
         if let Some(id) = self.thumbnail_pending.take() {
             id.remove();
         }
@@ -138,12 +157,20 @@ pub fn tick(
     Ok(action)
 }
 
-/// A file opened into the editor.
+/// A document for the editor: opened from a file, captured, pasted or restored.
 pub struct Loaded {
     pub document: Document,
     /// Set for `.annota` files: the file the document belongs to.
     pub source: Option<PathBuf>,
+    /// The file it was opened from, of any type.
+    pub path: Option<PathBuf>,
     pub name: String,
+}
+
+/// `path` made absolute and free of symbolic links where possible, so the same file is
+/// recognised however it was named.
+pub fn canonical(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -177,6 +204,7 @@ pub fn load(path: &Path) -> Result<Loaded, LoadError> {
         return Ok(Loaded {
             document,
             source: Some(path.to_path_buf()),
+            path: Some(canonical(path)),
             name,
         });
     }
@@ -185,6 +213,7 @@ pub fn load(path: &Path) -> Result<Loaded, LoadError> {
     Ok(Loaded {
         document: Document::with_title(bitmap, name.clone()),
         source: None,
+        path: Some(canonical(path)),
         name,
     })
 }
@@ -240,6 +269,8 @@ mod tests {
         assert_eq!(status(Origin::New, &info(0, true)), Status::NotSaved);
         assert_eq!(status(Origin::New, &info(1, true)), Status::Edited);
         assert_eq!(status(Origin::Restored, &info(0, true)), Status::Edited);
+        assert_eq!(status(Origin::Image, &info(0, false)), Status::NotSaved);
+        assert_eq!(status(Origin::Image, &info(2, true)), Status::Edited);
         assert!(!Status::Clean.unsaved() && Status::NotSaved.unsaved());
     }
 
@@ -276,6 +307,20 @@ mod tests {
         // Back at the saved state: the autosave goes.
         assert_eq!(run(&mut schedule, 0, false), Action::Discard);
         assert!(store.list().entries.is_empty());
+    }
+
+    #[test]
+    fn the_same_file_is_recognised_however_it_is_named() {
+        let tmp = TempDir::new("canonical");
+        std::fs::create_dir_all(&tmp.0).unwrap();
+        let png = tmp.0.join("Shot.png");
+        std::fs::write(&png, b"x").unwrap();
+        let detour = tmp.0.join(".").join("Shot.png");
+        assert_eq!(canonical(&detour), canonical(&png));
+        assert!(canonical(&png).is_absolute());
+        // A file that does not exist keeps its name.
+        let missing = tmp.0.join("missing.png");
+        assert_eq!(canonical(&missing), missing);
     }
 
     #[test]

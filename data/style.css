@@ -423,3 +423,43 @@ banner.annota-warning-banner > revealer > widget {
 .annota-destructive-text:active {
   background-color: alpha(@window_fg_color, 0.3);
 }
+
+/* --- Welcome page (bootstrap-app-shell mockup 01) -------------------------------------- */
+
+/* Mode cards 156 × 108, radius 12 (the `.card` style makes them activatable). */
+.annota-mode-card {
+  min-width: 156px;
+  min-height: 108px;
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.annota-welcome-keycap {
+  background-color: alpha(currentColor, 0.1);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* Hint line: 13 px, dim. */
+.annota-welcome-hint {
+  font-size: 13px;
+  opacity: 0.55;
+}
+
+/* --- Crop mode sidebar (add-annotation-editor mockup 08) ------------------------------- */
+
+/* The info note: accent at 12 %, radius 12, padding 10/12. */
+.annota-note {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background-color: alpha(@accent_bg_color, 0.12);
+  font-size: 14px;
+}
+
+/* "Esc" / "Enter" beside Cancel and Crop: regular weight, a little faded. */
+.annota-button-key {
+  font-weight: normal;
+  opacity: 0.8;
+}

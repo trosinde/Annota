@@ -1,9 +1,11 @@
 //! What happens with a finished capture: the `after-capture` preference.
 //!
-//! "Copy to clipboard" is final. "Open in editor" cannot open an editor yet — that arrives
-//! with `add-annotation-editor` — so until then the capture is quick-saved as PNG into the
-//! save folder and announced with a toast (see the change's `tasks.md` and spec). Images
-//! pasted from the clipboard or opened from a file take the same editor path.
+//! "Copy to clipboard" is final: no window opens. "Open in editor" (and "Both") open the
+//! capture as a new document in the editor window (add-annotation-editor task 4.5; mockups 12
+//! and 13 of add-screen-capture), announced with a toast. Images pasted from the clipboard take
+//! the same editor path; opened and dropped files go to the editor through `import`. Only if
+//! the editor window cannot be built is the capture quick-saved as PNG into the save folder
+//! instead (the stand-in this change used before the editor existed), so it is never lost.
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -48,8 +50,8 @@ impl AfterCapture {
 /// The concrete steps for one image.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Plan {
-    /// Quick-save into the save folder (stands in for "open in editor").
-    pub save: bool,
+    /// Open it as a new document in the editor.
+    pub open: bool,
     /// Put the image on the clipboard.
     pub copy: bool,
 }
@@ -59,20 +61,20 @@ pub fn plan(source: Source, after: AfterCapture) -> Plan {
         // Pasted and opened images always become a new capture (spec: Image from clipboard
         // or file); copying them back to the clipboard would be pointless.
         Source::Clipboard | Source::File => Plan {
-            save: true,
+            open: true,
             copy: false,
         },
         Source::Region | Source::Window | Source::Screen => match after {
             AfterCapture::Editor => Plan {
-                save: true,
+                open: true,
                 copy: false,
             },
             AfterCapture::Clipboard => Plan {
-                save: false,
+                open: false,
                 copy: true,
             },
             AfterCapture::Both => Plan {
-                save: true,
+                open: true,
                 copy: true,
             },
         },
@@ -117,6 +119,33 @@ pub fn title(source: Source, width: i32, height: i32) -> String {
     template
         .replace("{width}", &width.to_string())
         .replace("{height}", &height.to_string())
+}
+
+/// The new document's name: "Pasted Image" for the clipboard (mockup 13), the file-name
+/// pattern for captures (mockup 12: "Capture 2026-10-30 14-22-08").
+pub fn document_name(source: Source, pattern_name: &str) -> String {
+    match source {
+        Source::Clipboard => gettext("Pasted Image"),
+        _ => pattern_name.to_string(),
+    }
+}
+
+/// What the toast of a new document in the editor offers (mockups 12, 13): pasted and opened
+/// images can be dropped again with Undo; a capture that went to the editor only can still be
+/// copied; with "Both" it is on the clipboard already.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ToastOffer {
+    Undo,
+    Copy,
+    Nothing,
+}
+
+pub fn toast_offer(source: Source, plan: Plan) -> ToastOffer {
+    match source {
+        Source::Clipboard | Source::File => ToastOffer::Undo,
+        _ if plan.copy => ToastOffer::Nothing,
+        _ => ToastOffer::Copy,
+    }
 }
 
 /// Saves `texture` as PNG into the configured save folder.
@@ -178,7 +207,7 @@ pub fn deliver(app: &adw::Application, frame: Frame, source: Source, window_was_
         copy_to_clipboard(app, &texture);
     }
 
-    if !plan.save {
+    if !plan.open {
         if window_was_open {
             let window = application::present_window(app);
             let text = format!("{heading} · {}", gettext("Copied to clipboard"));
@@ -187,8 +216,56 @@ pub fn deliver(app: &adw::Application, frame: Frame, source: Source, window_was_
         return;
     }
 
+    // The editor: a new document, "Not saved" (mockups 12, 13).
+    let pattern_name = glib::DateTime::now_local()
+        .map(|now| {
+            sanitize_stem(&preferences::expand_filename_pattern(
+                &settings.string("filename-pattern"),
+                &now,
+            ))
+        })
+        .unwrap_or_else(|_| String::from("Annota"));
+    let name = document_name(source, &pattern_name);
+    let toast_title = if plan.copy {
+        format!("{heading} · {}", gettext("Copied to clipboard"))
+    } else {
+        heading.clone()
+    };
+    let offer = match toast_offer(source, plan) {
+        ToastOffer::Undo => crate::ui::editor::Offer::Undo,
+        ToastOffer::Copy => crate::ui::editor::Offer::Copy(texture.clone()),
+        ToastOffer::Nothing => crate::ui::editor::Offer::Nothing,
+    };
+    let bitmap = annota::document::bitmap::Bitmap::from_argb32(
+        frame.width(),
+        frame.height(),
+        frame.stride(),
+        frame.data().to_vec(),
+    );
+    match bitmap {
+        Ok(bitmap) => {
+            if crate::ui::editor::open_capture(app, bitmap, &name, &toast_title, offer) {
+                return;
+            }
+            eprintln!("annota: the editor window could not be built; saving the capture");
+        }
+        Err(err) => eprintln!("annota: the capture cannot become a document: {err}"),
+    }
+    save_instead(app, &texture, &settings, source, &heading, plan);
+}
+
+/// The capture could not open in the editor: it is quick-saved as PNG into the save folder and
+/// a toast names the file, so it is not lost.
+fn save_instead(
+    app: &adw::Application,
+    texture: &gdk::Texture,
+    settings: &gio::Settings,
+    source: Source,
+    heading: &str,
+    plan: Plan,
+) {
     let window = application::present_window(app);
-    match quick_save(&texture, &settings) {
+    match quick_save(texture, settings) {
         Ok(path) => {
             let name = path
                 .file_name()
@@ -217,11 +294,10 @@ pub fn deliver(app: &adw::Application, frame: Frame, source: Source, window_was_
                 }
                 Source::Region | Source::Window | Source::Screen if !plan.copy => {
                     toast.set_button_label(Some(&gettext("Copy")));
+                    let texture = texture.clone();
                     toast.connect_button_clicked(glib::clone!(
                         #[weak]
                         app,
-                        #[strong]
-                        texture,
                         move |_| copy_to_clipboard(&app, &texture)
                     ));
                 }
@@ -248,24 +324,44 @@ mod tests {
         assert_eq!(
             plan(capture, AfterCapture::Editor),
             Plan {
-                save: true,
+                open: true,
                 copy: false
             }
         );
         assert_eq!(
             plan(capture, AfterCapture::Clipboard),
             Plan {
-                save: false,
+                open: false,
                 copy: true
             }
         );
         assert_eq!(
             plan(capture, AfterCapture::Both),
             Plan {
-                save: true,
+                open: true,
                 copy: true
             }
         );
+    }
+
+    #[test]
+    fn editor_documents_are_named_and_announced_like_the_mockups() {
+        // Mockup 13: "Pasted Image", toast with Undo; mockup 12: the pattern name, toast with
+        // Copy; with "Both" the capture is on the clipboard already.
+        assert_eq!(
+            document_name(Source::Clipboard, "Annota 2026-10-30"),
+            "Pasted Image"
+        );
+        assert_eq!(
+            document_name(Source::Region, "Capture 2026-10-30 14-22-08"),
+            "Capture 2026-10-30 14-22-08"
+        );
+        let editor = plan(Source::Region, AfterCapture::Editor);
+        let both = plan(Source::Region, AfterCapture::Both);
+        assert_eq!(toast_offer(Source::Region, editor), ToastOffer::Copy);
+        assert_eq!(toast_offer(Source::Region, both), ToastOffer::Nothing);
+        let pasted = plan(Source::Clipboard, AfterCapture::Clipboard);
+        assert_eq!(toast_offer(Source::Clipboard, pasted), ToastOffer::Undo);
     }
 
     #[test]
@@ -278,11 +374,11 @@ mod tests {
             assert_eq!(
                 plan(Source::Clipboard, after),
                 Plan {
-                    save: true,
+                    open: true,
                     copy: false
                 }
             );
-            assert!(plan(Source::File, after).save);
+            assert!(plan(Source::File, after).open);
         }
     }
 

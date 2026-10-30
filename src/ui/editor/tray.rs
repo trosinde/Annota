@@ -82,7 +82,8 @@ fn is_recent_candidate(path: &Path) -> bool {
 }
 
 /// The newest `limit` `.annota` / `.png` files directly in `dir`, newest first, without the
-/// files in `open`. A folder that does not exist has none.
+/// files in `open` (canonical paths, see `session::canonical`) — whatever their type, so an
+/// open image is not offered again. A folder that does not exist has none.
 pub fn recent_files(dir: &Path, open: &[PathBuf], limit: usize) -> Vec<RecentFile> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
@@ -93,12 +94,13 @@ pub fn recent_files(dir: &Path, open: &[PathBuf], limit: usize) -> Vec<RecentFil
             let path = entry.path();
             let meta = entry.metadata().ok()?;
             let visible = !entry.file_name().to_string_lossy().starts_with('.');
-            (visible && meta.is_file() && is_recent_candidate(&path) && !open.contains(&path)).then(
-                || RecentFile {
+            let is_open = || open.contains(&super::session::canonical(&path));
+            (visible && meta.is_file() && is_recent_candidate(&path) && !is_open()).then(|| {
+                RecentFile {
                     path,
                     modified: meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
-                },
-            )
+                }
+            })
         })
         .collect();
     files.sort_by(|a, b| b.modified.cmp(&a.modified).then(a.path.cmp(&b.path)));
@@ -515,6 +517,14 @@ mod tests {
             ["c.PNG", "a.png"]
         );
         assert!(recent_files(&tmp.0.join("missing"), &[], 50).is_empty());
+        // Bug fix: an open image (not only an open `.annota` file) is left out, also when the
+        // folder is named differently.
+        let detour = tmp.0.join(".");
+        let open_png = super::super::session::canonical(&tmp.0.join("a.png"));
+        assert_eq!(
+            names_of(recent_files(&detour, &[open_png], RECENT_LIMIT)),
+            ["c.PNG", "b.annota"]
+        );
     }
 
     #[test]

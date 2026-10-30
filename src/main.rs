@@ -3,9 +3,6 @@ mod capture;
 mod cli;
 mod config;
 mod preferences;
-// The editor window is reached through debug-only entry points until add-annotation-editor
-// tasks 4.4/4.5 route `--open` and captures to it.
-#[cfg(debug_assertions)]
 mod ui;
 
 use gettextrs::{bind_textdomain_codeset, bindtextdomain, textdomain};

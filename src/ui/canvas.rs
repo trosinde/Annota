@@ -31,11 +31,14 @@ use annota::document::annotation::{HandleId, Modifiers};
 use annota::document::bitmap::Bitmap;
 use annota::document::color::Rgba;
 use annota::document::command::History;
-use annota::document::geometry::{Arrange, Point};
+use annota::document::geometry::{Arrange, IRect, Point};
 use annota::document::scene::ObjectId;
 use annota::document::Document;
+use annota::editing::canvas_edit::{self, CanvasDrag, Side, Target as CanvasTarget};
+use annota::editing::crop::{Aspect, Crop};
 use annota::editing::drag::{self, Drag, Feedback, Hover};
-use annota::editing::ops::{self, Edit, Stacking};
+use annota::editing::image_ops;
+use annota::editing::ops::{self, Action, Edit, Stacking, Subject};
 use annota::editing::selection::{selection_frame, Selection};
 use annota::editing::snap::{Axis, Snap};
 use annota::render::{self, overlay, view, Options, Preview, Viewport};
@@ -65,6 +68,12 @@ struct State {
     selection: Selection,
     /// The pointer gesture in progress (Select tool).
     drag: Option<Drag>,
+    /// A canvas edge or the corner-radius handle being dragged (Select tool).
+    canvas_drag: Option<CanvasDrag>,
+    /// The canvas edge or radius handle under the pointer: its grabber is shown.
+    hover: Option<CanvasTarget>,
+    /// Crop mode (tool C), if active.
+    crop: Option<Crop>,
     /// Snap to guides (sidebar switch, `Ctrl+;`); Alt suspends it while held.
     snapping: bool,
     zoom: f64,
@@ -82,6 +91,19 @@ type ViewListener = Box<dyn Fn(f64, bool)>;
 /// Called after the document, its history, the selection or the snapping switch may have
 /// changed.
 type ChangeListener = Box<dyn Fn()>;
+/// Called with a point in view coordinates where the context menu should open.
+type MenuListener = Box<dyn Fn(f64, f64)>;
+/// Called once with the colour the eyedropper picked, or `None` if it was cancelled.
+type Picker = Box<dyn FnOnce(Option<Rgba>)>;
+
+/// What an executed edit did, for toasts that offer Undo.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Done {
+    pub action: Action,
+    pub subject: Subject,
+    /// The history revision right after the edit: Undo applies only if nothing happened since.
+    pub revision: u64,
+}
 
 /// What the header bar shows of the history (Undo/Redo buttons and tooltips, "Edited").
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -101,6 +123,9 @@ mod imp {
         pub(super) state: RefCell<Option<State>>,
         pub(super) listeners: RefCell<Vec<ViewListener>>,
         pub(super) changes: RefCell<Vec<ChangeListener>>,
+        pub(super) menus: RefCell<Vec<MenuListener>>,
+        /// The eyedropper: called with the colour under the next click (`None`: cancelled).
+        pub(super) picker: RefCell<Option<Picker>>,
         hadjustment: RefCell<Option<(gtk::Adjustment, glib::SignalHandlerId)>>,
         vadjustment: RefCell<Option<(gtk::Adjustment, glib::SignalHandlerId)>>,
         hscroll_policy: Cell<gtk::ScrollablePolicy>,
@@ -113,6 +138,8 @@ mod imp {
                 state: RefCell::new(None),
                 listeners: RefCell::new(Vec::new()),
                 changes: RefCell::new(Vec::new()),
+                menus: RefCell::new(Vec::new()),
+                picker: RefCell::new(None),
                 hadjustment: RefCell::new(None),
                 vadjustment: RefCell::new(None),
                 hscroll_policy: Cell::new(gtk::ScrollablePolicy::Minimum),
@@ -389,6 +416,9 @@ impl Canvas {
             history: History::new(),
             selection: Selection::new(),
             drag: None,
+            canvas_drag: None,
+            hover: None,
+            crop: None,
             snapping: true,
             zoom: 1.0,
             fitted: true,
@@ -445,6 +475,67 @@ impl Canvas {
         self.view.imp().notify_changed();
     }
 
+    /// Called with a point in [`Canvas::widget`] coordinates where the context menu opens
+    /// (right-click, Shift+F10, the Menu key).
+    pub fn connect_context_menu(&self, f: impl Fn(f64, f64) + 'static) {
+        self.view.imp().menus.borrow_mut().push(Box::new(f));
+    }
+
+    fn open_context_menu(&self, at: Point) {
+        let point = self
+            .view
+            .compute_point(
+                &self.overlay,
+                &graphene::Point::new(at.x as f32, at.y as f32),
+            )
+            .map_or((at.x, at.y), |p| (f64::from(p.x()), f64::from(p.y())));
+        for listener in self.view.imp().menus.borrow().iter() {
+            listener(point.0, point.1);
+        }
+    }
+
+    /// Right-click at `at` (view coordinates): selects the object there unless it is already
+    /// selected (nothing there: the selection stays), then opens the context menu.
+    pub fn context_menu_at(&self, at: Point) {
+        if self.cropping() {
+            return;
+        }
+        self.cancel_drag();
+        if let Some(viewport) = self.viewport() {
+            let changed = self
+                .with_state(|s| {
+                    let hit = drag::hit(&s.doc, &viewport, at)?;
+                    (!s.selection.contains(hit)).then(|| s.selection.set(s.doc.scene(), [hit]))
+                })
+                .flatten()
+                .is_some();
+            if changed {
+                self.view.queue_draw();
+                self.notify_changed();
+            }
+        }
+        self.open_context_menu(at);
+    }
+
+    /// Shift+F10 or the Menu key: the context menu at the centre of the selection (or of the
+    /// view when nothing is selected).
+    fn context_menu_from_keyboard(&self) {
+        let Some(viewport) = self.viewport() else {
+            return;
+        };
+        let size = self.view.imp().view_size();
+        let at = self
+            .with_state(|s| {
+                let frame = selection_frame(s.doc.scene(), &s.selection, &[])?;
+                Some(viewport.to_device(frame.frame.bounds().centre()))
+            })
+            .flatten()
+            .map_or(Point::new(size.0 / 2.0, size.1 / 2.0), |p| {
+                Point::new(p.x.clamp(0.0, size.0), p.y.clamp(0.0, size.1))
+            });
+        self.open_context_menu(at);
+    }
+
     /// Whether the view follows the window size ("Fit · 50 %").
     pub fn fitted(&self) -> bool {
         self.with_state(|s| s.fitted).unwrap_or(true)
@@ -490,10 +581,36 @@ impl Canvas {
         motion.connect_motion(move |_, x, y| {
             if let Some(canvas) = weak.upgrade() {
                 canvas.with_state(|s| s.pointer = (x, y));
+                canvas.update_hover();
                 canvas.update_cursor();
             }
         });
+        let weak = self.downgrade();
+        motion.connect_leave(move |_| {
+            if let Some(canvas) = weak.upgrade() {
+                let changed = canvas
+                    .with_state(|s| s.canvas_drag.is_none() && s.hover.take().is_some())
+                    .unwrap_or(false);
+                if changed {
+                    canvas.view.queue_draw();
+                }
+            }
+        });
         self.view.add_controller(motion);
+
+        // Right-click: the context menu (redline "Context menu"), on the object under the
+        // pointer — selected first if it is not part of the selection.
+        let menu = gtk::GestureClick::new();
+        menu.set_button(gdk::BUTTON_SECONDARY);
+        let weak = self.downgrade();
+        menu.connect_pressed(move |gesture, _, x, y| {
+            if let Some(canvas) = weak.upgrade() {
+                gesture.set_state(gtk::EventSequenceState::Claimed);
+                canvas.view.grab_focus();
+                canvas.context_menu_at(Point::new(x, y));
+            }
+        });
+        self.view.add_controller(menu);
 
         // Select tool: press, drag, release with the primary button.
         let select = gtk::GestureDrag::new();
@@ -630,15 +747,36 @@ impl Canvas {
         })
     }
 
-    // ---- Select tool ----
+    // ---- Select tool and crop mode ----
 
     /// Primary button pressed at `at` (view coordinates).
     pub fn pointer_pressed(&self, at: Point, modifiers: Modifiers) {
         let Some(viewport) = self.viewport() else {
             return;
         };
+        if self.view.imp().picker.borrow().is_some() {
+            let colour = self.colour_at(viewport.to_document(at));
+            self.finish_picking(colour);
+            return;
+        }
         self.with_state(|s| {
             s.pointer = (at.x, at.y);
+            if let Some(crop) = s.crop.as_mut() {
+                crop.press(&viewport, at);
+                return;
+            }
+            // A handle of the selection first, then a canvas edge or the corner-radius handle,
+            // then objects and the rubber band.
+            let on_handle = matches!(
+                drag::hover(&s.doc, &s.selection, &viewport, at),
+                Hover::Handle { .. }
+            );
+            if !on_handle {
+                s.canvas_drag = CanvasDrag::press(&s.doc, &viewport, at, s.selection.is_empty());
+                if s.canvas_drag.is_some() {
+                    return;
+                }
+            }
             s.drag = Drag::press(&s.doc, &mut s.selection, &viewport, at, modifiers);
         });
         self.update_cursor();
@@ -651,27 +789,50 @@ impl Canvas {
         let Some(viewport) = self.viewport() else {
             return;
         };
-        self.with_state(|s| {
-            s.pointer = (at.x, at.y);
-            let State {
-                doc,
-                selection,
-                drag,
-                snapping,
-                ..
-            } = s;
-            if let Some(drag) = drag.as_mut() {
-                drag.motion(doc, selection, &viewport, at, modifiers, *snapping);
-            }
-        });
+        let cropping = self
+            .with_state(|s| {
+                s.pointer = (at.x, at.y);
+                if let Some(crop) = s.crop.as_mut() {
+                    crop.motion(&viewport, at);
+                    return true;
+                }
+                if let Some(canvas_drag) = s.canvas_drag.as_mut() {
+                    canvas_drag.motion(&viewport, at);
+                    return false;
+                }
+                let State {
+                    doc,
+                    selection,
+                    drag,
+                    snapping,
+                    ..
+                } = s;
+                if let Some(drag) = drag.as_mut() {
+                    drag.motion(doc, selection, &viewport, at, modifiers, *snapping);
+                }
+                false
+            })
+            .unwrap_or(false);
+        self.update_hover();
         self.update_chips();
         self.view.queue_draw();
+        if cropping {
+            // The sidebar's X/Y/W/H and the subtitle follow the frame.
+            self.notify_changed();
+        }
     }
 
     /// Button released: the gesture's change becomes one undo step.
     pub fn pointer_released(&self) {
         let edit = self
             .with_state(|s| {
+                if let Some(crop) = s.crop.as_mut() {
+                    crop.release();
+                    return None;
+                }
+                if let Some(canvas_drag) = s.canvas_drag.take() {
+                    return canvas_drag.release(&s.doc);
+                }
                 let drag = s.drag.take()?;
                 drag.release(&s.doc, &mut s.selection)
             })
@@ -679,6 +840,7 @@ impl Canvas {
         if let Some(edit) = edit {
             self.execute(edit);
         }
+        self.update_hover();
         self.update_chips();
         self.update_cursor();
         self.view.queue_draw();
@@ -688,12 +850,22 @@ impl Canvas {
     /// Drops the gesture in progress (Escape, or the grab was broken).
     fn cancel_drag(&self) -> bool {
         let cancelled = self
-            .with_state(|s| match s.drag.take() {
-                Some(drag) => {
-                    drag.cancel(&mut s.selection);
-                    true
+            .with_state(|s| {
+                if let Some(crop) = s.crop.as_mut() {
+                    let dragging = crop.is_dragging();
+                    crop.release();
+                    return dragging;
                 }
-                None => false,
+                if s.canvas_drag.take().is_some() {
+                    return true;
+                }
+                match s.drag.take() {
+                    Some(drag) => {
+                        drag.cancel(&mut s.selection);
+                        true
+                    }
+                    None => false,
+                }
             })
             .unwrap_or(false);
         self.update_chips();
@@ -702,34 +874,55 @@ impl Canvas {
     }
 
     /// Executes `edit` as one undo step and updates the selection.
-    fn execute(&self, edit: Edit) {
+    fn execute(&self, edit: Edit) -> Option<Done> {
         let label = labels::undo_label(&edit);
-        self.with_state(
-            |s| match s.history.execute(&mut s.doc, label, edit.command) {
-                Ok(()) => match edit.select {
-                    Some(ids) => s.selection.set(s.doc.scene(), ids),
-                    None => s.selection.sync(s.doc.scene()),
+        let (action, subject) = (edit.action, edit.subject);
+        let done = self
+            .with_state(
+                |s| match s.history.execute(&mut s.doc, label, edit.command) {
+                    Ok(()) => {
+                        match edit.select {
+                            Some(ids) => s.selection.set(s.doc.scene(), ids),
+                            None => s.selection.sync(s.doc.scene()),
+                        }
+                        Some(Done {
+                            action,
+                            subject,
+                            revision: s.history.revision(),
+                        })
+                    }
+                    Err(err) => {
+                        eprintln!("annota: canvas: {err}");
+                        None
+                    }
                 },
-                Err(err) => eprintln!("annota: canvas: {err}"),
-            },
-        );
+            )
+            .flatten();
         self.view.queue_draw();
         self.notify_changed();
+        done
+    }
+
+    /// Runs a one-shot operation on the document and the selection as one undo step (ends crop
+    /// mode and any gesture first). Returns what was done, or `None` if nothing changed.
+    pub fn run(&self, op: impl FnOnce(&Document, &Selection) -> Option<Edit>) -> Option<Done> {
+        self.cancel_drag();
+        self.end_crop();
+        let edit = self.with_state(|s| op(&s.doc, &s.selection)).flatten()?;
+        self.execute(edit)
     }
 
     /// Runs a one-shot operation on the selection; returns whether it changed anything.
     fn edit(&self, op: impl FnOnce(&Document, &Selection) -> Option<Edit>) -> bool {
         match self.with_state(|s| op(&s.doc, &s.selection)).flatten() {
-            Some(edit) => {
-                self.execute(edit);
-                true
-            }
+            Some(edit) => self.execute(edit).is_some(),
             None => false,
         }
     }
 
     pub fn undo(&self) {
         self.cancel_drag();
+        self.end_crop();
         self.with_state(|s| {
             if let Err(err) = s.history.undo(&mut s.doc) {
                 eprintln!("annota: canvas: {err}");
@@ -742,6 +935,7 @@ impl Canvas {
 
     pub fn redo(&self) {
         self.cancel_drag();
+        self.end_crop();
         self.with_state(|s| {
             if let Err(err) = s.history.redo(&mut s.doc) {
                 eprintln!("annota: canvas: {err}");
@@ -750,6 +944,156 @@ impl Canvas {
         });
         self.view.queue_draw();
         self.notify_changed();
+    }
+
+    /// Undoes the step `done` made, if it is still the last one (a toast's Undo button).
+    pub fn undo_if_last(&self, done: &Done) {
+        if self.history_info().revision == done.revision {
+            self.undo();
+        }
+    }
+
+    // ---- eyedropper ----
+
+    /// The eyedropper (sidebar: Canvas › Pick Colour From Image): the next click on the canvas
+    /// picks the colour shown there and hands it to `f`; Escape hands `None`.
+    pub fn pick_colour(&self, f: impl FnOnce(Option<Rgba>) + 'static) {
+        self.cancel_drag();
+        self.end_crop();
+        if let Some(previous) = self.view.imp().picker.replace(Some(Box::new(f))) {
+            previous(None);
+        }
+        self.view.set_cursor_from_name(Some("crosshair"));
+        self.view.grab_focus();
+    }
+
+    fn finish_picking(&self, colour: Option<Rgba>) -> bool {
+        let picker = self.view.imp().picker.take();
+        self.update_cursor();
+        match picker {
+            Some(f) => {
+                f(colour);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// The exported colour of the document pixel at `at` (one pixel rendered: only the objects
+    /// on it are drawn); `None` outside the canvas or where it is transparent.
+    fn colour_at(&self, at: Point) -> Option<Rgba> {
+        let (x, y) = (at.x.floor(), at.y.floor());
+        self.with_state(|s| {
+            let canvas = s.doc.canvas().rect;
+            let inside = x >= f64::from(canvas.x)
+                && y >= f64::from(canvas.y)
+                && x < f64::from(canvas.right())
+                && y < f64::from(canvas.bottom());
+            if !inside {
+                return None;
+            }
+            let pixel = Bitmap::draw(1, 1, |cr| {
+                render::render(
+                    cr,
+                    &s.doc,
+                    &Viewport::new(1.0, Point::new(-x, -y)),
+                    &Options::EXPORT,
+                )
+            })
+            .ok()?
+            .pixel(0, 0)?;
+            (pixel.a > 0).then_some(Rgba::opaque(pixel.r, pixel.g, pixel.b))
+        })
+        .flatten()
+    }
+
+    // ---- crop mode ----
+
+    /// Enters crop mode (tool C): the frame starts as the whole canvas; the selection is cleared.
+    pub fn start_crop(&self) {
+        self.cancel_drag();
+        self.with_state(|s| {
+            if s.crop.is_none() {
+                s.crop = Some(Crop::new(&s.doc));
+                s.selection.clear();
+                s.hover = None;
+            }
+        });
+        self.update_chips();
+        self.update_cursor();
+        self.view.queue_draw();
+        self.notify_changed();
+    }
+
+    /// Leaves crop mode without cropping (Esc, Cancel, another tool).
+    pub fn end_crop(&self) {
+        let ended = self
+            .with_state(|s| s.crop.take().is_some())
+            .unwrap_or(false);
+        if ended {
+            self.update_chips();
+            self.update_cursor();
+            self.view.queue_draw();
+            self.notify_changed();
+        }
+    }
+
+    pub fn cropping(&self) -> bool {
+        self.with_state(|s| s.crop.is_some()).unwrap_or(false)
+    }
+
+    /// The crop frame (crop mode only).
+    pub fn crop_frame(&self) -> Option<IRect> {
+        self.with_state(|s| s.crop.as_ref().map(Crop::frame))
+            .flatten()
+    }
+
+    pub fn crop_aspect(&self) -> Option<Aspect> {
+        self.with_state(|s| s.crop.as_ref().map(Crop::aspect))
+            .flatten()
+    }
+
+    /// Whether Crop (Enter) would change anything.
+    pub fn can_apply_crop(&self) -> bool {
+        self.with_state(|s| s.crop.as_ref().is_some_and(|c| c.can_apply(&s.doc)))
+            .unwrap_or(false)
+    }
+
+    /// The sidebar's X/Y/W/H in crop mode.
+    pub fn set_crop_frame(&self, rect: IRect) {
+        self.with_state(|s| {
+            if let Some(crop) = s.crop.as_mut() {
+                crop.set_frame(rect);
+            }
+        });
+        self.update_chips();
+        self.view.queue_draw();
+        self.notify_changed();
+    }
+
+    /// The sidebar's aspect-ratio choice in crop mode.
+    pub fn set_crop_aspect(&self, aspect: Aspect) {
+        self.with_state(|s| {
+            let State { crop, doc, .. } = s;
+            if let Some(crop) = crop.as_mut() {
+                crop.set_aspect(aspect, doc);
+            }
+        });
+        self.update_chips();
+        self.view.queue_draw();
+        self.notify_changed();
+    }
+
+    /// Crop (Enter): crops to the frame as one undo step and leaves crop mode. Returns whether
+    /// the document changed; without a change crop mode stays on.
+    pub fn apply_crop(&self) -> bool {
+        let Some(frame) = self.crop_frame() else {
+            return false;
+        };
+        if !self.can_apply_crop() {
+            return false;
+        }
+        self.run(|doc, _| image_ops::crop(doc, frame)).is_some()
     }
 
     #[cfg(test)]
@@ -805,17 +1149,80 @@ impl Canvas {
         self.with_state(|s| f(&s.doc))
     }
 
+    /// Shows the grabber of the canvas edge (or the corner-radius handle) under the pointer.
+    fn update_hover(&self) {
+        let Some(viewport) = self.viewport() else {
+            return;
+        };
+        let changed = self
+            .with_state(|s| {
+                let pointer = Point::new(s.pointer.0, s.pointer.1);
+                let busy = s.crop.is_some()
+                    || s.space
+                    || s.pan_start.is_some()
+                    || s.drag.as_ref().is_some_and(Drag::is_dragging);
+                let next = match &s.canvas_drag {
+                    Some(d) => Some(d.target()),
+                    None if busy => None,
+                    None => {
+                        let on_handle = matches!(
+                            drag::hover(&s.doc, &s.selection, &viewport, pointer),
+                            Hover::Handle { .. }
+                        );
+                        (!on_handle)
+                            .then(|| {
+                                canvas_edit::target_at(
+                                    &s.doc,
+                                    &viewport,
+                                    pointer,
+                                    s.selection.is_empty(),
+                                )
+                            })
+                            .flatten()
+                    }
+                };
+                let changed = s.hover != next;
+                s.hover = next;
+                changed
+            })
+            .unwrap_or(false);
+        if changed {
+            self.view.queue_draw();
+        }
+    }
+
     /// Cursor for what is under the pointer (system cursor theme; redline "Kit additions").
     fn update_cursor(&self) {
         let Some(viewport) = self.viewport() else {
             return;
         };
+        if self.view.imp().picker.borrow().is_some() {
+            self.view.set_cursor_from_name(Some("crosshair"));
+            return;
+        }
         let name = self
             .with_state(|s| {
                 if s.space || s.pan_start.is_some() {
                     return None;
                 }
                 let pointer = Point::new(s.pointer.0, s.pointer.1);
+                if let Some(crop) = &s.crop {
+                    return match crop.grip_at(&viewport, pointer) {
+                        Some(annota::editing::crop::Grip::Handle(compass)) => {
+                            Some(drag::resize_cursor(compass, 0.0))
+                        }
+                        Some(annota::editing::crop::Grip::Inside) => Some("move"),
+                        None => None,
+                    };
+                }
+                match s.hover {
+                    Some(CanvasTarget::Edge(side)) if side.horizontal() => {
+                        return Some("ew-resize")
+                    }
+                    Some(CanvasTarget::Edge(_)) => return Some("ns-resize"),
+                    Some(CanvasTarget::Radius) => return Some("nwse-resize"),
+                    None => {}
+                }
                 let hover = match &s.drag {
                     Some(d) if d.is_dragging() => match d.feedback() {
                         Feedback::Move { .. } => Hover::Object,
@@ -844,12 +1251,99 @@ impl Canvas {
         self.view.set_cursor_from_name(name);
     }
 
+    /// The chip's own size: the measured size includes the margins that place it.
+    fn chip_size(label: &gtk::Label) -> (f64, f64) {
+        let (_, natural) = label.preferred_size();
+        (
+            f64::from(natural.width() - label.margin_start() - label.margin_end()),
+            f64::from(natural.height() - label.margin_top() - label.margin_bottom()),
+        )
+    }
+
+    /// Places `label` at (x, y) in the view, kept inside it.
+    fn place_chip(&self, label: &gtk::Label, x: f64, y: f64) {
+        let view_size = self.view.imp().view_size();
+        let (w, h) = Self::chip_size(label);
+        let x = x.clamp(0.0, (view_size.0 - w).max(0.0));
+        let y = y.clamp(0.0, (view_size.1 - h).max(0.0));
+        label.set_margin_start(x.round() as i32);
+        label.set_margin_top(y.round() as i32);
+    }
+
+    /// The crop size chip under the frame (mockup 08), or the canvas-edge / corner-radius chip
+    /// (mockups 09, 10). Returns whether one of them is shown.
+    fn update_canvas_chips(&self, viewport: &Viewport) -> bool {
+        enum Chip {
+            Crop(IRect),
+            Canvas(canvas_edit::Feedback, IRect),
+        }
+        let chip = self
+            .with_state(|s| {
+                if let Some(crop) = &s.crop {
+                    return Some(Chip::Crop(crop.frame()));
+                }
+                let d = s.canvas_drag.as_ref().filter(|d| d.is_dragging())?;
+                Some(Chip::Canvas(
+                    d.feedback(),
+                    d.preview_canvas().unwrap_or(s.doc.canvas().rect),
+                ))
+            })
+            .flatten();
+        let chip_label = &self.measure_chip;
+        match chip {
+            Some(Chip::Crop(frame)) => {
+                chip_label.set_label(&labels::crop_chip(frame.width, frame.height));
+                chip_label.set_visible(true);
+                let r = frame.to_rect();
+                let a = viewport.to_device(Point::new(r.x, r.y));
+                let b = viewport.to_device(Point::new(r.right(), r.bottom()));
+                let (w, _) = Self::chip_size(chip_label);
+                // Centred under the frame, 12 px below (mockup 08).
+                self.place_chip(chip_label, (a.x + b.x) / 2.0 - w / 2.0, b.y + 12.0);
+                true
+            }
+            Some(Chip::Canvas(feedback, canvas)) => {
+                let Some(text) = labels::canvas_chip(feedback) else {
+                    chip_label.set_visible(false);
+                    return true;
+                };
+                chip_label.set_label(&text);
+                chip_label.set_visible(true);
+                let (w, h) = Self::chip_size(chip_label);
+                let r = canvas.to_rect();
+                let a = viewport.to_device(Point::new(r.x, r.y));
+                let b = viewport.to_device(Point::new(r.right(), r.bottom()));
+                let (mx, my) = ((a.x + b.x) / 2.0, (a.y + b.y) / 2.0);
+                let (x, y) = match feedback {
+                    // Mockup 10: inside the canvas next to the edge, below the grabber.
+                    canvas_edit::Feedback::Extend { side, .. } => match side {
+                        Side::Right => (b.x - 14.0 - w, my + 26.0),
+                        Side::Left => (a.x + 14.0, my + 26.0),
+                        Side::Top => (mx + 26.0, a.y + 14.0),
+                        Side::Bottom => (mx + 26.0, b.y - 14.0 - h),
+                    },
+                    // Mockup 09: above the image's top-left corner.
+                    _ => {
+                        let corner = viewport.to_device(Point::new(0.0, 0.0));
+                        (corner.x - 4.0, corner.y - 30.0)
+                    }
+                };
+                self.place_chip(chip_label, x, y);
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Shows, fills and places the measurement and snap chips for the gesture in progress.
     fn update_chips(&self) {
         let Some(viewport) = self.viewport() else {
             return;
         };
-        let view_size = self.view.imp().view_size();
+        if self.update_canvas_chips(&viewport) {
+            self.snap_chip.set_visible(false);
+            return;
+        }
         let info = self.with_state(|s| {
             let drag = s.drag.as_ref().filter(|d| d.is_dragging())?;
             let frame = drag
@@ -868,27 +1362,12 @@ impl Canvas {
             self.snap_chip.set_visible(false);
             return;
         };
-        // The chip's own size: the measured size includes the margins that place it.
-        let size = |label: &gtk::Label| {
-            let (_, natural) = label.preferred_size();
-            (
-                f64::from(natural.width() - label.margin_start() - label.margin_end()),
-                f64::from(natural.height() - label.margin_top() - label.margin_bottom()),
-            )
-        };
-        let place = |label: &gtk::Label, x: f64, y: f64| {
-            let (w, h) = size(label);
-            let x = x.clamp(0.0, (view_size.0 - w).max(0.0));
-            let y = y.clamp(0.0, (view_size.1 - h).max(0.0));
-            label.set_margin_start(x.round() as i32);
-            label.set_margin_top(y.round() as i32);
-        };
 
         match labels::measure_chip(feedback) {
             Some(text) => {
                 self.measure_chip.set_label(&text);
                 self.measure_chip.set_visible(true);
-                let (w, h) = size(&self.measure_chip);
+                let (w, h) = Self::chip_size(&self.measure_chip);
                 let (x, y) = match feedback {
                     // Mockup 03: centred above the pointer.
                     Feedback::Rotate { .. } => (pointer.x - w / 2.0, pointer.y - 18.0 - h),
@@ -903,7 +1382,7 @@ impl Canvas {
                         )
                     }
                 };
-                place(&self.measure_chip, x, y);
+                self.place_chip(&self.measure_chip, x, y);
             }
             None => self.measure_chip.set_visible(false),
         }
@@ -914,7 +1393,7 @@ impl Canvas {
                 self.snap_chip.set_visible(true);
                 let r = canvas.to_rect();
                 let top_left = viewport.to_device(Point::new(r.x, r.y));
-                let (_, h) = size(&self.snap_chip);
+                let (_, h) = Self::chip_size(&self.snap_chip);
                 // Mockup 02: beside the top end of a vertical guide, else beside the left end
                 // of a horizontal one.
                 let (x, y) = match guides.iter().find(|g| g.axis == Axis::Vertical) {
@@ -931,7 +1410,7 @@ impl Canvas {
                             - h,
                     ),
                 };
-                place(&self.snap_chip, x, y);
+                self.place_chip(&self.snap_chip, x, y);
             }
             None => self.snap_chip.set_visible(false),
         }
@@ -1004,9 +1483,37 @@ impl Canvas {
         let ctrl = modifiers.contains(gdk::ModifierType::CONTROL_MASK);
         let shift = modifiers.contains(gdk::ModifierType::SHIFT_MASK);
         let alt = modifiers.contains(gdk::ModifierType::ALT_MASK);
+        if key == gdk::Key::Escape && self.finish_picking(None) {
+            return true;
+        }
         let dragging = self
-            .with_state(|s| s.drag.as_ref().is_some_and(Drag::is_dragging))
+            .with_state(|s| {
+                s.drag.as_ref().is_some_and(Drag::is_dragging)
+                    || s.canvas_drag.as_ref().is_some_and(CanvasDrag::is_dragging)
+                    || s.crop.as_ref().is_some_and(Crop::is_dragging)
+            })
             .unwrap_or(false);
+        // Crop mode (mockup 08): Esc cancels, Enter crops; the editing keys rest.
+        if self.cropping() {
+            match key {
+                gdk::Key::Escape => {
+                    if !self.cancel_drag() {
+                        self.end_crop();
+                    }
+                    return true;
+                }
+                gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::ISO_Enter if !dragging => {
+                    self.apply_crop();
+                    return true;
+                }
+                _ => {}
+            }
+        }
+        let menu_key = key == gdk::Key::Menu || (key == gdk::Key::F10 && shift && !ctrl);
+        if menu_key && !dragging && !self.cropping() {
+            self.context_menu_from_keyboard();
+            return true;
+        }
         if key == gdk::Key::Escape {
             if self.cancel_drag() {
                 return true;
@@ -1024,13 +1531,24 @@ impl Canvas {
             }
             return had;
         }
-        // The document does not change under a gesture in progress.
+        // The document does not change under a gesture in progress, nor in crop mode (only
+        // its own keys, the zoom keys and undo/redo, which end it).
         if dragging {
             return false;
         }
+        let cropping = self.cropping();
         let step = if shift { ops::NUDGE_LARGE } else { ops::NUDGE };
         let nudge = |dx: f64, dy: f64| self.edit(|doc, sel| ops::nudge(doc, sel, dx, dy));
         let handled = match key.to_lower() {
+            gdk::Key::z if ctrl && shift => {
+                self.redo();
+                true
+            }
+            gdk::Key::z if ctrl => {
+                self.undo();
+                true
+            }
+            _ if cropping => false,
             gdk::Key::Left | gdk::Key::KP_Left if !ctrl && !alt => nudge(-step, 0.0),
             gdk::Key::Right | gdk::Key::KP_Right if !ctrl && !alt => nudge(step, 0.0),
             gdk::Key::Up | gdk::Key::KP_Up if !ctrl && !alt => nudge(0.0, -step),
@@ -1062,14 +1580,6 @@ impl Canvas {
             }
             gdk::Key::semicolon if ctrl => {
                 self.set_snapping(!self.snapping());
-                true
-            }
-            gdk::Key::z if ctrl && shift => {
-                self.redo();
-                true
-            }
-            gdk::Key::z if ctrl => {
-                self.undo();
                 true
             }
             _ => false,
@@ -1144,11 +1654,15 @@ fn draw(state: &State, cr: &gtk::cairo::Context, size: (f64, f64), scroll: (f64,
         eprintln!("annota: canvas: {err}");
         return;
     }
-    let canvas = state.doc.canvas().rect;
+    // The view is laid out for the document's canvas; a dragged canvas edge only previews.
     let viewport = Viewport::new(
         state.zoom,
-        view::view_origin(canvas, state.zoom, size, scroll),
+        view::view_origin(state.doc.canvas().rect, state.zoom, size, scroll),
     );
+    let canvas_drag = state.canvas_drag.as_ref();
+    let canvas = canvas_drag
+        .and_then(CanvasDrag::preview_canvas)
+        .unwrap_or(state.doc.canvas().rect);
     let corner = viewport.to_device(Point::new(f64::from(canvas.x), f64::from(canvas.y)));
     let (w, h) = (
         f64::from(canvas.width) * state.zoom,
@@ -1157,25 +1671,32 @@ fn draw(state: &State, cr: &gtk::cairo::Context, size: (f64, f64), scroll: (f64,
     if let Err(err) = draw_canvas_shadow(cr, corner, w, h) {
         eprintln!("annota: canvas: {err}");
     }
-    let preview = state.drag.as_ref().map(|d| Preview {
-        objects: d.preview(),
-        ghost: d.shows_ghost(),
-    });
-    if let Err(err) = render::render_preview(cr, &state.doc, &viewport, &options, preview.as_ref())
-    {
+    let mut preview = state
+        .drag
+        .as_ref()
+        .map(|d| Preview::objects(d.preview(), d.shows_ghost()))
+        .unwrap_or_else(|| Preview::objects(&[], false));
+    preview.canvas = canvas_drag.and_then(CanvasDrag::preview_canvas);
+    preview.corner_radius = canvas_drag.and_then(CanvasDrag::preview_radius);
+    if let Err(err) = render::render_preview(cr, &state.doc, &viewport, &options, Some(&preview)) {
         eprintln!("annota: canvas: {err}");
     }
-    if let Err(err) = draw_editing_aids(state, cr, &viewport) {
+    if let Err(err) = draw_editing_aids(state, cr, &viewport, canvas) {
         eprintln!("annota: canvas: {err}");
     }
 }
 
-/// Selection, guides and rubber band over the document.
+/// Selection, guides and rubber band over the document; in crop mode the crop frame; the
+/// grabber of the canvas edge under the pointer and the corner-radius handle.
 fn draw_editing_aids(
     state: &State,
     cr: &gtk::cairo::Context,
     viewport: &Viewport,
+    canvas: IRect,
 ) -> Result<(), gtk::cairo::Error> {
+    if let Some(crop) = &state.crop {
+        return overlay::draw_crop(cr, viewport, state.doc.canvas().rect, crop.frame());
+    }
     let frame = match &state.drag {
         Some(drag) => drag.selection_frame(&state.doc, &state.selection),
         None => selection_frame(state.doc.scene(), &state.selection, &[]),
@@ -1188,6 +1709,34 @@ fn draw_editing_aids(
         if let Feedback::Band(rect) = drag.feedback() {
             overlay::draw_band(cr, viewport, rect)?;
         }
+    }
+    let dragging = state.canvas_drag.as_ref().filter(|d| d.is_dragging());
+    match state.hover {
+        Some(CanvasTarget::Edge(side)) => {
+            if let Some(canvas_edit::Feedback::Extend { extra, .. }) =
+                dragging.map(CanvasDrag::feedback)
+            {
+                if extra > 0 {
+                    let image = image_ops::image_rect(&state.doc);
+                    overlay::draw_image_edge(cr, viewport, image, canvas, side)?;
+                }
+            }
+            let rect = canvas_edit::grabber_rect(viewport, canvas, side);
+            overlay::draw_canvas_grabber(
+                cr,
+                viewport,
+                canvas,
+                rect,
+                dragging.is_some().then_some(side),
+            )?;
+        }
+        Some(CanvasTarget::Radius) => {
+            let radius = dragging
+                .and_then(CanvasDrag::preview_radius)
+                .unwrap_or(state.doc.image().corner_radius);
+            overlay::draw_handles(cr, viewport, &[canvas_edit::radius_handle(radius)])?;
+        }
+        None => {}
     }
     Ok(())
 }
@@ -1488,6 +2037,92 @@ mod tests {
         );
         canvas.pointer_released();
         assert_eq!(canvas.undo_label().as_deref(), Some("Rotate Group"));
+        window.destroy();
+    }
+
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn canvas_edges_corner_radius_crop_and_eyedropper_on_a_live_canvas() {
+        init();
+        let doc = Document::new(Bitmap::filled(1600, 1000, palette::PAPER).unwrap());
+        let window = gtk::Window::new();
+        window.set_default_size(1280, 800);
+        let canvas = Canvas::new(doc);
+        window.set_child(Some(canvas.widget()));
+        window.present();
+        pump(300);
+        let vp = canvas.viewport().unwrap();
+        let none = Modifiers::default();
+        let undo_label = |c: &Canvas| c.history_info().undo_label;
+
+        // Mockup 10: near the right edge its grabber appears; dragging it 200 px out extends
+        // the canvas, with a "+200 px" chip, as one undo step.
+        let edge = vp.to_device(Point::new(1600.0, 500.0));
+        canvas.with_state(|s| s.pointer = (edge.x + 4.0, edge.y));
+        canvas.update_hover();
+        assert_eq!(
+            canvas.with_state(|s| s.hover).flatten(),
+            Some(CanvasTarget::Edge(Side::Right))
+        );
+        canvas.pointer_pressed(Point::new(edge.x + 4.0, edge.y), none);
+        canvas.pointer_moved(vp.to_device(Point::new(1800.0, 510.0)), none);
+        pump(50);
+        assert!(canvas.measure_chip.is_visible());
+        assert_eq!(canvas.measure_chip.label(), "+200 px");
+        assert_eq!(canvas.with_document(|d| d.canvas().rect.width), Some(1600));
+        canvas.pointer_released();
+        assert_eq!(canvas.with_document(|d| d.canvas().rect.width), Some(1800));
+        assert_eq!(undo_label(&canvas).as_deref(), Some("Extend Canvas"));
+        canvas.undo();
+        pump(100);
+
+        // Mockup 09: the corner-radius handle at the image's top-left inner corner.
+        let vp = canvas.viewport().unwrap();
+        let corner = vp.to_device(Point::new(0.0, 0.0));
+        canvas.pointer_pressed(corner, none);
+        canvas.pointer_moved(vp.to_device(Point::new(40.0, 40.0)), none);
+        pump(50);
+        assert_eq!(canvas.measure_chip.label(), "Corner radius 40 px");
+        canvas.pointer_released();
+        assert_eq!(
+            canvas.with_document(|d| d.image().corner_radius),
+            Some(40.0)
+        );
+        assert_eq!(undo_label(&canvas).as_deref(), Some("Corner Radius"));
+        canvas.undo();
+
+        // Mockup 08: crop mode, a grip dragged, the size chip, Enter.
+        canvas.start_crop();
+        pump(50);
+        assert_eq!(canvas.measure_chip.label(), "1600 × 1000 px");
+        let vp = canvas.viewport().unwrap();
+        canvas.pointer_pressed(vp.to_device(Point::new(1600.0, 1000.0)), none);
+        canvas.pointer_moved(vp.to_device(Point::new(970.0, 970.0)), none);
+        canvas.pointer_released();
+        pump(50);
+        assert_eq!(canvas.crop_frame(), Some(IRect::new(0, 0, 970, 970)));
+        assert_eq!(canvas.measure_chip.label(), "970 × 970 px");
+        assert!(canvas.key_pressed(gdk::Key::Return, gdk::ModifierType::empty()));
+        assert!(!canvas.cropping());
+        assert_eq!(
+            canvas.with_document(|d| d.canvas().rect),
+            Some(IRect::new(0, 0, 970, 970))
+        );
+        assert_eq!(undo_label(&canvas).as_deref(), Some("Crop"));
+        assert!(!canvas.measure_chip.is_visible());
+
+        // The eyedropper picks the colour under the next click.
+        let picked = std::rc::Rc::new(std::cell::Cell::new(None));
+        let into = picked.clone();
+        canvas.pick_colour(move |c| into.set(c));
+        let vp = canvas.viewport().unwrap();
+        canvas.pointer_pressed(vp.to_device(Point::new(100.0, 100.0)), none);
+        assert_eq!(picked.get(), Some(palette::PAPER));
+        // Escape cancels a pick.
+        let into = picked.clone();
+        canvas.pick_colour(move |c| into.set(c));
+        assert!(canvas.key_pressed(gdk::Key::Escape, gdk::ModifierType::empty()));
+        assert_eq!(picked.get(), None);
         window.destroy();
     }
 }

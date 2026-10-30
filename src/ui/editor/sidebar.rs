@@ -1,21 +1,28 @@
-//! The properties sidebar (redline "Sidebar contents"; mockups 01, 06, 16): the document when
-//! nothing is selected (Image, Canvas, Objects; a per-type summary above 40 objects), the
-//! selection otherwise (type heading, group members and Ungroup, Arrange, Select All <Type>).
+//! The properties sidebar (redline "Sidebar contents"; mockups 01, 06, 08, 16): the document
+//! when nothing is selected (Image, Canvas, Objects; a per-type summary above 40 objects), the
+//! selection otherwise (type heading, group members and Ungroup, Arrange, Select All <Type>),
+//! and crop mode's frame, aspect ratio, Cancel and Crop.
 //!
 //! What it shows is computed by [`state`] from the document and the selection, without
 //! widgets. Type-specific property panels (colour, width, line style …) belong to
 //! add-core-annotation-tools and slot in between the heading and Arrange.
+//!
+//! Number entries show values rounded to 0.1 px. Leaving or confirming an entry whose text is
+//! still what it showed keeps the exact value, so walking through the fields with Tab never
+//! edits the document ([`arrange_target`], [`crop_target`]).
 
 use std::cell::{Cell, RefCell};
 
 use adw::prelude::*;
-use gettextrs::gettext;
+use gettextrs::{gettext, pgettext};
 use gtk::glib;
 
 use annota::document::color::{palette, Rgba};
-use annota::document::geometry::{Arrange, Rect};
+use annota::document::geometry::{Arrange, IRect, Rect};
 use annota::document::scene::ObjectId;
 use annota::document::{Background, Document};
+use annota::editing::crop::Aspect;
+use annota::editing::image_ops;
 use annota::editing::selection::is_selectable;
 use annota::tools::group::Group;
 use annota::tools::image::Image;
@@ -99,11 +106,27 @@ impl Swatch {
     ];
 }
 
+impl Swatch {
+    /// The background a palette swatch stands for (`None` for Custom, which asks).
+    pub fn background(self) -> Option<Background> {
+        match self {
+            Swatch::Transparent => Some(Background::Transparent),
+            Swatch::Custom => None,
+            _ => Self::PALETTE
+                .iter()
+                .find(|(s, _)| *s == self)
+                .map(|(_, color)| Background::Color { color: *color }),
+        }
+    }
+}
+
 /// Nothing selected.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DocumentInfo {
     pub size: (i32, i32),
     pub corner_radius: f64,
+    /// Half the image's shorter side.
+    pub max_corner_radius: f64,
     pub background: Background,
     /// Editable (top-level) objects.
     pub objects: usize,
@@ -123,11 +146,19 @@ pub struct SelectionInfo {
     pub frame: Arrange,
 }
 
+/// Crop mode.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CropInfo {
+    pub frame: IRect,
+    pub aspect: Aspect,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
     Empty,
     Document(DocumentInfo),
     Selection(SelectionInfo),
+    Crop(CropInfo),
 }
 
 /// What the sidebar shows for `doc` with `selection` selected.
@@ -151,6 +182,7 @@ pub fn state(doc: &Document, selection: &[ObjectId]) -> State {
         return State::Document(DocumentInfo {
             size: (canvas.rect.width, canvas.rect.height),
             corner_radius: doc.image().corner_radius,
+            max_corner_radius: image_ops::max_corner_radius(doc),
             background: canvas.background,
             objects: doc.object_count(),
             by_type,
@@ -208,6 +240,56 @@ pub fn format_number(v: f64) -> String {
     }
 }
 
+/// The value an entry stands for: what it showed (exactly, unrounded) while its text is
+/// unchanged, else what was typed; `current` if the text is not a number.
+fn entry_value(current: f64, shown: &str, text: &str) -> f64 {
+    if text.trim() == shown.trim() {
+        current
+    } else {
+        parse_number(text).unwrap_or(current)
+    }
+}
+
+/// The placement the Arrange entries ask for, or `None` if nothing was edited (the texts are
+/// still what [`format_number`] showed and the rotation spin was not changed). `rotation` is
+/// the spin's value and `shown_rotation` what it was set to.
+pub fn arrange_target(
+    frame: Arrange,
+    multi: bool,
+    shown: &[String; 4],
+    texts: &[String; 4],
+    rotation: f64,
+    shown_rotation: f64,
+) -> Option<Arrange> {
+    let r = frame.rect;
+    let current = [r.x, r.y, r.width, r.height];
+    let v: Vec<f64> = (0..4)
+        .map(|i| entry_value(current[i], &shown[i], &texts[i]))
+        .collect();
+    // The spin rounds what it shows; within that rounding it still shows the real angle.
+    let rotation = if multi || (rotation - shown_rotation).abs() < 0.05 {
+        frame.rotation
+    } else {
+        rotation
+    };
+    let min = annota::document::annotation::MIN_SIZE;
+    let target = Arrange::new(
+        Rect::new(v[0], v[1], v[2].max(min), v[3].max(min)),
+        rotation,
+    );
+    (target != frame).then_some(target)
+}
+
+/// The crop frame the crop entries ask for (whole pixels), `None` if unchanged.
+pub fn crop_target(frame: IRect, shown: &[String; 4], texts: &[String; 4]) -> Option<IRect> {
+    let current = [frame.x, frame.y, frame.width, frame.height];
+    let v: Vec<i32> = (0..4)
+        .map(|i| entry_value(f64::from(current[i]), &shown[i], &texts[i]).round() as i32)
+        .collect();
+    let target = IRect::new(v[0], v[1], v[2], v[3]);
+    (target != frame).then_some(target)
+}
+
 fn type_icon(type_name: &str) -> &'static str {
     match type_name {
         Image::TYPE => "image-x-generic-symbolic",
@@ -216,7 +298,21 @@ fn type_icon(type_name: &str) -> &'static str {
     }
 }
 
-type ArrangeHandler = Box<dyn Fn(Arrange)>;
+/// What the user asked for in the sidebar.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Event {
+    Arrange(Arrange),
+    CornerRadius(f64),
+    Background(Background),
+    /// The Custom swatch: choose a colour.
+    CustomBackground,
+    /// The eyedropper: pick the background colour from the image.
+    PickBackground,
+    CropFrame(IRect),
+    CropAspect(Aspect),
+}
+
+type Handler = Box<dyn Fn(Event)>;
 
 /// The sidebar's widgets (from `editor-window.ui`).
 pub struct Sidebar {
@@ -229,6 +325,7 @@ pub struct Sidebar {
     pub(super) size_row: adw::ActionRow,
     pub(super) corner_radius_row: adw::SpinRow,
     pub(super) swatches: Vec<(Swatch, gtk::Button)>,
+    pub(super) eyedropper: gtk::Button,
     pub snap_row: adw::SwitchRow,
     pub(super) objects_row: adw::ActionRow,
     pub(super) selection_heading: gtk::Label,
@@ -239,11 +336,19 @@ pub struct Sidebar {
     pub(super) rotation: gtk::SpinButton,
     pub(super) select_all_type_button: gtk::Button,
     pub(super) group_note: gtk::Label,
+    pub(super) crop_entries: [gtk::Entry; 4],
+    pub(super) crop_aspect: gtk::DropDown,
     /// The selection the Arrange entries were filled from.
     pub(super) frame: Cell<Option<(Arrange, bool)>>,
+    /// What the Arrange entries and the rotation spin were filled with.
+    shown: RefCell<[String; 4]>,
+    shown_rotation: Cell<f64>,
+    /// The crop frame the crop entries were filled from, and their texts.
+    crop_frame: Cell<Option<IRect>>,
+    crop_shown: RefCell<[String; 4]>,
     /// Set while the widgets are filled in, so that does not count as user input.
     pub(super) updating: Cell<bool>,
-    pub(super) on_arrange: RefCell<Option<ArrangeHandler>>,
+    on_event: RefCell<Option<Handler>>,
 }
 
 impl Sidebar {
@@ -266,6 +371,10 @@ impl Sidebar {
         }
         let ungroup_accel: gtk::Label = obj!("ungroup_accel");
         ungroup_accel.set_text(&accel_label("<Control><Shift>g"));
+        let crop_cancel_key: gtk::Label = obj!("crop_cancel_key");
+        crop_cancel_key.set_text(&pgettext("key", "Esc"));
+        let crop_apply_key: gtk::Label = obj!("crop_apply_key");
+        crop_apply_key.set_text(&pgettext("key", "Enter"));
         let sidebar = std::rc::Rc::new(Self {
             properties_box: obj!("properties_box"),
             stack: obj!("properties_stack"),
@@ -276,6 +385,7 @@ impl Sidebar {
             size_row: obj!("size_row"),
             corner_radius_row: obj!("corner_radius_row"),
             swatches,
+            eyedropper: obj!("swatch_eyedropper"),
             snap_row: obj!("snap_row"),
             objects_row: obj!("objects_row"),
             selection_heading: obj!("selection_heading"),
@@ -291,9 +401,20 @@ impl Sidebar {
             rotation: obj!("arrange_rotation"),
             select_all_type_button: obj!("select_all_type_button"),
             group_note: obj!("group_note"),
+            crop_entries: [
+                obj!("crop_x"),
+                obj!("crop_y"),
+                obj!("crop_w"),
+                obj!("crop_h"),
+            ],
+            crop_aspect: obj!("crop_aspect"),
             frame: Cell::new(None),
+            shown: RefCell::default(),
+            shown_rotation: Cell::new(0.0),
+            crop_frame: Cell::new(None),
+            crop_shown: RefCell::default(),
             updating: Cell::new(false),
-            on_arrange: RefCell::new(None),
+            on_event: RefCell::new(None),
         });
         sidebar.ungroup_button.set_action_name(Some("win.ungroup"));
         sidebar.corner_radius_row.connect_output(|row| {
@@ -317,34 +438,90 @@ impl Sidebar {
         Some(sidebar)
     }
 
-    pub fn connect_arrange(&self, f: impl Fn(Arrange) + 'static) {
-        self.on_arrange.replace(Some(Box::new(f)));
+    pub fn connect_event(&self, f: impl Fn(Event) + 'static) {
+        self.on_event.replace(Some(Box::new(f)));
     }
 
-    /// Enter, leaving an entry, and the rotation spin button apply the Arrange values.
-    fn connect_inputs(self: &std::rc::Rc<Self>) {
-        let weak = std::rc::Rc::downgrade(self);
-        for entry in &self.entries {
-            let w = weak.clone();
-            entry.connect_activate(move |_| {
-                if let Some(sidebar) = w.upgrade() {
-                    sidebar.apply();
-                }
-            });
-            let focus = gtk::EventControllerFocus::new();
-            let w = weak.clone();
-            focus.connect_leave(move |_| {
-                if let Some(sidebar) = w.upgrade() {
-                    sidebar.apply();
-                }
-            });
-            entry.add_controller(focus);
+    fn emit(&self, event: Event) {
+        if self.updating.get() {
+            return;
         }
+        if let Some(f) = self.on_event.borrow().as_ref() {
+            f(event);
+        }
+    }
+
+    /// Enter and leaving an entry apply it (Arrange and crop entries).
+    fn connect_entry(self: &std::rc::Rc<Self>, entry: &gtk::Entry, apply: fn(&Self)) {
+        let weak = std::rc::Rc::downgrade(self);
+        entry.connect_activate(move |_| {
+            if let Some(sidebar) = weak.upgrade() {
+                apply(&sidebar);
+            }
+        });
+        let focus = gtk::EventControllerFocus::new();
+        let weak = std::rc::Rc::downgrade(self);
+        focus.connect_leave(move |_| {
+            if let Some(sidebar) = weak.upgrade() {
+                apply(&sidebar);
+            }
+        });
+        entry.add_controller(focus);
+    }
+
+    /// Enter, leaving an entry, and the rotation spin button apply the Arrange values; the
+    /// Image and Canvas controls and the crop page report their changes.
+    fn connect_inputs(self: &std::rc::Rc<Self>) {
+        for entry in &self.entries {
+            self.connect_entry(entry, Self::apply);
+        }
+        for entry in &self.crop_entries {
+            self.connect_entry(entry, Self::apply_crop);
+        }
+        let weak = std::rc::Rc::downgrade(self);
         self.rotation.connect_value_changed(move |_| {
             if let Some(sidebar) = weak.upgrade() {
                 sidebar.apply();
             }
         });
+        let weak = std::rc::Rc::downgrade(self);
+        self.corner_radius_row.connect_value_notify(move |row| {
+            if let Some(sidebar) = weak.upgrade() {
+                sidebar.emit(Event::CornerRadius(row.value()));
+            }
+        });
+        for (swatch, button) in &self.swatches {
+            let swatch = *swatch;
+            let weak = std::rc::Rc::downgrade(self);
+            button.connect_clicked(move |_| {
+                if let Some(sidebar) = weak.upgrade() {
+                    sidebar.emit(match swatch.background() {
+                        Some(background) => Event::Background(background),
+                        None => Event::CustomBackground,
+                    });
+                }
+            });
+        }
+        let weak = std::rc::Rc::downgrade(self);
+        self.eyedropper.connect_clicked(move |_| {
+            if let Some(sidebar) = weak.upgrade() {
+                sidebar.emit(Event::PickBackground);
+            }
+        });
+        let weak = std::rc::Rc::downgrade(self);
+        self.crop_aspect.connect_selected_notify(move |dropdown| {
+            let aspect = Aspect::ALL
+                .get(dropdown.selected() as usize)
+                .copied()
+                .unwrap_or_default();
+            if let Some(sidebar) = weak.upgrade() {
+                sidebar.emit(Event::CropAspect(aspect));
+            }
+        });
+    }
+
+    fn texts(entries: &[gtk::Entry; 4]) -> [String; 4] {
+        [0, 1, 2, 3].map(|i| entries[i].text().to_string())
     }
 
     fn apply(&self) {
@@ -354,34 +531,43 @@ impl Sidebar {
         let Some((frame, multi)) = self.frame.get() else {
             return;
         };
-        let values: Vec<f64> = self
-            .entries
-            .iter()
-            .zip([
-                frame.rect.x,
-                frame.rect.y,
-                frame.rect.width,
-                frame.rect.height,
-            ])
-            .map(|(entry, current)| parse_number(&entry.text()).unwrap_or(current))
-            .collect();
-        let rotation = if multi {
-            frame.rotation
-        } else {
-            self.rotation.value()
-        };
-        let min = annota::document::annotation::MIN_SIZE;
-        let target = Arrange::new(
-            Rect::new(values[0], values[1], values[2].max(min), values[3].max(min)),
-            rotation,
+        let target = arrange_target(
+            frame,
+            multi,
+            &self.shown.borrow(),
+            &Self::texts(&self.entries),
+            self.rotation.value(),
+            self.shown_rotation.get(),
         );
-        if let Some(f) = self.on_arrange.borrow().as_ref() {
-            f(target);
+        if let Some(target) = target {
+            self.emit(Event::Arrange(target));
+        }
+    }
+
+    fn apply_crop(&self) {
+        if self.updating.get() {
+            return;
+        }
+        let Some(frame) = self.crop_frame.get() else {
+            return;
+        };
+        let target = crop_target(
+            frame,
+            &self.crop_shown.borrow(),
+            &Self::texts(&self.crop_entries),
+        );
+        match target {
+            Some(target) => self.emit(Event::CropFrame(target)),
+            // Unparseable text: show the frame again.
+            None => self.show_crop_frame(frame),
         }
     }
 
     pub fn show(&self, state: &State) {
         self.updating.set(true);
+        if !matches!(state, State::Crop(_)) {
+            self.crop_frame.set(None);
+        }
         match state {
             State::Empty => {
                 self.frame.set(None);
@@ -396,6 +582,19 @@ impl Sidebar {
                 self.show_selection(info);
                 self.stack.set_visible_child_name("selection");
             }
+            State::Crop(info) => {
+                self.frame.set(None);
+                self.show_crop_frame(info.frame);
+                let index = Aspect::ALL
+                    .iter()
+                    .position(|a| *a == info.aspect)
+                    .unwrap_or(0);
+                if self.crop_aspect.selected() as usize != index {
+                    self.crop_aspect
+                        .set_selected(u32::try_from(index).unwrap_or(0));
+                }
+                self.stack.set_visible_child_name("crop");
+            }
         }
         self.updating.set(false);
     }
@@ -404,10 +603,25 @@ impl Sidebar {
         self.stack.visible_child_name().as_deref() == Some("empty")
     }
 
+    fn show_crop_frame(&self, frame: IRect) {
+        let was = self.updating.replace(true);
+        self.crop_frame.set(Some(frame));
+        let texts = [frame.x, frame.y, frame.width, frame.height].map(|v| v.to_string());
+        for (entry, text) in self.crop_entries.iter().zip(&texts) {
+            if entry.text().as_str() != text.as_str() {
+                entry.set_text(text);
+            }
+        }
+        self.crop_shown.replace(texts);
+        self.updating.set(was);
+    }
+
     fn show_document(&self, info: &DocumentInfo) {
         self.size_row.set_subtitle(
             &gettext("{size} px").replace("{size}", &text::size(info.size.0, info.size.1)),
         );
+        let adjustment = self.corner_radius_row.adjustment();
+        adjustment.set_upper(info.max_corner_radius.max(0.0));
         self.corner_radius_row.set_value(info.corner_radius);
         let current = Swatch::current(info.background);
         for (swatch, button) in &self.swatches {
@@ -417,8 +631,16 @@ impl Sidebar {
                 button.remove_css_class("annota-swatch-current");
             }
         }
-        self.objects_row
-            .set_title(&text::editable_objects(info.objects));
+        // Mockup 18: after Flatten All, "No editable objects · Annotations are part of the image".
+        if info.objects == 0 {
+            self.objects_row.set_title(&gettext("No editable objects"));
+            self.objects_row
+                .set_subtitle(&gettext("Annotations are part of the image"));
+        } else {
+            self.objects_row
+                .set_title(&text::editable_objects(info.objects));
+            self.objects_row.set_subtitle("");
+        }
 
         let large = info.objects > SUMMARY_THRESHOLD;
         self.summary_group.set_visible(large);
@@ -481,12 +703,15 @@ impl Sidebar {
         let multi = info.count > 1;
         self.frame.set(Some((info.frame, multi)));
         let r = info.frame.rect;
-        for (entry, v) in self.entries.iter().zip([r.x, r.y, r.width, r.height]) {
-            entry.set_text(&format_number(v));
+        let texts = [r.x, r.y, r.width, r.height].map(format_number);
+        for (entry, text) in self.entries.iter().zip(&texts) {
+            entry.set_text(text);
         }
+        self.shown.replace(texts);
         // Several objects form one box without an orientation of its own.
-        self.rotation
-            .set_value(if multi { 0.0 } else { info.frame.rotation });
+        let rotation = if multi { 0.0 } else { info.frame.rotation };
+        self.rotation.set_value(rotation);
+        self.shown_rotation.set(self.rotation.value());
         self.rotation.set_sensitive(!multi);
 
         let select_all = info.common.and_then(text::select_all_label);
@@ -588,6 +813,73 @@ mod tests {
             Some(Swatch::Custom)
         );
         assert_eq!(Swatch::current(Background::Unknown), None);
+    }
+
+    #[test]
+    fn tabbing_through_unchanged_fields_is_no_edit() {
+        // Bug fix: a fractional box shows rounded numbers; leaving the fields unchanged used to
+        // send the rounded values, i.e. a "Resize"/"Move" undo step for every field.
+        let frame = Arrange::new(Rect::new(12.34, 56.789, 100.06, 49.95), 12.34);
+        let shown = [12.34, 56.789, 100.06, 49.95].map(format_number);
+        assert_eq!(shown, ["12.3", "56.8", "100.1", "50"]);
+        // The spin rounds 12.34° to 12.3° when it is left.
+        assert_eq!(
+            arrange_target(frame, false, &shown, &shown.clone(), 12.3, 12.34),
+            None
+        );
+        assert_eq!(
+            arrange_target(frame, true, &shown, &shown.clone(), 0.0, 0.0),
+            None
+        );
+        // Typing a value changes only that one; the others keep their exact values.
+        let mut typed = shown.clone();
+        typed[0] = "20".into();
+        let target = arrange_target(frame, false, &shown, &typed, 12.3, 12.34).unwrap();
+        assert_eq!(target.rect, Rect::new(20.0, 56.789, 100.06, 49.95));
+        assert_eq!(target.rotation, 12.34);
+        // A real rotation change counts.
+        let target = arrange_target(frame, false, &shown, &shown.clone(), 30.0, 12.34).unwrap();
+        assert_eq!((target.rect, target.rotation), (frame.rect, 30.0));
+        // Garbage keeps the value.
+        let mut junk = shown.clone();
+        junk[2] = "abc".into();
+        assert_eq!(
+            arrange_target(frame, false, &shown, &junk, 12.34, 12.34),
+            None
+        );
+    }
+
+    #[test]
+    fn crop_entries_are_whole_pixels() {
+        let frame = IRect::new(10, 170, 960, 800);
+        let shown = ["10", "170", "960", "800"].map(String::from);
+        assert_eq!(crop_target(frame, &shown, &shown.clone()), None);
+        let mut typed = shown.clone();
+        typed[2] = "640.4".into();
+        assert_eq!(
+            crop_target(frame, &shown, &typed),
+            Some(IRect::new(10, 170, 640, 800))
+        );
+    }
+
+    #[test]
+    fn palette_swatches_name_their_background() {
+        assert_eq!(
+            Swatch::Coral.background(),
+            Some(Background::Color {
+                color: palette::CORAL
+            })
+        );
+        assert_eq!(
+            Swatch::Transparent.background(),
+            Some(Background::Transparent)
+        );
+        assert_eq!(Swatch::Custom.background(), None);
+        for swatch in Swatch::ALL {
+            if let Some(background) = swatch.background() {
+                assert_eq!(Swatch::current(background), Some(swatch));
+            }
+        }
     }
 
     #[test]

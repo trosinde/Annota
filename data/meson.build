@@ -12,6 +12,7 @@ blueprints = custom_target(
     'ui/editor-window.blp',
     'ui/restore-dialog.blp',
     'ui/newer-version-dialog.blp',
+    'ui/resize-dialog.blp',
   ),
   output: '.',
   command: [blueprint_compiler, 'batch-compile', '@OUTPUT@', '@CURRENT_SOURCE_DIR@', '@INPUT@'],

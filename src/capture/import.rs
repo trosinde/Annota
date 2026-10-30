@@ -1,5 +1,6 @@
 //! New captures from the clipboard (`Shift+Ctrl+V`) or from PNG/JPG/WebP files opened with
-//! `Ctrl+O` or dropped onto Annota (spec: Image from clipboard or file; mockups 13, 14).
+//! `Ctrl+O` or dropped onto Annota (spec: Image from clipboard or file; mockups 13, 14). They
+//! open in the editor, like `.annota` documents opened or dropped the same way.
 
 use std::path::Path;
 
@@ -44,13 +45,34 @@ pub fn paste(app: &adw::Application) {
     });
 }
 
-/// Opens one image file as a new capture.
+pub fn is_annota_document(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("annota"))
+}
+
+/// Opens one file: an image as a new capture, an `.annota` document as itself, both in the
+/// editor.
 pub fn open_file(app: &adw::Application, file: &gio::File) {
-    let supported = file.path().is_some_and(|p| is_supported_image(&p));
-    if !supported {
-        toast(app, &gettext("Only PNG, JPG and WebP images can be opened"));
+    let path = file.path();
+    let supported = path
+        .as_deref()
+        .is_some_and(|p| is_supported_image(p) || is_annota_document(p));
+    let Some(path) = path.filter(|_| supported) else {
+        toast(
+            app,
+            &gettext("Only PNG, JPG and WebP images and Annota documents can be opened"),
+        );
+        return;
+    };
+    if crate::ui::editor::open_file(app, &path, true) {
         return;
     }
+    if is_annota_document(&path) {
+        toast(app, &gettext("The editor could not be opened"));
+        return;
+    }
+    // Without the editor an image still becomes a capture (quick-saved, see `delivery`).
     match gdk::Texture::from_file(file) {
         Ok(texture) => match frame_from_texture(&texture) {
             Some(frame) => delivery::deliver(app, frame, Source::File, true),
@@ -66,14 +88,15 @@ pub fn open_file(app: &adw::Application, file: &gio::File) {
 /// `Ctrl+O`: pick an image with the file chooser portal.
 pub fn choose_file(app: &adw::Application) {
     let filter = gtk::FileFilter::new();
-    filter.set_name(Some(&gettext("PNG, JPG or WebP images")));
+    filter.set_name(Some(&gettext("Images and Annota documents")));
     for mime in IMAGE_MIME_TYPES {
         filter.add_mime_type(mime);
     }
+    filter.add_suffix("annota");
     let filters = gio::ListStore::new::<gtk::FileFilter>();
     filters.append(&filter);
     let dialog = gtk::FileDialog::builder()
-        .title(gettext("Open Image"))
+        .title(gettext("Open"))
         .modal(true)
         .filters(&filters)
         .default_filter(&filter)
@@ -100,5 +123,7 @@ mod tests {
         assert!(!is_supported_image(Path::new("shot.annota")));
         assert!(!is_supported_image(Path::new("shot.gif")));
         assert!(!is_supported_image(Path::new("shot")));
+        assert!(is_annota_document(Path::new("/tmp/Checkout flow.ANNOTA")));
+        assert!(!is_annota_document(Path::new("shot.png")));
     }
 }

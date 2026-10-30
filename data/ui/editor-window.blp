@@ -116,6 +116,83 @@ menu share_menu {
   }
 }
 
+// Context menu on the selection (redline "Context menu", mockup 05): right-click, Shift+F10 or
+// the Menu key. Keys the canvas handles itself (text fields need some of them) are only shown
+// here (`accel`), not registered as application accelerators.
+menu context_menu {
+  section {
+    item {
+      label: _("Copy");
+      action: "win.copy";
+      accel: "<Control>c";
+    }
+
+    item {
+      label: _("Duplicate");
+      action: "win.duplicate";
+      accel: "<Control>d";
+    }
+
+    item {
+      label: _("Delete");
+      action: "win.delete";
+      accel: "Delete";
+    }
+  }
+
+  section {
+    item {
+      label: _("Bring to Front");
+      action: "win.bring-to-front";
+      accel: "<Control><Shift>bracketright";
+    }
+
+    item {
+      label: _("Bring Forward");
+      action: "win.bring-forward";
+      accel: "<Control>bracketright";
+    }
+
+    item {
+      label: _("Send Backward");
+      action: "win.send-backward";
+      accel: "<Control>bracketleft";
+    }
+
+    item {
+      label: _("Send to Back");
+      action: "win.send-to-back";
+      accel: "<Control><Shift>bracketleft";
+    }
+  }
+
+  section {
+    item {
+      label: _("Group");
+      action: "win.group";
+      accel: "<Control>g";
+    }
+
+    item {
+      label: _("Ungroup");
+      action: "win.ungroup";
+      accel: "<Control><Shift>g";
+    }
+  }
+
+  section {
+    item {
+      label: _("Flatten Selection");
+      action: "win.flatten-selection";
+    }
+
+    item {
+      label: _("Flatten All");
+      action: "win.flatten-all";
+    }
+  }
+}
+
 // Zoom popover (mockup 07).
 menu zoom_menu {
   section {
@@ -288,7 +365,7 @@ Adw.ApplicationWindow editor_window {
 
         content: Box {
           // Tool strip (redline "Window and shell"). Decision D2: tools of a later phase are
-          // hidden until their change ships, so only Select is here for now.
+          // hidden until their change ships, so only Select and Crop are here for now.
           Box {
             orientation: vertical;
             spacing: 4;
@@ -304,6 +381,26 @@ Adw.ApplicationWindow editor_window {
 
               accessibility {
                 label: _("Select");
+              }
+            }
+
+            Separator {
+              halign: center;
+              width-request: 28;
+              margin-top: 2;
+              margin-bottom: 2;
+            }
+
+            // Crop is a mode, not a dialog (mockup 08).
+            ToggleButton crop_tool_button {
+              group: select_tool_button;
+              halign: center;
+              icon-name: "annota-crop-symbolic";
+              tooltip-text: _("Crop (C)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Crop");
               }
             }
           }
@@ -639,7 +736,6 @@ Box properties_box {
 
           Adw.SpinRow corner_radius_row {
             title: _("Corner radius");
-            sensitive: false;
 
             adjustment: Adjustment {
               lower: 0;
@@ -666,43 +762,36 @@ Box properties_box {
               spacing: 6;
 
               Button swatch_coral {
-                sensitive: false;
                 tooltip-text: _("Coral");
                 styles ["annota-swatch", "annota-swatch-coral"]
               }
 
               Button swatch_amber {
-                sensitive: false;
                 tooltip-text: _("Amber");
                 styles ["annota-swatch", "annota-swatch-amber"]
               }
 
               Button swatch_lime {
-                sensitive: false;
                 tooltip-text: _("Lime");
                 styles ["annota-swatch", "annota-swatch-lime"]
               }
 
               Button swatch_teal {
-                sensitive: false;
                 tooltip-text: _("Teal");
                 styles ["annota-swatch", "annota-swatch-teal"]
               }
 
               Button swatch_azure {
-                sensitive: false;
                 tooltip-text: _("Azure");
                 styles ["annota-swatch", "annota-swatch-azure"]
               }
 
               Button swatch_violet {
-                sensitive: false;
                 tooltip-text: _("Violet");
                 styles ["annota-swatch", "annota-swatch-violet"]
               }
 
               Button swatch_ink {
-                sensitive: false;
                 tooltip-text: _("Ink");
                 styles ["annota-swatch", "annota-swatch-ink"]
               }
@@ -712,26 +801,22 @@ Box properties_box {
               spacing: 6;
 
               Button swatch_transparent {
-                sensitive: false;
                 tooltip-text: _("Transparent");
                 styles ["annota-swatch", "annota-swatch-transparent"]
               }
 
               Button swatch_paper {
-                sensitive: false;
                 tooltip-text: _("Paper");
                 styles ["annota-swatch", "annota-swatch-paper"]
               }
 
               Button swatch_custom {
-                sensitive: false;
                 tooltip-text: _("Custom Colour");
                 styles ["annota-swatch", "annota-swatch-custom"]
               }
 
-              Button {
+              Button swatch_eyedropper {
                 icon-name: "color-select-symbolic";
-                sensitive: false;
                 tooltip-text: _("Pick Colour From Image");
                 styles ["annota-swatch", "annota-swatch-eyedropper"]
               }
@@ -756,11 +841,217 @@ Box properties_box {
 
           Adw.ActionRow objects_row {
             [suffix]
-            Button {
+            Button flatten_all_button {
               label: _("Flatten All");
               valign: center;
               action-name: "win.flatten-all";
             }
+          }
+        }
+      };
+    }
+
+    // Crop mode (mockup 08).
+    StackPage {
+      name: "crop";
+
+      child: Box {
+        orientation: vertical;
+        spacing: 18;
+
+        Label {
+          label: _("Crop");
+          xalign: 0;
+          styles ["heading"]
+        }
+
+        Grid {
+          column-spacing: 12;
+          row-spacing: 8;
+          column-homogeneous: true;
+
+          Box {
+            spacing: 8;
+
+            layout {
+              column: 0;
+              row: 0;
+            }
+
+            Label {
+              label: C_("arrange", "X");
+              width-chars: 1;
+              styles ["dim-label"]
+            }
+
+            Entry crop_x {
+              hexpand: true;
+              width-chars: 4;
+              input-purpose: number;
+
+              accessibility {
+                label: _("Crop X position");
+              }
+            }
+          }
+
+          Box {
+            spacing: 8;
+
+            layout {
+              column: 1;
+              row: 0;
+            }
+
+            Label {
+              label: C_("arrange", "Y");
+              width-chars: 1;
+              styles ["dim-label"]
+            }
+
+            Entry crop_y {
+              hexpand: true;
+              width-chars: 4;
+              input-purpose: number;
+
+              accessibility {
+                label: _("Crop Y position");
+              }
+            }
+          }
+
+          Box {
+            spacing: 8;
+
+            layout {
+              column: 0;
+              row: 1;
+            }
+
+            Label {
+              label: C_("arrange", "W");
+              width-chars: 1;
+              styles ["dim-label"]
+            }
+
+            Entry crop_w {
+              hexpand: true;
+              width-chars: 4;
+              input-purpose: number;
+
+              accessibility {
+                label: _("Crop width");
+              }
+            }
+          }
+
+          Box {
+            spacing: 8;
+
+            layout {
+              column: 1;
+              row: 1;
+            }
+
+            Label {
+              label: C_("arrange", "H");
+              width-chars: 1;
+              styles ["dim-label"]
+            }
+
+            Entry crop_h {
+              hexpand: true;
+              width-chars: 4;
+              input-purpose: number;
+
+              accessibility {
+                label: _("Crop height");
+              }
+            }
+          }
+        }
+
+        Box {
+          orientation: vertical;
+          spacing: 8;
+
+          Label {
+            label: _("Aspect ratio");
+            xalign: 0;
+            styles ["dim-label"]
+          }
+
+          DropDown crop_aspect {
+            model: StringList {
+              strings [
+                C_("aspect ratio", "Free"),
+                C_("aspect ratio", "Original"),
+                "1:1",
+                "4:3",
+                "16:9"
+              ]
+            };
+
+            accessibility {
+              label: _("Aspect ratio");
+            }
+          }
+        }
+
+        Box {
+          spacing: 10;
+          styles ["annota-note"]
+
+          Image {
+            icon-name: "dialog-information-symbolic";
+            valign: start;
+          }
+
+          Label {
+            label: _("Annotations keep their position on the image. Objects outside the crop stay in the document and can be brought back with Undo.");
+            wrap: true;
+            xalign: 0;
+            hexpand: true;
+          }
+        }
+
+        Box {
+          spacing: 12;
+          homogeneous: true;
+
+          Button {
+            action-name: "win.crop-cancel";
+
+            child: Box {
+              halign: center;
+              spacing: 6;
+
+              Label {
+                label: _("Cancel");
+              }
+
+              Label crop_cancel_key {
+                styles ["dim-label", "annota-button-key"]
+              }
+            };
+          }
+
+          Button {
+            action-name: "win.crop-apply";
+            styles ["suggested-action"]
+
+            child: Box {
+              halign: center;
+              spacing: 6;
+
+              Label {
+                label: _("Crop");
+              }
+
+              Label crop_apply_key {
+                styles ["annota-button-key"]
+              }
+            };
           }
         }
       };

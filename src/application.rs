@@ -30,6 +30,8 @@ pub fn run() -> glib::ExitCode {
         setup_actions(app);
         shortcuts::start_portal_shortcuts(app);
     });
+    // Quitting keeps every open document's unsaved changes as an autosave (until Save exists).
+    app.connect_shutdown(|_| crate::ui::editor::shut_down());
 
     app.run()
 }
@@ -57,16 +59,6 @@ fn add_options(app: &adw::Application) {
         glib::OptionFlags::NONE,
         glib::OptionArg::Filename,
         "Open an image or .annota file",
-        Some("FILE"),
-    );
-    // Development only: open a document in the editor window (until `--open` does, task 4.4).
-    #[cfg(debug_assertions)]
-    app.add_main_option(
-        "dev-canvas",
-        glib::Char::from(b'\0'),
-        glib::OptionFlags::HIDDEN,
-        glib::OptionArg::Filename,
-        "Development: open an image or .annota file in the editor window",
         Some("FILE"),
     );
     app.add_main_option(
@@ -126,34 +118,27 @@ fn handle_command_line(app: &adw::Application, cmdline: &gio::ApplicationCommand
     }
 
     // Autosaves left by a previous run are offered once, at the first start (mockup 14).
-    // Only the editor window writes autosaves, and only debug builds have it so far.
-    #[cfg(debug_assertions)]
     let recovering = !cmdline.is_remote() && crate::ui::editor::offer_recovery(app);
 
-    #[cfg(debug_assertions)]
-    if let Some(path) = options
-        .lookup::<std::path::PathBuf>("dev-canvas")
-        .ok()
-        .flatten()
-    {
-        // Relative to the launching process' directory, also when forwarded.
-        if let Some(path) = cmdline.create_file_for_arg(path.as_os_str()).path() {
-            crate::ui::editor::open_path(app, &path);
+    // `--open FILE` opens it in the editor (relative to the launching process' directory,
+    // also when forwarded from a second launch).
+    if let Some(path) = options.lookup::<std::path::PathBuf>("open").ok().flatten() {
+        let path = cmdline
+            .create_file_for_arg(path.as_os_str())
+            .path()
+            .unwrap_or(path);
+        if !crate::ui::editor::open_file(app, &path, false) {
+            let window = present_window(app);
+            show_toast(
+                &window,
+                &adw::Toast::new(&gettext("The editor could not be opened")),
+            );
         }
         return 0;
     }
 
-    #[cfg(debug_assertions)]
-    if recovering && !options.contains("open") {
-        return 0;
-    }
-
-    let window = present_window(app);
-    if options.contains("open") {
-        show_toast(
-            &window,
-            &adw::Toast::new(&gettext("Opening files arrives in milestone 0.1")),
-        );
+    if !recovering {
+        present_window(app);
     }
     0
 }
@@ -175,9 +160,80 @@ pub fn present_window(app: &adw::Application) -> adw::ApplicationWindow {
         .unwrap_or_else(|| adw::ApplicationWindow::new(app));
     window.set_application(Some(app));
     setup_launcher(app, &window, &builder);
+    setup_welcome(app, &window, &builder);
     setup_drop_target(app, &window, &builder);
     window.present();
     window
+}
+
+/// Fills `container` with one keycap per key of `accel` ("Alt" "Print").
+fn fill_keycaps(container: &gtk::Box, accel: &str) {
+    while let Some(child) = container.first_child() {
+        container.remove(&child);
+    }
+    let label = accel_label(accel);
+    for key in label.split('+').filter(|k| !k.is_empty()) {
+        let cap = gtk::Label::builder()
+            .label(key)
+            .css_classes(["annota-welcome-keycap"])
+            .build();
+        container.append(&cap);
+    }
+}
+
+/// The welcome page's mode cards (bootstrap-app-shell mockup 01): each starts its capture,
+/// which opens in the editor; their keycaps show the current shortcuts. The first card has the
+/// keyboard focus.
+fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builder: &gtk::Builder) {
+    let settings = gio::Settings::new(config::APP_ID);
+    let mut first = None;
+    for (mode, card, keys) in [
+        (
+            CaptureMode::Region,
+            "welcome_region_card",
+            "welcome_region_keys",
+        ),
+        (
+            CaptureMode::Window,
+            "welcome_window_card",
+            "welcome_window_keys",
+        ),
+        (
+            CaptureMode::Screen,
+            "welcome_screen_card",
+            "welcome_screen_keys",
+        ),
+    ] {
+        let (Some(card), Some(keys)) = (
+            builder.object::<gtk::Button>(card),
+            builder.object::<gtk::Box>(keys),
+        ) else {
+            eprintln!("annota: window.ui is missing the welcome card '{card}'");
+            continue;
+        };
+        let key = shortcuts::settings_key(mode);
+        fill_keycaps(&keys, &settings.string(key));
+        settings.connect_changed(
+            Some(key),
+            glib::clone!(
+                #[weak]
+                keys,
+                move |settings, key| fill_keycaps(&keys, &settings.string(key))
+            ),
+        );
+        card.connect_clicked(glib::clone!(
+            #[weak]
+            app,
+            move |_| app.activate_action("capture", Some(&mode.as_str().to_variant()))
+        ));
+        first.get_or_insert(card);
+    }
+    if let Some(open_keys) = builder.object::<gtk::Box>("welcome_open_keys") {
+        fill_keycaps(&open_keys, "<Control>o");
+    }
+    if let Some(card) = first {
+        gtk::prelude::GtkWindowExt::set_focus(window, Some(&card));
+    }
 }
 
 pub fn show_toast(window: &adw::ApplicationWindow, toast: &adw::Toast) {
@@ -330,7 +386,8 @@ fn setup_launcher(app: &adw::Application, window: &adw::ApplicationWindow, build
     window.add_action_entries([new_capture]);
 }
 
-/// Drop a PNG/JPG/WebP onto the window to open it as a new capture (mockup 14).
+/// Drop a PNG/JPG/WebP onto the window to open it as a new capture (mockup 14), or an
+/// `.annota` document to open it; both in the editor.
 fn setup_drop_target(
     app: &adw::Application,
     window: &adw::ApplicationWindow,

@@ -5,6 +5,7 @@
 
 use gettextrs::{gettext, ngettext, pgettext};
 
+use annota::editing::canvas_edit::Feedback as CanvasFeedback;
 use annota::editing::drag::Feedback;
 use annota::editing::ops::{Action, Edit, Subject};
 use annota::editing::snap::Target;
@@ -47,6 +48,17 @@ pub fn undo_label(edit: &Edit) -> String {
         Action::Group => gettext("Group"),
         Action::Ungroup => gettext("Ungroup"),
         Action::Insert => with_object(gettext("Insert {object}")),
+        Action::Crop => gettext("Crop"),
+        Action::ResizeImage => gettext("Resize Image"),
+        Action::RotateLeft => gettext("Rotate Left"),
+        Action::RotateRight => gettext("Rotate Right"),
+        Action::FlipHorizontally => gettext("Flip Horizontally"),
+        Action::FlipVertically => gettext("Flip Vertically"),
+        Action::ExtendCanvas => gettext("Extend Canvas"),
+        Action::CanvasBackground => gettext("Canvas Background"),
+        Action::CornerRadius => gettext("Corner Radius"),
+        Action::Flatten => with_object(gettext("Flatten {object}")),
+        Action::FlattenAll => gettext("Flatten All"),
     }
 }
 
@@ -126,6 +138,38 @@ pub fn measure_chip(feedback: Feedback) -> Option<String> {
     }
 }
 
+/// Chip of a canvas-edge or corner-radius drag: "+400 px" (mockup 10), "Corner radius 20 px"
+/// (mockup 09).
+pub fn canvas_chip(feedback: CanvasFeedback) -> Option<String> {
+    match feedback {
+        CanvasFeedback::Extend { extra, .. } => {
+            Some(gettext("{n} px").replace("{n}", &signed(f64::from(extra))))
+        }
+        CanvasFeedback::Radius(radius) => {
+            Some(gettext("Corner radius {n} px").replace("{n}", &number(radius)))
+        }
+        CanvasFeedback::None => None,
+    }
+}
+
+/// The size chip under the crop frame (mockup 08): "960 × 800 px".
+pub fn crop_chip(width: i32, height: i32) -> String {
+    gettext("{width} × {height} px")
+        .replace("{width}", &width.to_string())
+        .replace("{height}", &height.to_string())
+}
+
+/// The toast after flattening (mockup 18): "7 objects flattened into the image".
+pub fn flattened(n: usize) -> String {
+    let count = u32::try_from(n).unwrap_or(u32::MAX);
+    ngettext(
+        "{n} object flattened into the image",
+        "{n} objects flattened into the image",
+        count,
+    )
+    .replace("{n}", &n.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,6 +208,43 @@ mod tests {
             undo_label(&edit(Action::BringToFront, Subject::Many(2))),
             "Bring to Front"
         );
+        assert_eq!(
+            undo_label(&edit(Action::RotateRight, Subject::Many(0))),
+            "Rotate Right"
+        );
+        assert_eq!(
+            undo_label(&edit(Action::Flatten, Subject::Many(3))),
+            "Flatten 3 Objects"
+        );
+        assert_eq!(
+            undo_label(&edit(Action::FlattenAll, Subject::Many(7))),
+            "Flatten All"
+        );
+    }
+
+    #[test]
+    fn image_operation_texts_match_the_mockups() {
+        use annota::editing::canvas_edit::Side;
+        // Mockup 10.
+        assert_eq!(
+            canvas_chip(CanvasFeedback::Extend {
+                side: Side::Right,
+                extra: 400
+            })
+            .as_deref(),
+            Some("+400 px")
+        );
+        // Mockup 09.
+        assert_eq!(
+            canvas_chip(CanvasFeedback::Radius(20.0)).as_deref(),
+            Some("Corner radius 20 px")
+        );
+        assert_eq!(canvas_chip(CanvasFeedback::None), None);
+        // Mockup 08.
+        assert_eq!(crop_chip(960, 800), "960 × 800 px");
+        // Mockup 18.
+        assert_eq!(flattened(7), "7 objects flattened into the image");
+        assert_eq!(flattened(1), "1 object flattened into the image");
     }
 
     #[test]

@@ -1,0 +1,114 @@
+using Gtk 4.0;
+using Adw 1;
+
+// "Resize Image" (add-annotation-editor mockup 09; redline "Dialogs, toasts"): AdwDialog
+// 420 px, Cancel | "Resize Image" | Resize (suggested); Width/Height spins, Keep aspect ratio
+// switch (on), Unit toggle px/%, and a separate list with Scale annotations (on).
+// The values are linked in code (src/ui/editor/resize.rs).
+
+Adw.Dialog resize_dialog {
+  content-width: 420;
+  title: _("Resize Image");
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      show-start-title-buttons: false;
+      show-end-title-buttons: false;
+
+      [start]
+      Button cancel_button {
+        label: _("Cancel");
+      }
+
+      [end]
+      Button resize_button {
+        label: _("Resize");
+        styles ["suggested-action"]
+      }
+    }
+
+    content: Box {
+      orientation: vertical;
+      spacing: 18;
+      margin-top: 12;
+      margin-bottom: 24;
+      margin-start: 24;
+      margin-end: 24;
+
+      ListBox {
+        selection-mode: none;
+        styles ["boxed-list"]
+
+        Adw.SpinRow width_row {
+          title: _("Width");
+          numeric: true;
+
+          adjustment: Adjustment {
+            lower: 1;
+            upper: 32767;
+            step-increment: 1;
+            page-increment: 10;
+          };
+        }
+
+        Adw.SpinRow height_row {
+          title: _("Height");
+          numeric: true;
+
+          adjustment: Adjustment {
+            lower: 1;
+            upper: 32767;
+            step-increment: 1;
+            page-increment: 10;
+          };
+        }
+
+        Adw.SwitchRow keep_ratio_row {
+          title: _("Keep aspect ratio");
+          active: true;
+        }
+
+        Adw.ActionRow {
+          title: _("Unit");
+          activatable: false;
+
+          [suffix]
+          Box {
+            valign: center;
+            styles ["linked"]
+
+            ToggleButton unit_px_button {
+              label: C_("unit", "px");
+              active: true;
+
+              accessibility {
+                label: _("Pixels");
+              }
+            }
+
+            ToggleButton unit_percent_button {
+              label: C_("unit", "%");
+              group: unit_px_button;
+
+              accessibility {
+                label: _("Percent");
+              }
+            }
+          }
+        }
+      }
+
+      ListBox {
+        selection-mode: none;
+        styles ["boxed-list"]
+
+        Adw.SwitchRow scale_row {
+          title: _("Scale annotations");
+          subtitle: _("Line widths and text sizes follow the image");
+          active: true;
+        }
+      }
+    };
+  };
+}

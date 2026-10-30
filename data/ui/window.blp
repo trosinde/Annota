@@ -1,7 +1,25 @@
 using Gtk 4.0;
 using Adw 1;
 
+// bootstrap-app-shell mockup 02.
 menu primary_menu {
+  section {
+    item {
+      label: _("New Capture");
+      action: "win.new-capture";
+    }
+
+    item {
+      label: _("Open…");
+      action: "app.open-image";
+    }
+
+    item {
+      label: _("Capture Library");
+      action: "app.open-library";
+    }
+  }
+
   section {
     item {
       label: _("_Preferences");
@@ -259,10 +277,151 @@ Adw.ApplicationWindow window {
 
     content: Adw.ToastOverlay toast_overlay {
       child: Overlay {
-        child: Adw.StatusPage {
-          icon-name: "io.github.trosinde.Annota-symbolic";
-          title: _("Annota");
-          description: _("Pre-release build. Editing arrives with milestone 0.1.");
+        // Welcome (bootstrap-app-shell mockup 01): the mode cards start a capture, which
+        // opens in the editor. The cards' shortcut keycaps are filled in from the settings.
+        child: ScrolledWindow {
+          hscrollbar-policy: never;
+
+          child: Box {
+            orientation: vertical;
+            valign: center;
+            halign: center;
+            margin-top: 24;
+            margin-bottom: 24;
+            margin-start: 12;
+            margin-end: 12;
+
+            Image {
+              icon-name: "io.github.trosinde.Annota";
+              pixel-size: 128;
+              margin-bottom: 24;
+            }
+
+            Label {
+              label: _("Capture Anything");
+              wrap: true;
+              justify: center;
+              styles ["title-1"]
+            }
+
+            Label {
+              label: _("Pick what to capture. The capture opens in the editor, ready to mark up. Every annotation stays editable until you export.");
+              wrap: true;
+              justify: center;
+              max-width-chars: 52;
+              margin-top: 12;
+            }
+
+            Box {
+              spacing: 12;
+              halign: center;
+              homogeneous: true;
+              margin-top: 30;
+
+              Button welcome_region_card {
+                tooltip-text: _("Capture a region");
+                styles ["card", "annota-mode-card"]
+
+                child: Box {
+                  orientation: vertical;
+                  spacing: 6;
+                  valign: center;
+
+                  Image {
+                    icon-name: "annota-capture-region-symbolic";
+                    pixel-size: 32;
+                  }
+
+                  Label {
+                    label: _("Region");
+                    styles ["heading"]
+                  }
+
+                  Box welcome_region_keys {
+                    halign: center;
+                    spacing: 4;
+                  }
+                };
+              }
+
+              Button welcome_window_card {
+                tooltip-text: _("Capture a window");
+                styles ["card", "annota-mode-card"]
+
+                child: Box {
+                  orientation: vertical;
+                  spacing: 6;
+                  valign: center;
+
+                  Image {
+                    icon-name: "annota-capture-window-symbolic";
+                    pixel-size: 32;
+                  }
+
+                  Label {
+                    label: _("Window");
+                    styles ["heading"]
+                  }
+
+                  Box welcome_window_keys {
+                    halign: center;
+                    spacing: 4;
+                  }
+                };
+              }
+
+              Button welcome_screen_card {
+                tooltip-text: _("Capture the screen");
+                styles ["card", "annota-mode-card"]
+
+                child: Box {
+                  orientation: vertical;
+                  spacing: 6;
+                  valign: center;
+
+                  Image {
+                    icon-name: "annota-capture-screen-symbolic";
+                    pixel-size: 32;
+                  }
+
+                  Label {
+                    label: _("Screen");
+                    styles ["heading"]
+                  }
+
+                  Box welcome_screen_keys {
+                    halign: center;
+                    spacing: 4;
+                  }
+                };
+              }
+            }
+
+            Box {
+              halign: center;
+              spacing: 6;
+              margin-top: 30;
+              styles ["annota-welcome-hint"]
+
+              Image {
+                icon-name: "folder-symbolic";
+              }
+
+              Label {
+                label: _("or open an image or .annota file with");
+                wrap: true;
+              }
+
+              Box welcome_open_keys {
+                spacing: 4;
+                valign: center;
+              }
+
+              Label {
+                label: _("— or drop it here");
+              }
+            }
+          };
         };
 
         // Drop zone (mockup 14 of add-screen-capture), shown while an image is dragged in.
@@ -298,7 +457,7 @@ Adw.ApplicationWindow window {
             }
 
             Label {
-              label: _("PNG, JPG or WebP");
+              label: _("PNG, JPG, WebP or .annota");
               styles ["dim-label"]
             }
           }

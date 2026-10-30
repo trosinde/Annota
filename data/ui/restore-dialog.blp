@@ -2,7 +2,8 @@ using Gtk 4.0;
 using Adw 1;
 
 // "Restore Unsaved Captures?" (add-annotation-editor mockup 14; redline "Dialogs, toasts").
-// Shown at start when autosaves of a previous run are left. The rows (check, 64 × 40
+// Shown at start when autosaves of a previous run are left — after a crash, and (until Save
+// exists) after the editor was closed with unsaved documents. The rows (check, 64 × 40
 // thumbnail, name, "Autosaved today at HH:MM · N objects") are created in code.
 
 Adw.Dialog restore_dialog {
@@ -25,7 +26,9 @@ Adw.Dialog restore_dialog {
     }
 
     Label {
-      label: _("Annota closed unexpectedly. These documents were autosaved and can be restored.");
+      // Not "closed unexpectedly": until Save exists (add-export-share), closing the editor
+      // keeps autosaves too, so this is the common case, not only a crash.
+      label: _("These documents have changes that are not saved in a file. Annota kept a copy of each one, so they can be restored.");
       wrap: true;
       justify: center;
       max-width-chars: 48;
