@@ -5,19 +5,26 @@
 - [x] 1.2 Maintainer approval recorded in design.md
 
 ## 2. Model
-- [ ] 2.1 Scene graph + Annotation trait
-- [ ] 2.2 Command-based undo/redo
-- [ ] 2.3 .annota read/write + JSON schema
-- [ ] 2.4 Autosave/recovery
+- [x] 2.1 Scene graph + Annotation trait (`src/document/{annotation,scene,registry}.rs`; R-tree
+      above 100 objects; generic `Image` object type in `src/tools/image.rs`)
+- [x] 2.2 Command-based undo/redo (`src/document/command.rs`; 200 steps, dirty tracking)
+- [x] 2.3 .annota read/write + JSON schema (`src/document/archive.rs`,
+      `data/schema/document-1.schema.json`)
+- [x] 2.4 Autosave/recovery — data layer (`src/document/autosave.rs`: write, list, restore,
+      discard, 30 s schedule). The timer and the recovery dialog (mockup 14) are part of 4.1.
 
 ## 3. Canvas
-- [ ] 3.1 Rendering, zoom, pan
+- [x] 3.1 Rendering, zoom, pan (`src/render/`, `src/ui/canvas.rs`; golden tests in
+      `tests/render/`; debug-only preview `annota --dev-canvas FILE`). The zoom OSD/popover
+      (mockup 07) is part of 4.1.
 - [ ] 3.2 Selection, handles, rotation
 - [ ] 3.3 Snapping guides
 - [ ] 3.4 Grouping and z-order
 
 ## 4. Editor UI
-- [ ] 4.1 Header bar, properties sidebar, adaptive layout
+- [ ] 4.1 Header bar, properties sidebar, adaptive layout; zoom OSD and popover; autosave timer
+      and "Restore Unsaved Captures?" dialog (mockup 14); "Newer Annota Version Needed" alert
+      (mockup 15); replace the `--dev-canvas` preview window
 - [ ] 4.2 Recent captures tray
 - [ ] 4.3 Crop/resize/rotate/flip, canvas extension, flatten
 - [ ] 4.4 `--open <file>` actually opens the editor: add `specs/app-shell/spec.md` with a

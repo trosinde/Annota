@@ -45,11 +45,26 @@ While moving, objects SHALL snap to canvas edges, canvas centre and other object
 - **THEN** a guide line appears and the object snaps to centre
 
 ### Requirement: View control
-Users SHALL zoom with `Ctrl+scroll`, `Ctrl++`/`Ctrl+-`, `Ctrl+0` (fit) and `Ctrl+1` (100 %), and pan with space+drag or middle mouse; zoom range 10–1600 %.
+Users SHALL zoom with `Ctrl+scroll` (around the pointer), `Ctrl++`/`Ctrl+-` (through the zoom presets 25, 50, 100, 200, 400, 800, 1600 %), `Ctrl+0` (fit) and `Ctrl+1` (100 %), and pan with space+drag, middle mouse or the scroll bars; zoom range 10–1600 %. Fit SHALL show the whole canvas centred with a 44 px margin, never above 100 %, and SHALL keep fitting while the window is resized.
 
 #### Scenario: Fit
 - **WHEN** the user presses Ctrl+0
-- **THEN** the whole image is visible and centred
+- **THEN** the whole canvas is visible and centred, at most at 100 %
+
+#### Scenario: Zoom at the pointer
+- **WHEN** the user zooms with Ctrl+scroll
+- **THEN** the point of the document under the pointer stays under the pointer
+
+### Requirement: Shared renderer
+The canvas SHALL draw the document with the same renderer as export, so that at 100 % zoom the canvas shows exactly the exported pixels. A transparent canvas SHALL appear as a checkerboard on screen and stay transparent in exports. Only objects inside the visible area SHALL be drawn, using a spatial index for documents with more than 100 objects.
+
+#### Scenario: WYSIWYG
+- **WHEN** a document is shown on the canvas at 100 % zoom
+- **THEN** the canvas pixels of the document equal the pixels of its export
+
+#### Scenario: Transparent canvas
+- **WHEN** the canvas background is transparent
+- **THEN** the canvas shows a checkerboard there and the export has transparent pixels there
 
 ### Requirement: Undo and redo
 Every document change SHALL be undoable with `Ctrl+Z` and redoable with `Ctrl+Shift+Z`, with at least 200 steps per document.
