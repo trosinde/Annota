@@ -109,29 +109,35 @@ annota/
 
 **Status (2026-10-30)**
 - Roadmap: 18 OpenSpec changes in `openspec/changes/`, all validated. `bootstrap-app-shell` is
-  archived; the other 17 (including all remaining MVP changes) have no implementation yet.
+  archived. `add-screen-capture` is implemented and reviewer-verified but **not archived yet**:
+  it needs either live testing against a real xdg-desktop-portal/GNOME session or a designer
+  mockup for its first-launch takeover prompt (task 4.6) — both deliberately left for the
+  maintainer, see `openspec/changes/add-screen-capture/manual-checks.md`. The other 16 MVP/P2/P3
+  changes have no implementation yet.
 - Design: kit in `docs/design/kit/`, mockups for all 18 changes (267 screens) in `docs/design/<change>/`,
   cross-change decisions in `docs/design/decisions.md`. **The 7 MVP (0.1) changes are
   design-approved** (bootstrap-app-shell, add-screen-capture, add-annotation-editor,
   add-core-annotation-tools, add-style-system, add-export-share, add-capture-library);
   P2/P3 changes stay `_pending_`. All cross-change decisions (D1–D13) are settled, including
   the former Q1–Q5 maintainer questions, confirmed 2026-10-30 — none block implementation now.
-- Code: `bootstrap-app-shell` implemented and reviewer-verified (two independent passes) —
-  AdwApplication, CLI, GSettings-backed preferences dialog (General + Capture pages), keyboard
-  shortcuts window (`Ctrl+?`), About dialog, German translation. Still open, deferred to later
-  changes on purpose: the welcome page's mode cards and the full main-menu redline (D1) wait for
-  `add-screen-capture`/`add-annotation-editor` to exist — see `openspec/specs/app-shell/spec.md`
-  for the exact scenarios those changes need to extend. No other change has implementation
-  started; `add-screen-capture` is next.
-- Packaging: `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean, verified
-  end-to-end in this dev container (cargo/rustc 1.93, not the pinned 1.85 — two real bugs
-  surfaced and got fixed here regardless: a `debian/rules` `dh_clean` vendoring bug and a
-  missing Apache-2.0 common-license pointer in `debian/copyright`). CI's step order was also
-  broken (`cargo fmt --check` ran before `meson setup` generated `src/config.rs`) and is fixed
-  in `.github/workflows/ci.yml`, but not yet confirmed green on an actual ubuntu-24.04 runner —
-  check the next push's Actions run before trusting it blindly.
-- Next step: `add-screen-capture` (Annota takes over the GNOME `Print` keys per D9, reversibly,
-  offered at first launch).
+- Code: `bootstrap-app-shell` (archived) — AdwApplication, CLI, GSettings-backed preferences
+  dialog (General + Capture pages), keyboard shortcuts window (`Ctrl+?`), About dialog. Plus
+  `add-screen-capture` (not archived) — `src/capture/`: Screenshot-portal access, the region
+  overlay (selection, handles, loupe, snapping, nudging), window/screen/delayed capture, the
+  GlobalShortcuts portal and GNOME-custom-keybinding fallback (including the D9 Print-key
+  takeover, reversible, GNOME-keybinding path only — not on the GlobalShortcuts portal path, see
+  that change's spec), clipboard/file import. "Open in Editor" quick-saves a PNG and shows a
+  toast, since `add-annotation-editor` doesn't exist yet. Both changes' welcome-page mode cards
+  and full main-menu redline (D1) still wait for `add-annotation-editor` — see
+  `openspec/specs/app-shell/spec.md`. `add-annotation-editor` is next.
+- Packaging: `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean for both
+  implemented changes, verified end-to-end in this dev container (cargo/rustc 1.93, not the
+  pinned 1.85 — real bugs surfaced and got fixed here regardless, see each change's `tasks.md`
+  for specifics). CI should be green (its known step-order bug is fixed) but hasn't been
+  confirmed on an actual ubuntu-24.04 runner — check the Actions tab before trusting it blindly.
+- Next step: `add-annotation-editor` (canvas, scene graph, `.annota` format, undo/redo) — it also
+  has two follow-up tasks waiting from `add-screen-capture`: route captures into the real editor
+  (4.5) and make `--open <file>` actually open it (4.4), both via `MODIFIED` deltas.
 
 **Build dependencies (Ubuntu 24.04)**
 ```bash
