@@ -43,11 +43,11 @@ The system SHALL support a delay of 1–60 s with a visible countdown that is no
 - **AND** the captured image does not contain the countdown
 
 ### Requirement: Global capture hotkey
-The system SHALL register configurable global shortcuts for region (default `Shift+Print`), window and screen capture. If the GlobalShortcuts portal is unavailable, Annota SHALL offer to create GNOME custom keybindings that run `annota --capture <mode>`.
+The system SHALL register configurable global shortcuts for region (default `Print`), window (default `Alt+Print`) and screen (default `Shift+Print`) capture, offered as a reversible takeover of GNOME's own screenshot keys at first launch per decision D9 (`docs/design/decisions.md`). If the GlobalShortcuts portal is unavailable, Annota SHALL offer to create GNOME custom keybindings that run `annota --capture <mode>`.
 
 #### Scenario: Hotkey on GNOME 46
 - **WHEN** the GlobalShortcuts portal is unavailable and the user enables the hotkey in preferences
-- **THEN** a GNOME custom keybinding for `Shift+Print` is created
+- **THEN** a GNOME custom keybinding for `Print` is created
 - **AND** pressing it starts a region capture
 
 ### Requirement: Cursor inclusion

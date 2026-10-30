@@ -1,8 +1,8 @@
 # Tasks
 
 ## 1. Design gate
-- [ ] 1.1 `designer` agent: mockups for all scenarios in `docs/design/add-screen-capture/` (light + dark, 1x + 2x)
-- [ ] 1.2 Maintainer approval recorded in design.md
+- [x] 1.1 `designer` agent: mockups for all scenarios in `docs/design/add-screen-capture/` (light + dark, 1x + 2x)
+- [x] 1.2 Maintainer approval recorded in design.md
 
 ## 2. Portal access
 - [ ] 2.1 Screenshot portal wrapper with error mapping

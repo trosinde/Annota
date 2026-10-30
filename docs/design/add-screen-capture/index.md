@@ -44,7 +44,7 @@ only Annota chrome follows the style.
 
 **Launcher popover (01)** — `AdwPopover` from the header-bar capture button, width 356 px, padding 12.
 - Mode toggle group (3 toggles, height 76): icon 24 px (`capture-region`, `capture-window`, `capture-screen`), label 13 px bold,
-  shortcut caption 11 px dim: `Shift+Print`, `Super+Shift+W`, `Super+Shift+S` (window/screen = example defaults, configurable).
+  shortcut caption 11 px dim: `Print`, `Alt+Print`, `Shift+Print` (region/window/screen, per decision D9 in `docs/design/decisions.md`).
 - Rows 44 px: "Delay" + subtitle "Countdown before capturing" with spin `0 s` (0–60, step 1); "Include pointer" switch (default off).
 - Suggested button full width 38 px: "Capture Region" + dim accel. Label follows the mode ("Capture Window", "Capture Screen").
 - Separator, menu items: "Paste Image From Clipboard" `Shift+Ctrl+V` (icon `copy`), "Open Image…" `Ctrl+O` (icon `image`).
@@ -66,7 +66,7 @@ only Annota chrome follows the style.
 **Permission alert (08)** — `AdwAlertDialog` 420 px; `warning` icon 32 px (warning colour); heading "Screen Access Denied"; body as drawn; caption "Nothing was captured."; buttons "Close", "Open Settings" (suggested, default). Opens `gnome-control-center applications io.github.trosinde.Annota`.
 
 **Preferences › Capture (09/10/11)** — `AdwPreferencesDialog` 660 × 720, view switcher General / Capture / Library.
-- Group "Global Shortcuts", rows: Region capture `Shift+Print`, Window capture `Super+Shift+W`, Screen capture `Super+Shift+S` (keycaps + chevron, row opens 11).
+- Group "Global Shortcuts", rows: Region capture `Print`, Window capture `Alt+Print`, Screen capture `Shift+Print` (keycaps + chevron, row opens 11; per decision D9, these are the GNOME screenshot keys Annota offers to take over at first launch, not new combinations).
 - Without portal: warning `AdwBanner` "Global shortcuts are not active yet" + button "Create GNOME Shortcuts"; description "This system has no global-shortcuts portal. Annota adds GNOME keyboard shortcuts instead."; row subtitles "Not active yet".
 - After creation: banner gone, subtitles "GNOME shortcut · runs `annota --capture region|window|screen`" (monospace), toast "3 GNOME shortcuts created" + "Open Keyboard Settings".
 - With the portal (GNOME ≥ 48) no banner; subtitle "System shortcut" — same layout.
