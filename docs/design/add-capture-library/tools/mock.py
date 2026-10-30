@@ -45,7 +45,7 @@ LIB_CSS = r"""
   .tile { width: var(--tw, 150px); display: flex; flex-direction: column; gap: 6px; position: relative; }
   .tile .frame { height: var(--th, 112px); border-radius: 9px; background: var(--row-hover); box-shadow: inset 0 0 0 1px var(--separator);
                  display: grid; place-items: center; position: relative; }
-  .tile .timg, .pv-img .timg, .ql-img .timg, .tray .timg, .slot .timg { position: relative; display: block; background-repeat: no-repeat;
+  .timg { position: relative; display: block; background-repeat: no-repeat;
                  box-shadow: 0 0 0 1px var(--shade), 0 1px 3px rgb(0 0 6 / 14%); border-radius: 2px; overflow: hidden; }
   .timg > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   .tile .name { font-size: var(--fs-small); padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -108,11 +108,13 @@ LIB_CSS = r"""
   .action-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: var(--headerbar-bg); box-shadow: inset 0 1px var(--headerbar-shade); }
   .action-bar .count { font-weight: var(--fw-bold); padding: 0 6px; }
   /* quick look */
-  .ql { position: absolute; inset: 0; z-index: 35; background: rgb(0 0 6 / 88%); color: #ffffff; display: flex; flex-direction: column; }
+  .ql { position: absolute; inset: 0; z-index: 35; background: rgb(0 0 6 / 93%); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #ffffff; display: flex; flex-direction: column; }
   .ql-top { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
   .ql-top .grow .t { font-weight: var(--fw-bold); }
   .ql-top .grow .s { font-size: var(--fs-caption); opacity: .7; }
   .ql-img { flex: 1; display: grid; place-items: center; position: relative; }
+  .ql .btn.osd { background: rgb(255 255 255 / 14%); }
+  .ql .btn.osd:hover { background: rgb(255 255 255 / 22%); }
   .ql-hint { display: flex; justify-content: center; gap: 18px; padding: 14px; font-size: var(--fs-small); opacity: .8; }
   .ql-hint kbd.key { background: rgb(255 255 255 / 15%); box-shadow: none; color: #ffffff; }
   .ql .nav { position: absolute; top: 50%; margin-top: -21px; width: 42px; min-height: 42px; }
@@ -195,8 +197,16 @@ def A_hl(x, y, w, h):
     return ("hl", x, y, w, h)
 
 
+def A_mark(x, y, w, h):
+    return ("mark", x, y, w, h)
+
+
 def A_blur(x, y, w, h):
     return ("blur", x, y, w, h)
+
+
+def A_callout(x, y, w, h, text, tx, ty):
+    return ("callout", x, y, w, h, text, tx, ty)
 
 
 def ann_svg(it):
@@ -223,6 +233,15 @@ def ann_svg(it):
             _, x, y, n = a
             r = max(14, cw / 40)
             out.append(f'<circle cx="{x}" cy="{y}" r="{r}" fill="var(--annota-coral)"/><text x="{x}" y="{y + r*0.36:.1f}" font-size="{r*1.05:.1f}" font-weight="700" fill="#fff" text-anchor="middle" font-family="Inter">{n}</text>')
+        elif t == "callout":
+            _, x, y, w, h, text, tx, ty = a
+            fs = h * 0.46
+            out.append(f'<path d="M{x + w*0.18} {y + h} L{tx} {ty} L{x + w*0.34} {y + h} Z" fill="var(--annota-coral)"/>'
+                       f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{h*0.22}" fill="var(--annota-coral)"/>'
+                       f'<text x="{x + w/2}" y="{y + h*0.64}" font-size="{fs:.1f}" font-weight="700" fill="#fff" text-anchor="middle" font-family="Inter">{text}</text>')
+        elif t == "mark":
+            _, x, y, w, h = a
+            out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="rgb(53 132 228 / 28%)" stroke="#3584e4" stroke-width="{sw*0.6:.1f}"/>')
         elif t == "hl":
             _, x, y, w, h = a
             out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="var(--annota-highlight)"/>')
@@ -408,9 +427,13 @@ def sort_btn(label="Capture Date", cls=""):
     return f'<button class="btn flat {cls}" style="gap:4px;padding:5px 8px 5px 10px">{esc(label)}{ic("pan-down")}</button>'
 
 
+def content_start(mode="grid", zoom=1):
+    return view_toggle(mode) + (zoom_scale(zoom) if mode == "grid" else "")
+
+
 def content_end(mode="grid", zoom=1, sort="Capture Date", preview_on=False, search=False, sort_cls="", extra=""):
-    s = btn("search", cls="flat") if search else ""
-    return (s + extra + (zoom_scale(zoom) if mode == "grid" else "") + view_toggle(mode) + sort_btn(sort, sort_cls)
+    s = btn("search", cls="flat" + (" active" if search == "on" else "")) if search else ""
+    return (extra + s + sort_btn(sort, sort_cls)
             + btn("sidebar-show-right", cls="flat " + ("active" if preview_on else "")))
 
 

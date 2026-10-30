@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Library — trash</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  /* library window — layout only, colours from tokens */
+  .lib-side { width: 280px; }
+  .lib-side .sidebar-list { flex: 1; }
+  .lib-side .nav-row .icon { flex: none; }
+  .nav-row.drop { background: var(--accent-a25); outline: 2px solid var(--accent-bg); outline-offset: -2px; }
+  .nav-row .spinner { margin-left: auto; }
+  .side-foot { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 16px 12px; box-shadow: inset 0 1px var(--separator); font-size: var(--fs-small); }
+  .side-foot .vbox { min-width: 0; flex: 1; }
+  .side-foot .path { font-family: var(--font-mono); font-size: 12px; opacity: var(--dim-opacity); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success-bg); flex: none; }
+  .state-dot.off { background: var(--warning-bg); }
+  .grid-scroll { flex: 1; min-height: 0; overflow: hidden; position: relative; padding: 0 18px 18px; }
+  .day-head { display: flex; align-items: baseline; gap: 10px; padding: 18px 2px 12px; }
+  .day-head .caption { opacity: var(--dim-opacity); }
+  .day-head .spacer { flex: 1; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, var(--tw, 150px)); gap: 18px 12px; }
+  .tile { width: var(--tw, 150px); display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .tile .frame { height: var(--th, 112px); border-radius: 9px; background: var(--row-hover); box-shadow: inset 0 0 0 1px var(--separator);
+                 display: grid; place-items: center; position: relative; }
+  .timg { position: relative; display: block; background-repeat: no-repeat;
+                 box-shadow: 0 0 0 1px var(--shade), 0 1px 3px rgb(0 0 6 / 14%); border-radius: 2px; overflow: hidden; }
+  .timg > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .tile .name { font-size: var(--fs-small); padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .meta { font-size: var(--fs-caption); padding: 0 2px; opacity: var(--dim-opacity); display: flex; gap: 4px; align-items: center; margin-top: -4px; white-space: nowrap; overflow: hidden; }
+  .tile .meta .icon { width: 12px; height: 12px; }
+  .tile.hover .frame { background: var(--fill-flat-hover); }
+  .tile.selected .frame { background: var(--accent-a12); box-shadow: inset 0 0 0 2px var(--accent-bg); }
+  .tile.focus .frame { outline: 2px solid var(--accent-a50); outline-offset: 2px; }
+  .tile.dim { opacity: .35; }
+  .tile.gone { opacity: .25; transform: scale(.94); }
+  .tile .sel { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+               background: var(--view-bg); box-shadow: inset 0 0 0 2px var(--borders-strong), 0 1px 2px rgb(0 0 6 / 20%); }
+  .tile .sel.on { background: var(--accent-bg); color: var(--accent-fg); box-shadow: 0 1px 2px rgb(0 0 6 / 20%); }
+  .tile .sel .icon { width: 14px; height: 14px; }
+  .tile .fav { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--osd-bg); color: #ffffff; }
+  .tile .fav .icon { width: 14px; height: 14px; }
+  .tile .fav.on .icon { fill: var(--annota-amber); }
+  .dur { position: absolute; right: 6px; bottom: 6px; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px 0 5px; border-radius: 10px;
+         background: var(--osd-bg); color: var(--osd-fg); font-size: 11px; font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+  .dur .icon { width: 12px; height: 12px; }
+  .kind-badge { position: absolute; left: 6px; bottom: 6px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--osd-bg); color: var(--osd-fg);
+                font-size: 11px; font-weight: var(--fw-bold); display: inline-flex; align-items: center; }
+  .match { font-size: var(--fs-caption); padding: 0 2px; margin-top: -2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .match .src { opacity: var(--dim-opacity); }
+  mark { background: var(--accent-a25); color: inherit; border-radius: 3px; padding: 0 1px; box-shadow: 0 0 0 1px var(--accent-a50); }
+  .scrollbar { position: absolute; right: 3px; width: 6px; border-radius: 3px; background: var(--fill-3); opacity: .6; }
+  .hdr-scale { width: 104px; min-height: 0; gap: 6px; }
+  .hdr-scale .trough .knob { width: 16px; height: 16px; margin: -8px 0 0 -8px; }
+  .hdr-scale .trough .mark { top: 8px; height: 4px; }
+  /* preview pane */
+  .pv { width: 320px; flex: none; display: flex; flex-direction: column; background: var(--window-bg); box-shadow: inset 1px 0 var(--separator); min-height: 0; }
+  .pv .headerbar { background: var(--window-bg); box-shadow: none; }
+  .pv-body { flex: 1; min-height: 0; overflow: hidden; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 12px; }
+  .pv-img { height: 196px; border-radius: var(--radius-l); background: var(--canvas-bg); display: grid; place-items: center; position: relative; flex: none; }
+  .pv-title { display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+  .pv-title .title-4 { flex: 1; min-width: 0; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv .boxed-list .row { min-height: 0; padding: 7px 12px; }
+  .pv .row.property .subtitle { font-size: var(--fs-small); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv .row.property .title { font-size: var(--fs-caption); }
+  .pv .actions { display: flex; gap: 6px; }
+  .pv .actions .btn.grow { flex: 1; }
+  .mono-path { font-family: var(--font-mono); font-size: 12px !important; }
+  /* list view */
+  .lv { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+  .lv table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); table-layout: fixed; }
+  .lv th { text-align: left; font-weight: var(--fw-bold); font-size: var(--fs-small); height: 34px; padding: 0 10px; box-shadow: inset 0 -1px var(--separator); white-space: nowrap; }
+  .lv th .icon { width: 12px; height: 12px; vertical-align: -1px; margin-left: 2px; }
+  .lv th.sorted { color: var(--accent); }
+  .lv th + th { box-shadow: inset 0 -1px var(--separator), inset 1px 0 var(--separator); }
+  .lv td { height: 44px; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lv td.dim { opacity: var(--dim-opacity); }
+  .lv td.num { font-variant-numeric: tabular-nums; }
+  .lv tr.sel td { background: var(--accent-a12); }
+  .lv tr.grp td { height: 38px; padding-top: 10px; font-weight: var(--fw-bold); }
+  .lv tr.grp td .caption { font-weight: var(--fw-regular); opacity: var(--dim-opacity); margin-left: 8px; }
+  .lv .namecell { display: flex; align-items: center; gap: 10px; }
+  .lv .namecell .tbox { width: 44px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 4px; background: var(--row-hover); }
+  .lv .namecell .timg { position: relative; display: block; background-repeat: no-repeat; box-shadow: 0 0 0 1px var(--shade); }
+  /* action bar (GtkActionBar) */
+  .action-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: var(--headerbar-bg); box-shadow: inset 0 1px var(--headerbar-shade); }
+  .action-bar .count { font-weight: var(--fw-bold); padding: 0 6px; }
+  /* quick look */
+  .ql { position: absolute; inset: 0; z-index: 35; background: rgb(0 0 6 / 93%); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #ffffff; display: flex; flex-direction: column; }
+  .ql-top { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+  .ql-top .grow .t { font-weight: var(--fw-bold); }
+  .ql-top .grow .s { font-size: var(--fs-caption); opacity: .7; }
+  .ql-img { flex: 1; display: grid; place-items: center; position: relative; }
+  .ql .btn.osd { background: rgb(255 255 255 / 14%); }
+  .ql .btn.osd:hover { background: rgb(255 255 255 / 22%); }
+  .ql-hint { display: flex; justify-content: center; gap: 18px; padding: 14px; font-size: var(--fs-small); opacity: .8; }
+  .ql-hint kbd.key { background: rgb(255 255 255 / 15%); box-shadow: none; color: #ffffff; }
+  .ql .nav { position: absolute; top: 50%; margin-top: -21px; width: 42px; min-height: 42px; }
+  /* chips / filter bar */
+  .filter-bar { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 18px; background: var(--view-bg); box-shadow: inset 0 -1px var(--separator); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 10px; border-radius: var(--radius-pill);
+          background: var(--accent-a12); color: var(--accent); font-size: var(--fs-small); font-weight: var(--fw-bold); white-space: nowrap; }
+  .chip .k { font-weight: var(--fw-regular); opacity: .85; }
+  .chip .x { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; }
+  .chip .x .icon { width: 12px; height: 12px; }
+  .chip.plain { background: var(--fill-1); color: inherit; padding-right: 10px; }
+  .chip.add { background: transparent; color: inherit; box-shadow: inset 0 0 0 1px var(--borders); padding-right: 8px; font-weight: var(--fw-bold); }
+  .tagc { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--fill-1); font-size: var(--fs-caption); white-space: nowrap; }
+  .tagc .icon { width: 12px; height: 12px; opacity: .7; }
+  .tagc .x { width: 14px; height: 14px; opacity: .7; }
+  .tag-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--c); }
+  /* drag ghost */
+  .ghost { position: absolute; z-index: 45; pointer-events: none; }
+  .ghost .stack { position: relative; border-radius: 6px; box-shadow: 0 6px 18px rgb(0 0 6 / 35%); }
+  .ghost .badge { position: absolute; top: -8px; right: -8px; }
+  .cursor-arrow { position: absolute; z-index: 46; width: 20px; height: 20px; }
+  /* misc */
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: var(--fs-small); }
+  .kv .k { opacity: var(--dim-opacity); }
+  .skeleton { background: var(--fill-1); border-radius: 4px; }
+  .pill-status { display: inline-flex; gap: 6px; align-items: center; font-size: var(--fs-caption); }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px;"><div class="split-view"><div class="sidebar-pane sidebar lib-side"><div class="headerbar "><div class="start"><button class="btn image-button flat"><svg class="icon"><use href="#i-capture-region"/></svg></button></div><div class="title-widget"><span class="title">Annota</span></div><div class="end"><button class="btn image-button flat"><svg class="icon"><use href="#i-open-menu"/></svg></button></div></div><div class="sidebar-list"><div class="nav-row "><svg class="icon"><use href="#i-library"/></svg><span class="label">All Captures</span><span class="count">31</span></div><div class="nav-row "><svg class="icon"><use href="#i-timer"/></svg><span class="label">Recent</span></div><div class="nav-row selected"><svg class="icon"><use href="#i-trash"/></svg><span class="label">Trash</span><span class="count">2</span></div></div><div class="side-foot"><svg class="icon"><use href="#i-folder"/></svg><div class="vbox" style="--gap:1px"><span class="path">/mnt/nas/annota</span><span class="caption" style="opacity:.75">Connected · 31 captures · 1.8 GB</span></div><span class="state-dot"></span></div></div><div class="content-pane view" style=""><div class="headerbar "><div class="start"></div><div class="title-widget"><span class="title">Trash</span><span class="subtitle">2 captures</span></div><div class="end"><div class="toggle-group"><span class="toggle icon-only active"><svg class="icon"><use href="#i-grid-view"/></svg></span><span class="toggle icon-only "><svg class="icon"><use href="#i-list-view"/></svg></span></div><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div><div class="banner"><span class="banner-title">Items are in the system trash. Annota shows only captures from the library folder.</span><button class="btn">Empty Trash…</button></div><div class="grid-scroll"><div class="day-head"><span class="heading">Trashed Today</span></div><div class="tiles"><div class="tile selected" style="--tw:150px;--th:112px"><div class="frame"><span class="timg" style="width:134.0px;height:22.3px;background-image:url(../../kit/sample-content/png/b-lumen-checkout.png);background-size:446.7px 279.2px;background-position:-290.3px -150.8px;"></span></div><div class="name">Discount code field</div><div class="meta"><svg class="icon"><use href="#i-trash"/></svg><span>from Tue 27 Oct</span></div></div><div class="tile " style="--tw:150px;--th:112px"><div class="frame"><span class="timg" style="width:134.0px;height:22.8px;background-image:url(../../kit/sample-content/png/b-lumen-checkout.png);background-size:505.7px 316.0px;background-position:-337.5px -83.8px;"></span></div><div class="name">Ridgeline pack</div><div class="meta"><svg class="icon"><use href="#i-trash"/></svg><span>from 18 Oct 2026</span></div></div></div></div><div class="action-bar"><span class="count">1 selected</span><span class="spacer"></span><button class="btn text-button">Restore</button><button class="btn text-button destructive-action">Delete Permanently…</button></div></div></div></div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

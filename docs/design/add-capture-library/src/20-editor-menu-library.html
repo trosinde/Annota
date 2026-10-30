@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Editor — open library</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  /* library window — layout only, colours from tokens */
+  .lib-side { width: 280px; }
+  .lib-side .sidebar-list { flex: 1; }
+  .lib-side .nav-row .icon { flex: none; }
+  .nav-row.drop { background: var(--accent-a25); outline: 2px solid var(--accent-bg); outline-offset: -2px; }
+  .nav-row .spinner { margin-left: auto; }
+  .side-foot { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 16px 12px; box-shadow: inset 0 1px var(--separator); font-size: var(--fs-small); }
+  .side-foot .vbox { min-width: 0; flex: 1; }
+  .side-foot .path { font-family: var(--font-mono); font-size: 12px; opacity: var(--dim-opacity); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success-bg); flex: none; }
+  .state-dot.off { background: var(--warning-bg); }
+  .grid-scroll { flex: 1; min-height: 0; overflow: hidden; position: relative; padding: 0 18px 18px; }
+  .day-head { display: flex; align-items: baseline; gap: 10px; padding: 18px 2px 12px; }
+  .day-head .caption { opacity: var(--dim-opacity); }
+  .day-head .spacer { flex: 1; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, var(--tw, 150px)); gap: 18px 12px; }
+  .tile { width: var(--tw, 150px); display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .tile .frame { height: var(--th, 112px); border-radius: 9px; background: var(--row-hover); box-shadow: inset 0 0 0 1px var(--separator);
+                 display: grid; place-items: center; position: relative; }
+  .timg { position: relative; display: block; background-repeat: no-repeat;
+                 box-shadow: 0 0 0 1px var(--shade), 0 1px 3px rgb(0 0 6 / 14%); border-radius: 2px; overflow: hidden; }
+  .timg > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .tile .name { font-size: var(--fs-small); padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .meta { font-size: var(--fs-caption); padding: 0 2px; opacity: var(--dim-opacity); display: flex; gap: 4px; align-items: center; margin-top: -4px; white-space: nowrap; overflow: hidden; }
+  .tile .meta .icon { width: 12px; height: 12px; }
+  .tile.hover .frame { background: var(--fill-flat-hover); }
+  .tile.selected .frame { background: var(--accent-a12); box-shadow: inset 0 0 0 2px var(--accent-bg); }
+  .tile.focus .frame { outline: 2px solid var(--accent-a50); outline-offset: 2px; }
+  .tile.dim { opacity: .35; }
+  .tile.gone { opacity: .25; transform: scale(.94); }
+  .tile .sel { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+               background: var(--view-bg); box-shadow: inset 0 0 0 2px var(--borders-strong), 0 1px 2px rgb(0 0 6 / 20%); }
+  .tile .sel.on { background: var(--accent-bg); color: var(--accent-fg); box-shadow: 0 1px 2px rgb(0 0 6 / 20%); }
+  .tile .sel .icon { width: 14px; height: 14px; }
+  .tile .fav { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--osd-bg); color: #ffffff; }
+  .tile .fav .icon { width: 14px; height: 14px; }
+  .tile .fav.on .icon { fill: var(--annota-amber); }
+  .dur { position: absolute; right: 6px; bottom: 6px; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px 0 5px; border-radius: 10px;
+         background: var(--osd-bg); color: var(--osd-fg); font-size: 11px; font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+  .dur .icon { width: 12px; height: 12px; }
+  .kind-badge { position: absolute; left: 6px; bottom: 6px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--osd-bg); color: var(--osd-fg);
+                font-size: 11px; font-weight: var(--fw-bold); display: inline-flex; align-items: center; }
+  .match { font-size: var(--fs-caption); padding: 0 2px; margin-top: -2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .match .src { opacity: var(--dim-opacity); }
+  mark { background: var(--accent-a25); color: inherit; border-radius: 3px; padding: 0 1px; box-shadow: 0 0 0 1px var(--accent-a50); }
+  .scrollbar { position: absolute; right: 3px; width: 6px; border-radius: 3px; background: var(--fill-3); opacity: .6; }
+  .hdr-scale { width: 104px; min-height: 0; gap: 6px; }
+  .hdr-scale .trough .knob { width: 16px; height: 16px; margin: -8px 0 0 -8px; }
+  .hdr-scale .trough .mark { top: 8px; height: 4px; }
+  /* preview pane */
+  .pv { width: 320px; flex: none; display: flex; flex-direction: column; background: var(--window-bg); box-shadow: inset 1px 0 var(--separator); min-height: 0; }
+  .pv .headerbar { background: var(--window-bg); box-shadow: none; }
+  .pv-body { flex: 1; min-height: 0; overflow: hidden; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 12px; }
+  .pv-img { height: 196px; border-radius: var(--radius-l); background: var(--canvas-bg); display: grid; place-items: center; position: relative; flex: none; }
+  .pv-title { display: flex; align-items: center; gap: 6px; padding: 0 2px; }
+  .pv-title .title-4 { flex: 1; min-width: 0; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv .boxed-list .row { min-height: 0; padding: 7px 12px; }
+  .pv .row.property .subtitle { font-size: var(--fs-small); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv .row.property .title { font-size: var(--fs-caption); }
+  .pv .actions { display: flex; gap: 6px; }
+  .pv .actions .btn.grow { flex: 1; }
+  .mono-path { font-family: var(--font-mono); font-size: 12px !important; }
+  /* list view */
+  .lv { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+  .lv table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); table-layout: fixed; }
+  .lv th { text-align: left; font-weight: var(--fw-bold); font-size: var(--fs-small); height: 34px; padding: 0 10px; box-shadow: inset 0 -1px var(--separator); white-space: nowrap; }
+  .lv th .icon { width: 12px; height: 12px; vertical-align: -1px; margin-left: 2px; }
+  .lv th.sorted { color: var(--accent); }
+  .lv th + th { box-shadow: inset 0 -1px var(--separator), inset 1px 0 var(--separator); }
+  .lv td { height: 44px; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lv td.dim { opacity: var(--dim-opacity); }
+  .lv td.num { font-variant-numeric: tabular-nums; }
+  .lv tr.sel td { background: var(--accent-a12); }
+  .lv tr.grp td { height: 38px; padding-top: 10px; font-weight: var(--fw-bold); }
+  .lv tr.grp td .caption { font-weight: var(--fw-regular); opacity: var(--dim-opacity); margin-left: 8px; }
+  .lv .namecell { display: flex; align-items: center; gap: 10px; }
+  .lv .namecell .tbox { width: 44px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 4px; background: var(--row-hover); }
+  .lv .namecell .timg { position: relative; display: block; background-repeat: no-repeat; box-shadow: 0 0 0 1px var(--shade); }
+  /* action bar (GtkActionBar) */
+  .action-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: var(--headerbar-bg); box-shadow: inset 0 1px var(--headerbar-shade); }
+  .action-bar .count { font-weight: var(--fw-bold); padding: 0 6px; }
+  /* quick look */
+  .ql { position: absolute; inset: 0; z-index: 35; background: rgb(0 0 6 / 93%); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #ffffff; display: flex; flex-direction: column; }
+  .ql-top { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+  .ql-top .grow .t { font-weight: var(--fw-bold); }
+  .ql-top .grow .s { font-size: var(--fs-caption); opacity: .7; }
+  .ql-img { flex: 1; display: grid; place-items: center; position: relative; }
+  .ql .btn.osd { background: rgb(255 255 255 / 14%); }
+  .ql .btn.osd:hover { background: rgb(255 255 255 / 22%); }
+  .ql-hint { display: flex; justify-content: center; gap: 18px; padding: 14px; font-size: var(--fs-small); opacity: .8; }
+  .ql-hint kbd.key { background: rgb(255 255 255 / 15%); box-shadow: none; color: #ffffff; }
+  .ql .nav { position: absolute; top: 50%; margin-top: -21px; width: 42px; min-height: 42px; }
+  /* chips / filter bar */
+  .filter-bar { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 18px; background: var(--view-bg); box-shadow: inset 0 -1px var(--separator); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 10px; border-radius: var(--radius-pill);
+          background: var(--accent-a12); color: var(--accent); font-size: var(--fs-small); font-weight: var(--fw-bold); white-space: nowrap; }
+  .chip .k { font-weight: var(--fw-regular); opacity: .85; }
+  .chip .x { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; }
+  .chip .x .icon { width: 12px; height: 12px; }
+  .chip.plain { background: var(--fill-1); color: inherit; padding-right: 10px; }
+  .chip.add { background: transparent; color: inherit; box-shadow: inset 0 0 0 1px var(--borders); padding-right: 8px; font-weight: var(--fw-bold); }
+  .tagc { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--fill-1); font-size: var(--fs-caption); white-space: nowrap; }
+  .tagc .icon { width: 12px; height: 12px; opacity: .7; }
+  .tagc .x { width: 14px; height: 14px; opacity: .7; }
+  .tag-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--c); }
+  /* drag ghost */
+  .ghost { position: absolute; z-index: 45; pointer-events: none; }
+  .ghost .stack { position: relative; border-radius: 6px; box-shadow: 0 6px 18px rgb(0 0 6 / 35%); }
+  .ghost .badge { position: absolute; top: -8px; right: -8px; }
+  .cursor-arrow { position: absolute; z-index: 46; width: 20px; height: 20px; }
+  /* misc */
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: var(--fs-small); }
+  .kv .k { opacity: var(--dim-opacity); }
+  .skeleton { background: var(--fill-1); border-radius: 4px; }
+  .pill-status { display: inline-flex; gap: 6px; align-items: center; font-size: var(--fs-caption); }
+
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+  .tray { flex: none; height: 104px; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--window-bg); box-shadow: inset 0 1px var(--separator); position: relative; }
+  .tray .tray-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: var(--fs-caption-heading); font-weight: var(--fw-bold); opacity: var(--dim-opacity); }
+  .tray .ti { width: 112px; height: 80px; flex: none; border-radius: 8px; display: grid; place-items: center; position: relative; background: var(--row-hover); box-shadow: inset 0 0 0 1px var(--separator); }
+  .tray .ti.cur { box-shadow: inset 0 0 0 2px var(--accent-bg); background: var(--accent-a12); }
+  .tray .ti.hover { background: var(--fill-flat-hover); }
+  .tray .ti.sel { box-shadow: inset 0 0 0 2px var(--accent-bg); background: var(--accent-a12); }
+  .tray .ti .dot { position: absolute; top: 5px; left: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-bg); box-shadow: 0 0 0 2px var(--view-bg); }
+  .tray .ti .ck { position: absolute; top: 4px; left: 4px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent-bg); color: #fff; display: grid; place-items: center; }
+  .tray .ti .ck .icon { width: 12px; height: 12px; }
+  .tray .sepv { width: 1px; height: 64px; background: var(--separator); flex: none; }
+  .tray .more { width: 112px; height: 80px; flex: none; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; box-shadow: inset 0 0 0 1px var(--borders); font-size: var(--fs-small); font-weight: var(--fw-bold); }
+  .tray .more .caption { font-weight: var(--fw-regular); opacity: var(--dim-opacity); }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px"><div class="headerbar "><div class="start"><button class="btn image-button "><svg class="icon"><use href="#i-capture-region"/></svg></button><div class="linked"><button class="btn image-button "><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button "><svg class="icon"><use href="#i-redo"/></svg></button></div></div><div class="title-widget"><span class="title">Checkout postcode error</span><span class="subtitle">1600 × 1000 · In Library</span></div><div class="end"><button class="btn image-button "><svg class="icon"><use href="#i-copy"/></svg></button><button class="btn text-button suggested-action">Export</button><button class="btn image-button flat"><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div><div class="split-view"><div class="tool-strip"><button class="btn flat"><svg class="icon"><use href="#i-select"/></svg></button><button class="btn flat active"><svg class="icon"><use href="#i-arrow"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-shape"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-text"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-callout"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-step"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-highlighter"/></svg></button><span class="separator-h"></span><button class="btn flat"><svg class="icon"><use href="#i-blur"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-magnify"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-spotlight"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-stamp"/></svg></button><button class="btn flat"><svg class="icon"><use href="#i-crop"/></svg></button></div><div class="content-pane" style="position:relative"><div class="canvas-area"><div class="canvas-image" style="width:700px;height:261px"><span class="timg" style="width:700.0px;height:261.0px;background-image:url(../../kit/sample-content/png/b-lumen-checkout.png);background-size:1228.1px 767.5px;background-position:-61.4px -211.1px;"><svg viewBox="0 0 912 340" preserveAspectRatio="none"><rect x="18" y="236" width="524" height="82" rx="5.364705882352941" fill="none" stroke="var(--annota-coral)" stroke-width="5.364705882352941"/><path d="M700 180 L560 262" stroke="var(--annota-coral)" stroke-width="6.974117647058823" stroke-linecap="round" fill="none"/><path d="M572.4 241.3 L560 262 L584.1 261.3" stroke="var(--annota-coral)" stroke-width="6.974117647058823" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span></div><div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px"><button class="btn image-button "><svg class="icon"><use href="#i-zoom-out"/></svg></button><span class="label">77 %</span><button class="btn image-button "><svg class="icon"><use href="#i-zoom-in"/></svg></button></div></div><div class="tray"><span class="tray-label">Open</span><div class="ti cur"><span class="timg" style="width:100.0px;height:37.3px;background-image:url(../../kit/sample-content/png/b-lumen-checkout.png);background-size:175.4px 109.6px;background-position:-8.8px -30.2px;"><svg viewBox="0 0 912 340" preserveAspectRatio="none"><rect x="18" y="236" width="524" height="82" rx="5.364705882352941" fill="none" stroke="var(--annota-coral)" stroke-width="5.364705882352941"/><path d="M700 180 L560 262" stroke="var(--annota-coral)" stroke-width="6.974117647058823" stroke-linecap="round" fill="none"/><path d="M572.4 241.3 L560 262 L584.1 261.3" stroke="var(--annota-coral)" stroke-width="6.974117647058823" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span></div><div class="ti "><span class="timg" style="width:98.4px;height:68.0px;background-image:url(../../kit/sample-content/png/a-harbor-backup.png);background-size:143.2px 89.5px;background-position:-22.4px -10.7px;"><svg viewBox="0 0 1100 760" preserveAspectRatio="none"><rect x="392" y="175" width="576" height="58" rx="6.470588235294118" fill="none" stroke="var(--annota-coral)" stroke-width="6.470588235294118"/><circle cx="392" cy="175" r="27.5" fill="var(--annota-coral)"/><text x="392" y="184.9" font-size="28.9" font-weight="700" fill="#fff" text-anchor="middle" font-family="Inter">1</text></svg></span><span class="dot"></span></div><span class="sepv"></span><span class="tray-label">Recent</span><div class="ti "><span class="timg" style="width:100.0px;height:40.0px;background-image:url(../../kit/sample-content/png/c-code-editor.png);background-size:160.0px 100.0px;background-position:-32.2px -33.0px;"></span></div><div class="ti "><span class="timg" style="width:100.0px;height:8.6px;background-image:url(../../kit/sample-content/png/d-tidewater-analytics.png);background-size:122.9px 76.8px;background-position:-20.3px -6.4px;"><svg viewBox="0 0 1302 112" preserveAspectRatio="none"><rect x="670" y="50" width="120" height="40" fill="var(--annota-highlight)"/></svg></span></div><div class="ti "><span class="timg" style="width:100.0px;height:62.5px;background-image:url(../../kit/sample-content/png/e-relay-chat.png);background-size:100.0px 62.5px;background-position:0.0px 0.0px;"><svg viewBox="0 0 1600 1000" preserveAspectRatio="none"><defs><pattern id="px" width="14" height="14" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#ffffff"/><rect x="7" y="7" width="7" height="7" fill="#ffffff"/></pattern></defs><rect x="497" y="162" width="292" height="22" rx="4" fill="#8a8a96"/><rect x="497" y="162" width="292" height="22" rx="4" fill="url(#px)" opacity=".55"/><rect x="700" y="278" width="510" height="22" rx="4" fill="#8a8a96"/><rect x="700" y="278" width="510" height="22" rx="4" fill="url(#px)" opacity=".55"/></svg></span></div><div class="ti "><span class="timg" style="width:100.0px;height:62.5px;background-image:url(../../kit/sample-content/png/d-tidewater-analytics.png);background-size:100.0px 62.5px;background-position:0.0px 0.0px;"></span><span class="dur" style="right:4px;bottom:4px;height:18px"><svg class="icon"><use href="#i-play"/></svg>0:42</span></div><div class="more"><svg class="icon"><use href="#i-library"/></svg>Open Library<span class="caption">Ctrl+L</span></div></div></div><div class="sidebar-pane end props"><div class="scroll"><div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Arrow</span></div></div><div class="swatch-row"><span class="swatch selected" style="--c:var(--annota-coral)"></span><span class="swatch" style="--c:var(--annota-amber)"></span><span class="swatch" style="--c:var(--annota-lime)"></span><span class="swatch" style="--c:var(--annota-teal)"></span><span class="swatch" style="--c:var(--annota-azure)"></span><span class="swatch" style="--c:var(--annota-violet)"></span><span class="swatch" style="--c:var(--annota-ink)"></span></div></div><div class="boxed-list"><div class="row"><div class="text"><span class="title">Width</span></div><div class="suffix"><span class="spin" style="width:120px"><span class="value">6</span><button class="btn image-button "><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn image-button "><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div><div class="row"><div class="text"><span class="title">Shadow</span></div><div class="suffix"><span class="switch on"></span></div></div></div></div></div></div><div class="popover " style="left:975px;top:48px;width:270px;--arrow-x:246px;"><div class="menu-item "><span class="label">New Capture</span><span class="accel">Ctrl+N</span></div><div class="menu-item "><span class="label">Open…</span><span class="accel">Ctrl+O</span></div><div class="menu-item hover"><span class="label">Library</span><span class="accel">Ctrl+L</span></div><div class="menu-sep"></div><div class="menu-item "><span class="label">Save As…</span><span class="accel">Shift+Ctrl+S</span></div><div class="menu-item "><span class="label">Show in Library</span></div><div class="menu-sep"></div><div class="menu-item "><span class="label">Preferences</span><span class="accel">Ctrl+,</span></div><div class="menu-item "><span class="label">Keyboard Shortcuts</span><span class="accel">Ctrl+?</span></div><div class="menu-item "><span class="label">About Annota</span></div></div></div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>
