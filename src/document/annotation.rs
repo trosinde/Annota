@@ -259,7 +259,10 @@ pub trait Annotation: AnnotationBase + fmt::Debug {
     fn set_property(&mut self, key: &str, value: &PropertyValue) -> Result<(), PropertyError>;
 
     /// Editing handles. The default is the selection box: 8 resize handles and a rotation
-    /// handle. Types with their own geometry (arrow end points, callout tails) override this.
+    /// handle. Types with their own geometry (arrow end points, callout tails) override this;
+    /// the canvas draws each handle by its [`HandleKind`], hit-tests it in screen pixels and
+    /// passes drags to [`Annotation::drag_handle`]. It draws the selection box only if the
+    /// handles include [`HandleKind::Resize`] ones (an arrow can offer just its two ends).
     fn handles(&self) -> Vec<Handle> {
         box_handles(&self.arrange())
     }

@@ -8,13 +8,17 @@
 //! has no partial invalidation of a drawing area.
 
 pub mod blur;
+pub mod overlay;
 pub mod shadow;
 pub mod view;
 
-use crate::document::annotation::{RenderContext, Target};
+use std::collections::HashMap;
+
+use crate::document::annotation::{Annotation, RenderContext, Target};
 use crate::document::bitmap::{Bitmap, BitmapError};
 use crate::document::color::Rgba;
 use crate::document::geometry::{Point, Rect};
+use crate::document::scene::ObjectId;
 use crate::document::{Background, Document};
 
 /// Maps document space to device space: `device = doc * zoom + origin`.
@@ -87,6 +91,18 @@ impl Options {
 /// Size of one checkerboard square in screen pixels (kit: 16 px tile, 8 px squares).
 pub const CHECKER_SQUARE: f64 = 8.0;
 
+/// Edited copies the canvas draws instead of objects of the document while a gesture is in
+/// progress (drag, resize, rotate), before they are committed as one command.
+#[derive(Clone, Copy, Debug)]
+pub struct Preview<'a> {
+    pub objects: &'a [(ObjectId, Box<dyn Annotation>)],
+    /// Also draw the originals, faded, where they were (moves; mockups 02 and 06).
+    pub ghost: bool,
+}
+
+/// Opacity of the original under a moved object (mockups 02, 06: "Ghost shows old position").
+pub const GHOST_OPACITY: f64 = 0.35;
+
 /// Draws the document: canvas background, original image, then every object bottom to top,
 /// all clipped to the canvas. Only objects touching the current clip are drawn.
 pub fn render(
@@ -95,10 +111,33 @@ pub fn render(
     viewport: &Viewport,
     options: &Options,
 ) -> Result<(), cairo::Error> {
+    render_preview(cr, doc, viewport, options, None)
+}
+
+/// [`render`] with `preview` copies in place of their objects, each at its object's stacking
+/// position. Screen only; export always draws the document itself.
+pub fn render_preview(
+    cr: &cairo::Context,
+    doc: &Document,
+    viewport: &Viewport,
+    options: &Options,
+    preview: Option<&Preview<'_>>,
+) -> Result<(), cairo::Error> {
     cr.save()?;
-    let result = render_inner(cr, doc, viewport, options);
+    let result = render_inner(cr, doc, viewport, options, preview);
     cr.restore()?;
     result
+}
+
+fn draw_object(
+    cr: &cairo::Context,
+    object: &dyn Annotation,
+    ctx: &RenderContext<'_>,
+) -> Result<(), cairo::Error> {
+    cr.save()?;
+    let drawn = object.render(cr, ctx);
+    cr.restore()?;
+    drawn
 }
 
 fn render_inner(
@@ -106,6 +145,7 @@ fn render_inner(
     doc: &Document,
     viewport: &Viewport,
     options: &Options,
+    preview: Option<&Preview<'_>>,
 ) -> Result<(), cairo::Error> {
     if !(viewport.zoom.is_finite() && viewport.zoom > 0.0) {
         return Ok(());
@@ -143,12 +183,42 @@ fn render_inner(
         target: options.target,
     };
     let scene = doc.scene();
-    for position in scene.query(&visible) {
-        if let Some(node) = scene.nodes().get(position) {
-            cr.save()?;
-            let drawn = node.object.render(cr, &ctx);
-            cr.restore()?;
+    let mut positions = scene.query(&visible);
+    let replaced: HashMap<ObjectId, &dyn Annotation> = preview
+        .map(|p| {
+            p.objects
+                .iter()
+                .map(|(id, object)| (*id, object.as_ref()))
+                .collect()
+        })
+        .unwrap_or_default();
+    if !replaced.is_empty() {
+        // A moved copy may be visible where its original is not.
+        positions.extend(replaced.keys().filter_map(|id| scene.position(*id)));
+        positions.sort_unstable();
+        positions.dedup();
+    }
+    let ghost = preview.is_some_and(|p| p.ghost);
+    for position in positions {
+        let Some(node) = scene.nodes().get(position) else {
+            continue;
+        };
+        let Some(copy) = replaced.get(&node.id) else {
+            draw_object(cr, node.object.as_ref(), &ctx)?;
+            continue;
+        };
+        let original_visible = scene
+            .bounds_at(position)
+            .is_some_and(|b| b.intersects(&visible));
+        if ghost && original_visible {
+            cr.push_group();
+            let drawn = draw_object(cr, node.object.as_ref(), &ctx);
+            cr.pop_group_to_source()?;
             drawn?;
+            cr.paint_with_alpha(GHOST_OPACITY)?;
+        }
+        if copy.bounds().intersects(&visible) {
+            draw_object(cr, *copy, &ctx)?;
         }
     }
     Ok(())
@@ -475,6 +545,76 @@ mod tests {
         fn set_property(&mut self, k: &str, _: &PropertyValue) -> Result<(), PropertyError> {
             Err(PropertyError::Unknown(k.into()))
         }
+    }
+
+    #[test]
+    fn preview_copies_replace_objects_in_their_stacking_place() {
+        // During a drag the canvas draws edited copies (and, for moves, faded originals).
+        let mut doc = Document::new(Bitmap::filled(100, 40, palette::PAPER).unwrap());
+        let ids = doc.scene().fresh_ids(2);
+        let boxed = |x: f64| crate::document::scene::tests::TestBox::boxed(x, 0.0, 20.0, 20.0);
+        Command::Insert {
+            nodes: vec![
+                (0, Node::new(ids[0], boxed(0.0))),
+                (1, Node::new(ids[1], boxed(60.0))),
+            ],
+            resources: Vec::new(),
+        }
+        .apply(&mut doc)
+        .unwrap();
+        let moved = vec![(ids[0], boxed(30.0))];
+        let draw = |ghost: bool| {
+            Bitmap::draw(100, 40, |cr| {
+                let preview = Preview {
+                    objects: &moved,
+                    ghost,
+                };
+                // The view shows only x 25..100: the original at 0..20 is culled, the copy is
+                // not.
+                cr.rectangle(25.0, 0.0, 75.0, 40.0);
+                cr.clip();
+                render_preview(
+                    cr,
+                    &doc,
+                    &Viewport::new(1.0, Point::default()),
+                    &Options::EXPORT,
+                    Some(&preview),
+                )
+            })
+            .unwrap()
+        };
+        let out = draw(false);
+        assert_eq!(out.pixel(40, 10), Some(Rgba::opaque(0, 0, 0)), "copy");
+        assert_eq!(
+            out.pixel(70, 10),
+            Some(Rgba::opaque(0, 0, 0)),
+            "other object"
+        );
+        assert_eq!(out.pixel(10, 10).map(|p| p.a), Some(0), "outside the clip");
+        // Ghost: the original faded where it was (visible part only).
+        let doc_view = Bitmap::draw(100, 40, |cr| {
+            let preview = Preview {
+                objects: &moved,
+                ghost: true,
+            };
+            render_preview(
+                cr,
+                &doc,
+                &Viewport::new(1.0, Point::default()),
+                &Options::EXPORT,
+                Some(&preview),
+            )
+        })
+        .unwrap();
+        let ghost = doc_view.pixel(10, 10).unwrap();
+        assert!(ghost.r > 120 && ghost.r < 200, "faded: {ghost:?}");
+        assert_eq!(doc_view.pixel(40, 10), Some(Rgba::opaque(0, 0, 0)));
+        let _ = draw(true);
+        // The document itself is unchanged and exports as before.
+        assert_eq!(
+            flatten(&doc, 1.0).unwrap().pixel(40, 10),
+            Some(palette::PAPER)
+        );
     }
 
     #[test]

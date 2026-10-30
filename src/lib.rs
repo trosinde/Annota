@@ -4,5 +4,6 @@
 //! display (`tests/render/`). The application binary (`src/main.rs`) builds the UI on top.
 
 pub mod document;
+pub mod editing;
 pub mod render;
 pub mod tools;
