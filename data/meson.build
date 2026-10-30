@@ -1,7 +1,11 @@
 # UI (Blueprint → .ui) and GResource bundle
 blueprints = custom_target(
   'blueprints',
-  input: files('ui/window.blp'),
+  input: files(
+    'ui/window.blp',
+    'ui/preferences.blp',
+    'ui/help-overlay.blp',
+  ),
   output: '.',
   command: [blueprint_compiler, 'batch-compile', '@OUTPUT@', '@CURRENT_SOURCE_DIR@', '@INPUT@'],
 )

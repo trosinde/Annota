@@ -4,6 +4,16 @@ using Adw 1;
 menu primary_menu {
   section {
     item {
+      label: _("_Preferences");
+      action: "app.preferences";
+    }
+
+    item {
+      label: _("_Keyboard Shortcuts");
+      action: "win.show-help-overlay";
+    }
+
+    item {
       label: _("_About Annota");
       action: "app.about";
     }

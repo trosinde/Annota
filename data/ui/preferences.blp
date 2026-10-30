@@ -1,0 +1,182 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesDialog preferences_dialog {
+  title: _("Preferences");
+  search-enabled: true;
+  content-width: 640;
+  content-height: 680;
+
+  Adw.PreferencesPage general_page {
+    title: _("General");
+    icon-name: "settings-symbolic";
+
+    Adw.PreferencesGroup {
+      title: _("Saving");
+      description: _("Where Ctrl+S puts new captures");
+
+      Adw.ActionRow save_folder_row {
+        title: _("Save folder");
+
+        [suffix]
+        Button save_folder_button {
+          valign: center;
+          icon-name: "folder-symbolic";
+          tooltip-text: _("Choose Folder…");
+          styles ["flat"]
+        }
+      }
+
+      Adw.EntryRow filename_pattern_row {
+        title: _("File name pattern");
+        styles ["monospace"]
+
+        [suffix]
+        MenuButton filename_pattern_help {
+          valign: center;
+          icon-name: "dialog-information-symbolic";
+          tooltip-text: _("Pattern Reference");
+          styles ["flat"]
+          popover: Popover {
+            child: Label {
+              margin-start: 12;
+              margin-end: 12;
+              margin-top: 12;
+              margin-bottom: 12;
+              wrap: true;
+              label: _("%Y year · %m month · %d day · %H hour · %M minute · %S second");
+            };
+          };
+        }
+      }
+
+      Adw.ActionRow filename_example_row {
+        title: _("Example");
+        sensitive: false;
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Export");
+
+      Adw.ComboRow default_format_row {
+        title: _("Default format");
+        model: StringList {
+          strings [_("PNG"), _("JPG"), _("WebP"), _("PDF")]
+        };
+      }
+
+      Adw.ActionRow export_folder_row {
+        title: _("Export folder");
+
+        [suffix]
+        Button export_folder_button {
+          valign: center;
+          icon-name: "folder-symbolic";
+          tooltip-text: _("Choose Folder…");
+          styles ["flat"]
+        }
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Appearance");
+
+      Adw.ActionRow {
+        title: _("Style");
+        subtitle: _("Follows the system light or dark style and accent colour");
+        sensitive: false;
+
+        [suffix]
+        Label {
+          valign: center;
+          label: _("System");
+          styles ["dim-label"]
+        }
+      }
+    }
+  }
+
+  Adw.PreferencesPage capture_page {
+    title: _("Capture");
+    icon-name: "camera-photo-symbolic";
+
+    Adw.PreferencesGroup {
+      title: _("After Capture");
+
+      Adw.ActionRow {
+        title: _("Open in editor");
+        activatable-widget: after_capture_editor;
+
+        [prefix]
+        CheckButton after_capture_editor {
+          valign: center;
+        }
+      }
+
+      Adw.ActionRow {
+        title: _("Copy to clipboard");
+        subtitle: _("No window opens");
+        activatable-widget: after_capture_clipboard;
+
+        [prefix]
+        CheckButton after_capture_clipboard {
+          valign: center;
+          group: after_capture_editor;
+        }
+      }
+
+      Adw.ActionRow {
+        title: _("Open in editor and copy to clipboard");
+        activatable-widget: after_capture_both;
+
+        [prefix]
+        CheckButton after_capture_both {
+          valign: center;
+          group: after_capture_editor;
+        }
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Capture Defaults");
+
+      Adw.ComboRow capture_mode_row {
+        title: _("Default mode");
+        model: StringList {
+          strings [_("Region"), _("Window"), _("Screen")]
+        };
+      }
+
+      Adw.SpinRow capture_delay_row {
+        title: _("Delay (seconds)");
+        subtitle: _("Time between pressing the shortcut and the capture");
+        adjustment: Adjustment {
+          lower: 0;
+          upper: 60;
+          step-increment: 1;
+          page-increment: 5;
+        };
+      }
+
+      Adw.SwitchRow include_pointer_row {
+        title: _("Include pointer");
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Shortcut");
+
+      Adw.ActionRow {
+        title: _("Capture region");
+        sensitive: false;
+
+        [suffix]
+        ShortcutLabel {
+          valign: center;
+          accelerator: "Print";
+        }
+      }
+    }
+  }
+}

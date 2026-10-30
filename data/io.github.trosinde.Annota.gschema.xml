@@ -11,20 +11,48 @@
     <value nick="clipboard" value="1"/>
     <value nick="both" value="2"/>
   </enum>
+  <enum id="io.github.trosinde.Annota.CaptureMode">
+    <value nick="region" value="0"/>
+    <value nick="window" value="1"/>
+    <value nick="screen" value="2"/>
+  </enum>
 
   <schema id="io.github.trosinde.Annota" path="/io/github/trosinde/Annota/">
-    <key name="default-save-folder" type="s">
+    <key name="save-folder" type="s">
       <default>''</default>
-      <summary>Default save folder</summary>
-      <description>Folder for quick saves and the capture library. Empty means ~/Pictures/Annota.</description>
+      <summary>Save folder</summary>
+      <description>Where Ctrl+S puts new captures. Empty means ~/Pictures/Annota.</description>
+    </key>
+    <key name="filename-pattern" type="s">
+      <default>'Annota %Y-%m-%d %H-%M-%S'</default>
+      <summary>File name pattern</summary>
+      <description>strftime-style pattern used to name quick-saved captures.</description>
     </key>
     <key name="default-export-format" enum="io.github.trosinde.Annota.ExportFormat">
       <default>'png'</default>
       <summary>Default export format</summary>
     </key>
+    <key name="export-folder" type="s">
+      <default>''</default>
+      <summary>Export folder</summary>
+      <description>Folder offered by the export dialog. Empty means the save folder.</description>
+    </key>
     <key name="after-capture" enum="io.github.trosinde.Annota.AfterCapture">
       <default>'editor'</default>
       <summary>What happens after a capture</summary>
+    </key>
+    <key name="capture-mode" enum="io.github.trosinde.Annota.CaptureMode">
+      <default>'region'</default>
+      <summary>Default capture mode</summary>
+    </key>
+    <key name="capture-delay" type="i">
+      <range min="0" max="60"/>
+      <default>0</default>
+      <summary>Capture delay in seconds</summary>
+    </key>
+    <key name="include-pointer" type="b">
+      <default>true</default>
+      <summary>Include the mouse pointer in captures</summary>
     </key>
     <key name="window-width" type="i">
       <default>1280</default>

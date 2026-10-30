@@ -110,12 +110,23 @@ annota/
 **Status (2026-10-30)**
 - Roadmap: 18 OpenSpec changes in `openspec/changes/`, all validated. None archived yet.
 - Design: kit in `docs/design/kit/`, mockups for all 18 changes (267 screens) in `docs/design/<change>/`,
-  cross-change decisions in `docs/design/decisions.md`. **No change has design approval yet**
-  (`Design approved: _pending_` in every `design.md`); open maintainer questions Q1–Q5 are in decisions.md.
-- Code: application skeleton only (placeholder window, CLI, About dialog, German translation).
-- Packaging: done and lintian-clean (`build-aux/make-deb.sh`), CI builds the `.deb` on ubuntu-24.04.
-- Next step: maintainer reviews mockups (`python3 tools/build-review-gallery.py` → `docs/design/review.html`),
-  approves MVP changes, then implement in roadmap order starting with `bootstrap-app-shell`.
+  cross-change decisions in `docs/design/decisions.md`. **The 7 MVP (0.1) changes are
+  design-approved** (bootstrap-app-shell, add-screen-capture, add-annotation-editor,
+  add-core-annotation-tools, add-style-system, add-export-share, add-capture-library);
+  P2/P3 changes stay `_pending_`. Open maintainer questions Q1–Q5 are still in decisions.md —
+  Q1 (Print-key ownership) blocks `add-screen-capture`'s hotkeys.
+- Code: `bootstrap-app-shell` mostly implemented — AdwApplication, CLI, GSettings-backed
+  preferences dialog (General + Capture pages), keyboard shortcuts window (`Ctrl+?`), About
+  dialog, German translation. Still open in that change: the welcome page's mode cards and the
+  full main-menu redline (deferred until `add-screen-capture`/`add-annotation-editor` exist,
+  see the change's `tasks.md`), the `reviewer` agent pass, and a `.deb`/lintian run on a real
+  Ubuntu 24.04 host (this dev container only has cargo/rustc 1.93, not the pinned 1.85 — CI
+  covers 24.04). No other change has implementation started.
+- Packaging: `build-aux/make-deb.sh` is lintian-clean on CI (ubuntu-24.04); not re-verified
+  locally after the preferences/shortcuts work (toolchain mismatch above).
+- Next step: finish `bootstrap-app-shell` (reviewer pass, CI-verified `.deb`), then
+  `add-screen-capture` — but first resolve Q1 with the maintainer, since it decides whether
+  Annota takes over the GNOME `Print` keys.
 
 **Build dependencies (Ubuntu 24.04)**
 ```bash

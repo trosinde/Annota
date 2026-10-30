@@ -6,6 +6,7 @@ use gtk::{gio, glib};
 
 use crate::cli::{CaptureMode, DELAY_RANGE, EXIT_USAGE};
 use crate::config;
+use crate::preferences;
 
 const UI_WINDOW: &str = "/io/github/trosinde/Annota/ui/window.ui";
 
@@ -147,9 +148,19 @@ fn setup_actions(app: &adw::Application) {
     let about = gio::ActionEntry::builder("about")
         .activate(|app: &adw::Application, _, _| show_about(app))
         .build();
-    app.add_action_entries([quit, about]);
+    let prefs = gio::ActionEntry::builder("preferences")
+        .activate(|app: &adw::Application, _, _| show_preferences(app))
+        .build();
+    app.add_action_entries([quit, about, prefs]);
     app.set_accels_for_action("app.quit", &["<Control>q"]);
+    app.set_accels_for_action("app.preferences", &["<Control>comma"]);
     app.set_accels_for_action("window.close", &["<Control>w"]);
+}
+
+fn show_preferences(app: &adw::Application) {
+    if let Some(window) = app.active_window() {
+        preferences::present(&window);
+    }
 }
 
 fn show_about(app: &adw::Application) {
@@ -157,13 +168,14 @@ fn show_about(app: &adw::Application) {
         .application_name("Annota")
         .application_icon(config::APP_ID)
         .version(config::VERSION)
-        .developer_name("Thorsten Rosin")
+        .developer_name("The Annota Contributors")
         .developers(vec!["Thorsten Rosin"])
         .website("https://github.com/trosinde/Annota")
         .issue_url("https://github.com/trosinde/Annota/issues")
         .license_type(gtk::License::Gpl30)
+        .copyright("© 2026 The Annota Contributors")
         .comments(gettext(
-            "Capture, mark up and record your screen. Everything stays on this computer.",
+            "Works entirely on this computer. No account, no tracking.",
         ))
         .build();
     about.present(app.active_window().as_ref());

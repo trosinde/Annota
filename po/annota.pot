@@ -8,44 +8,44 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 13:11+0000\n"
+"POT-Creation-Date: 2026-10-30 15:01+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: data/io.github.trosinde.Annota.desktop.in:3
-#: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:21
-#: data/ui/window.blp:42
+#: data/io.github.trosinde.Annota.desktop.in:2
+#: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:31
+#: data/ui/window.blp:52
 msgid "Annota"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:4
+#: data/io.github.trosinde.Annota.desktop.in:3
 msgid "Screenshot Tool"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:5
+#: data/io.github.trosinde.Annota.desktop.in:4
 #: data/io.github.trosinde.Annota.metainfo.xml.in:8
 msgid "Capture, mark up and record your screen"
 msgstr ""
 
 #. Translators: search terms, separated by semicolons, ending with a semicolon
-#: data/io.github.trosinde.Annota.desktop.in:12
+#: data/io.github.trosinde.Annota.desktop.in:11
 msgid "screenshot;capture;annotate;arrow;markup;redact;screen;recording;"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:18
+#: data/io.github.trosinde.Annota.desktop.in:17
 msgid "Capture Region"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:22
+#: data/io.github.trosinde.Annota.desktop.in:21
 msgid "Capture Window"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:26
+#: data/io.github.trosinde.Annota.desktop.in:25
 msgid "Capture Screen"
 msgstr ""
 
@@ -70,61 +70,444 @@ msgstr ""
 msgid "Project skeleton: application shell and Debian packaging."
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:18
-msgid "Default save folder"
+#: data/io.github.trosinde.Annota.gschema.xml:23 data/ui/preferences.blp:19
+msgid "Save folder"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:19
-msgid ""
-"Folder for quick saves and the capture library. Empty means ~/Pictures/"
-"Annota."
+#: data/io.github.trosinde.Annota.gschema.xml:24
+msgid "Where Ctrl+S puts new captures. Empty means ~/Pictures/Annota."
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:23
+#: data/io.github.trosinde.Annota.gschema.xml:28 data/ui/preferences.blp:31
+msgid "File name pattern"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:29
+msgid "strftime-style pattern used to name quick-saved captures."
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:33
 msgid "Default export format"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:27
+#: data/io.github.trosinde.Annota.gschema.xml:37 data/ui/preferences.blp:70
+msgid "Export folder"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:38
+msgid "Folder offered by the export dialog. Empty means the save folder."
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:42
 msgid "What happens after a capture"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:31
+#: data/io.github.trosinde.Annota.gschema.xml:46
+msgid "Default capture mode"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:51
+msgid "Capture delay in seconds"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:55
+msgid "Include the mouse pointer in captures"
+msgstr ""
+
+#: data/io.github.trosinde.Annota.gschema.xml:59
 msgid "Editor window width"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:35
+#: data/io.github.trosinde.Annota.gschema.xml:63
 msgid "Editor window height"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:39
+#: data/io.github.trosinde.Annota.gschema.xml:67
 msgid "Editor window maximized"
 msgstr ""
 
 #: data/ui/window.blp:7
+msgid "_Preferences"
+msgstr ""
+
+#: data/ui/window.blp:12
+msgid "_Keyboard Shortcuts"
+msgstr ""
+
+#: data/ui/window.blp:17
 msgid "_About Annota"
 msgstr ""
 
-#: data/ui/window.blp:14
+#: data/ui/window.blp:24
 msgid "_Quit"
 msgstr ""
 
-#: data/ui/window.blp:34
+#: data/ui/window.blp:44
 msgid "Main Menu"
 msgstr ""
 
-#: data/ui/window.blp:43
+#: data/ui/window.blp:53
 msgid "Pre-release build. Capturing and editing arrive with milestone 0.1."
 msgstr ""
 
-#: src/application.rs:93
+#: data/ui/preferences.blp:5
+msgid "Preferences"
+msgstr ""
+
+#: data/ui/preferences.blp:11
+msgid "General"
+msgstr ""
+
+#: data/ui/preferences.blp:15
+msgid "Saving"
+msgstr ""
+
+#: data/ui/preferences.blp:16
+msgid "Where Ctrl+S puts new captures"
+msgstr ""
+
+#: data/ui/preferences.blp:25 data/ui/preferences.blp:76
+msgid "Choose Folder…"
+msgstr ""
+
+#: data/ui/preferences.blp:38
+msgid "Pattern Reference"
+msgstr ""
+
+#: data/ui/preferences.blp:47
+msgid "%Y year · %m month · %d day · %H hour · %M minute · %S second"
+msgstr ""
+
+#: data/ui/preferences.blp:54
+msgid "Example"
+msgstr ""
+
+#: data/ui/preferences.blp:60
+msgid "Export"
+msgstr ""
+
+#: data/ui/preferences.blp:63
+msgid "Default format"
+msgstr ""
+
+#: data/ui/preferences.blp:65
+msgid "PNG"
+msgstr ""
+
+#: data/ui/preferences.blp:65
+msgid "JPG"
+msgstr ""
+
+#: data/ui/preferences.blp:65
+msgid "WebP"
+msgstr ""
+
+#: data/ui/preferences.blp:65
+msgid "PDF"
+msgstr ""
+
+#: data/ui/preferences.blp:83
+msgid "Appearance"
+msgstr ""
+
+#: data/ui/preferences.blp:86
+msgid "Style"
+msgstr ""
+
+#: data/ui/preferences.blp:87
+msgid "Follows the system light or dark style and accent colour"
+msgstr ""
+
+#: data/ui/preferences.blp:93
+msgid "System"
+msgstr ""
+
+#: data/ui/preferences.blp:101
+msgid "Capture"
+msgstr ""
+
+#: data/ui/preferences.blp:105
+msgid "After Capture"
+msgstr ""
+
+#: data/ui/preferences.blp:108
+msgid "Open in editor"
+msgstr ""
+
+#: data/ui/preferences.blp:118
+msgid "Copy to clipboard"
+msgstr ""
+
+#: data/ui/preferences.blp:119
+msgid "No window opens"
+msgstr ""
+
+#: data/ui/preferences.blp:130
+msgid "Open in editor and copy to clipboard"
+msgstr ""
+
+#: data/ui/preferences.blp:142
+msgid "Capture Defaults"
+msgstr ""
+
+#: data/ui/preferences.blp:145
+msgid "Default mode"
+msgstr ""
+
+#: data/ui/preferences.blp:147
+msgid "Region"
+msgstr ""
+
+#: data/ui/preferences.blp:147
+msgid "Window"
+msgstr ""
+
+#: data/ui/preferences.blp:147
+msgid "Screen"
+msgstr ""
+
+#: data/ui/preferences.blp:152
+msgid "Delay (seconds)"
+msgstr ""
+
+#: data/ui/preferences.blp:153
+msgid "Time between pressing the shortcut and the capture"
+msgstr ""
+
+#: data/ui/preferences.blp:163
+msgid "Include pointer"
+msgstr ""
+
+#: data/ui/preferences.blp:168
+msgid "Shortcut"
+msgstr ""
+
+#: data/ui/preferences.blp:171
+msgid "Capture region"
+msgstr ""
+
+#: data/ui/help-overlay.blp:11
+msgctxt "shortcut window"
+msgid "General"
+msgstr ""
+
+#: data/ui/help-overlay.blp:14
+msgctxt "shortcut window"
+msgid "New capture"
+msgstr ""
+
+#: data/ui/help-overlay.blp:19
+msgctxt "shortcut window"
+msgid "Open file"
+msgstr ""
+
+#: data/ui/help-overlay.blp:24
+msgctxt "shortcut window"
+msgid "Capture library"
+msgstr ""
+
+#: data/ui/help-overlay.blp:29
+msgctxt "shortcut window"
+msgid "Preferences"
+msgstr ""
+
+#: data/ui/help-overlay.blp:34
+msgctxt "shortcut window"
+msgid "Keyboard shortcuts"
+msgstr ""
+
+#: data/ui/help-overlay.blp:39
+msgctxt "shortcut window"
+msgid "Close window"
+msgstr ""
+
+#: data/ui/help-overlay.blp:44
+msgctxt "shortcut window"
+msgid "Quit"
+msgstr ""
+
+#: data/ui/help-overlay.blp:50
+msgctxt "shortcut window"
+msgid "Capture"
+msgstr ""
+
+#: data/ui/help-overlay.blp:53
+msgctxt "shortcut window"
+msgid "Capture region"
+msgstr ""
+
+#: data/ui/help-overlay.blp:58
+msgctxt "shortcut window"
+msgid "Capture window"
+msgstr ""
+
+#: data/ui/help-overlay.blp:63
+msgctxt "shortcut window"
+msgid "Capture screen"
+msgstr ""
+
+#: data/ui/help-overlay.blp:69
+msgctxt "shortcut window"
+msgid "Document"
+msgstr ""
+
+#: data/ui/help-overlay.blp:72
+msgctxt "shortcut window"
+msgid "Save"
+msgstr ""
+
+#: data/ui/help-overlay.blp:77
+msgctxt "shortcut window"
+msgid "Save as"
+msgstr ""
+
+#: data/ui/help-overlay.blp:82
+msgctxt "shortcut window"
+msgid "Export"
+msgstr ""
+
+#: data/ui/help-overlay.blp:87
+msgctxt "shortcut window"
+msgid "Copy image"
+msgstr ""
+
+#: data/ui/help-overlay.blp:92
+msgctxt "shortcut window"
+msgid "Undo"
+msgstr ""
+
+#: data/ui/help-overlay.blp:97
+msgctxt "shortcut window"
+msgid "Redo"
+msgstr ""
+
+#: data/ui/help-overlay.blp:102
+msgctxt "shortcut window"
+msgid "Zoom"
+msgstr ""
+
+#: data/ui/help-overlay.blp:107
+msgctxt "shortcut window"
+msgid "Best fit"
+msgstr ""
+
+#: data/ui/help-overlay.blp:113
+msgctxt "shortcut window"
+msgid "Tools"
+msgstr ""
+
+#: data/ui/help-overlay.blp:116
+msgctxt "shortcut window"
+msgid "Select"
+msgstr ""
+
+#: data/ui/help-overlay.blp:121
+msgctxt "shortcut window"
+msgid "Arrow"
+msgstr ""
+
+#: data/ui/help-overlay.blp:126
+msgctxt "shortcut window"
+msgid "Line"
+msgstr ""
+
+#: data/ui/help-overlay.blp:131
+msgctxt "shortcut window"
+msgid "Pen"
+msgstr ""
+
+#: data/ui/help-overlay.blp:136
+msgctxt "shortcut window"
+msgid "Shape"
+msgstr ""
+
+#: data/ui/help-overlay.blp:141
+msgctxt "shortcut window"
+msgid "Text"
+msgstr ""
+
+#: data/ui/help-overlay.blp:146
+msgctxt "shortcut window"
+msgid "Callout"
+msgstr ""
+
+#: data/ui/help-overlay.blp:151
+msgctxt "shortcut window"
+msgid "Step"
+msgstr ""
+
+#: data/ui/help-overlay.blp:156
+msgctxt "shortcut window"
+msgid "Highlighter"
+msgstr ""
+
+#: data/ui/help-overlay.blp:161
+msgctxt "shortcut window"
+msgid "Redact"
+msgstr ""
+
+#: data/ui/help-overlay.blp:167
+msgctxt "shortcut window"
+msgid "More Tools"
+msgstr ""
+
+#: data/ui/help-overlay.blp:170
+msgctxt "shortcut window"
+msgid "Crop"
+msgstr ""
+
+#: data/ui/help-overlay.blp:175
+msgctxt "shortcut window"
+msgid "Magnify"
+msgstr ""
+
+#: data/ui/help-overlay.blp:180
+msgctxt "shortcut window"
+msgid "Spotlight"
+msgstr ""
+
+#: data/ui/help-overlay.blp:185
+msgctxt "shortcut window"
+msgid "Stamp"
+msgstr ""
+
+#: data/ui/help-overlay.blp:190
+msgctxt "shortcut window"
+msgid "Cut-out"
+msgstr ""
+
+#: data/ui/help-overlay.blp:195
+msgctxt "shortcut window"
+msgid "Fill"
+msgstr ""
+
+#: data/ui/help-overlay.blp:200
+msgctxt "shortcut window"
+msgid "Eraser"
+msgstr ""
+
+#: data/ui/help-overlay.blp:205
+msgctxt "shortcut window"
+msgid "Magic wand"
+msgstr ""
+
+#: data/ui/help-overlay.blp:210
+msgctxt "shortcut window"
+msgid "Selection"
+msgstr ""
+
+#: src/application.rs:96
 msgid "Capturing arrives in milestone 0.1"
 msgstr ""
 
-#: src/application.rs:95
+#: src/application.rs:98
 msgid "Opening files arrives in milestone 0.1"
 msgstr ""
 
-#: src/application.rs:167
-msgid ""
-"Capture, mark up and record your screen. Everything stays on this computer."
+#: src/application.rs:178
+msgid "Works entirely on this computer. No account, no tracking."
+msgstr ""
+
+#: src/preferences.rs:137
+msgid "Choose Folder"
 msgstr ""

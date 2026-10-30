@@ -1,0 +1,215 @@
+using Gtk 4.0;
+
+ShortcutsWindow help_overlay {
+  modal: true;
+
+  ShortcutsSection {
+    section-name: "main";
+    max-height: 12;
+
+    ShortcutsGroup {
+      title: C_("shortcut window", "General");
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "New capture");
+        accelerator: "<Control>N";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Open file");
+        accelerator: "<Control>O";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Capture library");
+        accelerator: "<Control>L";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Preferences");
+        accelerator: "<Control>comma";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Keyboard shortcuts");
+        accelerator: "<Control>question";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Close window");
+        accelerator: "<Control>W";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Quit");
+        accelerator: "<Control>Q";
+      }
+    }
+
+    ShortcutsGroup {
+      title: C_("shortcut window", "Capture");
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Capture region");
+        accelerator: "Print";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Capture window");
+        accelerator: "<Alt>Print";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Capture screen");
+        accelerator: "<Shift>Print";
+      }
+    }
+
+    ShortcutsGroup {
+      title: C_("shortcut window", "Document");
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Save");
+        accelerator: "<Control>S";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Save as");
+        accelerator: "<Control><Shift>S";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Export");
+        accelerator: "<Control>E";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Copy image");
+        accelerator: "<Control>C";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Undo");
+        accelerator: "<Control>Z";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Redo");
+        accelerator: "<Control><Shift>Z";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Zoom");
+        accelerator: "<Control>plus <Control>minus";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Best fit");
+        accelerator: "<Control>0";
+      }
+    }
+
+    ShortcutsGroup {
+      title: C_("shortcut window", "Tools");
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Select");
+        accelerator: "V";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Arrow");
+        accelerator: "A";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Line");
+        accelerator: "L";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Pen");
+        accelerator: "P";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Shape");
+        accelerator: "U";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Text");
+        accelerator: "T";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Callout");
+        accelerator: "K";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Step");
+        accelerator: "S";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Highlighter");
+        accelerator: "H";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Redact");
+        accelerator: "B";
+      }
+    }
+
+    ShortcutsGroup {
+      title: C_("shortcut window", "More Tools");
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Crop");
+        accelerator: "C";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Magnify");
+        accelerator: "M";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Spotlight");
+        accelerator: "G";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Stamp");
+        accelerator: "I";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Cut-out");
+        accelerator: "X";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Fill");
+        accelerator: "F";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Eraser");
+        accelerator: "E";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Magic wand");
+        accelerator: "W";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Selection");
+        accelerator: "Q";
+      }
+    }
+  }
+}

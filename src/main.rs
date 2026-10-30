@@ -1,6 +1,7 @@
 mod application;
 mod cli;
 mod config;
+mod preferences;
 
 use gettextrs::{bind_textdomain_codeset, bindtextdomain, textdomain};
 use gtk::{gio, glib};
