@@ -3,6 +3,9 @@ mod capture;
 mod cli;
 mod config;
 mod preferences;
+// Only the development canvas preview uses the UI module so far (add-annotation-editor 3.1).
+#[cfg(debug_assertions)]
+mod ui;
 
 use gettextrs::{bind_textdomain_codeset, bindtextdomain, textdomain};
 use gtk::{gio, glib};

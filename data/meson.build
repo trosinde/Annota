@@ -9,6 +9,7 @@ blueprints = custom_target(
     'ui/countdown.blp',
     'ui/permission-dialog.blp',
     'ui/shortcut-dialog.blp',
+    'ui/canvas-preview.blp',
   ),
   output: '.',
   command: [blueprint_compiler, 'batch-compile', '@OUTPUT@', '@CURRENT_SOURCE_DIR@', '@INPUT@'],

@@ -1,0 +1,22 @@
+using Gtk 4.0;
+using Adw 1;
+
+// Development preview of the editor canvas (add-annotation-editor, task 3.1): shows one
+// document with zoom and pan. Only debug builds open it (`annota --dev-canvas FILE`); the real
+// editor window with header bar, tool strip, sidebar and tray replaces it (task 4.1).
+// Window size per the "Window and shell" redline. The title is the document name, the
+// subtitle "W × H" (plus "· N %" while not fitted), set at runtime — no translatable text.
+
+Adw.Window canvas_preview {
+  default-width: 1280;
+  default-height: 800;
+  width-request: 360;
+  height-request: 294;
+
+  content: Adw.ToolbarView toolbar_view {
+    [top]
+    Adw.HeaderBar {
+      title-widget: Adw.WindowTitle window_title {};
+    }
+  };
+}

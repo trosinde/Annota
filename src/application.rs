@@ -57,6 +57,16 @@ fn add_options(app: &adw::Application) {
         "Open an image or .annota file",
         Some("FILE"),
     );
+    // Development only: show a document in the canvas preview (until the editor exists).
+    #[cfg(debug_assertions)]
+    app.add_main_option(
+        "dev-canvas",
+        glib::Char::from(b'\0'),
+        glib::OptionFlags::HIDDEN,
+        glib::OptionArg::Filename,
+        "Development: show an image or .annota file in the canvas preview",
+        Some("FILE"),
+    );
     app.add_main_option(
         "version",
         glib::Char::from(b'v'),
@@ -110,6 +120,19 @@ fn handle_command_line(app: &adw::Application, cmdline: &gio::ApplicationCommand
             .filter(|d| DELAY_RANGE.contains(d))
             .map(|d| d as u32);
         capture::start(app, capture::Request::with_defaults(mode, delay));
+        return 0;
+    }
+
+    #[cfg(debug_assertions)]
+    if let Some(path) = options
+        .lookup::<std::path::PathBuf>("dev-canvas")
+        .ok()
+        .flatten()
+    {
+        // Relative to the launching process' directory, also when forwarded.
+        if let Some(path) = cmdline.create_file_for_arg(path.as_os_str()).path() {
+            crate::ui::preview::open(app, &path);
+        }
         return 0;
     }
 
