@@ -34,7 +34,9 @@ Every capture opens in an editor where annotations are separate, editable object
 - `document-format`
 
 ### Modified Capabilities
-- none
+- `app-shell`: `--open <file>` now actually opens the editor (task 4.4)
+- `capture`: captures, pasted and opened/dropped images now open in the editor instead of being
+  quick-saved as a PNG stand-in (task 4.5)
 
 ## Impact
 - New modules `src/document/`, `src/render/`, `src/ui/editor/`
