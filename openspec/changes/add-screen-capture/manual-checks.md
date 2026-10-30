@@ -1,0 +1,38 @@
+# Manual checks — add-screen-capture
+
+Every scenario has automated coverage of its decision logic (`cargo test`, see the last column).
+What the tests cannot do is talk to a real xdg-desktop-portal, GNOME Shell or GNOME's keybinding
+daemon: this change was developed on the maintainer's own desktop, where a real portal call would
+capture the actual screen and real keybindings would change the real session. **None of the rows
+marked "live" has been run yet.** Run them on Ubuntu 24.04 (GNOME 46, no GlobalShortcuts portal)
+and Ubuntu 26.04 (GNOME 50, with the portal) before archiving, with the installed `.deb` (so
+`annota` is on `PATH`) or `meson devenv -C _build ./src/annota`.
+
+What *was* run (2026-10-30): the full UI in an isolated session — private D-Bus daemon without
+service activation (so no portal can start), Xvfb, `GSETTINGS_BACKEND=memory` — covering the
+launcher popover, Preferences › Capture without portal (banner, "Create GNOME Shortcuts" →
+toast and row subtitles, in memory only), the Set Shortcut dialog with a free and a conflicting
+key, and `annota --capture …` forwarded to a running instance ending in the "portal not running"
+toast. `dconf` was checked before and after: unchanged.
+
+| Scenario | Status | How to check (live) | Automated |
+|---|---|---|---|
+| Region / Select and confirm | live check pending | Launcher (header-bar button or `Ctrl+N`) → Capture Region. Drag ~400×300, watch the size chip, release, press Enter. With after-capture "Open in Editor" a 400×300 PNG appears in the save folder and a toast says "Region captured · 400 × 300 · Saved as …". | `geometry::drag_400_by_300`, `frame::crop_has_exact_size_and_content`, `delivery::after_capture_plans` |
+| Region / Cancel | live check pending | Start a region capture, press Esc (also try the toolbar's Cancel). Overlay closes, no file, no toast, no window when started via `annota --capture region` with Annota closed. | — beyond `geometry::click_without_drag_has_no_selection`: Esc maps to `Outcome::Cancelled`, which `capture::run` turns into "no image" before any delivery code runs (needs a display to test end to end) |
+| Region / Fixed size | live check pending | After a drag, type 800 and 600 into W/H in the toolbar: the selection follows while typing. | `geometry::fixed_size_*` |
+| Region / Snap to a window edge | live check pending | Drag near a window's left edge: the corner jumps within 8 px, a violet guide and "Snapped to window edge" chip appear; holding Alt disables snapping. | `snap::snaps_within_8_px`, `no_snap_beyond_8_px`, `corner_snaps_on_both_axes`, `text_does_not_snap` |
+| Region / Nudge with the keyboard | live check pending | After release press →, Shift+↓; chip "at x, y" changes by 1 and 10. | `geometry::arrow_keys_nudge_one_or_ten_px`, `nudge_stops_at_monitor_edge` |
+| Region (loupe) | live check pending | While dragging, the Ø 136 px loupe follows 26 px right/below the pointer and flips near the right/bottom edge; the chip shows `#RRGGBB` and `x, y`. | `geometry::loupe_flips_near_edges` |
+| Window on Wayland | live check pending | Launcher → Window (or `--capture window`): GNOME's own screenshot UI appears; pick a window; it arrives like a region capture. | `portal::window_mode_uses_the_interactive_picker` |
+| Multi-monitor | live check pending | Two monitors, pointer on the second, `annota --capture screen`: only that monitor's pixels. With "Capture all monitors" on: the whole desktop. | `geometry::two_monitors_map_to_image_halves`, `hidpi_layout_scales_crop`, `layout_with_negative_origin` |
+| Countdown | live check pending | Launcher delay 5 s → Capture: OSD counts 5…1 (Coral ring), clicks pass through to other windows; Esc cancels, Enter captures at once. The resulting image must not contain the OSD (zoom into the centre). | `countdown::counts_down_whole_seconds`, `ring_shrinks_to_zero`, `osd_is_gone_before_the_grab` |
+| Hotkey on GNOME 46 | live check pending (24.04) | Preferences › Capture shows the banner; "Create GNOME Shortcuts" → toast "3 GNOME shortcuts created"; GNOME Settings › Keyboard › Custom Shortcuts lists the three Annota entries; pressing Print starts a region capture with Annota closed. | `shortcuts::gnome_keybinding_runs_annota_capture`, `custom_keybinding_list_is_merged_not_replaced`, `d9_defaults_are_gnome_print_keys`, `program_name_prefers_path` |
+| Takeover is reversible | live check pending (24.04) | After creating the shortcuts: `gsettings get org.gnome.shell.keybindings show-screenshot-ui` is `@as []`. Set Shortcut → Backspace on Region capture → it is `['Print']` again. | `shortcuts::takeover_moves_gnome_bindings_aside`, `restore_gives_keys_back`, `takeover_leaves_unrelated_keys_alone` |
+| Shortcut conflict | UI checked in isolated session | Set Shortcut → press Super+L: "Used by Lock screen", Set insensitive. | `shortcuts::conflicts_are_found_by_accelerator`, `accelerators_normalise` |
+| Portal shortcuts (GNOME ≥ 48) | live check pending (26.04) | First launch shows GNOME's own "allow shortcuts" dialog; afterwards Print starts a region capture while Annota runs; rows say "System shortcut". | `shortcuts::xdg_triggers_for_portal` |
+| Include cursor | live check pending | Include pointer on, `annota --capture screen`: the arrow pointer is in the image where the pointer was. | `frame::pointer_is_visible_after_drawing`, `frame_without_pointer_is_untouched` |
+| Paste | live check pending | Copy an image in another app, `Shift+Ctrl+V` in Annota: toast "New capture from clipboard · Saved as …" with Undo (Undo moves the file to the trash). Empty clipboard: "The clipboard does not contain an image". | — (needs a display clipboard) |
+| Drop an image file / Unsupported file | live check pending | Drag a PNG from Files onto the window: dashed drop zone "Drop to Open as New Capture", then the same toast as Paste. A `.gif`: "Only PNG, JPG and WebP images can be opened". WebP needs `webp-pixbuf-loader`. | `import::accepts_png_jpg_webp_only` |
+| Copy to clipboard / Both | live check pending | after-capture "Copy to Clipboard", `annota --capture region` with Annota closed: no window opens, the image pastes into another app (Annota stays running in the background until something else takes the clipboard). "Both": PNG saved and clipboard filled. | `delivery::after_capture_plans`, `imports_always_become_a_new_capture`, `unique_path_never_overwrites` |
+| Permission denied | live check pending | `flatpak permission-set screenshot screenshot io.github.trosinde.Annota no` (or GNOME Settings › Apps › Annota › Screenshots off), then capture: the "Screen Access Denied" dialog; "Open Settings" opens Settings at Apps › Annota. | `portal::permission_errors_map_to_denied`, `permission::opens_annota_app_settings` |
+| Second launch starts a capture (app-shell) | checked in isolated session (no portal) | With Annota running, `annota --capture region`: the existing instance starts the overlay without raising its window first; `pgrep -c annota` is 1. | — |

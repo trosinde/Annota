@@ -24,6 +24,14 @@
       `## MODIFIED Requirements` delta completing bootstrap-app-shell's "Command-line
       interface" requirement's open-file scenario (see the note left in
       `openspec/specs/app-shell/spec.md` after that change archives)
+- [ ] 4.5 Captures open in the editor: `add-screen-capture` delivers "Open in Editor" (and "Both"),
+      pasted (`Shift+Ctrl+V`) and opened/dropped images as a quick-saved PNG plus toast because no
+      editor existed yet (`src/capture/delivery.rs`, `deliver`). Add `specs/capture/spec.md` with a
+      `## MODIFIED Requirements` delta on the `capture` capability — "After-capture destination",
+      "Image from clipboard or file" and the "Select and confirm" / "Window on Wayland" scenarios of
+      "Region capture" / "Window capture" — so these open a new editor tab (mockups 12, 13 of
+      add-screen-capture), and route `deliver` there. Also pick up bootstrap-app-shell's welcome page
+      mode cards (its mockup 01), whose copy promises the editor.
 
 ## 5. Verify
 - [ ] 5.1 Tests for every scenario (unit, golden-image or documented manual check)
