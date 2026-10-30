@@ -55,3 +55,8 @@
 - [ ] 5.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
 - [ ] 5.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean
 - [ ] 5.4 German translation updated
+- [ ] 5.5 Before archiving: resolve the phase-2a follow-ups tracked in `design.md`'s "Risks /
+      open questions" (non-uniform group resize, snap guides after a ratio-locked resize, the
+      unreliable live-GTK-test harness, maintainer sign-off on SHALL lines added during apply,
+      nudge-history coalescing, the German-keyboard z-order shortcut, unknown-member groups
+      hiding known content)

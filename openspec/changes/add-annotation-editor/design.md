@@ -201,4 +201,36 @@ Tasks 3.2–3.4. The logic is in the library (`src/editing/`, `src/tools/group.r
 - Behaviour is identical unless stated in a decision above.
 
 ## Risks / open questions
-- To be completed during `/opsx:propose` refinement.
+
+### Follow-ups from the phase-2a reviewer pass — fix before archive, not blocking phase 2b
+- **Non-uniform group resize is visibly wrong, not just imprecise.** Resizing a multi-selection
+  or group that contains a member at a non-multiple-of-90° angle to the box (e.g. drag the E
+  handle on a selection containing a 45°-rotated member) grows the box on the axis the user
+  didn't drag — up to +16% measured at 30°/45° — and compounds over repeated resizes. Exact at
+  0°/90°. Fix: force uniform scaling whenever any member sits at a non-multiple-of-90° angle to
+  the box (cheap, exact), or explicitly scope this as a known limitation if a fix is deferred.
+- **Snap guides aren't re-checked after a ratio-locked resize.** On an image corner-resize
+  without Shift (ratio locked), the guide/chip can claim a snap (e.g. "Canvas edge" at x=1600)
+  that the final box doesn't actually land on (box ends at x=2000) — the ratio clamp is applied
+  after snapping. Low-medium severity, worth fixing before archive.
+- **The live-display GTK test harness is unreliable, not just slow.** Running both `#[ignore]`d
+  GTK tests in one `cargo test ... -- --ignored` process can silently pass a test that printed
+  "skipped: no display" instead of actually running, and with no display at all both pass
+  without doing anything — a failed `gtk::init` doesn't fail the test. Fix before phase 2b adds
+  more live tests: make a failed `gtk::init` an actual test failure, and run one GTK test per
+  process (or switch to a `harness = false` integration test for these).
+- **SHALL-level decisions added during apply need a maintainer look**, not just an implementer
+  judgement call, before this change archives: Ctrl+click-toggles-selection, the rubber band
+  requiring objects "entirely inside", Duplicate's 10px offset, images keeping aspect ratio
+  *unless* Shift is held (this reverses the sense implied elsewhere — check it's what's wanted),
+  and z-order's "one step past the next unselected object" rule.
+- **Nudge-history spam.** Every arrow-key repeat is its own undo step; holding an arrow ~7s can
+  push all 200 older steps out of history. Consider coalescing consecutive nudges into one step.
+- **Ctrl+Shift+]/[ (bring to front / send to back) isn't typeable on German QWERTZ** without
+  AltGr for the brackets. Flag when 4.1 finalizes the real keyboard shortcuts / shortcuts window.
+- **Groups with an unknown-type member hide their known content too.** A known, otherwise
+  perfectly editable member becomes invisible (not drawn, not selectable, not exported) if it
+  shares a group with an object of a type this Annota version doesn't understand — same
+  forward-compatibility rule as phase 1, but now it can hide content the user *can* see correctly
+  elsewhere in the document. Worth a note in the eventual "opened with an older/newer version"
+  UI (4.1) so this isn't surprising.
