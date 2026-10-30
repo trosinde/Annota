@@ -35,9 +35,15 @@
       they are and don't need to change)
 - [ ] 4.6 First-launch takeover prompt (D9: "Annota offers at first launch to take over the Print
       keys"). No mockup exists for it in `docs/design/add-screen-capture/`, so it needs a `designer`
-      mockup and maintainer approval before it can be built. Until then the takeover is offered in
-      Preferences › Capture (banner, mockup 09), and on GNOME ≥ 48 GNOME's own GlobalShortcuts
-      consent dialog appears at first launch.
+      mockup and maintainer approval before it can be built. Until then the takeover is only
+      offered in Preferences › Capture (banner, mockup 09), and only takes effect via the
+      GNOME-custom-keybinding fallback (no GlobalShortcuts portal). On GNOME ≥ 48 (the portal
+      path — Debian 13, Ubuntu 26.04), there is no takeover yet: Annota registers its preferred
+      triggers with the portal while GNOME Shell keeps its own Print bindings, so which one
+      actually fires depends on the compositor; GNOME's own GlobalShortcuts consent dialog
+      governs whether Annota's registration succeeds at all, it is not a takeover prompt. Needs a
+      live check on a GNOME ≥ 48 system (see `manual-checks.md`) and, if the portal path needs
+      its own takeover, a follow-up task once that's designed.
 
 > Deferred on purpose, not forgotten:
 > - **Editor destination.** The editor does not exist yet (`add-annotation-editor`). "Open in Editor"

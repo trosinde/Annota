@@ -59,11 +59,15 @@ The system SHALL register configurable global shortcuts for region (default `Pri
 - **AND** pressing it starts a region capture
 
 ### Requirement: Reversible takeover of GNOME's screenshot keys
-Per decision D9 (`docs/design/decisions.md`) the default shortcuts are GNOME's own screenshot keys. When Annota creates its shortcuts, the system SHALL move GNOME's bindings for the same keys aside (recorded by Annota, never deleted) and SHALL give them back when the Annota shortcut is disabled or changed. The offer is made in Preferences › Capture; a first-launch prompt has no mockup yet and is tracked in this change's `tasks.md`.
+Per decision D9, the default shortcuts are GNOME's own screenshot keys. On the GNOME-custom-keybinding fallback only (see "Global capture hotkey"), when Annota creates those keybindings the system SHALL move GNOME's bindings for the same keys aside, recorded and never deleted, and SHALL give them back when the Annota shortcut is disabled or changed.
 
 #### Scenario: Takeover is reversible
 - **WHEN** Annota's GNOME shortcuts were created and the user disables the region shortcut with Backspace in the Set Shortcut dialog
 - **THEN** GNOME's own `Print` binding is restored
+
+#### Scenario: No takeover on the GlobalShortcuts portal path
+- **WHEN** the GlobalShortcuts portal is available (GNOME ≥ 48, e.g. Debian 13, Ubuntu 26.04) and Annota registers `Print`/`Alt+Print`/`Shift+Print` as its preferred triggers
+- **THEN** GNOME Shell's own bindings for those keys are left untouched, and which of GNOME or Annota actually reacts to the key depends on the compositor
 
 #### Scenario: Shortcut conflict
 - **WHEN** the user presses a key combination in the Set Shortcut dialog that another GNOME action already uses (other than GNOME's own screenshot keys, which Annota takes over)

@@ -407,18 +407,24 @@ fn set_moved_keys(
 }
 
 /// Moves GNOME's bindings for `accels` aside (D9) and remembers them for later restore.
+///
+/// Records the move *before* actually removing GNOME's bindings: if the record write failed
+/// after GNOME's keys were already cleared, Annota would have no way to know what to give back,
+/// losing the user's Print key for good. Recording first and removing second instead risks only
+/// a stale record for a removal that never happened, which `give_back` handles as a harmless
+/// no-op (it writes GNOME's key back to a value it never actually lost).
 fn take_over(settings: &gio::Settings, accels: &[String]) -> Result<(), ShortcutError> {
     let takeover = plan_takeover(&read_gnome_screenshot_keys(), accels);
-    write_gnome_screenshot_keys(&takeover.updates)?;
     if !takeover.moved.is_empty() {
         let mut moved = moved_keys(settings);
-        for entry in takeover.moved {
-            if !moved.contains(&entry) {
-                moved.push(entry);
+        for entry in &takeover.moved {
+            if !moved.contains(entry) {
+                moved.push(entry.clone());
             }
         }
         set_moved_keys(settings, &moved)?;
     }
+    write_gnome_screenshot_keys(&takeover.updates)?;
     Ok(())
 }
 
@@ -482,6 +488,11 @@ fn keybinding_name(mode: CaptureMode) -> String {
 }
 
 /// "Create GNOME Shortcuts" (mockup 09 → 10). Returns how many shortcuts were created.
+///
+/// Writes Annota's own keybindings before touching any of GNOME's: if `write_custom_keybindings`
+/// fails (e.g. a locked dconf key), GNOME's Print bindings are never moved aside in the first
+/// place, rather than removed with `gnome-shortcuts-created` never getting set true — which would
+/// leave the UI's give-back path (gated on that flag) unable to reach them.
 pub fn create_gnome_shortcuts(settings: &gio::Settings) -> Result<usize, ShortcutError> {
     if !gnome_keybindings_supported() {
         return Err(ShortcutError::Unsupported);
@@ -493,8 +504,8 @@ pub fn create_gnome_shortcuts(settings: &gio::Settings) -> Result<usize, Shortcu
         .filter(|(_, accel)| Accel::parse(accel).is_none())
         .map(|(mode, _)| keybinding_path(*mode))
         .collect();
-    take_over(settings, &enabled_accels(settings))?;
     write_custom_keybindings(&entries, &disabled)?;
+    take_over(settings, &enabled_accels(settings))?;
     settings.set_boolean("gnome-shortcuts-created", true)?;
     Ok(entries.len())
 }

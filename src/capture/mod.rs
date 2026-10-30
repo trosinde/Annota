@@ -63,8 +63,11 @@ pub fn start(app: &adw::Application, request: Request) {
         return;
     }
     let app = app.clone();
+    // Must be taken synchronously, before the first poll of the future below: a cold
+    // `annota --capture <mode>` has no window and nothing else holding the application, so
+    // glib can decide to quit before an async-block `app.hold()` ever gets a chance to run.
+    let hold = app.hold();
     glib::spawn_future_local(async move {
-        let hold = app.hold();
         let hidden: Vec<gtk::Window> = app
             .windows()
             .into_iter()

@@ -32,7 +32,7 @@ Capturing is the entry point of every Annota workflow. It must work on GNOME Way
 - `capture`
 
 ### Modified Capabilities
-- none
+- `app-shell`: `--capture <mode>` now actually starts a capture instead of only acknowledging the request (completes the "Single application instance" requirement bootstrap-app-shell left as a placeholder)
 
 ## Impact
 - New module `src/capture/`; dependency `ashpd`
