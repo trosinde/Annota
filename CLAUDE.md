@@ -151,6 +151,7 @@ Every user-visible feature goes through these gates. No gate may be skipped.
    `design.md` (`Design approved: <date>`).
 4. **Apply** — `/opsx:apply <id>`; implementation follows the mockups exactly (spacing, icons,
    labels, shortcuts). The `gtk-engineer` agent may be used for implementation chunks.
+   Cross-change design decisions live in `docs/design/decisions.md` and override single redlines.
 5. **Verify** — the `reviewer` agent (fresh context, did not write the code) checks: every
    scenario has a test or a documented manual check, UI matches mockups (screenshot comparison),
    clippy/fmt/tests green, `.deb` builds, lintian clean. Then `/opsx:archive <id>`.

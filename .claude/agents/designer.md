@@ -48,6 +48,8 @@ Location `docs/design/kit/`:
 
 ## Mockup workflow per OpenSpec change
 
+Before anything else read `docs/design/decisions.md` — it overrides individual redlines (header bar, tool strip, shortcuts, preferences structure).
+
 Input: change id. Read `openspec/changes/<id>/proposal.md`, all `specs/**/spec.md`, `design.md`,
 `CLAUDE.md` and the kit.
 
