@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-30 22:52+0100\n"
+"POT-Creation-Date: 2026-10-31 00:06+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,7 +21,7 @@ msgstr ""
 #: data/io.github.trosinde.Annota.desktop.in:2
 #: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:42
 #: data/ui/editor-window.blp:268 data/ui/editor-window.blp:315
-#: src/ui/editor/mod.rs:649 src/ui/editor/mod.rs:651
+#: src/ui/editor/mod.rs:654 src/ui/editor/mod.rs:656
 msgid "Annota"
 msgstr ""
 
@@ -39,15 +39,15 @@ msgstr ""
 msgid "screenshot;capture;annotate;arrow;markup;redact;screen;recording;"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:344
+#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:349
 msgid "Capture Region"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:21 src/application.rs:345
+#: data/io.github.trosinde.Annota.desktop.in:21 src/application.rs:350
 msgid "Capture Window"
 msgstr ""
 
-#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:346
+#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:351
 msgid "Capture Screen"
 msgstr ""
 
@@ -449,7 +449,7 @@ msgid "Open in Editor"
 msgstr ""
 
 #: data/ui/preferences.blp:188 data/ui/editor-window.blp:343
-#: src/ui/editor/mod.rs:1612
+#: src/ui/editor/mod.rs:1643
 msgid "Copy to Clipboard"
 msgstr ""
 
@@ -899,7 +899,7 @@ msgid "Copy to Folder…"
 msgstr ""
 
 #: data/ui/editor-window.blp:125 src/capture/delivery.rs:296
-#: src/ui/editor/mod.rs:461
+#: src/ui/editor/mod.rs:463
 msgid "Copy"
 msgstr ""
 
@@ -957,7 +957,7 @@ msgid "Zoom Out"
 msgstr ""
 
 #: data/ui/editor-window.blp:299 src/capture/delivery.rs:281
-#: src/ui/editor/mod.rs:474 src/ui/editor/mod.rs:1067 src/ui/editor/mod.rs:1490
+#: src/ui/editor/mod.rs:476 src/ui/editor/mod.rs:1088 src/ui/editor/mod.rs:1521
 #: src/ui/editor/text.rs:88
 msgid "Undo"
 msgstr ""
@@ -990,11 +990,11 @@ msgstr ""
 msgid "Select (V)"
 msgstr ""
 
-#: data/ui/editor-window.blp:383 src/ui/editor/sidebar.rs:667
+#: data/ui/editor-window.blp:383 src/ui/editor/sidebar.rs:699
 msgid "Select"
 msgstr ""
 
-#: data/ui/editor-window.blp:399
+#: data/ui/editor-window.blp:399 src/ui/editor/mod.rs:726
 msgid "Crop (C)"
 msgstr ""
 
@@ -1231,11 +1231,11 @@ msgid ""
 "copy of each one, so they can be restored."
 msgstr ""
 
-#: data/ui/restore-dialog.blp:49
+#: data/ui/restore-dialog.blp:55
 msgid "Discard"
 msgstr ""
 
-#: data/ui/restore-dialog.blp:54
+#: data/ui/restore-dialog.blp:60
 msgid "Restore"
 msgstr ""
 
@@ -1297,15 +1297,15 @@ msgstr ""
 msgid "The editor could not be opened"
 msgstr ""
 
-#: src/application.rs:311 src/capture/overlay.rs:284 src/preferences.rs:232
+#: src/application.rs:316 src/capture/overlay.rs:284 src/preferences.rs:232
 msgid "{seconds} s"
 msgstr ""
 
-#: src/application.rs:477
+#: src/application.rs:482
 msgid "The capture library arrives in milestone 0.1"
 msgstr ""
 
-#: src/application.rs:510
+#: src/application.rs:515
 msgid "Works entirely on this computer. No account, no tracking."
 msgstr ""
 
@@ -1461,61 +1461,61 @@ msgstr ""
 msgid "Choose Folder"
 msgstr ""
 
-#: src/ui/editor/mod.rs:447
+#: src/ui/editor/mod.rs:449
 msgid "Could not open “{name}”: {error}"
 msgstr ""
 
-#: src/ui/editor/mod.rs:1017
+#: src/ui/editor/mod.rs:1038
 msgid "Copying the image arrives in milestone 0.1"
 msgstr ""
 
-#: src/ui/editor/mod.rs:1020
+#: src/ui/editor/mod.rs:1041
 msgid "Exporting arrives in milestone 0.1"
 msgstr ""
 
-#: src/ui/editor/mod.rs:1023 src/ui/editor/mod.rs:1026
+#: src/ui/editor/mod.rs:1044 src/ui/editor/mod.rs:1047
 msgid "Saving arrives in milestone 0.1"
 msgstr ""
 
-#: src/ui/editor/mod.rs:1347
+#: src/ui/editor/mod.rs:1378
 msgid "Canvas Colour"
 msgstr ""
 
-#: src/ui/editor/mod.rs:1478
+#: src/ui/editor/mod.rs:1509
 msgid "Could not insert the image"
 msgstr ""
 
-#: src/ui/editor/mod.rs:1489
+#: src/ui/editor/mod.rs:1520
 msgid "Image inserted"
 msgstr ""
 
-#: src/ui/editor/mod.rs:1572
+#: src/ui/editor/mod.rs:1603
 msgid "Could not restore “{name}”: {error}"
 msgstr ""
 
-#: src/ui/editor/sidebar.rs:375
+#: src/ui/editor/sidebar.rs:386
 msgctxt "key"
 msgid "Esc"
 msgstr ""
 
-#: src/ui/editor/sidebar.rs:377
+#: src/ui/editor/sidebar.rs:401
 msgctxt "key"
 msgid "Enter"
 msgstr ""
 
-#: src/ui/editor/sidebar.rs:421 src/ui/labels.rs:146
+#: src/ui/editor/sidebar.rs:446 src/ui/labels.rs:146
 msgid "{n} px"
 msgstr ""
 
-#: src/ui/editor/sidebar.rs:621
+#: src/ui/editor/sidebar.rs:646
 msgid "{size} px"
 msgstr ""
 
-#: src/ui/editor/sidebar.rs:636
+#: src/ui/editor/sidebar.rs:668
 msgid "No editable objects"
 msgstr ""
 
-#: src/ui/editor/sidebar.rs:638
+#: src/ui/editor/sidebar.rs:670
 msgid "Annotations are part of the image"
 msgstr ""
 
@@ -1648,6 +1648,20 @@ msgstr ""
 msgid ""
 "This is Annota {version}, which opens format {major}.x. Install a newer "
 "Annota to open this file. The file was not changed."
+msgstr ""
+
+#: src/ui/editor/text.rs:213
+msgid ""
+"This document has objects from a newer Annota. Update Annota to crop, "
+"rotate, flip, resize or flatten it."
+msgstr ""
+
+#: src/ui/editor/text.rs:219
+msgid "Needs a newer Annota: this document has objects from a newer version"
+msgstr ""
+
+#: src/ui/editor/text.rs:221
+msgid "{action} · {reason}"
 msgstr ""
 
 #: src/ui/labels.rs:18

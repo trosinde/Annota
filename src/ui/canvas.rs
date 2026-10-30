@@ -1049,7 +1049,15 @@ impl Canvas {
     // ---- crop mode ----
 
     /// Enters crop mode (tool C): the frame starts as the whole canvas; the selection is cleared.
+    /// Not in a document with objects of a newer Annota, which could not follow a crop.
     pub fn start_crop(&self) {
+        if self
+            .with_document(image_ops::has_unknown_objects)
+            .unwrap_or(true)
+        {
+            self.notify_changed();
+            return;
+        }
         self.cancel_drag();
         self.with_state(|s| {
             if s.crop.is_none() {

@@ -128,10 +128,13 @@ pub struct DocumentInfo {
     /// Half the image's shorter side.
     pub max_corner_radius: f64,
     pub background: Background,
-    /// Editable (top-level) objects.
+    /// Editable (top-level) objects; objects of a newer Annota are not editable here.
     pub objects: usize,
     /// Selectable objects per type, most first (the summary of mockup 16).
     pub by_type: Vec<(&'static str, usize)>,
+    /// The document has objects of a type this version does not know, so the image
+    /// operations are unavailable (`image_ops::has_unknown_objects`).
+    pub newer_objects: bool,
 }
 
 /// Something selected.
@@ -188,8 +191,9 @@ pub fn state(doc: &Document, selection: &[ObjectId]) -> State {
             corner_radius: doc.image().corner_radius,
             max_corner_radius: image_ops::max_corner_radius(doc),
             background: canvas.background,
-            objects: doc.object_count(),
+            objects: by_type.iter().map(|(_, n)| n).sum(),
             by_type,
+            newer_objects: image_ops::has_unknown_objects(doc),
         });
     }
     let first = selected[0].object.type_name();
@@ -332,6 +336,9 @@ pub struct Sidebar {
     pub(super) eyedropper: gtk::Button,
     pub snap_row: adw::SwitchRow,
     pub(super) objects_row: adw::ActionRow,
+    /// Image operation buttons (Resize…, Rotate & Flip, Flatten All) with their own tooltips;
+    /// they explain why they are unavailable in a document with objects of a newer Annota.
+    pub(super) image_op_buttons: Vec<(gtk::Button, Option<glib::GString>)>,
     pub(super) selection_heading: gtk::Label,
     pub(super) selection_caption: gtk::Label,
     pub(super) members_list: gtk::ListBox,
@@ -378,6 +385,19 @@ impl Sidebar {
         let crop_cancel_key: gtk::Label = obj!("crop_cancel_key");
         crop_cancel_key.set_text(&pgettext("key", "Esc"));
         let crop_apply_key: gtk::Label = obj!("crop_apply_key");
+        let mut image_op_buttons = Vec::new();
+        for name in [
+            "resize_button",
+            "rotate_left_button",
+            "rotate_right_button",
+            "flip_horizontal_button",
+            "flip_vertical_button",
+            "flatten_all_button",
+        ] {
+            let button: gtk::Button = obj!(name);
+            let tooltip = button.tooltip_text();
+            image_op_buttons.push((button, tooltip));
+        }
         crop_apply_key.set_text(&pgettext("key", "Enter"));
         let sidebar = std::rc::Rc::new(Self {
             properties_box: obj!("properties_box"),
@@ -392,6 +412,7 @@ impl Sidebar {
             eyedropper: obj!("swatch_eyedropper"),
             snap_row: obj!("snap_row"),
             objects_row: obj!("objects_row"),
+            image_op_buttons,
             selection_heading: obj!("selection_heading"),
             selection_caption: obj!("selection_caption"),
             members_list: obj!("members_list"),
@@ -635,6 +656,13 @@ impl Sidebar {
                 button.remove_css_class("annota-swatch-current");
             }
         }
+        // Their actions are disabled then (the editor); the tooltips say why.
+        for (button, tooltip) in &self.image_op_buttons {
+            let text = info
+                .newer_objects
+                .then(|| text::newer_objects_tooltip(tooltip.as_deref()));
+            button.set_tooltip_text(text.as_deref().or(tooltip.as_deref()));
+        }
         // Mockup 18: after Flatten All, "No editable objects · Annotations are part of the image".
         if info.objects == 0 {
             self.objects_row.set_title(&gettext("No editable objects"));
@@ -763,6 +791,33 @@ mod tests {
         assert_eq!(info.by_type, vec![(Image::TYPE, 3)]);
         assert_eq!(info.background, Background::Transparent);
         assert_eq!(Swatch::current(info.background), Some(Swatch::Transparent));
+        assert!(!info.newer_objects);
+    }
+
+    #[test]
+    fn objects_of_a_newer_annota_are_not_editable() {
+        // N1: they are not counted as editable, and the image operations are off.
+        let (mut doc, mut history) = doc_with_images(3);
+        let serde_json::Value::Object(fields) = serde_json::json!({"x": 1}) else {
+            panic!("object expected");
+        };
+        let id = doc.scene().fresh_ids(1)[0];
+        let node = annota::document::scene::Node::new(
+            id,
+            Box::new(annota::document::registry::UnknownObject::new(
+                "hologram", fields,
+            )),
+        );
+        let insert = annota::document::command::Command::Insert {
+            nodes: vec![(3, node)],
+            resources: Vec::new(),
+        };
+        history.execute(&mut doc, "Read", insert).unwrap();
+        let State::Document(info) = state(&doc, &[]) else {
+            panic!("document page expected");
+        };
+        assert_eq!(info.objects, 3);
+        assert!(info.newer_objects);
     }
 
     #[test]

@@ -692,7 +692,7 @@ Box properties_box {
             styles ["property"]
 
             [suffix]
-            Button {
+            Button resize_button {
               label: _("Resize…");
               valign: center;
               action-name: "win.resize-image";
@@ -708,25 +708,25 @@ Box properties_box {
               valign: center;
               styles ["linked"]
 
-              Button {
+              Button rotate_left_button {
                 icon-name: "object-rotate-left-symbolic";
                 action-name: "win.rotate-left";
                 tooltip-text: _("Rotate Left (Ctrl+Shift+R)");
               }
 
-              Button {
+              Button rotate_right_button {
                 icon-name: "object-rotate-right-symbolic";
                 action-name: "win.rotate-right";
                 tooltip-text: _("Rotate Right (Ctrl+R)");
               }
 
-              Button {
+              Button flip_horizontal_button {
                 icon-name: "object-flip-horizontal-symbolic";
                 action-name: "win.flip-horizontal";
                 tooltip-text: _("Flip Horizontally");
               }
 
-              Button {
+              Button flip_vertical_button {
                 icon-name: "object-flip-vertical-symbolic";
                 action-name: "win.flip-vertical";
                 tooltip-text: _("Flip Vertically");

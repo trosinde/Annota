@@ -179,11 +179,22 @@ Every document change SHALL be undoable with `Ctrl+Z` and redoable with `Ctrl+Sh
 - **THEN** a single undo step named "Move Group" returns it to where it started
 
 ### Requirement: Image operations
-Users SHALL crop, resize, rotate by 90° and flip the image, and round its corners. Each SHALL be one undo step, and annotations SHALL keep their place on the image. Objects of a type this version does not know are left where they are.
+Users SHALL crop, resize, rotate by 90° and flip the image, and round its corners. Each SHALL be one undo step, and annotations SHALL keep their place on the image.
 
 #### Scenario: Crop
 - **WHEN** the user selects the crop tool, drags the crop handles and presses Enter
 - **THEN** the image and canvas are cropped and annotations keep their image positions
+
+### Requirement: Image operations with objects of a newer version
+While a document contains objects of a type this version does not know, Crop, Rotate Left and Right, Flip Horizontally and Vertically, Resize Image, Flatten and Flatten All SHALL be unavailable, since those objects could not follow: disabled in the menus, the sidebar and the tool strip, with a tooltip saying that a newer Annota is needed, and their keys SHALL show a toast saying so. All other editing SHALL stay available.
+
+#### Scenario: Document with objects of a newer version
+- **WHEN** a document with an object of an unknown type is open and the user presses Ctrl+R
+- **THEN** nothing changes, a toast says to update Annota, and Rotate, Flip, Resize Image, Flatten All and the Crop tool are disabled while moving the other objects still works
+
+#### Scenario: Operations return without such objects
+- **WHEN** the current document has no objects of an unknown type
+- **THEN** crop, rotate, flip, resize image and flatten are available
 
 ### Requirement: Crop mode
 Crop SHALL be a mode (tool `C`, mockup 08): a frame over the canvas — at first the whole canvas — with corner and edge grips, the canvas outside it dimmed, a rule-of-thirds grid and a "W × H px" chip below it. Dragging inside the frame moves it; it never leaves the canvas. The sidebar SHALL show the frame's X/Y/W/H (editable), an aspect ratio (Free, Original, 1:1, 4:3, 16:9) the frame keeps, Cancel (`Esc`) and Crop (`Enter`).
@@ -250,7 +261,7 @@ Users SHALL flatten the selected objects (`Ctrl+T`) or all objects (`Ctrl+Shift+
 - **THEN** every object is back, editable, and the image is as before
 
 ### Requirement: Flatten result
-Flattening SHALL draw the objects into the image exactly as they are exported, including the image's rounded corners (its corner radius becomes 0). Parts of objects on an extended canvas SHALL become part of the image. Objects of a type this version does not know SHALL be kept.
+Flattening SHALL draw the objects into the image exactly as they are exported, including the image's rounded corners (its corner radius becomes 0). Parts of objects on an extended canvas SHALL become part of the image.
 
 #### Scenario: Flattened pixels
 - **WHEN** a document is flattened

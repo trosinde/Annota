@@ -234,12 +234,14 @@ struct Actions {
     redo: gio::SimpleAction,
     /// Need an open document.
     document: Vec<gio::SimpleAction>,
-    /// Image operations: need a document and no crop in progress.
+    /// Image operations: need a document, no crop in progress and no objects of a newer Annota.
     image: Vec<gio::SimpleAction>,
-    /// Need a selection: Duplicate, Delete, the stacking order, Flatten Selection.
+    /// Need a selection: Duplicate, Delete, the stacking order.
     selected: Vec<gio::SimpleAction>,
     group: gio::SimpleAction,
     ungroup: gio::SimpleAction,
+    /// Like `selected`, and like the image operations no objects of a newer Annota.
+    flatten_selection: gio::SimpleAction,
     flatten_all: gio::SimpleAction,
     crop_apply: gio::SimpleAction,
     crop_cancel: gio::SimpleAction,
@@ -647,7 +649,6 @@ impl Editor {
         }
         w.zoom_osd.set_visible(has_doc);
         w.select_tool_button.set_sensitive(has_doc);
-        w.crop_tool_button.set_sensitive(has_doc);
         self.refresh_action_states();
         let Some(session) = current else {
             w.title.set_title(&gettext("Annota"));
@@ -691,6 +692,8 @@ impl Editor {
             selected: usize,
             group_selected: bool,
             flattenable: bool,
+            /// Objects of a newer Annota: no crop, rotate, flip, resize image or flatten.
+            newer_objects: bool,
         }
         let facts = self.current_canvas().and_then(|canvas| {
             let selection = canvas.selection();
@@ -706,12 +709,26 @@ impl Editor {
                         .is_some_and(|n| n.object.type_name() == Group::TYPE)
                 }),
                 flattenable: !image_ops::flattenable(doc).is_empty(),
+                newer_objects: image_ops::has_unknown_objects(doc),
             })
         });
         let editing = facts.as_ref().is_some_and(|f| !f.cropping);
+        let newer_objects = facts.as_ref().is_some_and(|f| f.newer_objects);
+        let image_ops = editing && !newer_objects;
         for action in &a.image {
-            action.set_enabled(editing);
+            action.set_enabled(image_ops);
         }
+        a.flatten_selection
+            .set_enabled(image_ops && facts.as_ref().is_some_and(|f| f.selected > 0));
+        // Crop is a tool button rather than an action; it says why it is unavailable.
+        let crop = &self.inner.w.crop_tool_button;
+        crop.set_sensitive(facts.is_some() && !newer_objects);
+        let crop_tooltip = gettext("Crop (C)");
+        crop.set_tooltip_text(Some(&if newer_objects {
+            text::newer_objects_tooltip(Some(&crop_tooltip))
+        } else {
+            crop_tooltip
+        }));
         for action in &a.selected {
             action.set_enabled(editing && facts.as_ref().is_some_and(|f| f.selected > 0));
         }
@@ -720,7 +737,7 @@ impl Editor {
         a.ungroup
             .set_enabled(editing && facts.as_ref().is_some_and(|f| f.group_selected));
         a.flatten_all
-            .set_enabled(editing && facts.as_ref().is_some_and(|f| f.flattenable));
+            .set_enabled(image_ops && facts.as_ref().is_some_and(|f| f.flattenable));
         a.crop_cancel
             .set_enabled(facts.as_ref().is_some_and(|f| f.cropping));
         a.crop_apply
@@ -1208,6 +1225,16 @@ impl Editor {
         let Some(canvas) = self.current_canvas() else {
             return false;
         };
+        if is_image_op_key(key, modifiers)
+            && !canvas.cropping()
+            && canvas
+                .with_document(image_ops::has_unknown_objects)
+                .unwrap_or(false)
+        {
+            // Their accelerators are disabled, so the keys arrive here: say why nothing happens.
+            self.toast(&text::newer_objects_toast());
+            return true;
+        }
         if canvas.key_pressed(key, modifiers) {
             return true;
         }
@@ -1685,7 +1712,6 @@ fn install_actions(window: &adw::ApplicationWindow, settings: &gio::Settings) ->
         "bring-forward",
         "send-backward",
         "send-to-back",
-        "flatten-selection",
     ]
     .into_iter()
     .map(simple)
@@ -1698,10 +1724,26 @@ fn install_actions(window: &adw::ApplicationWindow, settings: &gio::Settings) ->
         selected,
         group: simple("group"),
         ungroup: simple("ungroup"),
+        flatten_selection: simple("flatten-selection"),
         flatten_all: simple("flatten-all"),
         crop_apply: simple("crop-apply"),
         crop_cancel: simple("crop-cancel"),
         zoom_preset,
+    }
+}
+
+/// The keys of the image operations that a document with objects of a newer Annota cannot have:
+/// Rotate (Ctrl+R, Ctrl+Shift+R), Flatten (Ctrl+T, Ctrl+Shift+T) and the Crop tool (C).
+fn is_image_op_key(key: gdk::Key, modifiers: gdk::ModifierType) -> bool {
+    let ctrl = modifiers.contains(gdk::ModifierType::CONTROL_MASK);
+    let other = modifiers.intersects(gdk::ModifierType::ALT_MASK | gdk::ModifierType::SUPER_MASK);
+    if other {
+        return false;
+    }
+    match key.to_lower() {
+        gdk::Key::r | gdk::Key::t => ctrl,
+        gdk::Key::c => !ctrl && !modifiers.contains(gdk::ModifierType::SHIFT_MASK),
+        _ => false,
     }
 }
 
@@ -1825,6 +1867,159 @@ mod tests {
             .sidebar
             .properties_box
             .is_ancestor(&editor.inner.w.sheet_scroller)
+    }
+
+    /// Whether a label with exactly `text` is shown somewhere under `root` (a toast's title).
+    fn shows_label(root: &gtk::Widget, text: &str) -> bool {
+        if root
+            .downcast_ref::<gtk::Label>()
+            .is_some_and(|l| l.label() == text && l.is_mapped())
+        {
+            return true;
+        }
+        let mut child = root.first_child();
+        while let Some(c) = child {
+            if shows_label(&c, text) {
+                return true;
+            }
+            child = c.next_sibling();
+        }
+        false
+    }
+
+    /// N1: a document with an object of a type from a newer Annota disables crop, rotate, flip,
+    /// resize image and flatten (menu, sidebar, keys), says why, and keeps the rest editable.
+    /// Run on its own like the test below.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn newer_objects_block_image_operations_on_a_live_display() {
+        let tmp =
+            TempDir(std::env::temp_dir().join(format!("annota-newer-test-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(tmp.0.join("captures")).unwrap();
+        let app = environment(&tmp.0);
+        let editor = Editor::build(&app, Store::new(tmp.0.join("autosave"))).unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+
+        // The sample plus an object of a type this version does not know.
+        let plain = tmp.0.join("captures/Checkout flow.annota");
+        sample(&plain);
+        let newer = tmp.0.join("captures/From a newer Annota.annota");
+        let mut doc = annota::document::archive::load(&plain).unwrap();
+        let fields = serde_json::json!({"x": 10, "y": 10, "width": 50, "height": 20});
+        let serde_json::Value::Object(fields) = fields else {
+            panic!("object expected");
+        };
+        let id = doc.scene().fresh_ids(1)[0];
+        let node = annota::document::scene::Node::new(
+            id,
+            Box::new(annota::document::registry::UnknownObject::new(
+                "hologram", fields,
+            )),
+        );
+        let at = doc.scene().len();
+        History::new()
+            .execute(
+                &mut doc,
+                "Read",
+                annota::document::command::Command::Insert {
+                    nodes: vec![(at, node)],
+                    resources: Vec::new(),
+                },
+            )
+            .unwrap();
+        annota::document::archive::save(&doc, &newer).unwrap();
+
+        editor.open_file(&newer);
+        pump(300);
+        let a = &editor.inner.actions;
+        let canvas = editor.current_canvas().unwrap();
+        let unchanged = || canvas.history_info().undo_label.is_none();
+        assert!(a.image.iter().all(|a| !a.is_enabled()), "image operations");
+        assert!(!a.flatten_all.is_enabled());
+        assert!(!w.crop_tool_button.is_sensitive());
+        let crop_tip = w.crop_tool_button.tooltip_text().unwrap_or_default();
+        assert!(
+            crop_tip.starts_with("Crop (C) · Needs a newer Annota"),
+            "{crop_tip}"
+        );
+        let sidebar = &editor.inner.sidebar;
+        for (button, _) in &sidebar.image_op_buttons {
+            assert!(!button.is_sensitive());
+            let tip = button.tooltip_text().unwrap_or_default();
+            assert!(tip.contains("Needs a newer Annota"), "{tip}");
+        }
+        // The menu actions and their keys do nothing; the keys explain why in a toast.
+        let _ = WidgetExt::activate_action(&w.window, "win.rotate-right", None);
+        let _ = WidgetExt::activate_action(&w.window, "win.flatten-all", None);
+        pump(50);
+        assert!(unchanged());
+        let toast = text::newer_objects_toast();
+        assert!(!shows_label(w.toast_overlay.upcast_ref(), &toast));
+        assert!(editor.key_pressed(gdk::Key::r, gdk::ModifierType::CONTROL_MASK));
+        pump(300);
+        assert!(shows_label(w.toast_overlay.upcast_ref(), &toast), "toast");
+        assert!(editor.key_pressed(gdk::Key::c, gdk::ModifierType::empty()));
+        assert!(editor.key_pressed(
+            gdk::Key::T,
+            gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::SHIFT_MASK
+        ));
+        pump(50);
+        assert!(!canvas.cropping());
+        canvas.start_crop();
+        pump(50);
+        assert!(!canvas.cropping(), "no crop mode, however it is asked for");
+        assert!(unchanged());
+
+        // The known objects stay editable: select all, nudge, undo.
+        assert!(canvas.key_pressed(gdk::Key::a, gdk::ModifierType::CONTROL_MASK));
+        assert_eq!(
+            canvas.selection().len(),
+            2,
+            "the unknown object is not selectable"
+        );
+        assert!(canvas.key_pressed(gdk::Key::Right, gdk::ModifierType::empty()));
+        pump(50);
+        assert_eq!(
+            canvas.history_info().undo_label.as_deref(),
+            Some("Move 2 Objects")
+        );
+        // The canvas size stays available (it moves nothing).
+        assert!(canvas
+            .run(|d, _| annota::editing::image_ops::set_canvas_rect(
+                d,
+                annota::document::geometry::IRect::new(0, 0, 1800, 1000)
+            ))
+            .is_some());
+
+        // A document without such objects: everything is available again.
+        editor.open_file(&plain);
+        pump(300);
+        assert!(a.image.iter().all(|a| a.is_enabled()));
+        assert!(a.flatten_all.is_enabled());
+        assert!(w.crop_tool_button.is_sensitive());
+        assert_eq!(
+            w.crop_tool_button.tooltip_text().as_deref(),
+            Some("Crop (C)")
+        );
+        for (button, tooltip) in &sidebar.image_op_buttons {
+            assert!(button.is_sensitive());
+            assert_eq!(button.tooltip_text(), *tooltip);
+        }
+        assert!(!editor.key_pressed(gdk::Key::r, gdk::ModifierType::CONTROL_MASK));
+        let plain_canvas = editor.current_canvas().unwrap();
+        let _ = WidgetExt::activate_action(&w.window, "win.rotate-right", None);
+        pump(50);
+        assert_eq!(
+            plain_canvas.history_info().undo_label.as_deref(),
+            Some("Rotate Right")
+        );
+        w.window.destroy();
+        pump(50);
     }
 
     #[test]

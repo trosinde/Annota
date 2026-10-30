@@ -207,9 +207,37 @@ pub fn newer_version_body(
     format!("{first}\n\n{second}")
 }
 
+/// Toast when crop, rotate, flip, resize image or flatten is tried on a document with objects of
+/// a type this version does not know: they could not follow, so these stay unavailable.
+pub fn newer_objects_toast() -> String {
+    gettext("This document has objects from a newer Annota. Update Annota to crop, rotate, flip, resize or flatten it.")
+}
+
+/// Tooltip of a control that is unavailable for that reason; `name` is what it does
+/// ("Rotate Left"), or `None` for a control with a visible label.
+pub fn newer_objects_tooltip(name: Option<&str>) -> String {
+    let why = gettext("Needs a newer Annota: this document has objects from a newer version");
+    match name {
+        Some(name) => gettext("{action} · {reason}")
+            .replace("{action}", name)
+            .replace("{reason}", &why),
+        None => why,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn newer_objects_texts() {
+        assert!(newer_objects_toast().contains("Update Annota"));
+        assert_eq!(
+            newer_objects_tooltip(Some("Crop (C)")),
+            "Crop (C) · Needs a newer Annota: this document has objects from a newer version"
+        );
+        assert!(newer_objects_tooltip(None).starts_with("Needs a newer Annota"));
+    }
 
     #[test]
     fn subtitle_follows_the_redline() {

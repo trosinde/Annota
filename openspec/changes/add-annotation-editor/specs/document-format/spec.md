@@ -48,6 +48,10 @@ When a file of a newer minor version is saved, everything this version does not 
 - **WHEN** the user opens a file of a newer minor format version that contains properties and object types this version does not know, and saves it
 - **THEN** the file opens without a message and the saved file still contains those properties and objects
 
+#### Scenario: Unknown objects are not moved
+- **WHEN** a document contains an object of a type this version does not know
+- **THEN** the operations that would move or re-base every object (crop, rotate, flip, resize image, flatten) are unavailable, so that object always stays exactly where the file put it relative to the image
+
 #### Scenario: Unknown nested keys
 - **WHEN** a file of a newer minor version has unknown keys inside `canvas.background` and inside an object's `shadow`, and the user moves that object and saves
 - **THEN** the saved file contains those keys unchanged, and the object's new position

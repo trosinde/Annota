@@ -5,8 +5,11 @@
 //! Each returns an [`Edit`] — one `Command::Batch`, one undo step — or `None` if it would not
 //! change anything. Crop, resize, rotate and flip map the image, the canvas and every object
 //! through one [`Transform`] (objects through `Annotation::transform`), so annotations keep
-//! their place on the image. Objects of types this version does not know cannot be moved and
-//! are left where they are (as for every other edit).
+//! their place on the image. Objects of types this version does not know (from a newer Annota)
+//! cannot follow such a transform, and leaving them where they are would put them on the wrong
+//! pixels. So while a document has any ([`has_unknown_objects`]), crop, rotate, flip, resize
+//! image and flatten refuse (return `None`); the editor disables them and says why. Extending the
+//! canvas, its background and the corner radius move nothing and stay available.
 
 use crate::document::annotation::Annotation;
 use crate::document::bitmap::{Bitmap, MAX_SIDE};
@@ -33,6 +36,16 @@ pub enum Turn {
 pub fn image_rect(doc: &Document) -> IRect {
     let bitmap = &doc.image().bitmap;
     IRect::new(0, 0, bitmap.width(), bitmap.height())
+}
+
+/// Whether the document has objects of a type this version does not know (kept verbatim from a
+/// newer Annota; a group with such a member is one of them). The operations that re-base or move
+/// every object — crop, rotate, flip, resize image, flatten — are unavailable then.
+pub fn has_unknown_objects(doc: &Document) -> bool {
+    doc.scene()
+        .nodes()
+        .iter()
+        .any(|n| n.object.as_any().is::<UnknownObject>())
 }
 
 /// Every object this version can move, transformed by `t`.
@@ -77,6 +90,9 @@ fn edit(doc: &Document, action: Action, command: Command) -> Edit {
 /// Rotate Left / Rotate Right: the image, the canvas and every object turn a quarter around the
 /// image.
 pub fn rotate(doc: &Document, turn: Turn) -> Option<Edit> {
+    if has_unknown_objects(doc) {
+        return None;
+    }
     let image = doc.image();
     let (w, h) = (image.bitmap.width(), image.bitmap.height());
     let t = match turn {
@@ -111,6 +127,9 @@ pub fn rotate(doc: &Document, turn: Turn) -> Option<Edit> {
 /// their mirrored place with their angle mirrored (see `Transform::map_rotation`); image objects
 /// mirror their picture too, other types keep their content readable.
 pub fn flip(doc: &Document, mirror: Mirror) -> Option<Edit> {
+    if has_unknown_objects(doc) {
+        return None;
+    }
     let image = doc.image();
     let (w, h) = (image.bitmap.width(), image.bitmap.height());
     let (t, action) = match mirror {
@@ -148,6 +167,9 @@ pub fn flip(doc: &Document, mirror: Mirror) -> Option<Edit> {
 /// line widths, text sizes, borders and shadows scale too (by the mean of both factors);
 /// without, they keep their size in pixels.
 pub fn resize(doc: &Document, width: i32, height: i32, scale_annotations: bool) -> Option<Edit> {
+    if has_unknown_objects(doc) {
+        return None;
+    }
     let image = doc.image();
     let (w, h) = (image.bitmap.width(), image.bitmap.height());
     if !(1..=MAX_SIDE).contains(&width) || !(1..=MAX_SIDE).contains(&height) {
@@ -184,10 +206,11 @@ pub fn resize(doc: &Document, width: i32, height: i32, scale_annotations: bool) 
 }
 
 /// Whether `rect` is a crop that does something: inside the canvas, smaller than it, and
-/// keeping at least one pixel of the image.
+/// keeping at least one pixel of the image (and no unknown objects in the document).
 pub fn can_crop(doc: &Document, rect: IRect) -> bool {
     let canvas = doc.canvas().rect;
-    rect.width > 0
+    !has_unknown_objects(doc)
+        && rect.width > 0
         && rect.height > 0
         && canvas.intersection(&rect) == Some(rect)
         && rect != canvas
@@ -281,7 +304,7 @@ pub fn set_corner_radius(doc: &Document, radius: f64) -> Option<Edit> {
 /// the objects are removed. If that bitmap starts left of or above the old image (an object on
 /// an extended canvas), everything is re-based so the image starts at the origin again.
 fn burn(doc: &Document, ids: Vec<ObjectId>, action: Action) -> Option<Edit> {
-    if ids.is_empty() {
+    if ids.is_empty() || has_unknown_objects(doc) {
         return None;
     }
     let subject = Subject::of(doc.scene(), &ids);
@@ -321,8 +344,8 @@ pub fn flatten(doc: &Document, selection: &Selection) -> Option<Edit> {
     burn(doc, selection.ids().to_vec(), Action::Flatten)
 }
 
-/// The objects Flatten All burns in: every object this version can draw. Objects of unknown
-/// types (from a newer Annota) are kept as they are.
+/// The objects Flatten All burns in: every object this version can draw. (Flatten refuses while
+/// the document has objects of unknown types, see [`has_unknown_objects`].)
 pub fn flattenable(doc: &Document) -> Vec<ObjectId> {
     doc.scene()
         .nodes()
@@ -645,6 +668,93 @@ mod tests {
         let written = crate::document::registry::node_to_json(&node).unwrap();
         assert_eq!(written["flip_horizontal"], false);
         assert_eq!(written["flip_vertical"], false);
+    }
+
+    /// Adds an object of a type this version does not know (as read from a newer Annota).
+    fn add_unknown(doc: &mut Document, history: &mut History) -> ObjectId {
+        let fields = serde_json::json!({"x": 30, "y": 20, "width": 10, "height": 5});
+        let serde_json::Value::Object(fields) = fields else {
+            panic!("object expected");
+        };
+        let id = doc.scene().fresh_ids(1)[0];
+        let node =
+            crate::document::scene::Node::new(id, Box::new(UnknownObject::new("hologram", fields)));
+        let at = doc.scene().len();
+        history
+            .execute(
+                doc,
+                "Read",
+                Command::Insert {
+                    nodes: vec![(at, node)],
+                    resources: Vec::new(),
+                },
+            )
+            .unwrap();
+        id
+    }
+
+    #[test]
+    fn unknown_objects_block_the_operations_that_move_every_object() {
+        // N1 (maintainer decision): crop, rotate, flip, resize image and flatten would leave an
+        // object of an unknown type behind on the wrong pixels (its geometry is opaque), which
+        // breaks "left where they are". They refuse while such an object is in the document;
+        // everything that moves nothing, and editing the known objects, keeps working.
+        let (mut doc, mut history, known) = doc_with_object(Rect::new(40.0, 25.0, 10.0, 6.0));
+        // Without unknown objects every operation is available.
+        assert!(!has_unknown_objects(&doc));
+        assert!(rotate(&doc, Turn::Right).is_some());
+        assert!(flip(&doc, Mirror::Horizontal).is_some());
+        assert!(resize(&doc, 32, 20, true).is_some());
+        assert!(can_crop(&doc, IRect::new(0, 0, 30, 20)));
+        assert!(flatten_all(&doc).is_some());
+
+        let unknown = add_unknown(&mut doc, &mut history);
+        assert!(has_unknown_objects(&doc));
+        let before = crate::document::archive::document_json(&doc).unwrap();
+        assert!(rotate(&doc, Turn::Right).is_none());
+        assert!(rotate(&doc, Turn::Left).is_none());
+        assert!(flip(&doc, Mirror::Horizontal).is_none());
+        assert!(flip(&doc, Mirror::Vertical).is_none());
+        assert!(resize(&doc, 32, 20, true).is_none());
+        assert!(!can_crop(&doc, IRect::new(0, 0, 30, 20)));
+        assert!(crop(&doc, IRect::new(0, 0, 30, 20)).is_none());
+        assert!(flatten_all(&doc).is_none());
+        let mut sel = Selection::new();
+        sel.set(doc.scene(), [known]);
+        assert!(flatten(&doc, &sel).is_none());
+        assert_eq!(
+            crate::document::archive::document_json(&doc).unwrap(),
+            before
+        );
+
+        // Moving nothing stays available: canvas size, background, corner radius.
+        apply(&mut doc, &mut history, |d| {
+            set_canvas_rect(d, IRect::new(0, 0, 84, 40))
+        });
+        apply(&mut doc, &mut history, |d| {
+            set_background(
+                d,
+                Background::Color {
+                    color: palette::PAPER,
+                },
+            )
+        });
+        apply(&mut doc, &mut history, |d| set_corner_radius(d, 4.0));
+        // The known object is still edited normally.
+        let edit = crate::editing::ops::nudge(&doc, &sel, 5.0, 0.0).unwrap();
+        run(&mut doc, &mut history, edit);
+        assert_eq!(arrange(&doc, known).rect.x, 45.0);
+        let edit = crate::editing::ops::duplicate(&doc, &sel).unwrap();
+        run(&mut doc, &mut history, edit);
+        assert!(doc.scene().get(unknown).is_some());
+
+        // Once the unknown object is gone (here: undoing back to before it was read), the
+        // operations are available again.
+        while doc.scene().get(unknown).is_some() {
+            history.undo(&mut doc).unwrap();
+        }
+        assert!(!has_unknown_objects(&doc));
+        assert!(rotate(&doc, Turn::Right).is_some());
     }
 
     #[test]

@@ -506,6 +506,28 @@ Items from the final reviewer pass, each decided by the maintainer before it was
   Tests: `image_ops::flips_mirror_image_objects_with_their_content` (the whole export is the
   old export mirrored pixel for pixel, H then V, and back; before: pixel (8, 8) was violet
   instead of amber), grouped members, rotate/resize leave the flags, files without the keys.
+- **N1: objects of a newer Annota block the re-basing operations (maintainer decision).** Crop,
+  rotate, flip, resize image and flatten move or re-base every object; an `UnknownObject` (also a
+  group with an unknown member) cannot follow, so leaving it in place put it on the wrong image
+  pixels — against "left where they are". `image_ops::has_unknown_objects` makes `rotate`,
+  `flip`, `resize`, `crop`/`can_crop` and `flatten`/`flatten_all` return `None` (model-level
+  refusal), and `Canvas::start_crop` refuses. The editor disables the image actions, Flatten
+  Selection (moved out of the "selected" action group) and Flatten All, and makes the Crop tool
+  button insensitive; their tooltips (sidebar Resize…, Rotate & Flip, Flatten All, the Crop tool)
+  read "<name> · Needs a newer Annota: this document has objects from a newer version" (GTK shows
+  tooltips on insensitive widgets — checked on Xvfb). Their keys (Ctrl+R, Ctrl+Shift+R, Ctrl+T,
+  Ctrl+Shift+T, C) show the toast "This document has objects from a newer Annota. Update Annota
+  to crop, rotate, flip, resize or flatten it." — GTK lets a disabled accelerator's key through
+  to the window's key controller, verified with the real binary and `xdotool` on Xvfb. Menu
+  items are just insensitive (a GMenu item has no tooltip). Extending the canvas, its background,
+  corner radius and every object edit stay available. Also fixed on the way: the sidebar counted
+  unknown objects as "editable objects"; it now counts selectable ones. Tests:
+  `image_ops::unknown_objects_block_the_operations_that_move_every_object` (all refuse, the
+  document is untouched, canvas/background/radius/nudge/duplicate still work, available again
+  without the object), `sidebar::objects_of_a_newer_annota_are_not_editable`, the live
+  `editor::newer_objects_block_image_operations_on_a_live_display` (actions, crop button,
+  tooltips, the key toast, no crop mode, known objects still move, a plain document re-enables
+  everything).
 
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.
