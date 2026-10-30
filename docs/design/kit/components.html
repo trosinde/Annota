@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1440x900">
+<title>Annota design kit — components</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="adwaita.css">
+<style>
+  body { background: var(--window-bg); padding: 36px 48px 48px; width: 1440px; }
+  .page-title { display: flex; align-items: center; gap: 18px; margin-bottom: 30px; }
+  .page-title img { width: 64px; height: 64px; }
+  section { margin-bottom: 36px; }
+  section > h2 { font-size: var(--fs-title-4); font-weight: var(--fw-bold); margin: 0 0 4px; }
+  section > p.note { margin: 0 0 14px; opacity: var(--dim-opacity); font-size: var(--fs-small); }
+  .demo { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px; border-radius: var(--radius-l); background: var(--view-bg); box-shadow: inset 0 0 0 1px var(--separator); }
+  .demo.col { flex-direction: column; align-items: stretch; }
+  .lbl { font-size: var(--fs-caption); opacity: var(--dim-opacity); }
+  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .cell { display: flex; flex-direction: column; gap: 8px; }
+  .swatch-token { display: flex; flex-direction: column; gap: 4px; width: 128px; font-size: var(--fs-caption); }
+  .swatch-token .chip { height: 44px; border-radius: var(--radius-s); box-shadow: inset 0 0 0 1px var(--borders); }
+  .icon-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+  .icon-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 2px 8px; border-radius: var(--radius-s); font-size: 11px; text-align: center; }
+  .icon-cell .icon { width: 16px; height: 16px; }
+  .icon-cell .big { width: 32px; height: 32px; }
+  .stage { position: relative; height: 210px; border-radius: var(--radius-l); overflow: hidden; }
+  .type-row { display: flex; align-items: baseline; gap: 18px; }
+  .type-row .lbl { width: 140px; flex: none; }
+</style>
+</head>
+<body>
+
+<div class="page-title">
+  <img src="app-icon/annota.svg" alt="">
+  <div>
+    <div class="title-1">Annota design kit</div>
+    <div class="dim-label">libadwaita 1.6 components · tokens.css + adwaita.css + icons.js</div>
+  </div>
+</div>
+
+<!-- ============================================================ colours -->
+<section>
+  <h2>Colours</h2>
+  <p class="note">libadwaita named colours (switch with data-theme) and the Annota annotation palette (theme-independent ink).</p>
+  <div class="demo">
+    <div class="swatch-token"><span class="chip" style="background:var(--window-bg)"></span>--window-bg</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--view-bg)"></span>--view-bg</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--headerbar-bg)"></span>--headerbar-bg</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--sidebar-bg)"></span>--sidebar-bg</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--card-bg)"></span>--card-bg</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--dialog-bg)"></span>--dialog-bg</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--accent-bg)"></span>--accent-bg</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--destructive-bg)"></span>--destructive-bg</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--success-bg)"></span>--success-bg</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--warning-bg)"></span>--warning-bg</div>
+  </div>
+  <div class="demo" style="margin-top:12px">
+    <div class="swatch-token"><span class="chip" style="background:var(--annota-coral)"></span>--annota-coral ★</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--annota-amber)"></span>--annota-amber</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--annota-lime)"></span>--annota-lime</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--annota-teal)"></span>--annota-teal</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--annota-azure)"></span>--annota-azure</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--annota-violet)"></span>--annota-violet</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--annota-ink)"></span>--annota-ink</div>
+    <div class="swatch-token"><span class="chip" style="background:var(--annota-paper)"></span>--annota-paper</div>
+    <div class="vbox" style="--gap:2px;margin-left:12px">
+      <span class="accent heading">Accent text</span>
+      <span class="destructive heading">Destructive text</span>
+      <span class="success heading">Success text</span>
+      <span class="warning heading">Warning text</span>
+      <span class="dim-label">Dim label (.55)</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ type -->
+<section>
+  <h2>Typography</h2>
+  <div class="demo col" style="gap:8px">
+    <div class="type-row"><span class="lbl">.title-1 · 32 / 800</span><span class="title-1">Capture anything</span></div>
+    <div class="type-row"><span class="lbl">.title-2 · 26 / 800</span><span class="title-2">No captures yet</span></div>
+    <div class="type-row"><span class="lbl">.title-4 · 20 / 700</span><span class="title-4">Arrow style</span></div>
+    <div class="type-row"><span class="lbl">.heading · 15 / 700</span><span class="heading">Appearance</span></div>
+    <div class="type-row"><span class="lbl">.body · 15 / 400</span><span>Every annotation stays editable until you export.</span></div>
+    <div class="type-row"><span class="lbl">.caption · 12</span><span class="caption">1920 × 1080 · PNG · 412 KB</span></div>
+    <div class="type-row"><span class="lbl">.monospace</span><span class="monospace">~/Pictures/Annota/2026-10-30 14-22-08.annota</span></div>
+  </div>
+</section>
+
+<!-- ============================================================ buttons -->
+<section>
+  <h2>Buttons</h2>
+  <div class="demo col" style="gap:14px">
+    <div class="hbox" style="--gap:12px;flex-wrap:wrap">
+      <button class="btn text-button">Default</button>
+      <button class="btn text-button hover">Hover</button>
+      <button class="btn text-button pressed">Pressed</button>
+      <button class="btn text-button focus">Focused</button>
+      <button class="btn text-button" disabled>Disabled</button>
+      <button class="btn flat text-button">Flat</button>
+      <button class="btn flat text-button hover">Flat hover</button>
+      <button class="btn text-button suggested-action">Export</button>
+      <button class="btn text-button suggested-action hover">Export</button>
+      <button class="btn text-button destructive-action">Delete</button>
+      <button class="btn flat text-button destructive-action">Discard</button>
+    </div>
+    <div class="hbox" style="--gap:12px;flex-wrap:wrap">
+      <button class="btn image-button"><svg class="icon"><use href="#i-copy"/></svg></button>
+      <button class="btn flat image-button"><svg class="icon"><use href="#i-undo"/></svg></button>
+      <button class="btn flat image-button active"><svg class="icon"><use href="#i-arrow"/></svg></button>
+      <button class="btn circular"><svg class="icon"><use href="#i-close"/></svg></button>
+      <button class="btn circular suggested-action"><svg class="icon"><use href="#i-plus"/></svg></button>
+      <button class="btn"><svg class="icon"><use href="#i-save"/></svg>Save</button>
+      <button class="btn">Format<svg class="icon"><use href="#i-pan-down"/></svg></button>
+      <button class="btn pill suggested-action">New Capture</button>
+      <button class="btn pill">Open Library</button>
+      <span style="padding:8px;border-radius:12px" class="checker hbox"><button class="btn osd circular"><svg class="icon"><use href="#i-zoom-in"/></svg></button><button class="btn osd circular"><svg class="icon"><use href="#i-zoom-out"/></svg></button></span>
+      <button class="btn small">Small</button>
+    </div>
+    <div class="hbox" style="--gap:18px;flex-wrap:wrap">
+      <div class="linked"><button class="btn image-button"><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button"><svg class="icon"><use href="#i-redo"/></svg></button></div>
+      <div class="linked"><button class="btn text-button suggested-action">Copy</button><button class="btn image-button suggested-action"><svg class="icon"><use href="#i-pan-down"/></svg></button></div>
+      <div class="linked"><span class="entry" style="width:180px"><span class="placeholder">File name</span></span><button class="btn">Browse…</button></div>
+      <div class="toggle-group">
+        <span class="toggle active"><svg class="icon"><use href="#i-capture-region"/></svg>Region</span>
+        <span class="toggle"><svg class="icon"><use href="#i-capture-window"/></svg>Window</span>
+        <span class="toggle"><svg class="icon"><use href="#i-capture-screen"/></svg>Screen</span>
+      </div>
+      <div class="toggle-group">
+        <span class="toggle icon-only active"><svg class="icon"><use href="#i-grid-view"/></svg></span>
+        <span class="toggle icon-only"><svg class="icon"><use href="#i-list-view"/></svg></span>
+      </div>
+      <span class="dropdown" style="width:150px">PNG</span>
+      <span class="dropdown flat">Every day at 02:00</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ inputs -->
+<section>
+  <h2>Inputs</h2>
+  <div class="cols">
+    <div class="demo col">
+      <span class="entry"><span class="placeholder">Capture name</span></span>
+      <span class="entry focus">Checkout flow, step 2<span class="caret"></span></span>
+      <span class="entry error">invalid/name?.png</span>
+      <span class="search-entry focus"><svg class="icon"><use href="#i-search"/></svg><span class="grow">invoice</span><svg class="icon"><use href="#i-edit-clear"/></svg></span>
+      <span class="search-entry"><svg class="icon"><use href="#i-search"/></svg><span class="placeholder">Search captures</span></span>
+    </div>
+    <div class="demo col" style="gap:14px">
+      <div class="hbox" style="--gap:12px"><span class="spin" style="width:136px"><span class="value">4 px</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span><span class="spin focus" style="width:136px"><span class="value">3 s</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span></div>
+      <div class="hbox" style="--gap:18px"><span class="switch"></span><span class="switch on"></span><span class="switch on focus"></span><span class="switch disabled"></span></div>
+      <div class="hbox" style="--gap:18px">
+        <span class="check-label"><span class="check"></span>Shadow</span>
+        <span class="check-label"><span class="check checked"></span>Include cursor</span>
+        <span class="check-label"><span class="radio checked"></span>PNG</span>
+        <span class="check-label"><span class="radio"></span>JPG</span>
+      </div>
+    </div>
+    <div class="demo col" style="gap:6px">
+      <div class="scale"><span class="lbl" style="width:70px">Opacity</span><div class="trough"><div class="fill" style="width:80%"></div><div class="knob" style="left:80%"></div></div><span class="value">80 %</span></div>
+      <div class="scale"><span class="lbl" style="width:70px">Width</span><div class="trough"><div class="fill" style="width:25%"></div><div class="knob" style="left:25%"></div><span class="mark" style="left:0"></span><span class="mark" style="left:25%"></span><span class="mark" style="left:50%"></span><span class="mark" style="left:75%"></span><span class="mark" style="left:100%"></span></div><span class="value">4</span></div>
+      <div class="scale disabled"><span class="lbl" style="width:70px">Blur</span><div class="trough"><div class="fill" style="width:50%"></div><div class="knob" style="left:50%"></div></div><span class="value">12</span></div>
+      <div class="swatch-row" style="margin-top:8px">
+        <span class="swatch selected" style="--c:var(--annota-coral)"></span>
+        <span class="swatch" style="--c:var(--annota-amber)"></span>
+        <span class="swatch" style="--c:var(--annota-lime)"></span>
+        <span class="swatch" style="--c:var(--annota-teal)"></span>
+        <span class="swatch focus" style="--c:var(--annota-azure)"></span>
+        <span class="swatch" style="--c:var(--annota-violet)"></span>
+        <span class="swatch" style="--c:var(--annota-ink)"></span>
+        <span class="swatch" style="--c:var(--annota-paper)"></span>
+        <span class="swatch none"></span>
+        <span class="swatch custom"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ lists -->
+<section>
+  <h2>Boxed lists &amp; preferences groups</h2>
+  <div class="cols2">
+    <div class="demo col" style="background:var(--window-bg)">
+      <div class="preferences-group">
+        <div class="group-header"><div class="text"><span class="heading">Capture</span><span class="description">What happens when you press Print.</span></div></div>
+        <div class="boxed-list">
+          <div class="row"><div class="text"><span class="title">Default mode</span></div><div class="suffix"><span class="dropdown flat">Region</span></div></div>
+          <div class="row"><div class="text"><span class="title">Include cursor</span><span class="subtitle">Draw the pointer into the capture</span></div><div class="suffix"><span class="switch on"></span></div></div>
+          <div class="row focus"><div class="text"><span class="title">Delay</span><span class="subtitle">Seconds to wait before capturing</span></div><div class="suffix"><span class="spin" style="width:120px"><span class="value">0</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div>
+          <div class="row hover"><div class="text"><span class="title">Keyboard shortcuts</span></div><div class="suffix"><svg class="icon"><use href="#i-go-next"/></svg></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="demo col" style="background:var(--window-bg)">
+      <div class="preferences-group">
+        <div class="group-header"><div class="text"><span class="heading">Library</span></div><button class="btn flat image-button"><svg class="icon"><use href="#i-plus"/></svg></button></div>
+        <div class="boxed-list">
+          <div class="row"><div class="prefix"><svg class="icon"><use href="#i-folder"/></svg></div><div class="text"><span class="title">Library location</span><span class="subtitle">~/Pictures/Annota</span></div><div class="suffix"><button class="btn flat image-button"><svg class="icon"><use href="#i-folder"/></svg></button></div></div>
+          <div class="row property"><div class="text"><span class="title">Captures</span><span class="subtitle">1,284 items · 2.3 GB</span></div></div>
+          <div class="row entry-row focus"><div class="text"><span class="title">File name pattern</span><span>%Y-%m-%d %H-%M-%S<span class="caret" style="margin-left:1px;vertical-align:-3px"></span></span></div></div>
+          <div class="row disabled"><div class="text"><span class="title">Watch extra folders</span><span class="subtitle">Not available in this version</span></div><div class="suffix"><span class="switch"></span></div></div>
+        </div>
+        <div class="boxed-list"><div class="row button-row destructive">Clear Library…</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ window -->
+<section>
+  <h2>Window, header bar, split view, sidebar</h2>
+  <p class="note">.window inside .mock-frame (desktop backdrop). Header bar 47 px, sidebar 280 px, canvas-area with checker for transparency.</p>
+  <div class="mock-frame" style="min-height:0;height:560px;border-radius:var(--radius-l)">
+    <div class="window" style="width:1180px;height:500px">
+      <div class="split-view">
+        <div class="sidebar-pane sidebar" style="width:240px">
+          <div class="headerbar"><div class="start"><button class="btn flat image-button"><svg class="icon"><use href="#i-sidebar-show"/></svg></button></div><div class="title-widget"><span class="title">Library</span></div><div class="end"><button class="btn flat image-button"><svg class="icon"><use href="#i-search"/></svg></button></div></div>
+          <div class="sidebar-list">
+            <div class="nav-row selected"><svg class="icon"><use href="#i-library"/></svg><span class="label">All Captures</span><span class="count">1,284</span></div>
+            <div class="nav-row hover"><svg class="icon"><use href="#i-star"/></svg><span class="label">Favourites</span><span class="count">36</span></div>
+            <div class="nav-row focus"><svg class="icon"><use href="#i-timer"/></svg><span class="label">Recent</span></div>
+            <div class="nav-row"><svg class="icon"><use href="#i-trash"/></svg><span class="label">Trash</span></div>
+            <div class="section-title">Collections</div>
+            <div class="nav-row"><svg class="icon"><use href="#i-folder"/></svg><span class="label">Release notes 0.4</span><span class="count">18</span></div>
+            <div class="nav-row"><svg class="icon"><use href="#i-tag"/></svg><span class="label">bug-report</span><span class="count">7</span></div>
+          </div>
+        </div>
+        <div class="content-pane">
+          <div class="headerbar">
+            <div class="start"><div class="linked"><button class="btn image-button"><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button"><svg class="icon"><use href="#i-redo"/></svg></button></div></div>
+            <div class="title-widget"><span class="title">Checkout flow.annota</span><span class="subtitle">1600 × 1000 · edited</span></div>
+            <div class="end"><button class="btn image-button"><svg class="icon"><use href="#i-copy"/></svg></button><button class="btn suggested-action text-button">Export</button><button class="btn flat image-button"><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div>
+          </div>
+          <div class="banner"><span class="banner-title">This capture was opened from a read-only folder</span><button class="btn">Save a Copy</button></div>
+          <div class="canvas-area">
+            <div class="canvas-image" style="width:520px;height:325px">
+              <img src="sample-content/png/b-lumen-checkout.png" alt="">
+              <svg class="annotations" viewBox="0 0 520 325">
+                <rect x="31" y="166" width="144" height="26" rx="4" fill="none" stroke="#ff5a4e" stroke-width="3"/>
+                <path d="M250 262 L186 198" stroke="#ff5a4e" stroke-width="5" stroke-linecap="round" fill="none"/>
+                <path d="M182 214 L182 194 L202 194" stroke="#ff5a4e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <circle cx="31" cy="166" r="11" fill="#ff5a4e"/><text x="31" y="170.5" font-size="13" font-weight="700" fill="#fff" text-anchor="middle" font-family="Inter">1</text>
+              </svg>
+              <div class="sel-box" style="left:31px;top:166px;width:144px;height:26px"><span class="h" style="left:0;top:0"></span><span class="h" style="left:100%;top:0"></span><span class="h" style="left:0;top:100%"></span><span class="h" style="left:100%;top:100%"></span></div>
+            </div>
+            <div class="osd-toolbar" style="position:absolute;bottom:18px;right:18px"><button class="btn image-button"><svg class="icon"><use href="#i-zoom-out"/></svg></button><span class="label">100 %</span><button class="btn image-button"><svg class="icon"><use href="#i-zoom-in"/></svg></button></div>
+            <div class="toast-overlay" style="bottom:18px"><div class="toast"><span class="toast-title">Copied to clipboard</span><button class="btn flat text-button">Undo</button><button class="btn flat circular"><svg class="icon"><use href="#i-close"/></svg></button></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ overlays -->
+<section>
+  <h2>Popovers, tooltips, toasts, banners, badges, tabs</h2>
+  <div class="cols">
+    <div class="demo stage" style="height:340px;align-items:flex-start">
+      <button class="btn flat image-button active" style="position:absolute;left:150px;top:14px"><svg class="icon"><use href="#i-open-menu"/></svg></button>
+      <div class="popover" style="left:28px;top:60px;width:280px;--arrow-x:139px">
+        <div class="menu-item"><span class="label">New Capture</span><span class="accel">Ctrl+N</span></div>
+        <div class="menu-item hover"><span class="label">Open…</span><span class="accel">Ctrl+O</span></div>
+        <div class="menu-item"><span class="label">Save As…</span><span class="accel">Shift+Ctrl+S</span></div>
+        <div class="menu-sep"></div>
+        <div class="menu-item"><span class="label">Preferences</span><span class="accel">Ctrl+,</span></div>
+        <div class="menu-item"><span class="label">Keyboard Shortcuts</span><span class="accel">Ctrl+?</span></div>
+        <div class="menu-item disabled"><span class="label">Print…</span></div>
+        <div class="menu-item"><span class="label">About Annota</span></div>
+      </div>
+    </div>
+    <div class="demo col" style="gap:18px;align-items:flex-start;height:340px">
+      <div class="hbox" style="--gap:6px"><button class="btn flat image-button active"><svg class="icon"><use href="#i-arrow"/></svg></button><span class="tooltip static">Arrow <span class="shortcut">A</span></span></div>
+      <div class="hbox" style="--gap:6px"><button class="btn flat image-button hover"><svg class="icon"><use href="#i-callout"/></svg></button><span class="tooltip static">Callout <span class="shortcut">C</span></span></div>
+      <div class="toast">  <span class="toast-title">Saved to Library</span><button class="btn text-button">Show</button></div>
+      <div class="hbox" style="--gap:6px">Shortcuts <kbd class="key">Ctrl</kbd><kbd class="key">Shift</kbd><kbd class="key">S</kbd></div>
+      <div class="hbox" style="--gap:8px"><span class="badge">3</span><span class="badge neutral">12</span><span class="badge coral">NEW</span><span class="badge success">OK</span><span class="badge warning">!</span><span class="badge destructive">99+</span><span class="badge dot"></span><span class="tag-chip"><svg class="icon"><use href="#i-tag"/></svg>bug-report</span></div>
+    </div>
+    <div class="demo col" style="gap:12px;height:340px;padding:0;overflow:hidden">
+      <div class="tabs" style="border-radius:12px 12px 0 0">
+        <div class="tab selected"><span class="tab-title">Checkout flow</span><span class="tab-close"><svg class="icon"><use href="#i-close"/></svg></span></div>
+        <div class="tab"><span class="tab-title">Dashboard</span><span class="tab-close"><svg class="icon"><use href="#i-close"/></svg></span></div>
+        <div class="tab"><span class="tab-title">Relay chat</span><span class="tab-close"><svg class="icon"><use href="#i-close"/></svg></span></div>
+      </div>
+      <div class="banner" style="margin:0 12px;border-radius:var(--radius-m)"><span class="banner-title">2 captures are in Trash</span><button class="btn">Empty</button></div>
+      <div class="banner warning" style="margin:0 12px;border-radius:var(--radius-m)"><span class="banner-title">Tesseract is not installed</span><button class="btn">Learn More</button></div>
+      <div class="hbox" style="padding:6px 12px;--gap:12px"><span class="spinner"></span><div class="progress grow"><div class="bar" style="width:62%"></div></div><span class="caption numeric">62 %</span></div>
+      <div class="osd-toolbar pill" style="align-self:center"><span class="rec-dot"></span><span class="label">00:42</span><span class="sep"></span><button class="btn circular"><svg class="icon"><use href="#i-pause"/></svg></button><button class="btn circular"><svg class="icon"><use href="#i-stop"/></svg></button><button class="btn circular"><svg class="icon"><use href="#i-microphone"/></svg></button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ status / dialogs -->
+<section>
+  <h2>Status page, dialogs, bottom sheet</h2>
+  <div class="cols">
+    <div class="demo stage" style="height:380px;padding:0">
+      <div class="status-page compact">
+        <svg class="icon status-icon"><use href="#i-library"/></svg>
+        <div class="status-title">No Captures Yet</div>
+        <div class="status-description">Press <kbd class="key">Print</kbd> to capture a region. Captures appear here automatically.</div>
+        <button class="btn pill suggested-action">New Capture</button>
+      </div>
+    </div>
+    <div class="demo stage" style="height:380px;padding:0;background:var(--window-bg)">
+      <div class="dialog-host">
+        <div class="dialog alert">
+          <div class="alert-body"><div class="alert-heading">Save Changes?</div><div>“Checkout flow” has unsaved annotations. Unsaved changes are lost permanently.</div></div>
+          <div class="alert-actions"><button class="btn">Cancel</button><button class="btn destructive-action">Discard</button><button class="btn suggested-action">Save</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="demo stage" style="height:380px;padding:0;background:var(--window-bg)">
+      <div class="backdrop-dim"></div>
+      <div class="bottom-sheet" style="padding:22px 18px 18px">
+        <div class="heading" style="text-align:center;margin-bottom:12px">Export</div>
+        <div class="boxed-list">
+          <div class="row"><div class="text"><span class="title">Format</span></div><div class="suffix"><span class="dropdown flat">PNG</span></div></div>
+          <div class="row"><div class="text"><span class="title">Scale</span></div><div class="suffix"><span class="dropdown flat">2×</span></div></div>
+        </div>
+        <button class="btn pill suggested-action" style="width:100%;margin-top:14px">Export</button>
+      </div>
+    </div>
+  </div>
+  <div class="demo" style="margin-top:18px;height:400px;position:relative;padding:0;overflow:hidden">
+    <div class="dialog-host">
+      <div class="dialog" style="width:520px">
+        <div class="headerbar"><div class="start"><button class="btn text-button">Cancel</button></div><div class="title-widget"><span class="title">Export Image</span></div><div class="end"><button class="btn text-button suggested-action">Export</button></div></div>
+        <div class="dialog-body vbox" style="--gap:18px">
+          <div class="boxed-list">
+            <div class="row entry-row"><div class="text"><span class="title">File name</span><span>Checkout flow.png</span></div></div>
+            <div class="row"><div class="text"><span class="title">Folder</span><span class="subtitle">~/Pictures/Annota/Exports</span></div><div class="suffix"><button class="btn flat image-button"><svg class="icon"><use href="#i-folder"/></svg></button></div></div>
+            <div class="row"><div class="text"><span class="title">Format</span></div><div class="suffix"><div class="toggle-group"><span class="toggle active">PNG</span><span class="toggle">JPG</span><span class="toggle">WebP</span><span class="toggle">PDF</span></div></div></div>
+            <div class="row"><div class="text"><span class="title">Flatten annotations</span><span class="subtitle">Annotations can no longer be edited in the file</span></div><div class="suffix"><span class="switch on"></span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ icons -->
+<section>
+  <h2>Symbolic icons</h2>
+  <p class="note">16 × 16, currentColor. Usage: &lt;svg class="icon"&gt;&lt;use href="#i-arrow"/&gt;&lt;/svg&gt; with icons.js loaded. Shown at 16 px and 32 px.</p>
+  <div class="demo"><div class="icon-grid" id="icon-grid" style="width:100%"></div></div>
+</section>
+
+<section>
+  <h2>App icon</h2>
+  <div class="demo" style="gap:36px">
+    <img src="app-icon/annota.svg" width="128" height="128" alt="">
+    <img src="app-icon/annota.svg" width="64" height="64" alt="">
+    <img src="app-icon/annota.svg" width="32" height="32" alt="">
+    <img src="app-icon/annota.svg" width="16" height="16" alt="">
+    <span class="separator-v"></span>
+    <svg class="icon large" viewBox="0 0 16 16"><use href="#i-annota-symbolic"/></svg>
+    <svg class="icon" viewBox="0 0 16 16"><use href="#i-annota-symbolic"/></svg>
+  </div>
+</section>
+
+<script src="icons.js"></script>
+<script>
+  (function () {
+    var g = document.getElementById("icon-grid"), html = "";
+    window.ANNOTA_ICONS.forEach(function (n) {
+      html += '<div class="icon-cell"><div class="hbox" style="--gap:10px"><svg class="icon"><use href="#i-' + n + '"/></svg>' +
+              '<svg class="icon big" viewBox="0 0 16 16"><use href="#i-' + n + '"/></svg></div>' + n + '</div>';
+    });
+    g.innerHTML = html;
+    /* symbolic app icon, loaded from app-icon/annota-symbolic.svg contents */
+    var sym = '<symbol id="i-annota-symbolic" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M1.5 5 V2.5 a1 1 0 0 1 1 -1 H5 M11 1.5 h2.5 a1 1 0 0 1 1 1 V5 M5 14.5 H2.5 a1 1 0 0 1 -1 -1 V11"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14 14 C11.5 12.5 10 10.5 9 7.5 M6.5 8.5 L8.7 6 L11.3 7.7"/></symbol>';
+    var s = document.querySelector("#annota-sprite svg");
+    s.insertAdjacentHTML("beforeend", sym);
+    s.innerHTML = s.innerHTML; /* re-parse so the new symbol is in the SVG namespace */
+  })();
+</script>
+</body>
+</html>

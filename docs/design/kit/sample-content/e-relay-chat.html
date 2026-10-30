@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport-size" content="1600x1000"><title>Relay — conversation</title>
+<style>
+*{box-sizing:border-box}body{margin:0;width:1600px;height:1000px;background:#ece9f4;font-family:Inter,sans-serif;color:#1f1d2b;display:flex;overflow:hidden}
+.rail{width:72px;background:#2a2340;display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:18px}
+.rail i{width:44px;height:44px;border-radius:14px;background:#463a68;display:grid;place-items:center;color:#fff;font-style:normal;font-weight:700}.rail i.on{background:#7c5cff}
+.list{width:330px;background:#f7f6fb;border-right:1px solid #ddd8ea;display:flex;flex-direction:column}
+.list .h{padding:20px 18px 10px;font-weight:800;font-size:20px}.search{margin:0 14px 10px;height:38px;border-radius:10px;background:#e9e6f2;color:#8a85a0;display:flex;align-items:center;padding:0 12px;font-size:14px}
+.c{display:flex;gap:12px;padding:12px 16px;align-items:center}.c.on{background:#e6e0fb}
+.av{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px}
+.c .t{flex:1;min-width:0}.c .n{font-weight:600;font-size:15px;display:flex}.c .n span{margin-left:auto;font-weight:400;font-size:12px;color:#8a85a0}.c .p{font-size:13px;color:#6f6a86;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv{flex:1;display:flex;flex-direction:column;background:#fff}
+.ch{height:70px;border-bottom:1px solid #e7e3f0;display:flex;align-items:center;gap:12px;padding:0 24px}
+.ch .n{font-weight:700;font-size:17px}.ch .s{font-size:13px;color:#2ea56b}
+.msgs{flex:1;padding:22px 40px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.day{align-self:center;font-size:12px;color:#8a85a0;background:#f2f0f8;padding:4px 12px;border-radius:10px}
+.m{display:flex;gap:10px;max-width:70%}.m .b{background:#f2f0f8;border-radius:16px 16px 16px 4px;padding:10px 14px;font-size:15px;line-height:1.45}
+.m .meta{font-size:12px;color:#8a85a0;margin-top:3px}
+.m.me{align-self:flex-end;flex-direction:row-reverse}.m.me .b{background:#7c5cff;color:#fff;border-radius:16px 16px 4px 16px}
+.m.me .meta{text-align:right}
+.mono{font-family:"DejaVu Sans Mono",monospace;font-size:14px;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:4px}
+.me .mono{background:rgba(255,255,255,.18)}
+.file{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #e1dcef;border-radius:10px;padding:8px 12px;margin-top:6px;color:#1f1d2b}
+.file i{width:34px;height:40px;border-radius:5px;background:#e45b5b;display:block}
+.comp{margin:0 24px 22px;height:52px;border-radius:14px;background:#f2f0f8;display:flex;align-items:center;padding:0 18px;color:#8a85a0;font-size:15px}
+.info{width:300px;border-left:1px solid #e7e3f0;background:#fbfafd;padding:26px 22px;font-size:14px}
+.info .big{width:84px;height:84px;font-size:28px;margin:0 auto 12px}.info h3{text-align:center;margin:0}.info .r{color:#8a85a0;text-align:center;margin-bottom:22px}
+.info dt{color:#8a85a0;font-size:12px;margin-top:14px}.info dd{margin:2px 0 0}
+</style></head><body>
+<div class="rail"><i class="on">R</i><i>#</i><i>☆</i></div>
+<div class="list"><div class="h">Chats</div><div class="search">Search chats</div>
+<div class="c on"><span class="av" style="background:#e07a5f">JO</span><div class="t"><div class="n">Jonas Okafor<span>10:42</span></div><div class="p">Sure — the server is at 192.168.40.17</div></div></div>
+<div class="c"><span class="av" style="background:#3d9970">PL</span><div class="t"><div class="n">Priya Lund<span>09:15</span></div><div class="p">Draft of the venue checklist attached</div></div></div>
+<div class="c"><span class="av" style="background:#4c6ef5">#</span><div class="t"><div class="n">print-shop<span>Yesterday</span></div><div class="p">Tomas: plotter is back online</div></div></div>
+<div class="c"><span class="av" style="background:#b5838d">AV</span><div class="t"><div class="n">Ana Vidal<span>Yesterday</span></div><div class="p">Thanks, see you Thursday!</div></div></div>
+<div class="c"><span class="av" style="background:#6d597a">KS</span><div class="t"><div class="n">Kenji Sato<span>Mon</span></div><div class="p">Photo: shelf before and after</div></div></div>
+<div class="c"><span class="av" style="background:#e9a23b">EM</span><div class="t"><div class="n">Elif Moreau<span>Sun</span></div><div class="p">Can you print 40 copies?</div></div></div>
+</div>
+<div class="conv"><div class="ch"><span class="av" style="background:#e07a5f">JO</span><div><div class="n">Jonas Okafor</div><div class="s">● active now</div></div></div>
+<div class="msgs"><span class="day">Today</span>
+<div class="m"><span class="av" style="background:#e07a5f;width:32px;height:32px;font-size:12px">JO</span><div><div class="b">Morning! For the venue booking, the contact is <b>hannah.wexler@riverside-hall.example</b> — she prefers email over calls.</div><div class="meta">10:31</div></div></div>
+<div class="m me"><div><div class="b">Great, thanks. If she doesn't reply by Friday I'll ring the office at <b>+49 30 5550 1287</b>.</div><div class="meta">10:33 ✓✓</div></div></div>
+<div class="m"><span class="av" style="background:#e07a5f;width:32px;height:32px;font-size:12px">JO</span><div><div class="b">Also: the shared printer queue moved. New address is <span class="mono">192.168.40.17</span>, port <span class="mono">631</span>.<div class="file"><i></i><div><div style="font-weight:600;font-size:14px">floorplan-hall-b.pdf</div><div style="font-size:12px;color:#8a85a0">1.2 MB · PDF</div></div></div></div><div class="meta">10:40</div></div></div>
+<div class="m me"><div><div class="b">Perfect. My booking reference is <b>RH-2026-0417</b>, invoice goes to the club address.</div><div class="meta">10:41 ✓✓</div></div></div>
+<div class="m"><span class="av" style="background:#e07a5f;width:32px;height:32px;font-size:12px">JO</span><div><div class="b">Sure — the server is at 192.168.40.17 if the queue doesn't show up. Restart the print dialog once.</div><div class="meta">10:42</div></div></div>
+</div>
+<div class="comp">Write a message…</div></div>
+<div class="info"><span class="av big" style="background:#e07a5f">JO</span><h3>Jonas Okafor</h3><div class="r">Event crew</div>
+<dl><dt>Email</dt><dd>jonas.okafor@fernway.example</dd><dt>Phone</dt><dd>+49 30 5550 9934</dd><dt>Local time</dt><dd>10:45 (CEST)</dd><dt>Shared files</dt><dd>14 files · 3 links</dd></dl></div>
+</body></html>

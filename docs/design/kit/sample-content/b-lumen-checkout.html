@@ -1,0 +1,54 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport-size" content="1600x1000"><title>Lumen Outfitters — Checkout</title>
+<style>
+*{box-sizing:border-box}body{margin:0;width:1600px;height:1000px;font-family:Inter,sans-serif;background:#f4f1ec;color:#23211d;overflow:hidden}
+.chrome{height:76px;background:#e9e6e1;border-bottom:1px solid #d6d2cb;display:flex;align-items:center;padding:0 18px;gap:14px}
+.dots span{display:inline-block;width:12px;height:12px;border-radius:50%;background:#cfcac2;margin-right:6px}
+.url{flex:1;height:36px;border-radius:18px;background:#fff;display:flex;align-items:center;padding:0 18px;color:#6a655d;font-size:15px}
+.nav{height:72px;background:#fff;display:flex;align-items:center;padding:0 80px;gap:40px;border-bottom:1px solid #e6e2db}
+.logo{font-weight:800;letter-spacing:.18em;font-size:20px;display:flex;align-items:center;gap:10px}
+.logo i{width:26px;height:26px;border-radius:50%;background:conic-gradient(#e8a33d 0 50%,#2f5d50 0)}
+.nav a{color:#5b564e;font-size:15px}
+.main{display:grid;grid-template-columns:1fr 480px;gap:48px;padding:40px 80px}
+h1{font-size:30px;margin:0 0 6px}.steps{color:#8a847a;font-size:14px;margin-bottom:28px}.steps b{color:#2f5d50}
+.panel{background:#fff;border-radius:14px;padding:26px 28px;margin-bottom:20px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.panel h2{font-size:18px;margin:0 0 18px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+label{display:block;font-size:13px;color:#6a655d;margin-bottom:6px}
+.f{height:44px;border:1px solid #d8d3cb;border-radius:8px;display:flex;align-items:center;padding:0 14px;font-size:15px}
+.opt{display:flex;align-items:center;gap:14px;border:1px solid #d8d3cb;border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.opt.sel{border:2px solid #2f5d50;background:#f2f7f5}.rad{width:18px;height:18px;border-radius:50%;border:2px solid #9b958b}.sel .rad{border:6px solid #2f5d50}
+.opt .p{margin-left:auto;font-weight:600}
+.item{display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid #eee9e2}
+.thumb{width:72px;height:72px;border-radius:10px;flex:none}
+.item .n{font-weight:600}.item .s{font-size:13px;color:#8a847a}.item .pr{margin-left:auto;font-weight:600}
+.sum{display:flex;justify-content:space-between;padding:7px 0;font-size:15px;color:#4c473f}
+.tot{font-size:20px;font-weight:700;color:#23211d;border-top:1px solid #e6e2db;margin-top:8px;padding-top:14px}
+.pay{height:54px;border-radius:12px;background:#2f5d50;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;margin-top:18px}
+.code{display:flex;gap:10px;margin-top:14px}.code .f{flex:1}.code .b{height:44px;padding:0 18px;border-radius:8px;background:#ece8e1;display:flex;align-items:center;font-weight:600}
+.err{color:#b4372a;font-size:13px;margin-top:6px}
+</style></head><body>
+<div class="chrome"><span class="dots"><span></span><span></span><span></span></span><div class="url">🔒&nbsp; lumen-outfitters.example/checkout</div></div>
+<div class="nav"><span class="logo"><i></i>LUMEN OUTFITTERS</span><a>Packs</a><a>Shelter</a><a>Layers</a><a>Trail kitchen</a><span style="margin-left:auto;font-size:15px;color:#5b564e">Cart (3)</span></div>
+<div class="main"><div>
+<h1>Checkout</h1><div class="steps"><b>Cart</b> &nbsp;›&nbsp; <b>Delivery</b> &nbsp;›&nbsp; Payment &nbsp;›&nbsp; Review</div>
+<div class="panel"><h2>Delivery address</h2><div class="grid">
+<div><label>First name</label><div class="f">Mara</div></div><div><label>Last name</label><div class="f">Lindqvist</div></div>
+<div style="grid-column:1/3"><label>Street and number</label><div class="f">Birch Lane 14</div></div>
+<div><label>Postcode</label><div class="f" style="border-color:#b4372a">90 21</div><div class="err">Enter a 5-digit postcode</div></div><div><label>City</label><div class="f">Northvale</div></div>
+</div></div>
+<div class="panel"><h2>Shipping method</h2>
+<div class="opt sel"><span class="rad"></span><div><div style="font-weight:600">Standard</div><div style="font-size:13px;color:#8a847a">3–5 working days</div></div><span class="p">Free</span></div>
+<div class="opt"><span class="rad"></span><div><div style="font-weight:600">Express</div><div style="font-size:13px;color:#8a847a">Next working day, order by 14:00</div></div><span class="p">€ 9.90</span></div>
+<div class="opt"><span class="rad"></span><div><div style="font-weight:600">Pick-up point</div><div style="font-size:13px;color:#8a847a">Choose a locker near you</div></div><span class="p">€ 2.50</span></div>
+</div></div>
+<div><div class="panel"><h2>Order summary</h2>
+<div class="item"><div class="thumb" style="background:linear-gradient(160deg,#e8a33d,#c9762a)"></div><div><div class="n">Ridgeline 32 L Pack</div><div class="s">Amber · Qty 1</div></div><span class="pr">€ 149.00</span></div>
+<div class="item"><div class="thumb" style="background:linear-gradient(160deg,#5f8c7e,#2f5d50)"></div><div><div class="n">Driftwood Fleece</div><div class="s">Moss · M · Qty 1</div></div><span class="pr">€ 79.00</span></div>
+<div class="item" style="border:0"><div class="thumb" style="background:linear-gradient(160deg,#9aa6b4,#5b6a7c)"></div><div><div class="n">Ember Camp Mug</div><div class="s">Slate · Qty 2</div></div><span class="pr">€ 36.00</span></div>
+<div class="code"><div class="f" style="color:#9b958b">Gift card or discount code</div><span class="b">Apply</span></div>
+<div style="margin-top:16px"><div class="sum"><span>Subtotal</span><span>€ 264.00</span></div><div class="sum"><span>Shipping</span><span>Free</span></div><div class="sum"><span>VAT included</span><span>€ 42.15</span></div>
+<div class="sum tot"><span>Total</span><span>€ 264.00</span></div></div>
+<div class="pay">Continue to payment</div>
+<div style="text-align:center;font-size:13px;color:#8a847a;margin-top:12px">30-day returns · Repairs for life</div>
+</div></div></div></body></html>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html data-theme="light"><head><meta charset="utf-8"><meta name="viewport-size" content="1600x1000">
+<title>Harbor Backup — Preferences</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../adwaita.css">
+<style>
+ body{width:1600px;height:1000px}
+ .window{width:1100px;height:760px}
+ .hint{font-size:13px;opacity:.55;padding:0 2px}
+ .usage{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--fill-1);margin:6px 0 4px}
+</style></head>
+<body class="mock-frame">
+<div class="window">
+ <div class="split-view">
+  <div class="sidebar-pane sidebar" style="width:260px">
+   <div class="headerbar"><div class="start"></div><div class="title-widget"><span class="title">Preferences</span></div><div class="end"><button class="btn flat image-button"><svg class="icon"><use href="#i-search"/></svg></button></div></div>
+   <div class="sidebar-list">
+    <div class="nav-row"><svg class="icon"><use href="#i-settings"/></svg><span class="label">General</span></div>
+    <div class="nav-row selected"><svg class="icon"><use href="#i-save"/></svg><span class="label">Backup</span></div>
+    <div class="nav-row"><svg class="icon"><use href="#i-timer"/></svg><span class="label">Schedule</span></div>
+    <div class="nav-row"><svg class="icon"><use href="#i-folder"/></svg><span class="label">Storage</span></div>
+    <div class="nav-row"><svg class="icon"><use href="#i-info"/></svg><span class="label">About</span></div>
+   </div>
+  </div>
+  <div class="content-pane">
+   <div class="headerbar"><div class="start"></div><div class="title-widget"><span class="title">Backup</span></div><div class="end"><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+   <div class="preferences-page" style="padding-top:18px;gap:24px">
+    <div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Locations</span><span class="description">Harbor copies changed files from the source to the destination.</span></div></div>
+     <div class="boxed-list">
+      <div class="row"><div class="text"><span class="title">Source folder</span><span class="subtitle">~/Documents</span></div><div class="suffix"><button class="btn flat image-button"><svg class="icon"><use href="#i-folder"/></svg></button></div></div>
+      <div class="row"><div class="text"><span class="title">Destination</span><span class="subtitle">/mnt/nas/backup</span></div><div class="suffix"><button class="btn flat image-button"><svg class="icon"><use href="#i-folder"/></svg></button></div></div>
+      <div class="row"><div class="text"><span class="title">Exclude patterns</span><span class="subtitle">*.tmp, node_modules, .cache</span></div><div class="suffix"><svg class="icon"><use href="#i-go-next"/></svg></div></div>
+     </div></div>
+    <div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Schedule</span></div></div>
+     <div class="boxed-list">
+      <div class="row"><div class="text"><span class="title">Schedule</span></div><div class="suffix"><span class="dropdown flat">Every day at 02:00</span></div></div>
+      <div class="row"><div class="text"><span class="title">Back up on battery</span><span class="subtitle">Runs even when the laptop is unplugged</span></div><div class="suffix"><span class="switch"></span></div></div>
+      <div class="row"><div class="text"><span class="title">Keep versions</span><span class="subtitle">Older versions are pruned automatically</span></div><div class="suffix"><span class="spin"><span class="value">30</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div>
+     </div></div>
+    <div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Destination usage</span></div></div>
+     <div class="card" style="padding:14px 16px">
+      <div class="hbox"><span>412 GB of 1.8 TB used</span><span class="spacer"></span><span class="dim-label">Last backup: today, 02:00 · 1,284 files</span></div>
+      <div class="usage"><span style="width:14%;background:#3584e4"></span><span style="width:6%;background:#2ec27e"></span><span style="width:3%;background:#e5a50a"></span></div>
+      <div class="hbox caption dim-label" style="gap:16px"><span>● Documents 260 GB</span><span>● Photos 110 GB</span><span>● Other 42 GB</span></div>
+     </div></div>
+    <div class="hbox" style="justify-content:flex-end;gap:12px"><button class="btn text-button">Cancel</button><button class="btn text-button suggested-action">Start backup</button></div>
+   </div>
+  </div>
+ </div>
+</div>
+<script src="../icons.js"></script>
+</body></html>

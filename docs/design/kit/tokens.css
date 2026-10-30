@@ -1,0 +1,292 @@
+/* Annota design kit — tokens.css
+ * CSS custom properties mirroring libadwaita 1.6 named colours (light + dark),
+ * the Annota annotation palette, radii, spacing, typography and shadows.
+ * Use ONLY these tokens in mockups. Dark style: <html data-theme="dark"> or
+ * prefers-color-scheme: dark (unless data-theme="light").
+ */
+:root {
+  color-scheme: light;
+
+  /* ---- libadwaita named colours (light) ---- */
+  --window-bg: #fafafb;
+  --window-fg: rgb(0 0 6 / 80%);
+  --view-bg: #ffffff;
+  --view-fg: rgb(0 0 6 / 80%);
+  --headerbar-bg: #ffffff;
+  --headerbar-fg: rgb(0 0 6 / 80%);
+  --headerbar-border: rgb(0 0 6 / 80%);
+  --headerbar-backdrop: #fafafb;
+  --headerbar-shade: rgb(0 0 6 / 12%);
+  --headerbar-darker-shade: rgb(0 0 6 / 12%);
+  --sidebar-bg: #ebebed;
+  --sidebar-fg: rgb(0 0 6 / 80%);
+  --sidebar-backdrop: #f2f2f4;
+  --sidebar-shade: rgb(0 0 6 / 7%);
+  --sidebar-border: rgb(0 0 6 / 7%);
+  --secondary-sidebar-bg: #f3f3f5;
+  --card-bg: #ffffff;
+  --card-fg: rgb(0 0 6 / 80%);
+  --card-shade: rgb(0 0 6 / 7%);
+  --dialog-bg: #fafafb;
+  --dialog-fg: rgb(0 0 6 / 80%);
+  --popover-bg: #ffffff;
+  --popover-fg: rgb(0 0 6 / 80%);
+  --popover-shade: rgb(0 0 6 / 7%);
+  --thumbnail-bg: #ffffff;
+  --shade: rgb(0 0 6 / 7%);
+  --scrollbar-outline: rgb(255 255 255 / 100%);
+  --borders: rgb(0 0 6 / 15%);
+  --borders-strong: rgb(0 0 6 / 25%);
+  --separator: rgb(0 0 6 / 10%);
+
+  /* fills used by buttons/entries (alpha of currentColor in GTK) */
+  --fill-1: rgb(0 0 6 / 10%);   /* button / entry bg */
+  --fill-2: rgb(0 0 6 / 15%);   /* button hover */
+  --fill-3: rgb(0 0 6 / 30%);   /* button active / checked */
+  --fill-flat-hover: rgb(0 0 6 / 7%);
+  --fill-flat-active: rgb(0 0 6 / 16%);
+  --row-hover: rgb(0 0 6 / 4%);
+  --row-active: rgb(0 0 6 / 10%);
+  --row-selected: rgb(0 0 6 / 10%);
+
+  /* accent (blue, default) */
+  --accent-bg: #3584e4;
+  --accent-bg-hover: #4a91e7;
+  --accent-bg-active: #2a6fc9;
+  --accent-fg: #ffffff;
+  --accent: #1c71d8;              /* accent text colour (links, accent labels) */
+  --accent-a50: rgb(53 132 228 / 50%);  /* focus ring */
+  --accent-a25: rgb(53 132 228 / 25%);
+  --accent-a12: rgb(53 132 228 / 12%);
+
+  --destructive-bg: #e01b24;
+  --destructive-bg-hover: #e4353d;
+  --destructive-fg: #ffffff;
+  --destructive: #c30000;          /* destructive text colour */
+  --destructive-a12: rgb(224 27 36 / 12%);
+  --success-bg: #2ec27e;
+  --success-fg: #ffffff;
+  --success: #007c3d;
+  --warning-bg: #e5a50a;
+  --warning-fg: rgb(0 0 0 / 80%);
+  --warning: #9c6e03;
+  --error-bg: #e01b24;
+  --error: #c30000;
+
+  --dim-opacity: .55;
+  --dim-label: rgb(0 0 6 / 44%);   /* window-fg at 55% (pre-multiplied for convenience) */
+  --disabled-opacity: .5;
+
+  /* OSD (on-screen display): dark translucent floating surfaces */
+  --osd-bg: rgb(0 0 6 / 70%);
+  --osd-bg-solid: #303034;
+  --osd-fg: #ffffff;
+  --osd-fill: rgb(255 255 255 / 10%);
+  --osd-fill-hover: rgb(255 255 255 / 17%);
+  --osd-fill-active: rgb(255 255 255 / 28%);
+  --tooltip-bg: rgb(0 0 6 / 80%);
+  --tooltip-fg: #ffffff;
+  --toast-bg: #353539;
+  --toast-fg: #ffffff;
+
+  /* canvas / editor backdrop */
+  --canvas-bg: #deddda;
+  --canvas-checker-a: #f6f5f4;
+  --canvas-checker-b: #e8e7e5;
+  --desktop-bg: #c7c9d1;
+
+  /* ---- Annota annotation palette (same in light & dark; these are ink colours) ---- */
+  --annota-coral: #ff5a4e;   /* default annotation colour */
+  --annota-amber: #f5a524;
+  --annota-lime: #8bc34a;
+  --annota-teal: #14b8a6;
+  --annota-azure: #2f80ed;
+  --annota-violet: #8b5cf6;
+  --annota-ink: #1f1f24;
+  --annota-paper: #ffffff;
+  --annota-highlight: rgb(255 230 0 / 45%);  /* highlighter default */
+  --annota-coral-a20: rgb(255 90 78 / 20%);
+
+  /* ---- radii ---- */
+  --radius-xs: 3px;
+  --radius-s: 6px;       /* buttons, entries, rows in sidebars */
+  --radius-m: 9px;       /* popovers content, toggle groups */
+  --radius-l: 12px;      /* windows, cards, boxed lists, dialogs */
+  --radius-xl: 18px;     /* alert dialogs, bottom sheets */
+  --radius-pill: 9999px;
+
+  /* ---- spacing (6 px rhythm) ---- */
+  --space-1: 6px;
+  --space-2: 12px;
+  --space-3: 18px;
+  --space-4: 24px;
+  --space-5: 36px;
+  --space-6: 48px;
+
+  /* ---- typography ---- */
+  --font-ui: "Adwaita Sans", "Inter", "Cantarell", sans-serif;
+  --font-mono: "Adwaita Mono", "DejaVu Sans Mono", monospace;
+  --fs-caption: 12px;
+  --fs-caption-heading: 13px;
+  --fs-small: 13px;
+  --fs-body: 15px;
+  --fs-heading: 15px;
+  --fs-title-4: 20px;
+  --fs-title-3: 20px;
+  --fs-title-2: 26px;
+  --fs-title-1: 32px;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-bold: 700;
+  --fw-heavy: 800;
+  --lh-body: 1.33;
+
+  /* ---- sizes ---- */
+  --headerbar-h: 47px;
+  --control-h: 34px;
+  --row-h: 50px;
+  --sidebar-w: 280px;
+  --props-w: 300px;
+
+  /* ---- shadows ---- */
+  --shadow-window: 0 0 0 1px rgb(0 0 6 / 3%), 0 1px 3px 1px rgb(0 0 6 / 9%), 0 2px 14px 5px rgb(0 0 6 / 5%), 0 16px 40px 0 rgb(0 0 6 / 12%);
+  --shadow-card: 0 0 0 1px rgb(0 0 6 / 3%), 0 1px 3px 1px rgb(0 0 6 / 7%), 0 2px 6px 2px rgb(0 0 6 / 3%);
+  --shadow-popover: 0 0 0 1px rgb(0 0 6 / 8%), 0 1px 5px 1px rgb(0 0 6 / 9%), 0 2px 14px 3px rgb(0 0 6 / 5%);
+  --shadow-dialog: 0 0 0 1px rgb(0 0 6 / 5%), 0 4px 12px 2px rgb(0 0 6 / 12%), 0 12px 40px 6px rgb(0 0 6 / 14%);
+  --shadow-osd: 0 1px 3px rgb(0 0 6 / 25%), 0 4px 16px rgb(0 0 6 / 18%);
+  --shadow-slider: 0 0 0 1px rgb(0 0 6 / 14%), 0 1px 3px 1px rgb(0 0 6 / 12%);
+  --window-border: transparent;
+  --dim-backdrop: rgb(0 0 6 / 25%);
+}
+
+/* ---- dark style ---- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --window-bg: #222226;
+  --window-fg: #ffffff;
+  --view-bg: #1d1d20;
+  --view-fg: #ffffff;
+  --headerbar-bg: #2e2e32;
+  --headerbar-fg: #ffffff;
+  --headerbar-border: #ffffff;
+  --headerbar-backdrop: #222226;
+  --headerbar-shade: rgb(0 0 6 / 36%);
+  --headerbar-darker-shade: rgb(0 0 12 / 90%);
+  --sidebar-bg: #2e2e32;
+  --sidebar-fg: #ffffff;
+  --sidebar-backdrop: #28282c;
+  --sidebar-shade: rgb(0 0 6 / 25%);
+  --sidebar-border: rgb(0 0 6 / 36%);
+  --secondary-sidebar-bg: #28282c;
+  --card-bg: rgb(255 255 255 / 8%);
+  --card-fg: #ffffff;
+  --card-shade: rgb(0 0 6 / 36%);
+  --dialog-bg: #36363a;
+  --dialog-fg: #ffffff;
+  --popover-bg: #36363a;
+  --popover-fg: #ffffff;
+  --popover-shade: rgb(0 0 6 / 25%);
+  --thumbnail-bg: #39393d;
+  --shade: rgb(0 0 6 / 25%);
+  --scrollbar-outline: rgb(0 0 6 / 50%);
+  --borders: rgb(255 255 255 / 15%);
+  --borders-strong: rgb(255 255 255 / 25%);
+  --separator: rgb(255 255 255 / 10%);
+
+  --fill-1: rgb(255 255 255 / 10%);
+  --fill-2: rgb(255 255 255 / 15%);
+  --fill-3: rgb(255 255 255 / 30%);
+  --fill-flat-hover: rgb(255 255 255 / 7%);
+  --fill-flat-active: rgb(255 255 255 / 16%);
+  --row-hover: rgb(255 255 255 / 4%);
+  --row-active: rgb(255 255 255 / 10%);
+  --row-selected: rgb(255 255 255 / 10%);
+
+  --accent: #78aeed;
+  --destructive: #ff938c;
+  --success: #78e9ab;
+  --warning: #ffc252;
+  --error: #ff938c;
+  --dim-label: rgb(255 255 255 / 55%);
+
+  --osd-bg: rgb(0 0 6 / 70%);
+  --tooltip-bg: rgb(0 0 6 / 85%);
+  --toast-bg: #4a4a4f;
+
+  --canvas-bg: #18181b;
+  --canvas-checker-a: #2a2a2e;
+  --canvas-checker-b: #232327;
+  --desktop-bg: #3d3f47;
+
+  --shadow-window: 0 0 0 1px rgb(0 0 6 / 50%), 0 1px 3px 1px rgb(0 0 6 / 30%), 0 2px 14px 5px rgb(0 0 6 / 20%), 0 16px 40px 0 rgb(0 0 6 / 35%);
+  --shadow-card: 0 0 0 1px rgb(0 0 6 / 9%), 0 1px 3px 1px rgb(0 0 6 / 9%), 0 2px 6px 2px rgb(0 0 6 / 4%);
+  --shadow-popover: 0 0 0 1px rgb(0 0 6 / 50%), 0 1px 5px 1px rgb(0 0 6 / 30%), 0 2px 14px 3px rgb(0 0 6 / 20%);
+  --shadow-dialog: 0 0 0 1px rgb(0 0 6 / 60%), 0 4px 12px 2px rgb(0 0 6 / 35%), 0 12px 40px 6px rgb(0 0 6 / 35%);
+  --shadow-slider: 0 0 0 1px rgb(0 0 6 / 40%), 0 1px 3px 1px rgb(0 0 6 / 30%);
+  --window-border: rgb(255 255 255 / 7%);
+  --dim-backdrop: rgb(0 0 6 / 50%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --window-bg: #222226;
+    --window-fg: #ffffff;
+    --view-bg: #1d1d20;
+    --view-fg: #ffffff;
+    --headerbar-bg: #2e2e32;
+    --headerbar-fg: #ffffff;
+    --headerbar-border: #ffffff;
+    --headerbar-backdrop: #222226;
+    --headerbar-shade: rgb(0 0 6 / 36%);
+    --headerbar-darker-shade: rgb(0 0 12 / 90%);
+    --sidebar-bg: #2e2e32;
+    --sidebar-fg: #ffffff;
+    --sidebar-backdrop: #28282c;
+    --sidebar-shade: rgb(0 0 6 / 25%);
+    --sidebar-border: rgb(0 0 6 / 36%);
+    --secondary-sidebar-bg: #28282c;
+    --card-bg: rgb(255 255 255 / 8%);
+    --card-fg: #ffffff;
+    --card-shade: rgb(0 0 6 / 36%);
+    --dialog-bg: #36363a;
+    --dialog-fg: #ffffff;
+    --popover-bg: #36363a;
+    --popover-fg: #ffffff;
+    --popover-shade: rgb(0 0 6 / 25%);
+    --thumbnail-bg: #39393d;
+    --shade: rgb(0 0 6 / 25%);
+    --scrollbar-outline: rgb(0 0 6 / 50%);
+    --borders: rgb(255 255 255 / 15%);
+    --borders-strong: rgb(255 255 255 / 25%);
+    --separator: rgb(255 255 255 / 10%);
+    --fill-1: rgb(255 255 255 / 10%);
+    --fill-2: rgb(255 255 255 / 15%);
+    --fill-3: rgb(255 255 255 / 30%);
+    --fill-flat-hover: rgb(255 255 255 / 7%);
+    --fill-flat-active: rgb(255 255 255 / 16%);
+    --row-hover: rgb(255 255 255 / 4%);
+    --row-active: rgb(255 255 255 / 10%);
+    --row-selected: rgb(255 255 255 / 10%);
+    --accent: #78aeed;
+    --destructive: #ff938c;
+    --success: #78e9ab;
+    --warning: #ffc252;
+    --error: #ff938c;
+    --dim-label: rgb(255 255 255 / 55%);
+    --osd-bg: rgb(0 0 6 / 70%);
+    --tooltip-bg: rgb(0 0 6 / 85%);
+    --toast-bg: #4a4a4f;
+    --canvas-bg: #18181b;
+    --canvas-checker-a: #2a2a2e;
+    --canvas-checker-b: #232327;
+    --desktop-bg: #3d3f47;
+    --shadow-window: 0 0 0 1px rgb(0 0 6 / 50%), 0 1px 3px 1px rgb(0 0 6 / 30%), 0 2px 14px 5px rgb(0 0 6 / 20%), 0 16px 40px 0 rgb(0 0 6 / 35%);
+    --shadow-card: 0 0 0 1px rgb(0 0 6 / 9%), 0 1px 3px 1px rgb(0 0 6 / 9%), 0 2px 6px 2px rgb(0 0 6 / 4%);
+    --shadow-popover: 0 0 0 1px rgb(0 0 6 / 50%), 0 1px 5px 1px rgb(0 0 6 / 30%), 0 2px 14px 3px rgb(0 0 6 / 20%);
+    --shadow-dialog: 0 0 0 1px rgb(0 0 6 / 60%), 0 4px 12px 2px rgb(0 0 6 / 35%), 0 12px 40px 6px rgb(0 0 6 / 35%);
+    --shadow-slider: 0 0 0 1px rgb(0 0 6 / 40%), 0 1px 3px 1px rgb(0 0 6 / 30%);
+    --window-border: rgb(255 255 255 / 7%);
+    --dim-backdrop: rgb(0 0 6 / 50%);
+  }
+}

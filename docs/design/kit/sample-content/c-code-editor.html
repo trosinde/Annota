@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport-size" content="1600x1000"><title>Code editor — scene.rs</title>
+<style>
+*{box-sizing:border-box}body{margin:0;width:1600px;height:1000px;background:#1b1d23;color:#c9cdd6;font-family:Inter,sans-serif;overflow:hidden;display:flex;flex-direction:column}
+.top{height:44px;background:#22252c;display:flex;align-items:center;padding:0 16px;gap:18px;font-size:14px;color:#8d93a1;border-bottom:1px solid #2c3038}
+.top b{color:#d8dce4;font-weight:600}
+.body{flex:1;display:flex;min-height:0}
+.act{width:52px;background:#1f2228;display:flex;flex-direction:column;align-items:center;gap:22px;padding-top:16px}
+.act i{width:22px;height:22px;border-radius:5px;border:2px solid #5a6070}.act i.on{border-color:#d8dce4}
+.tree{width:270px;background:#1f2228;border-right:1px solid #2c3038;padding:12px 0;font-size:14px}
+.tree div{padding:4px 18px;white-space:nowrap}.tree .d{color:#8d93a1}.tree .sel{background:#2b3240;color:#fff}
+.ed{flex:1;display:flex;flex-direction:column;min-width:0}
+.tabs{height:40px;background:#1f2228;display:flex;font-size:14px}.tabs div{padding:0 20px;display:flex;align-items:center;color:#8d93a1;border-right:1px solid #2c3038}.tabs .on{background:#1b1d23;color:#e6e9ef;border-top:2px solid #e8a33d}
+pre{margin:0;padding:14px 0;font:15px/1.6 "DejaVu Sans Mono",monospace;flex:1;counter-reset:l}
+pre span.l{display:block;padding-left:76px;position:relative}pre span.l::before{counter-increment:l;content:counter(l);position:absolute;left:0;width:56px;text-align:right;color:#4f5562}
+pre span.l.cur{background:#232733}
+.k{color:#d78fe0}.t{color:#e8c07a}.f{color:#7fb4f0}.s{color:#a5d48a}.c{color:#6b7280;font-style:italic}.n{color:#f2a46b}.m{color:#7cd3c9}
+.warn{text-decoration:underline wavy #e8a33d;text-underline-offset:3px}
+.panel{height:180px;background:#1f2228;border-top:1px solid #2c3038;font:14px/1.6 "DejaVu Sans Mono",monospace;padding:10px 18px;color:#a3a9b6}
+.panel .h{font-family:Inter;font-size:13px;color:#8d93a1;margin-bottom:6px;display:flex;gap:22px}.panel .h b{color:#e6e9ef;border-bottom:2px solid #e8a33d}
+.status{height:28px;background:#2b3240;font-size:13px;display:flex;align-items:center;gap:22px;padding:0 14px;color:#c9cdd6}
+.popup{position:absolute;left:600px;top:418px;width:470px;background:#262a33;border:1px solid #3a404c;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.45);font:14px/1.5 Inter;padding:12px 14px;color:#c9cdd6}
+</style></head><body>
+<div class="top"><b>quayside</b><span>main ⇣ 0 ⇡ 2</span><span style="margin-left:auto">cargo check · 0.84 s</span></div>
+<div class="body"><div class="act"><i class="on"></i><i></i><i></i><i></i></div>
+<div class="tree"><div class="d">▾ quayside</div><div class="d">&nbsp;&nbsp;▾ src</div><div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;main.rs</div><div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;layout.rs</div><div class="sel">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;scene.rs</div><div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;shape.rs</div><div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;undo.rs</div><div class="d">&nbsp;&nbsp;▸ tests</div><div>&nbsp;&nbsp;&nbsp;&nbsp;Cargo.toml</div><div>&nbsp;&nbsp;&nbsp;&nbsp;README.md</div></div>
+<div class="ed"><div class="tabs"><div class="on">scene.rs</div><div>shape.rs</div><div>undo.rs</div></div>
+<pre><span class="l"><span class="k">use</span> std::collections::<span class="t">BTreeMap</span>;</span><span class="l"><span class="k">use</span> <span class="k">crate</span>::shape::{<span class="t">Bounds</span>, <span class="t">Shape</span>};</span><span class="l"> </span><span class="l"><span class="c">/// Ordered collection of shapes; ids are stable across undo/redo.</span></span><span class="l"><span class="m">#[derive(Debug, Default)]</span></span><span class="l"><span class="k">pub struct</span> <span class="t">Scene</span> {</span><span class="l">    shapes: <span class="t">BTreeMap</span>&lt;<span class="t">u32</span>, <span class="t">Shape</span>&gt;,</span><span class="l">    next_id: <span class="t">u32</span>,</span><span class="l">}</span><span class="l"> </span><span class="l"><span class="k">impl</span> <span class="t">Scene</span> {</span><span class="l">    <span class="k">pub fn</span> <span class="f">insert</span>(&amp;<span class="k">mut</span> self, shape: <span class="t">Shape</span>) -&gt; <span class="t">u32</span> {</span><span class="l">        <span class="k">let</span> id = self.next_id;</span><span class="l">        self.next_id += <span class="n">1</span>;</span><span class="l">        self.shapes.<span class="f">insert</span>(id, shape);</span><span class="l">        id</span><span class="l">    }</span><span class="l"> </span><span class="l cur">    <span class="k">pub fn</span> <span class="f">hit_test</span>(&amp;self, x: <span class="t">f64</span>, y: <span class="t">f64</span>) -&gt; <span class="t">Option</span>&lt;<span class="t">u32</span>&gt; {</span><span class="l">        self.shapes</span><span class="l">            .<span class="f">iter</span>()</span><span class="l">            .<span class="f">rev</span>()</span><span class="l">            .<span class="f">find</span>(|(_, s)| s.<span class="f">bounds</span>().<span class="f">contains</span>(x, y))</span><span class="l">            .<span class="f">map</span>(|(<span class="warn">id</span>, _)| *id)</span><span class="l">    }</span><span class="l">}</span></pre>
+<div class="panel"><div class="h"><b>Problems 1</b><span>Output</span><span>Terminal</span></div>
+<div><span style="color:#e8a33d">warning</span>: hit_test ignores stroke width for thin lines</div><div>&nbsp;&nbsp;--&gt; src/scene.rs:24:30</div><div style="color:#6b7280">&nbsp;&nbsp;= help: inflate bounds by stroke_width / 2 before testing</div></div>
+<div class="status"><span>⎇ main</span><span>⚠ 1</span><span style="margin-left:auto">Ln 19, Col 9</span><span>Spaces: 4</span><span>UTF-8</span><span>Rust</span></div>
+</div></div>
+<div class="popup"><b style="color:#7fb4f0">fn</b> <b>contains</b>(&amp;self, x: f64, y: f64) -&gt; bool<div style="color:#8d93a1;margin-top:6px">Returns true when the point lies inside the axis-aligned bounds (edges inclusive).</div></div>
+</body></html>

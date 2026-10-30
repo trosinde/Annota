@@ -45,13 +45,23 @@ def main() -> int:
                 for scale in (1, 2):
                     page = browser.new_page(viewport={"width": w, "height": h},
                                             device_scale_factor=scale, color_scheme=theme)
+                    # set data-theme before any page script runs, so first paint is already themed
+                    page.add_init_script(
+                        "document.addEventListener('readystatechange', () => "
+                        f"document.documentElement.dataset.theme = '{theme}', {{once: true}});")
                     page.goto(f.as_uri())
                     page.evaluate("t => document.documentElement.dataset.theme = t", theme)
                     page.wait_for_load_state("networkidle")
+                    # wait for fonts and the kit icon sprite (icons.js sets data-icons-ready)
+                    page.evaluate("document.fonts.ready.then(() => true)")
+                    if page.evaluate("!!document.querySelector('script[src$=\"icons.js\"]')"):
+                        page.wait_for_function("document.documentElement.dataset.iconsReady === '1'",
+                                               timeout=5000)
+                    page.wait_for_timeout(100)
                     target = out / f"{f.stem}-{theme}@{scale}x.png"
                     page.screenshot(path=str(target), full_page=False)
                     page.close()
-                    print(target.relative_to(base.parent.parent.parent))
+                    print(target)
         browser.close()
     return 0
 

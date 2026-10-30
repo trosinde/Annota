@@ -1,0 +1,100 @@
+<!doctype html>
+<!-- Annota mockup starter: copy to docs/design/<change-id>/src/NN-slug.html
+     Paths below assume that location (../../kit/). Window 1280×800 (narrow: 700×800). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — editor</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+  /* screen-specific layout only — no colours or sizes that are not tokens */
+  .tool-strip { width: 52px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; background: var(--window-bg); box-shadow: inset -1px 0 var(--separator); }
+  .tool-strip .btn { width: 40px; min-height: 40px; }
+  .tool-strip .separator-h { width: 28px; margin: 4px 0; }
+  .props .scroll { padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="window" style="width:1280px;height:800px">
+  <div class="headerbar">
+    <div class="start">
+      <button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button>
+      <div class="linked">
+        <button class="btn image-button"><svg class="icon"><use href="#i-undo"/></svg></button>
+        <button class="btn image-button"><svg class="icon"><use href="#i-redo"/></svg></button>
+      </div>
+    </div>
+    <div class="title-widget"><span class="title">Checkout flow</span><span class="subtitle">1600 × 1000 · Edited</span></div>
+    <div class="end">
+      <button class="btn image-button"><svg class="icon"><use href="#i-copy"/></svg></button>
+      <button class="btn text-button suggested-action">Export</button>
+      <button class="btn flat image-button"><svg class="icon"><use href="#i-open-menu"/></svg></button>
+      <div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div>
+    </div>
+  </div>
+
+  <div class="split-view">
+    <!-- tools -->
+    <div class="tool-strip">
+      <button class="btn flat"><svg class="icon"><use href="#i-select"/></svg></button>
+      <button class="btn flat active"><svg class="icon"><use href="#i-arrow"/></svg></button>
+      <button class="btn flat"><svg class="icon"><use href="#i-shape"/></svg></button>
+      <button class="btn flat"><svg class="icon"><use href="#i-text"/></svg></button>
+      <button class="btn flat"><svg class="icon"><use href="#i-callout"/></svg></button>
+      <button class="btn flat"><svg class="icon"><use href="#i-step"/></svg></button>
+      <button class="btn flat"><svg class="icon"><use href="#i-highlighter"/></svg></button>
+      <span class="separator-h"></span>
+      <button class="btn flat"><svg class="icon"><use href="#i-blur"/></svg></button>
+      <button class="btn flat"><svg class="icon"><use href="#i-magnify"/></svg></button>
+      <button class="btn flat"><svg class="icon"><use href="#i-spotlight"/></svg></button>
+      <button class="btn flat"><svg class="icon"><use href="#i-stamp"/></svg></button>
+      <button class="btn flat"><svg class="icon"><use href="#i-crop"/></svg></button>
+    </div>
+
+    <!-- canvas -->
+    <div class="content-pane" style="position:relative">
+      <div class="canvas-area">
+        <div class="canvas-image" style="width:768px;height:480px">
+          <img src="../../kit/sample-content/png/b-lumen-checkout.png" alt="">
+          <svg class="annotations" viewBox="0 0 768 480">
+            <!-- arrow in Annota Coral, width 6 -->
+            <path d="M372 388 L276 292" stroke="var(--annota-coral)" stroke-width="6" stroke-linecap="round" fill="none"/>
+            <path d="M270 316 L270 287 L299 287" stroke="var(--annota-coral)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px">
+          <button class="btn image-button"><svg class="icon"><use href="#i-zoom-out"/></svg></button>
+          <span class="label">48 %</span>
+          <button class="btn image-button"><svg class="icon"><use href="#i-zoom-in"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- properties sidebar -->
+    <div class="sidebar-pane end props">
+      <div class="scroll">
+        <div class="preferences-group">
+          <div class="group-header"><div class="text"><span class="heading">Arrow</span></div></div>
+          <div class="swatch-row">
+            <span class="swatch selected" style="--c:var(--annota-coral)"></span>
+            <span class="swatch" style="--c:var(--annota-amber)"></span>
+            <span class="swatch" style="--c:var(--annota-lime)"></span>
+            <span class="swatch" style="--c:var(--annota-teal)"></span>
+            <span class="swatch" style="--c:var(--annota-azure)"></span>
+            <span class="swatch" style="--c:var(--annota-violet)"></span>
+            <span class="swatch" style="--c:var(--annota-ink)"></span>
+          </div>
+        </div>
+        <div class="boxed-list">
+          <div class="row"><div class="text"><span class="title">Width</span></div><div class="suffix"><span class="spin" style="width:120px"><span class="value">6</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div>
+          <div class="row"><div class="text"><span class="title">Shadow</span></div><div class="suffix"><span class="switch on"></span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>
