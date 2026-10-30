@@ -1866,9 +1866,18 @@ mod tests {
             );
         }
         let main_items = menu_accels(&w.main_menu_button);
-        assert!(main_items
-            .iter()
-            .any(|(l, a)| l == "Flatten All" && a.as_deref() == Some("<Shift><Control>t")));
+        for (label, accel) in [
+            ("Flatten All", "<Shift><Control>t"),
+            ("Rotate Right", "<Control>r"),
+            ("Rotate Left", "<Shift><Control>r"),
+        ] {
+            assert!(
+                main_items
+                    .iter()
+                    .any(|(l, a)| l == label && a.as_deref() == Some(accel)),
+                "{label}: {main_items:?}"
+            );
+        }
 
         // Empty: title "Annota", no zoom OSD (mockup 14's window).
         assert_eq!(w.title.title(), "Annota");
@@ -2007,9 +2016,19 @@ mod tests {
         pump(50);
         assert_eq!(canvas.history_info().revision, steps, "no phantom edits");
 
-        // Context menu (mockup 05): opens on the selection; Ungroup is off without a group.
-        canvas.context_menu_at(Point::new(400.0, 300.0));
+        // Context menu (mockup 05): right-clicking an unselected object selects it and opens
+        // the menu; Ungroup is off without a group.
+        let (first, centre) = canvas
+            .with_document(|d| {
+                let n = &d.scene().nodes()[0];
+                (n.id, n.object.arrange().rect.centre())
+            })
+            .unwrap();
+        canvas.key_pressed(gdk::Key::Escape, gdk::ModifierType::empty());
+        assert!(canvas.selection().is_empty());
+        canvas.context_menu_at(canvas.view_point(centre).unwrap());
         pump(100);
+        assert_eq!(canvas.selection(), vec![first]);
         assert!(w.context_menu.is_visible());
         assert!(!editor.inner.actions.ungroup.is_enabled());
         w.context_menu.popdown();

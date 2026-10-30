@@ -451,6 +451,12 @@ impl Canvas {
         &self.overlay
     }
 
+    /// Where a document point is in the view (tests drive the canvas in view coordinates).
+    #[cfg(test)]
+    pub fn view_point(&self, doc: Point) -> Option<Point> {
+        Some(self.viewport()?.to_device(doc))
+    }
+
     #[cfg(test)]
     pub fn scrolled(&self) -> &gtk::ScrolledWindow {
         &self.scrolled
@@ -873,8 +879,36 @@ impl Canvas {
         cancelled
     }
 
+    fn canvas_rect(&self) -> Option<IRect> {
+        self.with_state(|s| s.doc.canvas().rect)
+    }
+
+    /// After the canvas changed size (crop, rotate, resize, canvas edges, undo of those): a
+    /// fitted view fits the new canvas, any other view gets the new scroll range.
+    fn canvas_changed(&self, before: Option<IRect>) {
+        let after = self.canvas_rect();
+        if before == after {
+            return;
+        }
+        let imp = self.view.imp();
+        let size = imp.view_size();
+        let refit = self
+            .with_state(|s| {
+                (s.fitted && size.0 >= 1.0 && size.1 >= 1.0).then(|| {
+                    s.zoom = view::fit_zoom(s.doc.canvas().rect, size);
+                    s.zoom
+                })
+            })
+            .flatten();
+        imp.configure_adjustments(None);
+        if let Some(zoom) = refit {
+            imp.notify_view(zoom, true);
+        }
+    }
+
     /// Executes `edit` as one undo step and updates the selection.
     fn execute(&self, edit: Edit) -> Option<Done> {
+        let before = self.canvas_rect();
         let label = labels::undo_label(&edit);
         let (action, subject) = (edit.action, edit.subject);
         let done = self
@@ -898,6 +932,7 @@ impl Canvas {
                 },
             )
             .flatten();
+        self.canvas_changed(before);
         self.view.queue_draw();
         self.notify_changed();
         done
@@ -923,12 +958,14 @@ impl Canvas {
     pub fn undo(&self) {
         self.cancel_drag();
         self.end_crop();
+        let before = self.canvas_rect();
         self.with_state(|s| {
             if let Err(err) = s.history.undo(&mut s.doc) {
                 eprintln!("annota: canvas: {err}");
             }
             s.selection.sync(s.doc.scene());
         });
+        self.canvas_changed(before);
         self.view.queue_draw();
         self.notify_changed();
     }
@@ -936,12 +973,14 @@ impl Canvas {
     pub fn redo(&self) {
         self.cancel_drag();
         self.end_crop();
+        let before = self.canvas_rect();
         self.with_state(|s| {
             if let Err(err) = s.history.redo(&mut s.doc) {
                 eprintln!("annota: canvas: {err}");
             }
             s.selection.sync(s.doc.scene());
         });
+        self.canvas_changed(before);
         self.view.queue_draw();
         self.notify_changed();
     }
@@ -2070,9 +2109,12 @@ mod tests {
         assert!(canvas.measure_chip.is_visible());
         assert_eq!(canvas.measure_chip.label(), "+200 px");
         assert_eq!(canvas.with_document(|d| d.canvas().rect.width), Some(1600));
+        let fitted_zoom = canvas.zoom();
         canvas.pointer_released();
         assert_eq!(canvas.with_document(|d| d.canvas().rect.width), Some(1800));
         assert_eq!(undo_label(&canvas).as_deref(), Some("Extend Canvas"));
+        // The fitted view fits the wider canvas (mockup 10: "Fit · 42 %").
+        assert!(canvas.fitted() && canvas.zoom() < fitted_zoom);
         canvas.undo();
         pump(100);
 

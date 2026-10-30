@@ -565,6 +565,40 @@ mod tests {
     }
 
     #[test]
+    fn resize_with_annotations_scenario() {
+        // Spec "Resize with annotations": 960 × 800 → 480 × 400, Scale annotations on.
+        let mut doc = Document::new(Bitmap::filled(960, 800, palette::PAPER).unwrap());
+        let mut history = History::new();
+        let pip = Bitmap::filled(100, 50, palette::CORAL).unwrap();
+        let cmd = Image::insert_command(&doc, pip, Point::new(300.0, 200.0));
+        history.execute(&mut doc, "Insert", cmd).unwrap();
+        let id = doc.scene().ids()[0];
+        let before = arrange(&doc, id).rect;
+        apply(&mut doc, &mut history, |d| resize(d, 480, 400, true));
+        assert_eq!(image_rect(&doc), IRect::new(0, 0, 480, 400));
+        let after = arrange(&doc, id).rect;
+        assert_eq!(
+            after,
+            Rect::new(
+                before.x / 2.0,
+                before.y / 2.0,
+                before.width / 2.0,
+                before.height / 2.0
+            )
+        );
+        let border = doc
+            .scene()
+            .get(id)
+            .unwrap()
+            .object
+            .as_any()
+            .downcast_ref::<Image>()
+            .unwrap()
+            .border_width;
+        assert_eq!(border, 3.0, "6 px border halved");
+    }
+
+    #[test]
     fn grouped_members_follow_a_rotation() {
         let (mut doc, mut history, _) = doc_with_object(Rect::new(4.0, 4.0, 10.0, 6.0));
         let pip = Bitmap::filled(8, 4, palette::TEAL).unwrap();
