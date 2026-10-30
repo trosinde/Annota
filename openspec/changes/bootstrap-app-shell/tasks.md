@@ -31,7 +31,10 @@
 
 ## 4. Verify
 - [x] 4.1 Tests for every scenario (unit, golden-image or documented manual check) — see `manual-checks.md`
-- [ ] 4.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
+- [x] 4.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green — two independent
+      passes; first found 5 blockers (CI step order, `.deb` vendoring, 15 `unwrap()`s, two
+      spec scenarios overclaiming unshipped behaviour, a broken icon), second confirmed all 5
+      fixed and found one more (a fuzzy German string), also fixed
 - [x] 4.3 `.deb` builds, `lintian -I --pedantic` clean — `build-aux/make-deb.sh` run end to end in
       this dev container (cargo/rustc 1.93) after fixing `debian/rules` (`dh_clean` was deleting
       `vendor/*/Cargo.toml.orig`, not a toolchain artifact — confirmed the same way on the
