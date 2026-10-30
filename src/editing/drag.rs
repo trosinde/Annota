@@ -157,6 +157,156 @@ pub fn hit(doc: &Document, viewport: &Viewport, screen: Point) -> Option<ObjectI
         })
 }
 
+/// The edited copies for one pointer position of a handle drag.
+struct HandleEdit {
+    preview: Vec<(ObjectId, Box<dyn Annotation>)>,
+    /// Box of the copies (a multi-selection's transient group box, rotation included).
+    frame: Arrange,
+    live_frame: Option<Arrange>,
+    /// The handles of the edited box or object, where they ended up.
+    handles: Vec<crate::document::annotation::Handle>,
+}
+
+impl HandleEdit {
+    /// `handle` dragged to `to`: one object through its own `drag_handle`, several through
+    /// their transient group `multi`.
+    fn new(
+        originals: &[(ObjectId, Box<dyn Annotation>)],
+        multi: Option<&Group>,
+        handle: HandleId,
+        to: Point,
+        modifiers: Modifiers,
+    ) -> Self {
+        match multi {
+            Some(group) => {
+                let mut group = group.clone();
+                group.drag_handle(handle, to, modifiers);
+                let frame = group.arrange();
+                Self {
+                    handles: box_handles(&frame),
+                    preview: group
+                        .children
+                        .into_iter()
+                        .map(|n| (n.id, n.object))
+                        .collect(),
+                    frame,
+                    live_frame: Some(frame),
+                }
+            }
+            None => {
+                let preview: Vec<(ObjectId, Box<dyn Annotation>)> = originals
+                    .iter()
+                    .map(|(id, o)| {
+                        let mut o = o.clone();
+                        o.drag_handle(handle, to, modifiers);
+                        (*id, o)
+                    })
+                    .collect();
+                let handles = match preview.as_slice() {
+                    [(_, one)] => one.handles(),
+                    _ => Vec::new(),
+                };
+                Self {
+                    frame: union_frame(&preview),
+                    preview,
+                    live_frame: None,
+                    handles,
+                }
+            }
+        }
+    }
+
+    /// Where handle `id` ended up.
+    fn position(&self, id: HandleId) -> Option<Point> {
+        self.handles.iter().find(|h| h.id == id).map(|h| h.at)
+    }
+}
+
+/// The resize handle opposite `compass` (the fixed corner or edge of a resize).
+fn opposite(compass: Compass) -> Option<Compass> {
+    let (x, y) = compass.direction();
+    Compass::ALL.into_iter().find(|c| c.direction() == (-x, -y))
+}
+
+/// Snaps a dragged handle by where it *lands*, not where the pointer is: the type may keep a
+/// ratio (images, uniform groups), so the handle can end up away from the pointer. `edited` is
+/// the unsnapped result. Tries, in order: the landed position corrected on every axis that has
+/// a line in reach; then each such axis alone (nearest first), moved along the line from the
+/// fixed opposite handle, which a kept ratio follows exactly. The first result whose handle is
+/// really on the line(s) wins. The guides are always the lines the final handle position lies
+/// on, so a guide or chip never names a target the box does not touch. `None`: no snap.
+fn snap_handle(
+    targets: &Targets,
+    edited: &HandleEdit,
+    handle: HandleId,
+    (x, y): (bool, bool),
+    tolerance: f64,
+    apply: impl Fn(Point) -> HandleEdit,
+) -> Option<(HandleEdit, Vec<Guide>)> {
+    let landed = edited.position(handle)?;
+    let s = snap::snap_point(targets, landed, x, y, tolerance);
+    let snaps_x = s.guides.iter().any(|g| g.axis == snap::Axis::Vertical);
+    let snaps_y = s.guides.iter().any(|g| g.axis == snap::Axis::Horizontal);
+    if !snaps_x && !snaps_y {
+        return None;
+    }
+    let on_lines = |e: &HandleEdit| -> Vec<Guide> {
+        e.position(handle)
+            .map(|p| snap::lines_at(targets, p, x, y))
+            .unwrap_or_default()
+    };
+    let holds = |guides: &[Guide], axis: snap::Axis| guides.iter().any(|g| g.axis == axis);
+
+    // 1. Both corrections at once (exact for free resizes and edge handles).
+    let both = apply(Point::new(landed.x + s.dx, landed.y + s.dy));
+    let both_guides = on_lines(&both);
+    if (!snaps_x || holds(&both_guides, snap::Axis::Vertical))
+        && (!snaps_y || holds(&both_guides, snap::Axis::Horizontal))
+    {
+        return Some((both, both_guides));
+    }
+
+    // 2. One axis at a time, nearest first, along the line from the fixed handle.
+    let fixed = match handle {
+        HandleId::Resize(compass) => {
+            opposite(compass).and_then(|o| edited.position(HandleId::Resize(o)))
+        }
+        _ => None,
+    };
+    let mut single = Vec::new();
+    if snaps_x {
+        single.push((s.dx, snap::Axis::Vertical));
+    }
+    if snaps_y {
+        single.push((s.dy, snap::Axis::Horizontal));
+    }
+    single.sort_by(|a, b| a.0.abs().total_cmp(&b.0.abs()));
+    for (correction, axis) in single {
+        let dir = fixed.map(|f| Point::new(landed.x - f.x, landed.y - f.y));
+        let along = |d: f64| d.abs() > 1e-9;
+        let to = match (axis, dir) {
+            (snap::Axis::Vertical, Some(d)) if along(d.x) => {
+                let t = correction / d.x;
+                Point::new(landed.x + d.x * t, landed.y + d.y * t)
+            }
+            (snap::Axis::Horizontal, Some(d)) if along(d.y) => {
+                let t = correction / d.y;
+                Point::new(landed.x + d.x * t, landed.y + d.y * t)
+            }
+            (snap::Axis::Vertical, _) => Point::new(landed.x + correction, landed.y),
+            (snap::Axis::Horizontal, _) => Point::new(landed.x, landed.y + correction),
+        };
+        let e = apply(to);
+        let guides = on_lines(&e);
+        if holds(&guides, axis) {
+            return Some((e, guides));
+        }
+    }
+
+    // 3. Whatever the combined correction really reached, else no snap.
+    (!both_guides.is_empty()).then_some((both, both_guides))
+}
+
 fn union_frame(objects: &[(ObjectId, Box<dyn Annotation>)]) -> Arrange {
     match objects {
         [(_, one)] => one.arrange(),
@@ -314,7 +464,8 @@ impl Drag {
                 anchor,
                 multi,
             } => {
-                let mut to = Point::new(anchor.x + dx, anchor.y + dy);
+                let handle = *handle;
+                let to = Point::new(anchor.x + dx, anchor.y + dy);
                 let axes = match handle {
                     HandleId::Resize(compass) => {
                         let (x, y) = compass.direction();
@@ -323,42 +474,25 @@ impl Drag {
                     HandleId::Custom(_) => Some((true, true)),
                     HandleId::Rotate => None,
                 };
+                let apply = |to: Point| {
+                    HandleEdit::new(&self.originals, multi.as_ref(), handle, to, modifiers)
+                };
+                let mut edited = apply(to);
                 // Positions only snap on an upright box: a rotated box's edges are not
                 // parallel to the guides.
                 if let (Some((x, y)), true, true) =
                     (axes, snapping, self.start_frame.rotation == 0.0)
                 {
-                    let s = snap::snap_point(&self.targets, to, x, y, tolerance);
-                    to = Point::new(to.x + s.dx, to.y + s.dy);
-                    self.guides = s.guides;
+                    if let Some((snapped, guides)) =
+                        snap_handle(&self.targets, &edited, handle, (x, y), tolerance, apply)
+                    {
+                        edited = snapped;
+                        self.guides = guides;
+                    }
                 }
-                let frame = match multi {
-                    Some(group) => {
-                        let mut group = group.clone();
-                        group.drag_handle(*handle, to, modifiers);
-                        // The transient group's box, rotation included.
-                        let frame = group.arrange();
-                        self.live_frame = Some(frame);
-                        self.preview = group
-                            .children
-                            .into_iter()
-                            .map(|n| (n.id, n.object))
-                            .collect();
-                        frame
-                    }
-                    None => {
-                        self.preview = self
-                            .originals
-                            .iter()
-                            .map(|(id, o)| {
-                                let mut o = o.clone();
-                                o.drag_handle(*handle, to, modifiers);
-                                (*id, o)
-                            })
-                            .collect();
-                        union_frame(&self.preview)
-                    }
-                };
+                let frame = edited.frame;
+                self.live_frame = edited.live_frame;
+                self.preview = edited.preview;
                 self.feedback = match handle {
                     HandleId::Rotate => Feedback::Rotate {
                         degrees: frame.rotation,
@@ -812,6 +946,203 @@ mod tests {
         };
         history.execute(&mut doc, "Place", place).unwrap();
         (doc, vec![id])
+    }
+
+    /// Image objects (a type that rotates) at `rects` with `rotations`, no border or shadow.
+    fn doc_with_images(placed: &[(Rect, f64)]) -> (Document, Vec<ObjectId>) {
+        let mut doc = Document::new(Bitmap::filled(1600, 1000, Rgba::WHITE).unwrap());
+        let mut history = History::new();
+        for (r, rotation) in placed {
+            let pip = Bitmap::filled(38, 10, Rgba::WHITE).unwrap();
+            let cmd = crate::tools::image::Image::insert_command(&doc, pip, r.centre());
+            history.execute(&mut doc, "Insert", cmd).unwrap();
+            let id = *doc.scene().ids().last().unwrap();
+            let mut o = doc.scene().get(id).unwrap().object.clone();
+            let img = o
+                .as_any_mut()
+                .downcast_mut::<crate::tools::image::Image>()
+                .unwrap();
+            img.border_width = 0.0;
+            img.shadow.enabled = false;
+            o.set_arrange(Arrange::new(*r, *rotation));
+            let place = Command::Replace {
+                objects: vec![(id, o)],
+            };
+            history.execute(&mut doc, "Place", place).unwrap();
+        }
+        let ids = doc.scene().ids();
+        (doc, ids)
+    }
+
+    fn handle_point(doc: &Document, sel: &Selection, id: HandleId) -> Point {
+        let frame = selection_frame(doc.scene(), sel, &[]).unwrap();
+        frame.handles.iter().find(|h| h.id == id).unwrap().at
+    }
+
+    fn close(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-6
+    }
+
+    #[test]
+    fn multi_selection_with_a_turned_member_resizes_uniformly() {
+        // Phase-2a review: dragging the E handle of a selection with a member at 30°/45° to the
+        // box grew the box on the axis that was not dragged (+16 %) and did not put the edge
+        // under the pointer; it compounded over repeated resizes. Now such a box scales
+        // uniformly, by the factor of the dragged axis, so the box is exactly the dragged one.
+        for angle in [30.0, 45.0] {
+            let (mut doc, ids) = doc_with_images(&[
+                (Rect::new(200.0, 300.0, 200.0, 100.0), 0.0),
+                (Rect::new(600.0, 300.0, 200.0, 100.0), angle),
+            ]);
+            let mut history = History::new();
+            let mut sel = Selection::new();
+            sel.set(doc.scene(), ids.clone());
+            let start = selection_frame(doc.scene(), &sel, &[]).unwrap().frame;
+            let e = handle_point(&doc, &sel, HandleId::Resize(Compass::E));
+            // Drag the E handle 200 px to the right (Alt: no snapping).
+            let to = Point::new(e.x + 200.0, e.y);
+            let (edit, feedback, _) = gesture(&doc, &mut sel, e, &[to], ALT);
+            let edit = edit.unwrap();
+            let s = (start.rect.width + 200.0) / start.rect.width;
+            let Feedback::Resize { width, height } = feedback[0] else {
+                panic!("resize feedback expected");
+            };
+            assert!(close(width, start.rect.width + 200.0), "{angle}°: {width}");
+            assert!(close(height, start.rect.height * s), "{angle}°: {height}");
+            execute(&mut doc, &mut history, &mut sel, edit);
+            let after = selection_frame(doc.scene(), &sel, &[]).unwrap().frame;
+            // The dragged edge is under the pointer, the left edge stays, the ratio is kept.
+            assert!(close(after.rect.right(), to.x), "{angle}°: {after:?}");
+            assert!(close(after.rect.x, start.rect.x), "{angle}°: {after:?}");
+            assert!(
+                close(after.rect.height, start.rect.height * s),
+                "{angle}°: {after:?}"
+            );
+            // Members scale by the same factor and keep their angle.
+            let turned = doc.scene().get(ids[1]).unwrap().object.arrange();
+            assert!(close(turned.rotation, angle));
+            assert!(close(turned.rect.width, 200.0 * s) && close(turned.rect.height, 100.0 * s));
+            // Dragging back gives back the start: nothing compounds.
+            let e = handle_point(&doc, &sel, HandleId::Resize(Compass::E));
+            let back = Point::new(start.rect.right(), e.y);
+            let (edit, _, _) = gesture(&doc, &mut sel, e, &[back], ALT);
+            execute(&mut doc, &mut history, &mut sel, edit.unwrap());
+            let again = selection_frame(doc.scene(), &sel, &[]).unwrap().frame;
+            assert!(
+                close(again.rect.width, start.rect.width)
+                    && close(again.rect.height, start.rect.height),
+                "{angle}°: {again:?} vs {start:?}"
+            );
+            let turned = doc.scene().get(ids[1]).unwrap().object.arrange();
+            assert!(close(turned.rect.width, 200.0) && close(turned.rect.height, 100.0));
+        }
+    }
+
+    #[test]
+    fn axis_aligned_multi_selection_still_resizes_one_axis() {
+        // Members at multiples of 90° to the box keep the exact axis-independent resize.
+        let (doc, ids) = doc_with_images(&[
+            (Rect::new(200.0, 300.0, 200.0, 100.0), 0.0),
+            (Rect::new(600.0, 300.0, 200.0, 100.0), 90.0),
+        ]);
+        let mut sel = Selection::new();
+        sel.set(doc.scene(), ids);
+        let start = selection_frame(doc.scene(), &sel, &[]).unwrap().frame;
+        let e = handle_point(&doc, &sel, HandleId::Resize(Compass::E));
+        let (_, feedback, _) = gesture(&doc, &mut sel, e, &[Point::new(e.x + 200.0, e.y)], ALT);
+        assert_eq!(
+            feedback[0],
+            Feedback::Resize {
+                width: start.rect.width + 200.0,
+                height: start.rect.height
+            }
+        );
+    }
+
+    #[test]
+    fn ratio_locked_resize_never_claims_a_snap_it_does_not_land_on() {
+        // Phase-2a review: an image corner dragged without Shift (ratio kept) snapped the
+        // pointer to "Canvas edge" at x = 1600 while the ratio made the box end at x = 1640.
+        let (doc, ids) = doc_with_image(Rect::new(1000.0, 400.0, 400.0, 200.0));
+        let mut sel = Selection::new();
+        sel.set(doc.scene(), ids);
+        let se = Point::new(1400.0, 600.0);
+        // Pointer 4 px from the canvas edge, but low enough that the height decides: 1.6×.
+        let (edit, feedback, guides) =
+            gesture(&doc, &mut sel, se, &[Point::new(1596.0, 720.0)], NONE);
+        assert_eq!(
+            feedback[0],
+            Feedback::Resize {
+                width: 640.0,
+                height: 320.0
+            }
+        );
+        assert!(
+            guides[0].is_empty(),
+            "the box is not at the canvas edge: {:?}",
+            guides[0]
+        );
+        let Command::Replace { objects } = edit.unwrap().command else {
+            panic!("replace expected");
+        };
+        assert_eq!(
+            objects[0].1.arrange().rect,
+            Rect::new(1000.0, 400.0, 640.0, 320.0)
+        );
+    }
+
+    #[test]
+    fn ratio_locked_resize_snaps_where_the_box_lands() {
+        // Snapping works on the box the ratio gives: the pointer is far from every line, but
+        // the kept ratio puts the corner 4 px from the canvas edge, so it snaps onto it.
+        let (doc, ids) = doc_with_image(Rect::new(1000.0, 400.0, 400.0, 200.0));
+        let mut sel = Selection::new();
+        sel.set(doc.scene(), ids.clone());
+        let se = Point::new(1400.0, 600.0);
+        let (edit, feedback, guides) =
+            gesture(&doc, &mut sel, se, &[Point::new(1500.0, 698.0)], NONE);
+        assert_eq!(
+            feedback[0],
+            Feedback::Resize {
+                width: 600.0,
+                height: 300.0
+            }
+        );
+        assert_eq!(Snap::targets(&guides[0]), vec![Target::CanvasEdge]);
+        assert!(guides[0].iter().all(|g| g.pos == 1600.0));
+        let Command::Replace { objects } = edit.unwrap().command else {
+            panic!("replace expected");
+        };
+        assert_eq!(
+            objects[0].1.arrange().rect,
+            Rect::new(1000.0, 400.0, 600.0, 300.0)
+        );
+
+        // Two lines in reach on different axes cannot both hold with a kept ratio: the nearer
+        // one wins and only its guide is shown. A second object's top edge at y = 705 is 7 px
+        // from the corner's 698, the canvas edge 4 px from its 1596.
+        let (doc, ids) = doc_with_images(&[
+            (Rect::new(1000.0, 400.0, 400.0, 200.0), 0.0),
+            (Rect::new(100.0, 705.0, 100.0, 100.0), 0.0),
+        ]);
+        let mut sel = Selection::new();
+        sel.set(doc.scene(), [ids[0]]);
+        let (edit, _, guides) = gesture(&doc, &mut sel, se, &[Point::new(1500.0, 698.0)], NONE);
+        let Command::Replace { objects } = edit.unwrap().command else {
+            panic!("replace expected");
+        };
+        assert_eq!(
+            objects[0].1.arrange().rect,
+            Rect::new(1000.0, 400.0, 600.0, 300.0)
+        );
+        assert_eq!(Snap::targets(&guides[0]), vec![Target::CanvasEdge]);
+        for g in &guides[0] {
+            let r = objects[0].1.arrange().rect;
+            match g.axis {
+                snap::Axis::Vertical => assert_eq!(g.pos, r.right()),
+                snap::Axis::Horizontal => assert_eq!(g.pos, r.bottom()),
+            }
+        }
     }
 
     #[test]

@@ -252,7 +252,10 @@ pub fn ungroup(doc: &Document, selection: &Selection) -> Option<Edit> {
 /// The Arrange entries of the sidebar (X, Y, W, H, Rotation): places the selection at `target`.
 /// One object takes `target` as its own placement. Several are placed as one box, like their
 /// selection handles do (a transient [`Group`]); that box has no orientation of its own, so for
-/// several objects only position and size apply. `None` if nothing would change.
+/// several objects only position and size apply. A group or several objects with a member
+/// turned against the box at an angle other than a multiple of 90° scale uniformly
+/// ([`Group::uniform_target`]): the other side follows the one that was entered. `None` if
+/// nothing would change.
 pub fn arrange(doc: &Document, selection: &Selection, target: Arrange) -> Option<Edit> {
     let scene = doc.scene();
     let originals: Vec<(ObjectId, Box<dyn Annotation>)> = selection
@@ -263,6 +266,11 @@ pub fn arrange(doc: &Document, selection: &Selection, target: Arrange) -> Option
     let (current, target, objects) = match originals.as_slice() {
         [] => return None,
         [(id, object)] => {
+            // A group with a member turned at an odd angle only scales uniformly.
+            let target = match object.as_any().downcast_ref::<Group>() {
+                Some(group) => group.uniform_target(target),
+                None => target,
+            };
             let mut copy = object.clone();
             copy.set_arrange(target);
             (object.arrange(), target, vec![(*id, copy)])
@@ -275,7 +283,7 @@ pub fn arrange(doc: &Document, selection: &Selection, target: Arrange) -> Option
                     .collect(),
             );
             let current = group.arrange();
-            let target = Arrange::new(target.rect, current.rotation);
+            let target = group.uniform_target(Arrange::new(target.rect, current.rotation));
             group.set_arrange(target);
             let objects = group
                 .children
@@ -577,6 +585,69 @@ mod tests {
             .nodes()
             .iter()
             .all(|n| n.object.arrange().rotation == 0.0));
+    }
+
+    #[test]
+    fn arranging_a_group_with_a_turned_member_scales_uniformly() {
+        // Phase-2a review, sidebar path: typing a width for a group (or several objects) with
+        // a member at 45° to the box changed the height in a way nobody asked for and missed
+        // the width. Now the box scales uniformly: exactly the typed width, the ratio kept.
+        let (mut doc, mut history, _) = doc_with(0);
+        for (x, rotation) in [(20.0, 0.0), (200.0, 45.0)] {
+            let pip = Bitmap::filled(40, 20, Rgba::WHITE).unwrap();
+            let edit = insert_image(&doc, pip, Point::new(x, 100.0)).unwrap();
+            history.execute(&mut doc, "Insert", edit.command).unwrap();
+            let id = *doc.scene().ids().last().unwrap();
+            let mut o = doc.scene().get(id).unwrap().object.clone();
+            let mut a = o.arrange();
+            a.rotation = rotation;
+            o.set_arrange(a);
+            let place = Command::Replace {
+                objects: vec![(id, o)],
+            };
+            history.execute(&mut doc, "Turn", place).unwrap();
+        }
+        let ids = doc.scene().ids();
+        let close = |a: f64, b: f64| (a - b).abs() < 1e-6;
+        for grouped in [false, true] {
+            let mut sel = Selection::new();
+            sel.set(doc.scene(), ids.clone());
+            if grouped {
+                let edit = group(&doc, &sel).unwrap();
+                apply(&mut doc, &mut history, &mut sel, edit);
+            }
+            let start = selection_box(&doc, &sel);
+            let mut target = start;
+            target.rect.width *= 1.5;
+            let edit = arrange(&doc, &sel, target).unwrap();
+            assert_eq!(edit.action, Action::Resize);
+            apply(&mut doc, &mut history, &mut sel, edit);
+            let after = selection_box(&doc, &sel);
+            assert!(close(after.rect.width, start.rect.width * 1.5), "{after:?}");
+            assert!(
+                close(after.rect.height, start.rect.height * 1.5),
+                "{after:?}"
+            );
+            assert!(close(after.rect.x, start.rect.x) && close(after.rect.y, start.rect.y));
+            history.undo(&mut doc).unwrap();
+            sel.sync(doc.scene());
+            if grouped {
+                history.undo(&mut doc).unwrap();
+            }
+        }
+    }
+
+    /// The box the sidebar's Arrange entries show: one object's own, several as one box.
+    fn selection_box(doc: &Document, sel: &Selection) -> Arrange {
+        let objects: Vec<Node> = sel
+            .ids()
+            .iter()
+            .map(|&id| Node::new(id, doc.scene().get(id).unwrap().object.clone()))
+            .collect();
+        match objects.as_slice() {
+            [one] => one.object.arrange(),
+            _ => Group::new(objects).arrange(),
+        }
     }
 
     #[test]

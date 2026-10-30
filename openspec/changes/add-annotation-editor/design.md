@@ -463,6 +463,35 @@ and tested without a display; the UI is `src/ui/canvas.rs`, `src/ui/editor/{mod,
   live: a real capture through the portal into the editor (the portal is never invoked here) and
   the welcome cards starting one; paste from a real clipboard.
 
+### Decided during apply — final review fixes (2026-10-30)
+Items from the final reviewer pass, each decided by the maintainer before it was built.
+
+- **B2a: boxes with turned members resize uniformly.** `Group::needs_uniform_scaling` is true
+  when any member, at any depth (nested groups and their own boxes included), is turned against
+  the group's box by an angle that is not a multiple of 90°. Then `Group::drag_handle` keeps the
+  ratio whatever Shift says (corner: the larger change wins; edge: the other side follows around
+  the centre line, as for images), and `ops::arrange` (the sidebar's W/H) makes the target
+  uniform with `Group::uniform_target` (factor from the entered side, top-left kept). A
+  multi-selection is a transient `Group`, so both paths cover it. `Group::set_arrange` keeps its
+  per-axis approximation; it is now only reached with uniform or axis-aligned targets from
+  these two paths (transforms map members on their own). Regression tests:
+  `drag::multi_selection_with_a_turned_member_resizes_uniformly` (30° and 45°; before: the box
+  ended at 799.3 instead of 800 px wide and the height grew on its own),
+  `group::turned_members_force_uniform_scaling` (nested, round trip),
+  `ops::arranging_a_group_with_a_turned_member_scales_uniformly` (before: 327 px for a typed
+  ×1.5 width).
+- **B2b: resize snapping uses where the handle lands.** `drag::snap_handle` first applies the
+  drag unsnapped (so the type's ratio rule has run), snaps the handle's *landed* position, applies
+  that, and keeps it only if the handle really ends on the line(s); otherwise it tries each axis
+  alone, nearest first, moved along the line from the fixed opposite handle (which a kept ratio
+  follows), and otherwise whatever the combined attempt really reached. The guides are always
+  recomputed from the final handle position (`snap::lines_at`), so a guide or chip can no longer
+  name a target the box does not touch. Regression tests:
+  `drag::ratio_locked_resize_never_claims_a_snap_it_does_not_land_on` (before: "Canvas edge" at
+  1600 for a box ending at 1640) and `drag::ratio_locked_resize_snaps_where_the_box_lands`
+  (before: a corner 4 px from the edge did not snap; also two lines on different axes, the
+  nearer wins).
+
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.
 
@@ -475,10 +504,13 @@ and tested without a display; the UI is `src/ui/canvas.rs`, `src/ui/editor/{mod,
   didn't drag — up to +16% measured at 30°/45° — and compounds over repeated resizes. Exact at
   0°/90°. Fix: force uniform scaling whenever any member sits at a non-multiple-of-90° angle to
   the box (cheap, exact), or explicitly scope this as a known limitation if a fix is deferred.
+  *Resolved (final review fixes, B2a):* uniform scaling is forced in that case.
 - **Snap guides aren't re-checked after a ratio-locked resize.** On an image corner-resize
   without Shift (ratio locked), the guide/chip can claim a snap (e.g. "Canvas edge" at x=1600)
   that the final box doesn't actually land on (box ends at x=2000) — the ratio clamp is applied
   after snapping. Low-medium severity, worth fixing before archive.
+  *Resolved (final review fixes, B2b):* snapping uses the landed position and guides are
+  re-checked against it.
 - **The live-display GTK test harness is unreliable, not just slow.** Running both `#[ignore]`d
   GTK tests in one `cargo test ... -- --ignored` process can silently pass a test that printed
   "skipped: no display" instead of actually running, and with no display at all both pass

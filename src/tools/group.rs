@@ -22,7 +22,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::document::annotation::{
-    Annotation, Property, PropertyError, PropertyValue, RenderContext,
+    drag_box_handle, Annotation, HandleId, Modifiers, Property, PropertyError, PropertyValue,
+    RenderContext,
 };
 use crate::document::command::Command;
 use crate::document::geometry::{normalize_degrees, Arrange, Point, Rect, Transform};
@@ -72,6 +73,50 @@ impl Group {
         // The box's centre back in document space; an `Arrange` rotates around its centre.
         let c = Point::new(x0 + w / 2.0, y0 + h / 2.0).rotated_around(origin, rotation);
         Arrange::new(Rect::new(c.x - w / 2.0, c.y - h / 2.0, w, h), rotation)
+    }
+
+    /// Whether resizing must scale both axes by the same factor: some member (at any depth,
+    /// nested groups included) is turned against the group's box by an angle that is not a
+    /// multiple of 90°. Scaling such a member along the box's axes by different factors would
+    /// make it a parallelogram; `set_arrange` approximates that along the member's own axes,
+    /// which grows the box on the axis that was not dragged. Uniform scaling is exact.
+    pub fn needs_uniform_scaling(&self) -> bool {
+        fn skewed(nodes: &[Node], rotation: f64) -> bool {
+            nodes.iter().any(|n| {
+                let turn = (n.object.arrange().rotation - rotation).rem_euclid(90.0);
+                let off = turn.min(90.0 - turn);
+                off > 1e-9 || skewed(n.object.children(), rotation)
+            })
+        }
+        skewed(&self.children, self.rotation)
+    }
+
+    /// `next` made uniform when [`Group::needs_uniform_scaling`] says so (the sidebar's W/H
+    /// entries): the factor comes from the side that changed (the width if both did), the
+    /// box keeps its top-left corner. Otherwise `next` unchanged.
+    pub fn uniform_target(&self, next: Arrange) -> Arrange {
+        let old = self.frame();
+        if !self.needs_uniform_scaling() || old.rect.width <= 0.0 || old.rect.height <= 0.0 {
+            return next;
+        }
+        let width_changed = (next.rect.width - old.rect.width).abs() > 1e-9;
+        let height_changed = (next.rect.height - old.rect.height).abs() > 1e-9;
+        let s = if width_changed {
+            next.rect.width / old.rect.width
+        } else if height_changed {
+            next.rect.height / old.rect.height
+        } else {
+            return next;
+        };
+        Arrange::new(
+            Rect::new(
+                next.rect.x,
+                next.rect.y,
+                old.rect.width * s,
+                old.rect.height * s,
+            ),
+            next.rotation,
+        )
     }
 }
 
@@ -187,6 +232,22 @@ impl Annotation for Group {
             ));
         }
         self.rotation = normalize_degrees(next.rotation);
+    }
+
+    /// Box handles; a resize keeps the ratio (Shift or not) when a member is turned against
+    /// the box by an angle other than a multiple of 90° ([`Group::needs_uniform_scaling`]).
+    fn drag_handle(&mut self, handle: HandleId, to: Point, modifiers: Modifiers) {
+        let uniform = matches!(handle, HandleId::Resize(_)) && self.needs_uniform_scaling();
+        let modifiers = if uniform {
+            // `drag_box_handle` keeps the ratio of a group with Shift.
+            Modifiers {
+                shift: true,
+                ..modifiers
+            }
+        } else {
+            modifiers
+        };
+        drag_box_handle(self, handle, to, modifiers, false);
     }
 
     /// Exact: every member moves by the same amount.
@@ -464,6 +525,78 @@ mod tests {
         assert!(close(group.arrange().rotation, 0.0));
         let c = group.children[0].object.arrange().rect;
         assert!(rect_close(c, Rect::new(0.0, 0.0, 10.0, 10.0)), "{c:?}");
+    }
+
+    fn turned_image_node(id: u64, x: f64, rotation: f64) -> Node {
+        let mut image = Image::new("images/1.png", Rect::new(x, 0.0, 20.0, 10.0));
+        image.rotation = rotation;
+        Node::new(ObjectId(id), Box::new(image))
+    }
+
+    #[test]
+    fn turned_members_force_uniform_scaling() {
+        // Axis-aligned members (0°, 90°, −180°) keep the axis-independent resize.
+        let upright = Group::new(vec![
+            turned_image_node(1, 0.0, 0.0),
+            turned_image_node(2, 50.0, 90.0),
+            turned_image_node(3, 100.0, -180.0),
+        ]);
+        assert!(!upright.needs_uniform_scaling());
+        // A member at 30°, also inside a nested group, forces uniform scaling.
+        let turned = Group::new(vec![
+            turned_image_node(1, 0.0, 0.0),
+            turned_image_node(2, 50.0, 30.0),
+        ]);
+        assert!(turned.needs_uniform_scaling());
+        let nested = Group::new(vec![
+            turned_image_node(3, 200.0, 0.0),
+            Node::new(ObjectId(4), Box::new(turned.clone())),
+        ]);
+        assert!(nested.needs_uniform_scaling());
+        // Relative to the box: a group turned by 30° with a member at 30° is axis-aligned.
+        let mut along = Group::new(vec![turned_image_node(5, 0.0, 30.0)]);
+        along.rotation = 30.0;
+        assert!(!along.needs_uniform_scaling());
+
+        // The real group's E handle (no Shift): the box follows the pointer and keeps its
+        // ratio; dragging back restores every member.
+        for mut group in [turned, nested] {
+            let start = group.arrange();
+            let original = group.clone();
+            let e = Point::new(start.rect.right(), start.rect.centre().y);
+            let mut copy = group.clone();
+            copy.drag_handle(
+                HandleId::Resize(Compass::E),
+                Point::new(e.x + start.rect.width, e.y),
+                Modifiers::default(),
+            );
+            let after = copy.arrange();
+            assert!(close(after.rect.width, 2.0 * start.rect.width), "{after:?}");
+            assert!(
+                close(after.rect.height, 2.0 * start.rect.height),
+                "{after:?}"
+            );
+            assert!(close(after.rect.x, start.rect.x));
+            let back = Point::new(start.rect.right(), after.rect.centre().y);
+            group = copy;
+            group.drag_handle(HandleId::Resize(Compass::E), back, Modifiers::default());
+            assert!(rect_close(group.arrange().rect, start.rect));
+            fn leaves(nodes: &[Node]) -> Vec<Arrange> {
+                nodes
+                    .iter()
+                    .flat_map(|n| match n.object.children() {
+                        [] => vec![n.object.arrange()],
+                        c => leaves(c),
+                    })
+                    .collect()
+            }
+            for (a, b) in leaves(&group.children)
+                .iter()
+                .zip(leaves(&original.children))
+            {
+                assert!(rect_close(a.rect, b.rect) && close(a.rotation, b.rotation));
+            }
+        }
     }
 
     #[test]

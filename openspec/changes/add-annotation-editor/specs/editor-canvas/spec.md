@@ -65,6 +65,13 @@ Users SHALL move the selection by drag or arrow keys (1 px, Shift = 10 px); resi
 - **WHEN** the user rotates an object while holding Shift
 - **THEN** the angle snaps to multiples of 15° and the chip shows the angle with "Shift: 15° steps"
 
+### Requirement: Resizing boxes with turned members
+When an object inside a group, or inside a selection of several objects, is turned against the box by an angle that is not a multiple of 90°, resizing the box — by a handle or the Arrange entries — SHALL scale it uniformly, by the factor of the side that was dragged or entered, so that the box ends up exactly as dragged.
+
+#### Scenario: Resize a box with a turned member
+- **WHEN** two objects are selected, one of them turned by 45°, and the user drags the right handle of their box 200 px to the right
+- **THEN** the box's right edge is under the pointer, its height grows by the same factor as its width, and dragging the handle back restores both objects exactly
+
 ### Requirement: Arrange entries
 The sidebar's Arrange entries (X, Y, W, H, Rotation) SHALL place the selection. They show values rounded to 0.1 px; confirming or leaving an entry whose text was not changed SHALL NOT change the document.
 
@@ -108,6 +115,13 @@ While moving, objects SHALL snap with their edges or centre to canvas edges, can
 #### Scenario: Alt suspends snapping
 - **WHEN** the user drags an object near the canvas centre while holding Alt
 - **THEN** the object stays exactly where the pointer puts it and no guide appears
+
+### Requirement: Snapping resize handles
+A dragged resize handle SHALL snap by where it lands once the object has kept its aspect ratio (images without Shift, uniformly scaled boxes), not by where the pointer is. A guide and the chip SHALL only name lines the resized box actually touches.
+
+#### Scenario: Snapping a ratio-locked resize
+- **WHEN** the user drags an image's corner handle without Shift so that the pointer is near the canvas edge but the kept aspect ratio puts the corner beyond it
+- **THEN** no guide and no "Canvas edge" chip appear, and when instead the kept ratio puts the corner within 6 screen px of the canvas edge, the corner snaps onto it and the guide shows there
 
 ### Requirement: Snapping switch
 The sidebar's "Snap to guides" switch and `Ctrl+;` SHALL be the same setting, kept across sessions.

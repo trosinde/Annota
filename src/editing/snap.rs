@@ -190,6 +190,12 @@ pub fn snap_point(targets: &Targets, p: Point, x: bool, y: bool, tolerance: f64)
     snap
 }
 
+/// The guides through `p` on the axes it moves along: lines it lies on (to rounding), without
+/// any correction. Used to check where a snapped handle really landed.
+pub fn lines_at(targets: &Targets, p: Point, x: bool, y: bool) -> Vec<Guide> {
+    snap_point(targets, p, x, y, SAME).guides
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
