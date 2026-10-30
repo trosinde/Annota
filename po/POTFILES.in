@@ -8,6 +8,9 @@ data/ui/region-overlay.blp
 data/ui/countdown.blp
 data/ui/permission-dialog.blp
 data/ui/shortcut-dialog.blp
+data/ui/editor-window.blp
+data/ui/restore-dialog.blp
+data/ui/newer-version-dialog.blp
 src/application.rs
 src/capture/countdown.rs
 src/capture/delivery.rs
@@ -17,4 +20,8 @@ src/capture/overlay.rs
 src/capture/shortcut_dialog.rs
 src/capture/shortcuts.rs
 src/preferences.rs
+src/ui/editor/dialogs.rs
+src/ui/editor/mod.rs
+src/ui/editor/sidebar.rs
+src/ui/editor/text.rs
 src/ui/labels.rs

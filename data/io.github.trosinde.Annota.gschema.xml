@@ -84,6 +84,20 @@
       <summary>GNOME screenshot keys moved aside</summary>
       <description>GNOME Shell keybindings (key, accelerator) that Annota took over. They are given back when the Annota shortcut is disabled or changed.</description>
     </key>
+    <key name="snap-to-guides" type="b">
+      <default>true</default>
+      <summary>Snap to guides</summary>
+      <description>Moved and resized objects snap to the canvas and to other objects in the editor (sidebar switch, Ctrl+;).</description>
+    </key>
+    <key name="show-properties" type="b">
+      <default>true</default>
+      <summary>Show the properties sidebar</summary>
+      <description>Editor sidebar on the right; below 900 px it is a bottom sheet (F9).</description>
+    </key>
+    <key name="show-tray" type="b">
+      <default>true</default>
+      <summary>Show the recent captures tray</summary>
+    </key>
     <key name="window-width" type="i">
       <default>1280</default>
       <summary>Editor window width</summary>

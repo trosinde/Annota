@@ -3,7 +3,8 @@ mod capture;
 mod cli;
 mod config;
 mod preferences;
-// Only the development canvas preview uses the UI module so far (add-annotation-editor 3.1).
+// The editor window is reached through debug-only entry points until add-annotation-editor
+// tasks 4.4/4.5 route `--open` and captures to it.
 #[cfg(debug_assertions)]
 mod ui;
 

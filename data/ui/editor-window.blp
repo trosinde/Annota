@@ -1,0 +1,970 @@
+using Gtk 4.0;
+using Adw 1;
+
+// The editor window (add-annotation-editor, tasks 4.1 and 4.2): header bar, tool strip,
+// canvas with zoom OSD, properties sidebar (a bottom sheet below 900 px), recent-captures tray.
+// Mockups 01, 07, 11, 13, 16, 17; redlines "Window and shell", "Canvas" and "Sidebar contents"
+// in docs/design/add-annotation-editor/index.md. The header bar end follows decision D1 of
+// docs/design/decisions.md (Export is a split button with Share in its menu).
+//
+// The canvases (one per open document), the tray thumbnails, the per-type summary rows and
+// the group member rows are created in code (src/ui/editor/); the breakpoint is set up in code
+// too, because it moves the properties between the sidebar and the bottom sheet.
+
+menu main_menu {
+  section {
+    item {
+      label: _("New Capture");
+      action: "win.new-capture";
+    }
+
+    item {
+      label: _("Open…");
+      action: "app.open-image";
+    }
+
+    item {
+      label: _("Open Library");
+      action: "app.open-library";
+    }
+  }
+
+  section {
+    item {
+      label: _("Save");
+      action: "win.save";
+    }
+
+    item {
+      label: _("Save As…");
+      action: "win.save-as";
+    }
+
+    item {
+      label: _("Export…");
+      action: "win.export";
+    }
+  }
+
+  section {
+    item {
+      label: _("Resize Image…");
+      action: "win.resize-image";
+    }
+
+    item {
+      label: _("Rotate Right");
+      action: "win.rotate-right";
+    }
+
+    item {
+      label: _("Rotate Left");
+      action: "win.rotate-left";
+    }
+
+    item {
+      label: _("Flip Horizontally");
+      action: "win.flip-horizontal";
+    }
+
+    item {
+      label: _("Flip Vertically");
+      action: "win.flip-vertical";
+    }
+
+    item {
+      label: _("Flatten All");
+      action: "win.flatten-all";
+    }
+  }
+
+  section {
+    item {
+      label: _("_Preferences");
+      action: "app.preferences";
+    }
+
+    item {
+      label: _("_Keyboard Shortcuts");
+      action: "win.show-help-overlay";
+    }
+
+    item {
+      label: _("_About Annota");
+      action: "app.about";
+    }
+  }
+}
+
+// Decision D1: the arrow of the Export split button opens Share.
+menu share_menu {
+  section {
+    item {
+      label: _("Email…");
+      action: "win.share-email";
+    }
+
+    item {
+      label: _("Open With…");
+      action: "win.share-open-with";
+    }
+
+    item {
+      label: _("Copy to Folder…");
+      action: "win.share-copy-to-folder";
+    }
+  }
+}
+
+// Zoom popover (mockup 07).
+menu zoom_menu {
+  section {
+    item {
+      label: _("Fit to Window");
+      action: "win.zoom-fit";
+    }
+
+    item {
+      label: _("Fit Width");
+      action: "win.zoom-fit-width";
+    }
+  }
+
+  section {
+    item {
+      label: "25 %";
+      action: "win.zoom-preset";
+      target: "25";
+    }
+
+    item {
+      label: "50 %";
+      action: "win.zoom-preset";
+      target: "50";
+    }
+
+    item {
+      label: "100 %";
+      action: "win.zoom-preset";
+      target: "100";
+    }
+
+    item {
+      label: "200 %";
+      action: "win.zoom-preset";
+      target: "200";
+    }
+
+    item {
+      label: "400 %";
+      action: "win.zoom-preset";
+      target: "400";
+    }
+
+    item {
+      label: "800 %";
+      action: "win.zoom-preset";
+      target: "800";
+    }
+
+    item {
+      label: "1600 %";
+      action: "win.zoom-preset";
+      target: "1600";
+    }
+  }
+
+  section {
+    item {
+      label: _("Zoom In");
+      action: "win.zoom-in";
+    }
+
+    item {
+      label: _("Zoom Out");
+      action: "win.zoom-out";
+    }
+  }
+}
+
+Adw.ApplicationWindow editor_window {
+  title: _("Annota");
+  default-width: 1280;
+  default-height: 800;
+  width-request: 360;
+  height-request: 294;
+  styles ["annota-editor"]
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      [start]
+      Button {
+        icon-name: "annota-capture-region-symbolic";
+        action-name: "win.new-capture";
+        tooltip-text: _("New Capture (Ctrl+N)");
+
+        accessibility {
+          label: _("New Capture");
+        }
+      }
+
+      [start]
+      Box {
+        styles ["linked"]
+
+        Button undo_button {
+          icon-name: "edit-undo-symbolic";
+          action-name: "win.undo";
+          has-tooltip: true;
+
+          accessibility {
+            label: _("Undo");
+          }
+        }
+
+        Button redo_button {
+          icon-name: "edit-redo-symbolic";
+          action-name: "win.redo";
+          has-tooltip: true;
+
+          accessibility {
+            label: _("Redo");
+          }
+        }
+      }
+
+      title-widget: Adw.WindowTitle window_title {
+        title: _("Annota");
+      };
+
+      [end]
+      MenuButton main_menu_button {
+        primary: true;
+        icon-name: "open-menu-symbolic";
+        tooltip-text: _("Main Menu");
+        menu-model: main_menu;
+      }
+
+      [end]
+      Adw.SplitButton {
+        label: _("Export");
+        action-name: "win.export";
+        menu-model: share_menu;
+        tooltip-text: _("Export (Ctrl+E)");
+        dropdown-tooltip: _("Share");
+        styles ["suggested-action"]
+      }
+
+      [end]
+      Button copy_button {
+        icon-name: "edit-copy-symbolic";
+        action-name: "win.copy";
+        tooltip-text: _("Copy to Clipboard (Ctrl+C)");
+
+        accessibility {
+          label: _("Copy to Clipboard");
+        }
+      }
+
+      [end]
+      ToggleButton {
+        icon-name: "sidebar-show-right-symbolic";
+        action-name: "win.show-properties";
+        tooltip-text: _("Show Properties (F9)");
+
+        accessibility {
+          label: _("Show Properties");
+        }
+      }
+    }
+
+    content: Adw.ToastOverlay toast_overlay {
+      child: Adw.OverlaySplitView split_view {
+        sidebar-position: end;
+        min-sidebar-width: 300;
+        max-sidebar-width: 300;
+        sidebar-width-fraction: 0.3;
+
+        content: Box {
+          // Tool strip (redline "Window and shell"). Decision D2: tools of a later phase are
+          // hidden until their change ships, so only Select is here for now.
+          Box {
+            orientation: vertical;
+            spacing: 4;
+            width-request: 52;
+            styles ["annota-tool-strip"]
+
+            ToggleButton select_tool_button {
+              active: true;
+              halign: center;
+              icon-name: "annota-select-symbolic";
+              tooltip-text: _("Select (V)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Select");
+              }
+            }
+          }
+
+          Separator {
+            orientation: vertical;
+          }
+
+          Box {
+            orientation: vertical;
+            hexpand: true;
+
+            Overlay canvas_area {
+              vexpand: true;
+
+              child: Stack canvas_stack {
+                transition-type: crossfade;
+
+                StackPage {
+                  name: "empty";
+
+                  // The canvas background without a document; painted in code like the canvas.
+                  child: DrawingArea canvas_empty {};
+                }
+              };
+
+              // Zoom OSD (redline "Canvas", mockup 07).
+              [overlay]
+              Box zoom_osd {
+                halign: end;
+                valign: end;
+                margin-end: 18;
+                margin-bottom: 18;
+                spacing: 4;
+                styles ["annota-zoom-osd"]
+
+                Button {
+                  icon-name: "zoom-out-symbolic";
+                  action-name: "win.zoom-out";
+                  tooltip-text: _("Zoom Out (Ctrl+−)");
+                  styles ["flat"]
+
+                  accessibility {
+                    label: _("Zoom Out");
+                  }
+                }
+
+                // A label child, so the button shows no arrow (mockup 07).
+                MenuButton zoom_level_button {
+                  direction: up;
+                  menu-model: zoom_menu;
+                  tooltip-text: _("Zoom Level");
+                  styles ["flat", "annota-zoom-level"]
+
+                  child: Label zoom_level_label {};
+                }
+
+                Button {
+                  icon-name: "zoom-in-symbolic";
+                  action-name: "win.zoom-in";
+                  tooltip-text: _("Zoom In (Ctrl++)");
+                  styles ["flat"]
+
+                  accessibility {
+                    label: _("Zoom In");
+                  }
+                }
+              }
+
+              [overlay]
+              Button show_tray_button {
+                visible: false;
+                halign: start;
+                valign: end;
+                margin-start: 18;
+                margin-bottom: 18;
+                icon-name: "pan-up-symbolic";
+                action-name: "win.show-tray";
+                tooltip-text: _("Show Tray");
+                styles ["circular", "annota-osd-button"]
+
+                accessibility {
+                  label: _("Show Tray");
+                }
+              }
+
+              // Drop target highlight while a tray thumbnail is dragged in (mockup 11).
+              [overlay]
+              Box drop_ring {
+                visible: false;
+                can-target: false;
+                styles ["annota-drop-ring"]
+              }
+
+              [overlay]
+              Label drop_chip {
+                visible: false;
+                can-target: false;
+                halign: start;
+                valign: start;
+                label: _("Drop to insert image");
+                styles ["annota-chip", "annota-canvas-chip"]
+              }
+
+              // Bottom sheet for the properties below 900 px (mockup 13).
+              [overlay]
+              Revealer sheet_revealer {
+                valign: end;
+                transition-type: slide_up;
+
+                child: Box {
+                  orientation: vertical;
+                  styles ["annota-sheet"]
+
+                  Box {
+                    halign: center;
+                    styles ["annota-sheet-handle"]
+                  }
+
+                  ScrolledWindow sheet_scroller {
+                    hscrollbar-policy: never;
+                    propagate-natural-height: true;
+                    max-content-height: 360;
+                  }
+                };
+              }
+            }
+
+            // Recent captures tray (task 4.2, redline "Window and shell", mockup 11).
+            Revealer tray_revealer {
+              transition-type: slide_up;
+              reveal-child: true;
+
+              child: Box {
+                height-request: 107;
+                styles ["annota-tray"]
+
+                Overlay {
+                  hexpand: true;
+
+                  child: ScrolledWindow {
+                    vscrollbar-policy: never;
+                    hscrollbar-policy: automatic;
+
+                    child: Box {
+                      spacing: 12;
+
+                      Box open_section {
+                        visible: false;
+                        orientation: vertical;
+                        spacing: 4;
+
+                        Label {
+                          label: _("Open");
+                          xalign: 0;
+                          styles ["caption-heading", "dim-label", "annota-tray-label"]
+                        }
+
+                        Box open_items {
+                          spacing: 6;
+                        }
+                      }
+
+                      Separator open_separator {
+                        visible: false;
+                        orientation: vertical;
+                      }
+
+                      Box recent_section {
+                        visible: false;
+                        orientation: vertical;
+                        spacing: 4;
+
+                        Label {
+                          label: _("Recent");
+                          xalign: 0;
+                          styles ["caption-heading", "dim-label", "annota-tray-label"]
+                        }
+
+                        Box recent_items {
+                          spacing: 6;
+                        }
+                      }
+                    };
+                  };
+
+                  [overlay]
+                  Box {
+                    halign: end;
+                    width-request: 48;
+                    can-target: false;
+                    styles ["annota-tray-fade"]
+                  }
+                }
+
+                Box {
+                  orientation: vertical;
+                  valign: center;
+                  spacing: 6;
+                  margin-start: 6;
+
+                  Button {
+                    icon-name: "annota-library-symbolic";
+                    action-name: "app.open-library";
+                    tooltip-text: _("Open Library (Ctrl+L)");
+                    styles ["flat"]
+
+                    accessibility {
+                      label: _("Open Library");
+                    }
+                  }
+
+                  Button {
+                    icon-name: "pan-down-symbolic";
+                    action-name: "win.show-tray";
+                    tooltip-text: _("Hide Tray");
+                    styles ["flat"]
+
+                    accessibility {
+                      label: _("Hide Tray");
+                    }
+                  }
+                }
+              };
+            }
+          }
+        };
+
+        sidebar: ScrolledWindow sidebar_scroller {
+          hscrollbar-policy: never;
+        };
+      };
+    };
+  };
+}
+
+// The properties (redline "Sidebar contents"). Lives in the sidebar or in the bottom sheet.
+Box properties_box {
+  orientation: vertical;
+  styles ["annota-properties"]
+
+  Stack properties_stack {
+    vhomogeneous: false;
+
+    StackPage {
+      name: "empty";
+
+      child: Box {};
+    }
+
+    // Nothing selected: the document (mockups 01, 16).
+    StackPage {
+      name: "document";
+
+      child: Box {
+        orientation: vertical;
+        spacing: 18;
+
+        // More than 40 objects: a summary per type (mockup 16).
+        Box summary_group {
+          visible: false;
+          orientation: vertical;
+          spacing: 12;
+
+          Box {
+            Label {
+              label: _("Document");
+              hexpand: true;
+              xalign: 0;
+              styles ["heading"]
+            }
+
+            Label summary_caption {
+              styles ["dim-label", "caption"]
+            }
+          }
+
+          ListBox summary_list {
+            selection-mode: none;
+            styles ["boxed-list"]
+          }
+        }
+
+        Adw.PreferencesGroup {
+          title: _("Image");
+
+          Adw.ActionRow size_row {
+            title: _("Size");
+            styles ["property"]
+
+            [suffix]
+            Button {
+              label: _("Resize…");
+              valign: center;
+              action-name: "win.resize-image";
+            }
+          }
+
+          Adw.ActionRow {
+            title: _("Rotate & Flip");
+            use-markup: false;
+
+            [suffix]
+            Box {
+              valign: center;
+              styles ["linked"]
+
+              Button {
+                icon-name: "object-rotate-left-symbolic";
+                action-name: "win.rotate-left";
+                tooltip-text: _("Rotate Left (Ctrl+Shift+R)");
+              }
+
+              Button {
+                icon-name: "object-rotate-right-symbolic";
+                action-name: "win.rotate-right";
+                tooltip-text: _("Rotate Right (Ctrl+R)");
+              }
+
+              Button {
+                icon-name: "object-flip-horizontal-symbolic";
+                action-name: "win.flip-horizontal";
+                tooltip-text: _("Flip Horizontally");
+              }
+
+              Button {
+                icon-name: "object-flip-vertical-symbolic";
+                action-name: "win.flip-vertical";
+                tooltip-text: _("Flip Vertically");
+              }
+            }
+          }
+
+          Adw.SpinRow corner_radius_row {
+            title: _("Corner radius");
+            sensitive: false;
+
+            adjustment: Adjustment {
+              lower: 0;
+              upper: 10000;
+              step-increment: 1;
+            };
+          }
+        }
+
+        Adw.PreferencesGroup {
+          title: _("Canvas");
+
+          Box {
+            orientation: vertical;
+            spacing: 8;
+
+            Label {
+              label: _("Background");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box {
+              spacing: 6;
+
+              Button swatch_coral {
+                sensitive: false;
+                tooltip-text: _("Coral");
+                styles ["annota-swatch", "annota-swatch-coral"]
+              }
+
+              Button swatch_amber {
+                sensitive: false;
+                tooltip-text: _("Amber");
+                styles ["annota-swatch", "annota-swatch-amber"]
+              }
+
+              Button swatch_lime {
+                sensitive: false;
+                tooltip-text: _("Lime");
+                styles ["annota-swatch", "annota-swatch-lime"]
+              }
+
+              Button swatch_teal {
+                sensitive: false;
+                tooltip-text: _("Teal");
+                styles ["annota-swatch", "annota-swatch-teal"]
+              }
+
+              Button swatch_azure {
+                sensitive: false;
+                tooltip-text: _("Azure");
+                styles ["annota-swatch", "annota-swatch-azure"]
+              }
+
+              Button swatch_violet {
+                sensitive: false;
+                tooltip-text: _("Violet");
+                styles ["annota-swatch", "annota-swatch-violet"]
+              }
+
+              Button swatch_ink {
+                sensitive: false;
+                tooltip-text: _("Ink");
+                styles ["annota-swatch", "annota-swatch-ink"]
+              }
+            }
+
+            Box {
+              spacing: 6;
+
+              Button swatch_transparent {
+                sensitive: false;
+                tooltip-text: _("Transparent");
+                styles ["annota-swatch", "annota-swatch-transparent"]
+              }
+
+              Button swatch_paper {
+                sensitive: false;
+                tooltip-text: _("Paper");
+                styles ["annota-swatch", "annota-swatch-paper"]
+              }
+
+              Button swatch_custom {
+                sensitive: false;
+                tooltip-text: _("Custom Colour");
+                styles ["annota-swatch", "annota-swatch-custom"]
+              }
+
+              Button {
+                icon-name: "color-select-symbolic";
+                sensitive: false;
+                tooltip-text: _("Pick Colour From Image");
+                styles ["annota-swatch", "annota-swatch-eyedropper"]
+              }
+            }
+
+            Label {
+              label: _("Drag a canvas edge to add space around the image.");
+              wrap: true;
+              xalign: 0;
+              styles ["dim-label"]
+            }
+          }
+        }
+
+        Adw.PreferencesGroup {
+          title: _("Objects");
+
+          Adw.SwitchRow snap_row {
+            title: _("Snap to guides");
+            subtitle: _("Ctrl+; · hold Alt to suspend");
+          }
+
+          Adw.ActionRow objects_row {
+            [suffix]
+            Button {
+              label: _("Flatten All");
+              valign: center;
+              action-name: "win.flatten-all";
+            }
+          }
+        }
+      };
+    }
+
+    // Something selected (mockups 03, 06). Type properties arrive with the annotation tools.
+    StackPage {
+      name: "selection";
+
+      child: Box {
+        orientation: vertical;
+        spacing: 18;
+
+        Box {
+          Label selection_heading {
+            hexpand: true;
+            xalign: 0;
+            ellipsize: end;
+            styles ["heading"]
+          }
+
+          Label selection_caption {
+            styles ["dim-label", "caption"]
+          }
+        }
+
+        ListBox members_list {
+          visible: false;
+          selection-mode: none;
+          styles ["boxed-list"]
+        }
+
+        Button ungroup_button {
+          visible: false;
+
+          child: Box {
+            halign: center;
+            spacing: 12;
+
+            Label {
+              label: _("Ungroup");
+            }
+
+            Label ungroup_accel {
+              styles ["dim-label"]
+            }
+          };
+        }
+
+        Box {
+          orientation: vertical;
+          spacing: 12;
+
+          Label {
+            label: _("Arrange");
+            xalign: 0;
+            styles ["heading"]
+          }
+
+          Grid {
+            column-spacing: 12;
+            row-spacing: 8;
+            column-homogeneous: true;
+
+            Box {
+              spacing: 8;
+
+              layout {
+                column: 0;
+                row: 0;
+              }
+
+              Label {
+                label: C_("arrange", "X");
+                width-chars: 1;
+                styles ["dim-label"]
+              }
+
+              Entry arrange_x {
+                hexpand: true;
+                width-chars: 4;
+                input-purpose: number;
+
+                accessibility {
+                  label: _("X position");
+                }
+              }
+            }
+
+            Box {
+              spacing: 8;
+
+              layout {
+                column: 1;
+                row: 0;
+              }
+
+              Label {
+                label: C_("arrange", "Y");
+                width-chars: 1;
+                styles ["dim-label"]
+              }
+
+              Entry arrange_y {
+                hexpand: true;
+                width-chars: 4;
+                input-purpose: number;
+
+                accessibility {
+                  label: _("Y position");
+                }
+              }
+            }
+
+            Box {
+              spacing: 8;
+
+              layout {
+                column: 0;
+                row: 1;
+              }
+
+              Label {
+                label: C_("arrange", "W");
+                width-chars: 1;
+                styles ["dim-label"]
+              }
+
+              Entry arrange_w {
+                hexpand: true;
+                width-chars: 4;
+                input-purpose: number;
+
+                accessibility {
+                  label: _("Width");
+                }
+              }
+            }
+
+            Box {
+              spacing: 8;
+
+              layout {
+                column: 1;
+                row: 1;
+              }
+
+              Label {
+                label: C_("arrange", "H");
+                width-chars: 1;
+                styles ["dim-label"]
+              }
+
+              Entry arrange_h {
+                hexpand: true;
+                width-chars: 4;
+                input-purpose: number;
+
+                accessibility {
+                  label: _("Height");
+                }
+              }
+            }
+          }
+
+          Box {
+            spacing: 12;
+
+            Label {
+              label: _("Rotation");
+              hexpand: true;
+              xalign: 0;
+            }
+
+            SpinButton arrange_rotation {
+              valign: center;
+              width-chars: 5;
+
+              adjustment: Adjustment {
+                lower: -180;
+                upper: 180;
+                step-increment: 1;
+                page-increment: 15;
+              };
+
+              accessibility {
+                label: _("Rotation");
+              }
+            }
+          }
+        }
+
+        Button select_all_type_button {
+          visible: false;
+        }
+
+        Label group_note {
+          visible: false;
+          label: _("Dragging any member moves the whole group.");
+          wrap: true;
+          xalign: 0;
+          styles ["dim-label"]
+        }
+      };
+    }
+  }
+}

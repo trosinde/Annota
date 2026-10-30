@@ -10,6 +10,8 @@ use crate::config;
 use crate::preferences;
 
 const UI_WINDOW: &str = "/io/github/trosinde/Annota/ui/window.ui";
+/// Style class of the editor window (`data/ui/editor-window.blp`), which is not the main window.
+const EDITOR_WINDOW_CLASS: &str = "annota-editor";
 
 pub fn run() -> glib::ExitCode {
     let app = adw::Application::builder()
@@ -57,14 +59,14 @@ fn add_options(app: &adw::Application) {
         "Open an image or .annota file",
         Some("FILE"),
     );
-    // Development only: show a document in the canvas preview (until the editor exists).
+    // Development only: open a document in the editor window (until `--open` does, task 4.4).
     #[cfg(debug_assertions)]
     app.add_main_option(
         "dev-canvas",
         glib::Char::from(b'\0'),
         glib::OptionFlags::HIDDEN,
         glib::OptionArg::Filename,
-        "Development: show an image or .annota file in the canvas preview",
+        "Development: open an image or .annota file in the editor window",
         Some("FILE"),
     );
     app.add_main_option(
@@ -123,6 +125,11 @@ fn handle_command_line(app: &adw::Application, cmdline: &gio::ApplicationCommand
         return 0;
     }
 
+    // Autosaves left by a previous run are offered once, at the first start (mockup 14).
+    // Only the editor window writes autosaves, and only debug builds have it so far.
+    #[cfg(debug_assertions)]
+    let recovering = !cmdline.is_remote() && crate::ui::editor::offer_recovery(app);
+
     #[cfg(debug_assertions)]
     if let Some(path) = options
         .lookup::<std::path::PathBuf>("dev-canvas")
@@ -131,8 +138,13 @@ fn handle_command_line(app: &adw::Application, cmdline: &gio::ApplicationCommand
     {
         // Relative to the launching process' directory, also when forwarded.
         if let Some(path) = cmdline.create_file_for_arg(path.as_os_str()).path() {
-            crate::ui::preview::open(app, &path);
+            crate::ui::editor::open_path(app, &path);
         }
+        return 0;
+    }
+
+    #[cfg(debug_assertions)]
+    if recovering && !options.contains("open") {
         return 0;
     }
 
@@ -146,11 +158,12 @@ fn handle_command_line(app: &adw::Application, cmdline: &gio::ApplicationCommand
     0
 }
 
-/// Raises the main window, creating it on first use.
+/// Raises the main window, creating it on first use (never the editor window).
 pub fn present_window(app: &adw::Application) -> adw::ApplicationWindow {
     let existing = app
         .windows()
         .into_iter()
+        .filter(|w| !w.has_css_class(EDITOR_WINDOW_CLASS))
         .find_map(|w| w.downcast::<adw::ApplicationWindow>().ok());
     if let Some(window) = existing {
         window.present();
@@ -394,11 +407,27 @@ fn setup_actions(app: &adw::Application) {
     let open = gio::ActionEntry::builder("open-image")
         .activate(|app: &adw::Application, _, _| import::choose_file(app))
         .build();
-    app.add_action_entries([quit, about, prefs, capture, paste, open]);
+    // Ctrl+L, main menu of the editor and the tray's Open Library button: the capture library
+    // is add-capture-library's; until it exists, say so in the window it was asked from.
+    let library = gio::ActionEntry::builder("open-library")
+        .activate(|app: &adw::Application, _, _| {
+            let window = app
+                .active_window()
+                .and_then(|w| w.downcast::<adw::ApplicationWindow>().ok());
+            if let Some(window) = window {
+                show_toast(
+                    &window,
+                    &adw::Toast::new(&gettext("The capture library arrives in milestone 0.1")),
+                );
+            }
+        })
+        .build();
+    app.add_action_entries([quit, about, prefs, capture, paste, open, library]);
     app.set_accels_for_action("app.quit", &["<Control>q"]);
     app.set_accels_for_action("app.preferences", &["<Control>comma"]);
     app.set_accels_for_action("app.paste-image", &["<Shift><Control>v"]);
     app.set_accels_for_action("app.open-image", &["<Control>o"]);
+    app.set_accels_for_action("app.open-library", &["<Control>l"]);
     app.set_accels_for_action("win.new-capture", &["<Control>n"]);
     app.set_accels_for_action("window.close", &["<Control>w"]);
 }

@@ -1,0 +1,57 @@
+using Gtk 4.0;
+using Adw 1;
+
+// "Restore Unsaved Captures?" (add-annotation-editor mockup 14; redline "Dialogs, toasts").
+// Shown at start when autosaves of a previous run are left. The rows (check, 64 × 40
+// thumbnail, name, "Autosaved today at HH:MM · N objects") are created in code.
+
+Adw.Dialog restore_dialog {
+  content-width: 460;
+  title: _("Restore Unsaved Captures?");
+
+  child: Box {
+    orientation: vertical;
+    spacing: 12;
+    margin-top: 32;
+    margin-bottom: 24;
+    margin-start: 24;
+    margin-end: 24;
+
+    Label {
+      label: _("Restore Unsaved Captures?");
+      wrap: true;
+      justify: center;
+      styles ["title-2"]
+    }
+
+    Label {
+      label: _("Annota closed unexpectedly. These documents were autosaved and can be restored.");
+      wrap: true;
+      justify: center;
+      max-width-chars: 48;
+    }
+
+    ListBox entries_list {
+      selection-mode: none;
+      margin-top: 6;
+      styles ["boxed-list"]
+    }
+
+    Box {
+      homogeneous: true;
+      spacing: 12;
+      margin-top: 6;
+
+      Button discard_button {
+        label: _("Discard");
+        styles ["annota-dialog-button", "annota-destructive-text"]
+      }
+
+      Button restore_button {
+        label: _("Restore");
+        receives-default: true;
+        styles ["annota-dialog-button", "suggested-action"]
+      }
+    }
+  };
+}

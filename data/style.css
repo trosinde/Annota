@@ -234,3 +234,192 @@ banner.annota-warning-banner > revealer > widget {
   font-size: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 6, 0.25);
 }
+
+/* --- Editor window (add-annotation-editor 01, 07, 11, 13, 14, 16) ---------------------- */
+
+/* Tool strip: 52 px wide, 40 × 40 flat buttons, gap 4 (redline "Window and shell"). */
+.annota-tool-strip {
+  padding: 6px;
+}
+
+.annota-tool-button {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+
+/* Zoom OSD, bottom-right (redline "Canvas"); the level button is at least 78 px wide. Styled
+ * here rather than with libadwaita's .osd, which would also restyle the zoom popover. */
+.annota-zoom-osd {
+  background-color: rgba(36, 36, 40, 0.88);
+  color: white;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 6, 0.25), 0 4px 16px rgba(0, 0, 6, 0.18);
+}
+
+.annota-zoom-osd > button,
+.annota-zoom-osd > menubutton > button {
+  color: white;
+}
+
+.annota-zoom-osd > button:hover,
+.annota-zoom-osd > menubutton > button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.annota-zoom-osd > menubutton > button:checked {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.annota-zoom-level > button {
+  min-width: 78px;
+  font-weight: bold;
+  font-feature-settings: "tnum";
+}
+
+/* "Show Tray" while the tray is hidden: same OSD look. */
+.annota-osd-button {
+  background-color: rgba(36, 36, 40, 0.88);
+  color: white;
+}
+
+/* Properties: padding 18/12 (redline "Sidebar contents"). */
+.annota-properties {
+  padding: 18px 12px;
+}
+
+/* Bottom sheet below 900 px (mockup 13). */
+.annota-sheet {
+  background-color: @window_bg_color;
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -1px 3px rgba(0, 0, 6, 0.12), 0 -4px 16px rgba(0, 0, 6, 0.1);
+}
+
+.annota-sheet-handle {
+  min-width: 36px;
+  min-height: 4px;
+  margin: 8px 0 2px 0;
+  border-radius: 2px;
+  background-color: alpha(currentColor, 0.25);
+}
+
+/* Background swatches (redline "Sidebar contents"; palette of docs/design/kit/tokens.css). */
+.annota-swatch {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 9999px;
+  box-shadow: inset 0 0 0 1px alpha(black, 0.1);
+}
+
+.annota-swatch-coral { background-color: #ff5a4e; }
+.annota-swatch-amber { background-color: #f5a524; }
+.annota-swatch-lime { background-color: #8bc34a; }
+.annota-swatch-teal { background-color: #14b8a6; }
+.annota-swatch-azure { background-color: #2f80ed; }
+.annota-swatch-violet { background-color: #8b5cf6; }
+.annota-swatch-ink { background-color: #1f1f24; }
+.annota-swatch-paper { background-color: #ffffff; }
+
+.annota-swatch-transparent {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #cccccc 25%, transparent 25%, transparent 75%, #cccccc 75%),
+    linear-gradient(45deg, #cccccc 25%, transparent 25%, transparent 75%, #cccccc 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 5px 5px;
+}
+
+.annota-swatch-custom {
+  background-image: linear-gradient(135deg, #ff5a4e, #f5a524, #8bc34a, #14b8a6, #2f80ed, #8b5cf6);
+}
+
+.annota-swatch-eyedropper {
+  background-color: alpha(currentColor, 0.1);
+}
+
+.annota-swatch.annota-swatch-current {
+  box-shadow: 0 0 0 2px @window_bg_color, 0 0 0 4px @accent_bg_color;
+}
+
+/* Count badge of the per-type summary (mockup 16). */
+.annota-count-badge {
+  background-color: alpha(currentColor, 0.1);
+  border-radius: 9999px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* Recent captures tray: 107 px, thumbnails 100 × 62 radius 6, gap 6 (task 4.2). */
+.annota-tray {
+  padding: 6px 12px 8px 12px;
+  border-top: 1px solid alpha(currentColor, 0.12);
+}
+
+.annota-tray-label {
+  min-height: 15px;
+}
+
+.annota-tray-item {
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.annota-tray-thumb {
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px alpha(black, 0.1);
+}
+
+/* Current document: 2 px accent ring with a 2 px window-coloured gap. */
+.annota-tray-item.current .annota-tray-thumb {
+  box-shadow: 0 0 0 2px @window_bg_color, 0 0 0 4px @accent_bg_color;
+}
+
+/* Unsaved: 8 px accent dot, top-right. */
+.annota-tray-dot {
+  min-width: 8px;
+  min-height: 8px;
+  margin: 4px;
+  border-radius: 9999px;
+  background-color: @accent_bg_color;
+  box-shadow: 0 0 0 1.5px @window_bg_color;
+}
+
+/* The right edge fades over 48 px. */
+.annota-tray-fade {
+  background-image: linear-gradient(to right, alpha(@window_bg_color, 0), @window_bg_color);
+}
+
+/* Dragging a thumbnail onto the canvas (mockup 11): inset 3 px accent ring at 50 %, drag
+ * image with a 2 px accent ring. */
+.annota-drop-ring {
+  box-shadow: inset 0 0 0 3px alpha(@accent_bg_color, 0.5);
+}
+
+/* (A border, not a shadow: the drag surface clips everything outside the widget.) */
+.annota-drag-icon {
+  border: 2px solid @accent_bg_color;
+  border-radius: 6px;
+}
+
+/* "Restore Unsaved Captures?" (mockup 14). */
+.annota-row-thumb {
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px alpha(black, 0.1);
+}
+
+/* Red text on a neutral button (not tinted by its own red). */
+.annota-destructive-text {
+  color: @destructive_color;
+  background-color: alpha(@window_fg_color, 0.1);
+}
+
+.annota-destructive-text:hover {
+  background-color: alpha(@window_fg_color, 0.15);
+}
+
+.annota-destructive-text:active {
+  background-color: alpha(@window_fg_color, 0.3);
+}

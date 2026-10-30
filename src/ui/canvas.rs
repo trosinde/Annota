@@ -8,8 +8,10 @@
 //! included). All geometry and editing logic comes from `annota::render::view` and
 //! `annota::editing`; this module only wires GTK events to them, executes the resulting
 //! `Edit`s through the document's `History` (one undo step each) and draws
-//! `annota::render::overlay`. The zoom OSD and window-level actions and menus arrive with the
-//! editor window (task 4.1); until then the keys are handled here.
+//! `annota::render::overlay`. The editor window (`super::editor`) puts the zoom OSD, header
+//! bar, sidebar and tray around it, follows it through [`Canvas::connect_changed`] and
+//! [`Canvas::connect_view_changed`], and routes key presses here unless a text field or a
+//! dialog has the focus.
 //!
 //! **Viewport-sized, not content-sized.** [`CanvasView`] implements `GtkScrollable`: inside a
 //! `GtkScrolledWindow` it is allocated exactly the visible area and *owns* the scroll
@@ -26,9 +28,11 @@ use adw::subclass::prelude::*;
 use gtk::{gdk, glib, graphene};
 
 use annota::document::annotation::{HandleId, Modifiers};
+use annota::document::bitmap::Bitmap;
 use annota::document::color::Rgba;
 use annota::document::command::History;
-use annota::document::geometry::Point;
+use annota::document::geometry::{Arrange, Point};
+use annota::document::scene::ObjectId;
 use annota::document::Document;
 use annota::editing::drag::{self, Drag, Feedback, Hover};
 use annota::editing::ops::{self, Edit, Stacking};
@@ -41,6 +45,15 @@ use super::labels;
 /// Kit `--canvas-bg`, light and dark.
 const CANVAS_BG_LIGHT: Rgba = Rgba::opaque(0xDE, 0xDD, 0xDA);
 const CANVAS_BG_DARK: Rgba = Rgba::opaque(0x18, 0x18, 0x1B);
+
+/// The canvas background (kit `--canvas-bg`) for the current light or dark style.
+pub fn background() -> Rgba {
+    if adw::StyleManager::default().is_dark() {
+        CANVAS_BG_DARK
+    } else {
+        CANVAS_BG_LIGHT
+    }
+}
 
 /// Fraction of the view one scroll-bar step / page moves.
 const STEP: f64 = 0.1;
@@ -66,6 +79,18 @@ struct State {
 
 /// Called with (zoom, fitted).
 type ViewListener = Box<dyn Fn(f64, bool)>;
+/// Called after the document, its history, the selection or the snapping switch may have
+/// changed.
+type ChangeListener = Box<dyn Fn()>;
+
+/// What the header bar shows of the history (Undo/Redo buttons and tooltips, "Edited").
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct HistoryInfo {
+    pub undo_label: Option<String>,
+    pub redo_label: Option<String>,
+    pub revision: u64,
+    pub dirty: bool,
+}
 
 mod imp {
     use std::sync::OnceLock;
@@ -75,6 +100,7 @@ mod imp {
     pub struct CanvasView {
         pub(super) state: RefCell<Option<State>>,
         pub(super) listeners: RefCell<Vec<ViewListener>>,
+        pub(super) changes: RefCell<Vec<ChangeListener>>,
         hadjustment: RefCell<Option<(gtk::Adjustment, glib::SignalHandlerId)>>,
         vadjustment: RefCell<Option<(gtk::Adjustment, glib::SignalHandlerId)>>,
         hscroll_policy: Cell<gtk::ScrollablePolicy>,
@@ -86,6 +112,7 @@ mod imp {
             Self {
                 state: RefCell::new(None),
                 listeners: RefCell::new(Vec::new()),
+                changes: RefCell::new(Vec::new()),
                 hadjustment: RefCell::new(None),
                 vadjustment: RefCell::new(None),
                 hscroll_policy: Cell::new(gtk::ScrollablePolicy::Minimum),
@@ -296,6 +323,12 @@ mod imp {
                 listener(zoom, fitted);
             }
         }
+
+        pub(super) fn notify_changed(&self) {
+            for listener in self.changes.borrow().iter() {
+                listener();
+            }
+        }
     }
 }
 
@@ -347,6 +380,9 @@ impl Canvas {
         let view: CanvasView = glib::Object::builder()
             .property("hexpand", true)
             .property("vexpand", true)
+            // Takes the keyboard focus when clicked, so Space pans instead of activating the
+            // button clicked last.
+            .property("focusable", true)
             .build();
         view.imp().state.replace(Some(State {
             doc,
@@ -399,6 +435,51 @@ impl Canvas {
         self.view.imp().listeners.borrow_mut().push(Box::new(f));
     }
 
+    /// Called after anything the window shows may have changed: the document, its history,
+    /// the selection or the snapping switch. (Not during a drag: the gesture commits once.)
+    pub fn connect_changed(&self, f: impl Fn() + 'static) {
+        self.view.imp().changes.borrow_mut().push(Box::new(f));
+    }
+
+    fn notify_changed(&self) {
+        self.view.imp().notify_changed();
+    }
+
+    /// Whether the view follows the window size ("Fit · 50 %").
+    pub fn fitted(&self) -> bool {
+        self.with_state(|s| s.fitted).unwrap_or(true)
+    }
+
+    pub fn history_info(&self) -> HistoryInfo {
+        self.with_state(|s| HistoryInfo {
+            undo_label: s.history.undo_label().map(str::to_string),
+            redo_label: s.history.redo_label().map(str::to_string),
+            revision: s.history.revision(),
+            dirty: s.history.is_dirty(),
+        })
+        .unwrap_or_default()
+    }
+
+    /// Records that the current state is on disk (a document opened from a file).
+    pub fn mark_saved(&self) {
+        self.with_state(|s| s.history.mark_saved());
+        self.notify_changed();
+    }
+
+    /// Takes the keyboard focus (after switching documents).
+    pub fn grab_focus(&self) {
+        self.view.grab_focus();
+    }
+
+    /// Where a point of [`Canvas::widget`] lies in the document.
+    pub fn document_point(&self, x: f64, y: f64) -> Option<Point> {
+        let viewport = self.viewport()?;
+        let at = self
+            .overlay
+            .compute_point(&self.view, &graphene::Point::new(x as f32, y as f32))?;
+        Some(viewport.to_document(Point::new(f64::from(at.x()), f64::from(at.y()))))
+    }
+
     fn with_state<T>(&self, f: impl FnOnce(&mut State) -> T) -> Option<T> {
         self.view.imp().state.borrow_mut().as_mut().map(f)
     }
@@ -428,6 +509,7 @@ impl Canvas {
                 return;
             }
             gesture.set_state(gtk::EventSequenceState::Claimed);
+            canvas.view.grab_focus();
             canvas.pointer_pressed(Point::new(x, y), modifiers(gesture.current_event_state()));
         });
         let weak = self.downgrade();
@@ -561,6 +643,7 @@ impl Canvas {
         });
         self.update_cursor();
         self.view.queue_draw();
+        self.notify_changed();
     }
 
     /// Pointer moved to `at` with the button held.
@@ -599,6 +682,7 @@ impl Canvas {
         self.update_chips();
         self.update_cursor();
         self.view.queue_draw();
+        self.notify_changed();
     }
 
     /// Drops the gesture in progress (Escape, or the grab was broken).
@@ -630,6 +714,7 @@ impl Canvas {
             },
         );
         self.view.queue_draw();
+        self.notify_changed();
     }
 
     /// Runs a one-shot operation on the selection; returns whether it changed anything.
@@ -652,6 +737,7 @@ impl Canvas {
             s.selection.sync(s.doc.scene());
         });
         self.view.queue_draw();
+        self.notify_changed();
     }
 
     pub fn redo(&self) {
@@ -663,6 +749,7 @@ impl Canvas {
             s.selection.sync(s.doc.scene());
         });
         self.view.queue_draw();
+        self.notify_changed();
     }
 
     #[cfg(test)]
@@ -672,13 +759,39 @@ impl Canvas {
             .flatten()
     }
 
-    #[cfg(test)]
-    pub fn selection(&self) -> Vec<annota::document::scene::ObjectId> {
+    /// The selected objects, in stacking order.
+    pub fn selection(&self) -> Vec<ObjectId> {
         self.with_state(|s| s.selection.ids().to_vec())
             .unwrap_or_default()
     }
 
-    /// Snap to guides on or off (`Ctrl+;`).
+    /// "Select All <Type>" (sidebar) and the per-type "Select" buttons (mockup 16).
+    pub fn select_type(&self, type_name: &str) {
+        self.cancel_drag();
+        self.with_state(|s| s.selection.select_type(s.doc.scene(), type_name));
+        self.view.queue_draw();
+        self.notify_changed();
+    }
+
+    /// The sidebar's Arrange entries; returns whether the document changed.
+    pub fn set_arrange(&self, arrange: Arrange) -> bool {
+        self.edit(|doc, sel| ops::arrange(doc, sel, arrange))
+    }
+
+    /// The sidebar's Ungroup button (Ctrl+Shift+G).
+    pub fn ungroup(&self) -> bool {
+        self.edit(ops::ungroup)
+    }
+
+    /// Inserts `bitmap` as an image object centred on `centre` (document space); returns the
+    /// revision after the insertion, for the toast's Undo.
+    pub fn insert_image(&self, bitmap: Bitmap, centre: Point) -> Option<u64> {
+        self.cancel_drag();
+        let inserted = self.edit(|doc, _| ops::insert_image(doc, bitmap, centre));
+        inserted.then(|| self.history_info().revision)
+    }
+
+    /// Snap to guides on or off (`Ctrl+;`, the sidebar switch).
     pub fn set_snapping(&self, on: bool) {
         self.with_state(|s| s.snapping = on);
     }
@@ -687,7 +800,6 @@ impl Canvas {
         self.with_state(|s| s.snapping).unwrap_or(true)
     }
 
-    #[cfg(test)]
     /// Runs `f` on the document (read-only).
     pub fn with_document<T>(&self, f: impl FnOnce(&Document) -> T) -> Option<T> {
         self.with_state(|s| f(&s.doc))
@@ -844,6 +956,14 @@ impl Canvas {
         self.set_zoom(zoom, anchor, false);
     }
 
+    /// "Fit Width" (zoom popover): the canvas width fills the view.
+    pub fn zoom_fit_width(&self) {
+        let view_size = self.view.imp().view_size();
+        if let Some(canvas) = self.with_state(|s| s.doc.canvas().rect) {
+            self.zoom_to(view::fit_width_zoom(canvas, view_size), None);
+        }
+    }
+
     pub fn zoom_in(&self) {
         self.zoom_to(view::zoom_in(self.zoom()), None);
     }
@@ -899,6 +1019,9 @@ impl Canvas {
                 })
                 .unwrap_or(false);
             self.view.queue_draw();
+            if had {
+                self.notify_changed();
+            }
             return had;
         }
         // The document does not change under a gesture in progress.
@@ -953,6 +1076,7 @@ impl Canvas {
         };
         if handled {
             self.update_cursor();
+            self.notify_changed();
             return true;
         }
         match key {
@@ -1090,27 +1214,16 @@ fn draw_canvas_shadow(
 }
 
 /// These open a window, so they are opt-in (they must never pop up on a desktop during a plain
-/// `cargo test`). Run headless with
-/// `GDK_BACKEND=x11 xvfb-run -a cargo test --bin annota -- --ignored`.
+/// `cargo test`). Run each in its own process, headless (see `crate::ui::test_support`).
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
-
     use gtk::gsk;
 
     use super::*;
+    use crate::ui::test_support::{init, pump};
     use annota::document::bitmap::Bitmap;
     use annota::document::color::palette;
     use annota::document::geometry::IRect;
-
-    fn pump(ms: u64) {
-        let end = Instant::now() + Duration::from_millis(ms);
-        let ctx = glib::MainContext::default();
-        while Instant::now() < end {
-            while ctx.iteration(false) {}
-            std::thread::sleep(Duration::from_millis(2));
-        }
-    }
 
     /// Sizes of the cairo recording nodes in `node`.
     fn recordings(node: &gsk::RenderNode, out: &mut Vec<(f32, f32)>) {
@@ -1174,10 +1287,7 @@ mod tests {
     #[test]
     #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
     fn records_only_the_viewport_and_keeps_fit_centred() {
-        if gtk::init().is_err() || adw::init().is_err() {
-            eprintln!("skipped: no display");
-            return;
-        }
+        init();
         let window = gtk::Window::new();
         window.set_default_size(1280, 800);
         let doc = Document::new(Bitmap::filled(2000, 1000, palette::AZURE).unwrap());
@@ -1248,10 +1358,7 @@ mod tests {
         use annota::document::geometry::Rect;
         use annota::tools::image::Image;
 
-        if gtk::init().is_err() || adw::init().is_err() {
-            eprintln!("skipped: no display");
-            return;
-        }
+        init();
         // Two image objects on a 1600 × 1000 capture (mockup 02's document size).
         let mut doc = Document::new(Bitmap::filled(1600, 1000, palette::PAPER).unwrap());
         let mut history = History::new();

@@ -1,0 +1,50 @@
+using Gtk 4.0;
+using Adw 1;
+
+// "Newer Annota Version Needed" (add-annotation-editor mockup 15; redline "Dialogs, toasts").
+// The body names the file, its format version and the Annota version it needs; it is set in
+// code.
+
+Adw.Dialog newer_version_dialog {
+  content-width: 420;
+  title: _("Newer Annota Version Needed");
+
+  child: Box {
+    orientation: vertical;
+    spacing: 12;
+    margin-top: 32;
+    margin-bottom: 24;
+    margin-start: 24;
+    margin-end: 24;
+
+    Label {
+      label: _("Newer Annota Version Needed");
+      wrap: true;
+      justify: center;
+      styles ["title-2"]
+    }
+
+    Label body_label {
+      wrap: true;
+      justify: center;
+      max-width-chars: 44;
+    }
+
+    Box {
+      homogeneous: true;
+      spacing: 12;
+      margin-top: 12;
+
+      Button show_button {
+        label: _("Show in Files");
+        styles ["annota-dialog-button"]
+      }
+
+      Button ok_button {
+        label: _("OK");
+        receives-default: true;
+        styles ["annota-dialog-button", "suggested-action"]
+      }
+    }
+  };
+}
