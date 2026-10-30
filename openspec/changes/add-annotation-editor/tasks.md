@@ -70,9 +70,14 @@
 - [ ] 5.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean
 - [ ] 5.4 German translation updated
 - [ ] 5.5 Before archiving: resolve the phase-2a follow-ups tracked in `design.md`'s "Risks /
-      open questions" (non-uniform group resize, snap guides after a ratio-locked resize, the
-      unreliable live-GTK-test harness, maintainer sign-off on SHALL lines added during apply,
-      nudge-history coalescing, the German-keyboard z-order shortcut, unknown-member groups
-      hiding known content) and look at "Open after phase 2b-ii"
+      open questions". *Resolved* (design.md, "final review fixes", B2): non-uniform group resize
+      (uniform scaling for turned members) and snap guides after a ratio-locked resize (snap
+      where the handle lands, guides re-checked). *Still open:* the unreliable live-GTK-test
+      harness (a failed `gtk::init` fails now; one test per process is documented, not
+      enforced), maintainer sign-off on SHALL lines added during apply, nudge-history
+      coalescing, the German-keyboard z-order shortcut, unknown-member groups hiding known
+      content. From "Open after phase 2b-ii", the canvas keyboard path (B3) and Image flip are
+      resolved; also fixed in the final review: image operations blocked for unknown-type
+      objects (N1) and recovery on the `--capture` start (S2)
 - [ ] 5.6 Archive add-screen-capture first: this change's `specs/capture/spec.md` and
       `specs/app-shell/spec.md` build on its specs
