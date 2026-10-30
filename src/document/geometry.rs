@@ -402,8 +402,9 @@ impl Transform {
     }
 
     /// The new orientation of something turned by `degrees`. A mirror cannot be expressed as a
-    /// rotation, so mirrored content keeps reading upright: its angle is negated (the reflection
-    /// of a turn by `r` is a turn by `−r`), the content itself is not mirrored.
+    /// rotation: the angle is negated (the reflection of a turn by `r` is a turn by `−r`), and
+    /// the content is left as it is unless the type mirrors it itself (`Image` does; text and
+    /// stamps keep reading the right way round).
     pub fn map_rotation(&self, degrees: f64) -> f64 {
         // Direction of the box's width axis after scaling, then mirrored and turned.
         let (sin, cos) = degrees.to_radians().sin_cos();

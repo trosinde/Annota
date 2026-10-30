@@ -288,7 +288,8 @@ pub trait Annotation: AnnotationBase + fmt::Debug {
     /// resize scales positions together with sizes.
     ///
     /// The default moves a translation exactly (`translate`) and otherwise maps the object's
-    /// box with [`Transform::map_arrange`]; mirrored content keeps reading upright. Types whose
+    /// box with [`Transform::map_arrange`]; mirrored content keeps reading the right way round
+    /// (right for text and stamps; `Image` overrides this and mirrors its picture). Types whose
     /// geometry is not a box (arrow end points, pen strokes) override this and map their points
     /// with [`Transform::apply`]; types with line widths, text sizes or shadows scale those by
     /// [`Transform::style_scale`] ("Scale annotations").

@@ -207,11 +207,15 @@ Resize Image… (mockup 09) SHALL offer Width and Height in px or %, Keep aspect
 - **THEN** the image is 480 × 400, every annotation keeps its place on the image at half the size, and its line widths are halved
 
 ### Requirement: Rotate and flip
-Rotate Left and Rotate Right SHALL turn the image, the canvas and every object a quarter turn; Flip Horizontally and Flip Vertically SHALL mirror the image and move every object to its mirrored place. Mirrored objects keep their content readable: their angle is mirrored, their content is not.
+Rotate Left and Rotate Right SHALL turn the image, the canvas and every object a quarter turn; Flip Horizontally and Flip Vertically SHALL mirror the image and move every object to its mirrored place with its angle mirrored. Image objects SHALL be mirrored with their picture, like the image; other objects keep their content readable.
 
 #### Scenario: Rotate keeps annotations on the image
 - **WHEN** a 1600 × 1000 image with an annotation is rotated right
 - **THEN** the canvas is 1000 × 1600, the exported pixels are the old export turned clockwise, and the annotation is turned with the image
+
+#### Scenario: Flip mirrors an inserted picture
+- **WHEN** a document with an inserted image object is flipped horizontally
+- **THEN** the exported pixels are the old export mirrored left to right, the inserted picture included, and flipping again gives back the same document
 
 ### Requirement: Rounded corners
 The image's corners SHALL be rounded with the sidebar's Corner radius or a single handle at the image's top-left inner corner, offset by the radius, shown when nothing is selected and the pointer is near it; while it is dragged a chip shows "Corner radius N px". The radius is at most half the image's shorter side.

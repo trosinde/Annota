@@ -332,7 +332,8 @@ and tested without a display; the UI is `src/ui/canvas.rs`, `src/ui/editor/{mod,
 - **Mirrored content stays readable.** A mirror cannot be expressed as a rotation, and mirroring
   an inserted picture or (later) text would make it unreadable; Flip moves every object to its
   mirrored place and negates its angle (the reflection of a turn by r is a turn by −r), but does
-  not mirror its content. Only the base image's pixels are mirrored.
+  not mirror its content. Only the base image's pixels are mirrored. *(Superseded for image
+  objects in the final review fixes: they mirror their picture; the default stays.)*
 - **Crop.** A mode (tool `C`, D2 places it after the other tools behind a separator), not a dialog
   (mockup 08). `editing::crop::Crop` holds the frame in whole pixels, inside the canvas, at least
   1 px; corner/edge grips and moving the frame by dragging inside it (grab distance 10 screen px);
@@ -491,6 +492,20 @@ Items from the final reviewer pass, each decided by the maintainer before it was
   1600 for a box ending at 1640) and `drag::ratio_locked_resize_snaps_where_the_box_lands`
   (before: a corner 4 px from the edge did not snap; also two lines on different axes, the
   nearer wins).
+- **Image objects mirror on Flip (maintainer decision).** `Image` gained `flip_horizontal` and
+  `flip_vertical` (mirror in the object's own frame, before its rotation; drawn by mirroring the
+  bitmap inside the clipped frame). `Image::transform` toggles the flag of the transform's
+  mirror axis: mirroring the document maps the frame `R(r)` to `R(−r)` followed by the same
+  mirror in the local frame (`M·R(r) = R(−r)·M`), so the position/angle mapping stays as it was
+  and only the flag is new. Chosen over replacing the embedded PNG with a mirrored copy: exact,
+  free, undo is the usual whole-object replace, flipping twice gives back the identical object,
+  and `Annotation::transform` has no access to document resources. The two keys are new in
+  format 1.0's `image_object` (the format has not shipped; the schema lists them as written,
+  `#[serde(default)]` reads development files without them as not mirrored). The generic
+  `Annotation::transform` default — used by `Group` and future text/stamp types — is unchanged.
+  Tests: `image_ops::flips_mirror_image_objects_with_their_content` (the whole export is the
+  old export mirrored pixel for pixel, H then V, and back; before: pixel (8, 8) was violet
+  instead of amber), grouped members, rotate/resize leave the flags, files without the keys.
 
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.
@@ -565,8 +580,8 @@ Items from the final reviewer pass, each decided by the maintainer before it was
   (e.g. canvas size entries) needs a design decision. Crop, resize, rotate, flip, corner radius,
   background (Custom colour) and flatten are keyboard-reachable; the eyedropper is pointer-only
   by nature.
-- **Image content is not mirrored by Flip** (positions and angles are) — a deliberate choice for
-  readability; confirm with the maintainer when text and stamps arrive.
+- ~~**Image content is not mirrored by Flip**~~ — resolved in the final review fixes (maintainer
+  decision): image objects mirror their picture; future text/stamp types keep the default.
 - **Not verified live:** a real portal capture landing in the editor, the welcome cards starting a
   capture, pasting from a real clipboard (all driven only through their code paths in tests).
 - **A 2-px sidebar artifact** appears below the selection and crop pages in the Xvfb screenshots

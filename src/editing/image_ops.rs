@@ -108,7 +108,8 @@ pub fn rotate(doc: &Document, turn: Turn) -> Option<Edit> {
 }
 
 /// Flip Horizontally / Flip Vertically: mirrored at the image's centre line. Objects move to
-/// their mirrored place; their content is not mirrored (see `Transform::map_rotation`).
+/// their mirrored place with their angle mirrored (see `Transform::map_rotation`); image objects
+/// mirror their picture too, other types keep their content readable.
 pub fn flip(doc: &Document, mirror: Mirror) -> Option<Edit> {
     let image = doc.image();
     let (w, h) = (image.bitmap.width(), image.bitmap.height());
@@ -502,6 +503,148 @@ mod tests {
         apply(&mut doc, &mut history, |d| flip(d, Mirror::Vertical));
         assert_eq!(arrange(&doc, id).rect, Rect::new(14.0, 9.0, 10.0, 6.0));
         assert_eq!(export(&doc, 1.0).unwrap().pixel(0, 0), before.pixel(63, 39));
+    }
+
+    /// The card with one image object (no border/shadow) at (8, 6), 20 × 10, showing an
+    /// asymmetric picture: amber left half, violet right half, an ink stripe along the top.
+    fn doc_with_picture() -> (Document, History, ObjectId) {
+        let mut doc = Document::new(card());
+        let mut history = History::new();
+        let picture = Bitmap::draw(20, 10, |cr| {
+            for (c, x, y, w, h) in [
+                (palette::AMBER, 0.0, 0.0, 10.0, 10.0),
+                (palette::VIOLET, 10.0, 0.0, 10.0, 10.0),
+                (palette::INK, 0.0, 0.0, 20.0, 2.0),
+            ] {
+                c.set_source(cr);
+                cr.rectangle(x, y, w, h);
+                cr.fill()?;
+            }
+            Ok(())
+        })
+        .unwrap();
+        let cmd = Image::insert_command(&doc, picture, Point::new(18.0, 11.0));
+        history.execute(&mut doc, "Insert", cmd).unwrap();
+        let id = doc.scene().ids()[0];
+        let mut object = doc.scene().get(id).unwrap().object.clone();
+        let img = object.as_any_mut().downcast_mut::<Image>().unwrap();
+        img.border_width = 0.0;
+        img.shadow.enabled = false;
+        // As large as the picture (the insert scaled it to the canvas): exact pixels.
+        (img.x, img.y, img.width, img.height) = (8.0, 6.0, 20.0, 10.0);
+        let place = Command::Replace {
+            objects: vec![(id, object)],
+        };
+        history.execute(&mut doc, "Place", place).unwrap();
+        (doc, history, id)
+    }
+
+    fn image_of(doc: &Document, id: ObjectId) -> &Image {
+        doc.scene()
+            .get(id)
+            .unwrap()
+            .object
+            .as_any()
+            .downcast_ref::<Image>()
+            .unwrap()
+    }
+
+    #[test]
+    fn flips_mirror_image_objects_with_their_content() {
+        // Maintainer decision (final review): flipping mirrors an image object's picture too,
+        // like the base image — so the whole export is the old export mirrored, pixel for
+        // pixel. (Before, the object moved to its mirrored place but its picture did not turn
+        // over, so the amber/violet halves stayed in their order.)
+        let (mut doc, mut history, id) = doc_with_picture();
+        let before = export(&doc, 1.0).unwrap();
+        let original = doc.scene().get(id).unwrap().object.to_json().unwrap();
+        assert_eq!(before.pixel(9, 10), Some(palette::AMBER));
+        assert_eq!(before.pixel(26, 10), Some(palette::VIOLET));
+        apply(&mut doc, &mut history, |d| flip(d, Mirror::Horizontal));
+        assert!(image_of(&doc, id).flip_horizontal && !image_of(&doc, id).flip_vertical);
+        let after = export(&doc, 1.0).unwrap();
+        for y in 0..40 {
+            for x in 0..64 {
+                assert_eq!(after.pixel(63 - x, y), before.pixel(x, y), "{x},{y}");
+            }
+        }
+        // The object now sits at 36..56 with violet on the left, amber on the right.
+        assert_eq!(after.pixel(37, 10), Some(palette::VIOLET));
+        assert_eq!(after.pixel(54, 10), Some(palette::AMBER));
+        apply(&mut doc, &mut history, |d| flip(d, Mirror::Vertical));
+        assert!(image_of(&doc, id).flip_vertical);
+        let upside_down = export(&doc, 1.0).unwrap();
+        for y in 0..40 {
+            for x in 0..64 {
+                assert_eq!(upside_down.pixel(x, 39 - y), after.pixel(x, y), "{x},{y}");
+            }
+        }
+        // The ink stripe is at the bottom of the object now.
+        assert_eq!(upside_down.pixel(40, 32), Some(palette::INK));
+        assert_eq!(upside_down.pixel(40, 25), Some(palette::VIOLET));
+        // Flipping both back gives the same object and the same pixels.
+        apply(&mut doc, &mut history, |d| flip(d, Mirror::Vertical));
+        apply(&mut doc, &mut history, |d| flip(d, Mirror::Horizontal));
+        assert_eq!(
+            doc.scene().get(id).unwrap().object.to_json().unwrap(),
+            original
+        );
+        let back = export(&doc, 1.0).unwrap();
+        for y in 0..40 {
+            for x in 0..64 {
+                assert_eq!(back.pixel(x, y), before.pixel(x, y), "{x},{y}");
+            }
+        }
+        // Undo restores the unflipped object.
+        for _ in 0..4 {
+            history.undo(&mut doc).unwrap();
+        }
+        assert!(!image_of(&doc, id).flip_horizontal && !image_of(&doc, id).flip_vertical);
+    }
+
+    #[test]
+    fn rotating_and_resizing_keep_an_image_object_unmirrored() {
+        let (mut doc, mut history, id) = doc_with_picture();
+        apply(&mut doc, &mut history, |d| rotate(d, Turn::Right));
+        apply(&mut doc, &mut history, |d| resize(d, 80, 128, true));
+        let img = image_of(&doc, id);
+        assert!(!img.flip_horizontal && !img.flip_vertical);
+    }
+
+    #[test]
+    fn grouped_image_objects_mirror_with_the_document() {
+        let (mut doc, mut history, id) = doc_with_picture();
+        let (_, other) = {
+            let pip = Bitmap::filled(4, 4, palette::LIME).unwrap();
+            let cmd = Image::insert_command(&doc, pip, Point::new(50.0, 30.0));
+            history.execute(&mut doc, "Insert", cmd).unwrap();
+            (0, *doc.scene().ids().last().unwrap())
+        };
+        let (gid, cmd) = crate::tools::group::group_command(&doc, &[id, other]).unwrap();
+        history.execute(&mut doc, "Group", cmd).unwrap();
+        apply(&mut doc, &mut history, |d| flip(d, Mirror::Horizontal));
+        let group = doc.scene().get(gid).unwrap();
+        for member in group.object.children() {
+            let img = member.object.as_any().downcast_ref::<Image>().unwrap();
+            assert!(img.flip_horizontal, "member {:?}", member.id);
+        }
+    }
+
+    #[test]
+    fn files_without_flip_flags_read_unmirrored() {
+        // Written before the flags existed (development autosaves): not mirrored, and written
+        // back with the flags.
+        let value = serde_json::json!({"id": 6, "type": "image", "source": "images/1.png",
+            "x": 0, "y": 0, "width": 4, "height": 4, "rotation": 0, "opacity": 1,
+            "border_color": "#FFFFFFFF", "border_width": 0, "corner_radius": 0,
+            "shadow": {"enabled": false, "color": "#000006FF", "opacity": 0.4, "angle": 52,
+                       "distance": 10, "blur": 8}});
+        let node = crate::document::registry::node_from_json(value, false).unwrap();
+        let img = node.object.as_any().downcast_ref::<Image>().unwrap();
+        assert!(!img.flip_horizontal && !img.flip_vertical);
+        let written = crate::document::registry::node_to_json(&node).unwrap();
+        assert_eq!(written["flip_horizontal"], false);
+        assert_eq!(written["flip_vertical"], false);
     }
 
     #[test]

@@ -135,7 +135,7 @@
     "image_object": {
       "description": "A bitmap placed as an object (picture in picture).",
       "type": "object",
-      "required": ["source", "x", "y", "width", "height", "rotation", "opacity", "border_color", "border_width", "corner_radius", "shadow"],
+      "required": ["source", "x", "y", "width", "height", "rotation", "opacity", "border_color", "border_width", "corner_radius", "shadow", "flip_horizontal", "flip_vertical"],
       "properties": {
         "source": {
           "description": "ZIP entry of the embedded image.",
@@ -151,7 +151,9 @@
         "border_color": { "$ref": "#/$defs/color" },
         "border_width": { "type": "number", "minimum": 0 },
         "corner_radius": { "type": "number", "minimum": 0 },
-        "shadow": { "$ref": "#/$defs/shadow" }
+        "shadow": { "$ref": "#/$defs/shadow" },
+        "flip_horizontal": { "type": "boolean", "default": false, "description": "The picture is mirrored left to right in the object's own frame, before its rotation. Readers treat a missing value as false." },
+        "flip_vertical": { "type": "boolean", "default": false, "description": "The picture is mirrored top to bottom in the object's own frame, before its rotation. Readers treat a missing value as false." }
       }
     }
   }

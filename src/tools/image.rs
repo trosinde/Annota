@@ -11,7 +11,7 @@ use crate::document::annotation::{
 use crate::document::bitmap::Bitmap;
 use crate::document::color::{palette, Rgba};
 use crate::document::command::Command;
-use crate::document::geometry::{Arrange, Point, Rect, Transform};
+use crate::document::geometry::{Arrange, Mirror, Point, Rect, Transform};
 use crate::document::scene::Node;
 use crate::document::style::Shadow;
 use crate::document::Document;
@@ -39,6 +39,14 @@ pub struct Image {
     pub border_width: f64,
     pub corner_radius: f64,
     pub shadow: Shadow,
+    /// The picture is mirrored left to right in the image's own frame (before its rotation):
+    /// Flip Horizontally/Vertically mirror an image object's content too, as in a photo editor.
+    /// Absent in files written before it existed, which means not mirrored.
+    #[serde(default)]
+    pub flip_horizontal: bool,
+    /// Likewise top to bottom.
+    #[serde(default)]
+    pub flip_vertical: bool,
 }
 
 impl Image {
@@ -67,6 +75,8 @@ impl Image {
             border_width: 6.0,
             corner_radius: 0.0,
             shadow: Self::DEFAULT_SHADOW,
+            flip_horizontal: false,
+            flip_vertical: false,
         }
     }
 
@@ -133,6 +143,15 @@ impl Image {
         cr.clip();
         match ctx.document.resources().get(&self.source) {
             Some(bitmap) if bitmap.width() > 0 && bitmap.height() > 0 => {
+                // Mirrored in the image's own frame; the outline is symmetric, the picture not.
+                if self.flip_horizontal {
+                    cr.translate(self.width, 0.0);
+                    cr.scale(-1.0, 1.0);
+                }
+                if self.flip_vertical {
+                    cr.translate(0.0, self.height);
+                    cr.scale(1.0, -1.0);
+                }
                 cr.scale(
                     self.width / f64::from(bitmap.width()),
                     self.height / f64::from(bitmap.height()),
@@ -270,14 +289,22 @@ impl Annotation for Image {
     }
 
     /// The box follows the image (default); with "Scale annotations" the border, the rounding
-    /// and the shadow scale too. Mirrored, the picture itself is not mirrored (it keeps reading
-    /// the right way round).
+    /// and the shadow scale too. Unlike the default (which keeps content readable for text and
+    /// stamps), a flip mirrors the picture as well, like the base image: mirroring the
+    /// document turns the image's frame by −r (`map_rotation`) and mirrors it about its own
+    /// axis of the same direction (a reflection `M` satisfies `M·R(r) = R(−r)·M`), so the
+    /// mirror flag of that axis toggles. Quarter turns and scaling leave the flags alone.
     fn transform(&mut self, t: &Transform) {
         if t.is_translation() {
             self.translate(t.dx, t.dy);
             return;
         }
         self.set_arrange(t.map_arrange(&self.arrange()));
+        match t.mirror {
+            Some(Mirror::Horizontal) => self.flip_horizontal = !self.flip_horizontal,
+            Some(Mirror::Vertical) => self.flip_vertical = !self.flip_vertical,
+            None => {}
+        }
         let s = t.style_scale;
         if s.is_finite() && s > 0.0 && s != 1.0 {
             self.border_width = (self.border_width * s).min(MAX_BORDER);
