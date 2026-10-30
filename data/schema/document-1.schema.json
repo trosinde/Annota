@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/trosinde/Annota/data/schema/document-1.schema.json",
+  "title": "Annota document.json, format 1.x",
+  "description": "The scene graph inside a .annota file (a ZIP archive with document.json, original.png, thumbnail.png and images/<n>.png for embedded images). Coordinates are document pixels: one unit is one pixel of original.png, origin at its top-left corner, y down, angles in degrees clockwise. Readers of format 1.x accept every minor version: unknown keys and unknown object types are preserved and written back. A higher major version is refused.",
+  "type": "object",
+  "required": ["format", "requires", "image", "canvas", "objects"],
+  "properties": {
+    "format": {
+      "description": "Format version MAJOR.MINOR. Minor versions only add optional data.",
+      "type": "string",
+      "pattern": "^1\\.[0-9]+$"
+    },
+    "requires": {
+      "description": "Oldest Annota release that reads this format (\"0.1\" for format 1.x). Shown when a reader is too old.",
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)*$"
+    },
+    "generator": {
+      "description": "Annota version that wrote the file, informational.",
+      "type": "string"
+    },
+    "image": {
+      "description": "The original image, always at document position (0, 0).",
+      "type": "object",
+      "required": ["file", "width", "height"],
+      "properties": {
+        "file": { "const": "original.png" },
+        "width": { "type": "integer", "minimum": 1, "maximum": 32767 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 32767 },
+        "corner_radius": { "type": "number", "minimum": 0, "default": 0 }
+      }
+    },
+    "canvas": {
+      "description": "The exported area. Starts as the image bounds; x/y become negative when the canvas is extended to the left or top.",
+      "type": "object",
+      "required": ["x", "y", "width", "height", "background"],
+      "properties": {
+        "x": { "type": "integer" },
+        "y": { "type": "integer" },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "background": { "$ref": "#/$defs/background" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "title": { "type": ["string", "null"], "description": "Document name shown as the window title." },
+        "scale_factor": { "type": "number", "exclusiveMinimum": 0, "default": 1, "description": "Device scale of the captured screen." }
+      }
+    },
+    "objects": {
+      "description": "Annotation objects, bottom to top.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/object" }
+    },
+    "autosave": {
+      "description": "Only in autosave copies in ~/.cache/annota/autosave/.",
+      "type": "object",
+      "properties": {
+        "source": { "type": ["string", "null"], "description": "The file the document belongs to." }
+      }
+    }
+  },
+  "$defs": {
+    "color": {
+      "description": "sRGB colour with straight alpha, #RRGGBBAA (#RRGGBB is accepted on read).",
+      "type": "string",
+      "pattern": "^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"
+    },
+    "background": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "properties": { "type": { "const": "transparent" } }
+        },
+        {
+          "type": "object",
+          "required": ["type", "color"],
+          "properties": {
+            "type": { "const": "color" },
+            "color": { "$ref": "#/$defs/color" }
+          }
+        }
+      ]
+    },
+    "shadow": {
+      "type": "object",
+      "required": ["enabled", "color", "opacity", "angle", "distance", "blur"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "color": { "$ref": "#/$defs/color" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "angle": { "type": "number", "description": "Offset direction, degrees clockwise from +x." },
+        "distance": { "type": "number", "description": "Offset length in document pixels." },
+        "blur": { "type": "number", "minimum": 0, "description": "Gaussian standard deviation in document pixels." }
+      }
+    },
+    "object": {
+      "description": "One scene node: id, type and the type's own fields. Unknown types are kept as they are.",
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1, "description": "Unique within the document." },
+        "type": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "image" } } },
+          "then": { "$ref": "#/$defs/image_object" }
+        }
+      ]
+    },
+    "image_object": {
+      "description": "A bitmap placed as an object (picture in picture).",
+      "type": "object",
+      "required": ["source", "x", "y", "width", "height", "rotation", "opacity", "border_color", "border_width", "corner_radius", "shadow"],
+      "properties": {
+        "source": {
+          "description": "ZIP entry of the embedded image.",
+          "type": "string",
+          "pattern": "^images/[1-9][0-9]*\\.png$"
+        },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "rotation": { "type": "number" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "border_color": { "$ref": "#/$defs/color" },
+        "border_width": { "type": "number", "minimum": 0 },
+        "corner_radius": { "type": "number", "minimum": 0 },
+        "shadow": { "$ref": "#/$defs/shadow" }
+      }
+    }
+  }
+}

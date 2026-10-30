@@ -16,9 +16,11 @@ License: CC-BY-SA-4.0
 # BEGIN VENDORED CRATES
 Files: vendor/*
 Copyright: the respective crate authors
-License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (Apache-2.0) AND (Apache-2.0 OR MIT) AND (Apache-2.0 WITH LLVM-exception) AND (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT) AND (BSD-2-Clause OR Apache-2.0 OR MIT) AND (MIT) AND (MIT OR Apache-2.0) AND (MIT OR Apache-2.0 OR LGPL-2.1-or-later) AND (Unicode-3.0) AND (Unlicense OR MIT)
+License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (0BSD OR MIT OR Apache-2.0) AND (Apache-2.0) AND (Apache-2.0 OR MIT) AND (Apache-2.0 WITH LLVM-exception) AND (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT) AND (BSD-2-Clause OR Apache-2.0 OR MIT) AND (MIT) AND (MIT OR Apache-2.0) AND (MIT OR Apache-2.0 OR LGPL-2.1-or-later) AND (MIT OR Zlib OR Apache-2.0) AND (Unicode-3.0) AND (Unlicense OR MIT)
  Rust crates statically linked into the annota binary:
+ adler2 2.0.1: 0BSD OR MIT OR Apache-2.0
  aho-corasick 1.1.5: Unlicense OR MIT
+ arbitrary 1.5.0: MIT OR Apache-2.0
  ashpd 0.11.1: MIT
  async-broadcast 0.7.2: MIT OR Apache-2.0
  async-channel 2.5.0: Apache-2.0 OR MIT
@@ -38,13 +40,16 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (Apache-2.0) AND (Apache-2.0 
  block 0.1.6: MIT
  blocking 1.7.0: Apache-2.0 OR MIT
  bumpalo 3.20.3: MIT OR Apache-2.0
+ byteorder 1.5.0: Unlicense OR MIT
  cairo-rs 0.20.12: MIT
  cairo-sys-rs 0.20.10: MIT
  cc 1.10.0: MIT OR Apache-2.0
  cfg-expr 0.20.10: MIT OR Apache-2.0
  cfg-if 1.0.5: MIT OR Apache-2.0
  concurrent-queue 2.5.0: Apache-2.0 OR MIT
+ crc32fast 1.5.3: MIT OR Apache-2.0
  crossbeam-utils 0.8.23: MIT OR Apache-2.0
+ derive_arbitrary 1.5.0: MIT OR Apache-2.0
  displaydoc 0.2.7: MIT OR Apache-2.0
  endi 1.1.1: MIT
  enumflags2 0.7.12: MIT OR Apache-2.0
@@ -56,6 +61,7 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (Apache-2.0) AND (Apache-2.0 
  fastrand 2.5.0: Apache-2.0 OR MIT
  field-offset 0.3.6: MIT OR Apache-2.0
  find-msvc-tools 0.1.15: MIT OR Apache-2.0
+ flate2 1.1.10: MIT OR Apache-2.0
  form_urlencoded 1.2.2: MIT OR Apache-2.0
  futures-channel 0.3.34: MIT OR Apache-2.0
  futures-core 0.3.34: MIT OR Apache-2.0
@@ -86,7 +92,9 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (Apache-2.0) AND (Apache-2.0 
  gtk4 0.9.7: MIT
  gtk4-macros 0.9.5: MIT
  gtk4-sys 0.9.6: MIT
+ hash32 0.3.1: MIT OR Apache-2.0
  hashbrown 0.17.1: MIT OR Apache-2.0
+ heapless 0.8.0: MIT OR Apache-2.0
  heck 0.5.0: MIT OR Apache-2.0
  hermit-abi 0.5.3: MIT OR Apache-2.0
  hex 0.4.3: MIT OR Apache-2.0
@@ -100,17 +108,21 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (Apache-2.0) AND (Apache-2.0 
  idna 1.1.0: MIT OR Apache-2.0
  idna_adapter 1.2.1: Apache-2.0 OR MIT
  indexmap 2.14.2: Apache-2.0 OR MIT
+ itoa 1.0.18: MIT OR Apache-2.0
  js-sys 0.3.107: MIT OR Apache-2.0
  lazy_static 1.5.1: MIT OR Apache-2.0
  libadwaita 0.7.2: MIT
  libadwaita-sys 0.7.2: MIT
  libc 0.2.191: MIT OR Apache-2.0
+ libm 0.2.16: MIT
  linux-raw-sys 0.12.1: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
  litemap 0.8.3: Unicode-3.0
  locale_config 0.3.0: MIT
  malloc_buf 0.0.6: MIT
  memchr 2.8.3: Unlicense OR MIT
  memoffset 0.9.1: MIT
+ miniz_oxide 0.9.1: MIT OR Zlib OR Apache-2.0
+ num-traits 0.2.19: MIT OR Apache-2.0
  objc 0.2.7: MIT
  objc-foundation 0.1.1: MIT
  objc_id 0.1.1: MIT
@@ -137,6 +149,7 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (Apache-2.0) AND (Apache-2.0 
  regex 1.13.1: MIT OR Apache-2.0
  regex-automata 0.4.18: MIT OR Apache-2.0
  regex-syntax 0.8.11: MIT OR Apache-2.0
+ rstar 0.13.0: MIT OR Apache-2.0
  rustc_version 0.4.1: MIT OR Apache-2.0
  rustix 1.1.6: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
  rustversion 1.0.23: MIT OR Apache-2.0
@@ -144,10 +157,12 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (Apache-2.0) AND (Apache-2.0 
  serde 1.0.229: MIT OR Apache-2.0
  serde_core 1.0.229: MIT OR Apache-2.0
  serde_derive 1.0.229: MIT OR Apache-2.0
+ serde_json 1.0.154: MIT OR Apache-2.0
  serde_repr 0.1.21: MIT OR Apache-2.0
  serde_spanned 1.1.2: MIT OR Apache-2.0
  shlex 2.0.1: MIT OR Apache-2.0
  signal-hook-registry 1.4.8: MIT OR Apache-2.0
+ simd-adler32 0.3.10: MIT
  slab 0.4.12: MIT
  smallvec 1.16.4: MIT OR Apache-2.0
  stable_deref_trait 1.2.1: MIT OR Apache-2.0
@@ -212,6 +227,8 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (Apache-2.0) AND (Apache-2.0 
  zerotrie 0.2.5: Unicode-3.0
  zerovec 0.11.9: Unicode-3.0
  zerovec-derive 0.11.7: Unicode-3.0
+ zip 6.0.0: MIT
+ zmij 1.0.23: MIT
  zvariant 5.9.2: MIT
  zvariant_derive 5.9.2: MIT
  zvariant_utils 3.3.0: MIT

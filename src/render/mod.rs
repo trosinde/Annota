@@ -1,0 +1,517 @@
+//! The one cairo renderer shared by the canvas and export (CLAUDE.md §2: pixel-identical
+//! WYSIWYG).
+//!
+//! [`render`] is a pure function of (document, cairo context, [`Viewport`], [`Options`]); it
+//! does not touch widgets. The canvas calls it from its draw function, export and thumbnails
+//! through [`flatten`]. Objects outside the context's clip are skipped, using the scene's
+//! spatial index for large documents — this is how the canvas limits redraw work, since GTK 4
+//! has no partial invalidation of a drawing area.
+
+pub mod blur;
+pub mod shadow;
+pub mod view;
+
+use crate::document::annotation::{RenderContext, Target};
+use crate::document::bitmap::{Bitmap, BitmapError};
+use crate::document::color::Rgba;
+use crate::document::geometry::{Point, Rect};
+use crate::document::{Background, Document};
+
+/// Maps document space to device space: `device = doc * zoom + origin`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Viewport {
+    pub zoom: f64,
+    pub origin: Point,
+}
+
+impl Viewport {
+    pub fn new(zoom: f64, origin: Point) -> Self {
+        Self { zoom, origin }
+    }
+
+    /// The export mapping: the canvas' top-left corner at device (0, 0), `scale` px per px.
+    pub fn export(doc: &Document, scale: f64) -> Self {
+        let c = doc.canvas().rect;
+        Self::new(
+            scale,
+            Point::new(-f64::from(c.x) * scale, -f64::from(c.y) * scale),
+        )
+    }
+
+    pub fn to_document(&self, device: Point) -> Point {
+        Point::new(
+            (device.x - self.origin.x) / self.zoom,
+            (device.y - self.origin.y) / self.zoom,
+        )
+    }
+
+    pub fn to_device(&self, doc: Point) -> Point {
+        Point::new(
+            doc.x * self.zoom + self.origin.x,
+            doc.y * self.zoom + self.origin.y,
+        )
+    }
+}
+
+/// Screen-only appearance.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Options {
+    pub target: Target,
+    /// Checkerboard colours for a transparent canvas on screen (kit `--canvas-checker-a/b`).
+    pub checker: (Rgba, Rgba),
+}
+
+impl Options {
+    pub const EXPORT: Options = Options {
+        target: Target::Export,
+        checker: (Rgba::TRANSPARENT, Rgba::TRANSPARENT),
+    };
+
+    pub const SCREEN_LIGHT: Options = Options {
+        target: Target::Screen,
+        checker: (
+            Rgba::opaque(0xF6, 0xF5, 0xF4),
+            Rgba::opaque(0xE8, 0xE7, 0xE5),
+        ),
+    };
+
+    pub const SCREEN_DARK: Options = Options {
+        target: Target::Screen,
+        checker: (
+            Rgba::opaque(0x2A, 0x2A, 0x2E),
+            Rgba::opaque(0x23, 0x23, 0x27),
+        ),
+    };
+}
+
+/// Size of one checkerboard square in screen pixels (kit: 16 px tile, 8 px squares).
+pub const CHECKER_SQUARE: f64 = 8.0;
+
+/// Draws the document: canvas background, original image, then every object bottom to top,
+/// all clipped to the canvas. Only objects touching the current clip are drawn.
+pub fn render(
+    cr: &cairo::Context,
+    doc: &Document,
+    viewport: &Viewport,
+    options: &Options,
+) -> Result<(), cairo::Error> {
+    cr.save()?;
+    let result = render_inner(cr, doc, viewport, options);
+    cr.restore()?;
+    result
+}
+
+fn render_inner(
+    cr: &cairo::Context,
+    doc: &Document,
+    viewport: &Viewport,
+    options: &Options,
+) -> Result<(), cairo::Error> {
+    if !(viewport.zoom.is_finite() && viewport.zoom > 0.0) {
+        return Ok(());
+    }
+    let base = cr.matrix();
+    cr.translate(viewport.origin.x, viewport.origin.y);
+    cr.scale(viewport.zoom, viewport.zoom);
+    let canvas = doc.canvas().rect.to_rect();
+    cr.rectangle(canvas.x, canvas.y, canvas.width, canvas.height);
+    cr.clip();
+    let (x0, y0, x1, y1) = cr.clip_extents()?;
+    let visible = Rect::new(x0, y0, x1 - x0, y1 - y0);
+    if visible.width <= 0.0 || visible.height <= 0.0 {
+        return Ok(());
+    }
+
+    match doc.canvas().background {
+        Background::Color { color } => {
+            color.set_source(cr);
+            cr.paint()?;
+        }
+        Background::Transparent if options.target == Target::Screen => {
+            let corner = viewport.to_device(Point::new(canvas.x, canvas.y));
+            paint_checker(cr, base, corner, options.checker)?;
+        }
+        Background::Transparent => {}
+    }
+
+    paint_base_image(cr, doc, viewport.zoom)?;
+
+    let ctx = RenderContext {
+        document: doc,
+        zoom: viewport.zoom,
+        target: options.target,
+    };
+    let scene = doc.scene();
+    for position in scene.query(&visible) {
+        if let Some(node) = scene.nodes().get(position) {
+            cr.save()?;
+            let drawn = node.object.render(cr, &ctx);
+            cr.restore()?;
+            drawn?;
+        }
+    }
+    Ok(())
+}
+
+/// Filter for scaled bitmaps: crisp pixels when zoomed in (pixel inspection), smooth
+/// otherwise. At 100 % both give the source pixels, so canvas and export match.
+pub fn filter_for(zoom: f64) -> cairo::Filter {
+    if zoom >= 2.0 {
+        cairo::Filter::Nearest
+    } else {
+        cairo::Filter::Good
+    }
+}
+
+fn paint_base_image(cr: &cairo::Context, doc: &Document, zoom: f64) -> Result<(), cairo::Error> {
+    let image = doc.image();
+    let (w, h) = (
+        f64::from(image.bitmap.width()),
+        f64::from(image.bitmap.height()),
+    );
+    cr.save()?;
+    if image.corner_radius > 0.0 {
+        shadow::rounded_rect(cr, 0.0, 0.0, w, h, image.corner_radius);
+        cr.clip();
+    }
+    cr.set_source_surface(image.bitmap.surface(), 0.0, 0.0)?;
+    cr.source().set_filter(filter_for(zoom));
+    cr.rectangle(0.0, 0.0, w, h);
+    let filled = cr.fill();
+    cr.restore()?;
+    filled
+}
+
+/// Checkerboard in the caller's (screen) pixels, anchored at the canvas corner: it scrolls
+/// with the canvas but does not scale with zoom. `base` is the caller's transformation.
+fn paint_checker(
+    cr: &cairo::Context,
+    base: cairo::Matrix,
+    anchor: Point,
+    colors: (Rgba, Rgba),
+) -> Result<(), cairo::Error> {
+    let tile = (2.0 * CHECKER_SQUARE) as i32;
+    let surface = cairo::ImageSurface::create(cairo::Format::ARgb32, tile, tile)?;
+    {
+        let t = cairo::Context::new(&surface)?;
+        colors.0.set_source(&t);
+        t.paint()?;
+        colors.1.set_source(&t);
+        t.rectangle(CHECKER_SQUARE, 0.0, CHECKER_SQUARE, CHECKER_SQUARE);
+        t.rectangle(0.0, CHECKER_SQUARE, CHECKER_SQUARE, CHECKER_SQUARE);
+        t.fill()?;
+    }
+    let pattern = cairo::SurfacePattern::create(&surface);
+    pattern.set_extend(cairo::Extend::Repeat);
+    pattern.set_filter(cairo::Filter::Nearest);
+    pattern.set_matrix(cairo::Matrix::new(1.0, 0.0, 0.0, 1.0, -anchor.x, -anchor.y));
+    cr.save()?;
+    cr.set_matrix(base);
+    cr.set_source(&pattern)?;
+    let painted = cr.paint();
+    cr.restore()?;
+    painted
+}
+
+/// Renders the canvas into a new bitmap at `scale` pixels per document pixel: export at 1.0,
+/// thumbnails below. Objects are burnt in; editing aids are not drawn.
+pub fn flatten(doc: &Document, scale: f64) -> Result<Bitmap, BitmapError> {
+    let c = doc.canvas().rect;
+    let width = (f64::from(c.width) * scale).round().max(1.0) as i32;
+    let height = (f64::from(c.height) * scale).round().max(1.0) as i32;
+    let viewport = Viewport::export(doc, scale);
+    Bitmap::draw(width, height, |cr| {
+        render(cr, doc, &viewport, &Options::EXPORT)
+    })
+}
+
+/// A thumbnail whose longer side is at most `max_side` pixels (never enlarged).
+pub fn thumbnail(doc: &Document, max_side: i32) -> Result<Bitmap, BitmapError> {
+    let c = doc.canvas().rect;
+    let longest = f64::from(c.width.max(c.height).max(1));
+    let scale = (f64::from(max_side) / longest).min(1.0);
+    flatten(doc, scale)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    use serde::Serialize;
+
+    use super::*;
+    use crate::document::annotation::{Annotation, Property, PropertyError, PropertyValue};
+    use crate::document::color::palette;
+    use crate::document::command::{Command, History};
+    use crate::document::geometry::{Arrange, IRect};
+    use crate::document::scene::Node;
+    use crate::document::{BaseImage, Canvas};
+    use crate::tools::image::Image;
+
+    fn base() -> Bitmap {
+        // A 4-colour test card so any offset or scaling error shows.
+        Bitmap::draw(64, 40, |cr| {
+            for (i, c) in [palette::CORAL, palette::LIME, palette::AZURE, palette::INK]
+                .iter()
+                .enumerate()
+            {
+                c.set_source(cr);
+                cr.rectangle((i % 2) as f64 * 32.0, (i / 2) as f64 * 20.0, 32.0, 20.0);
+                cr.fill()?;
+            }
+            Ok(())
+        })
+        .unwrap()
+    }
+
+    fn with_image_object(doc: &mut Document) {
+        let mut h = History::new();
+        let pip = Bitmap::filled(30, 20, palette::AMBER).unwrap();
+        let cmd = Image::insert_command(doc, pip, Point::new(40.0, 22.0));
+        h.execute(doc, "Insert", cmd).unwrap();
+        let id = doc.scene().ids()[0];
+        let mut o = doc.scene().get(id).unwrap().object.clone();
+        let mut a = o.arrange();
+        a.rotation = 20.0;
+        a.rect = Rect::new(30.0, 12.0, 24.0, 16.0);
+        o.set_arrange(a);
+        h.execute(
+            doc,
+            "Rotate",
+            Command::Replace {
+                objects: vec![(id, o)],
+            },
+        )
+        .unwrap();
+    }
+
+    fn same(a: &Bitmap, b: &Bitmap) -> bool {
+        a.width() == b.width()
+            && a.height() == b.height()
+            && (0..a.height()).all(|y| (0..a.width()).all(|x| a.pixel(x, y) == b.pixel(x, y)))
+    }
+
+    #[test]
+    fn export_of_a_plain_capture_is_the_capture() {
+        let doc = Document::new(base());
+        let out = flatten(&doc, 1.0).unwrap();
+        assert!(same(&out, &doc.image().bitmap));
+    }
+
+    #[test]
+    fn canvas_at_100_percent_matches_export() {
+        // CLAUDE.md §2: one renderer → pixel-identical WYSIWYG. Draw the document as the canvas
+        // does (screen target, offset inside a larger widget) and compare to the export.
+        let mut doc = Document::new(base());
+        with_image_object(&mut doc);
+        let mut h = History::new();
+        h.execute(
+            &mut doc,
+            "Extend",
+            Command::SetCanvas(Canvas {
+                rect: IRect::new(-10, 0, 80, 40),
+                background: Background::Color {
+                    color: palette::TEAL,
+                },
+            }),
+        )
+        .unwrap();
+        let export = flatten(&doc, 1.0).unwrap();
+        let (ox, oy) = (37.0, 21.0);
+        let widget = Bitmap::draw(200, 120, |cr| {
+            cr.set_source_rgb(0.87, 0.87, 0.85); // canvas-bg around the canvas
+            cr.paint()?;
+            render(
+                cr,
+                &doc,
+                &Viewport::new(1.0, Point::new(ox + 10.0, oy)),
+                &Options::SCREEN_LIGHT,
+            )
+        })
+        .unwrap();
+        for y in 0..export.height() {
+            for x in 0..export.width() {
+                assert_eq!(
+                    widget.pixel(x + ox as i32, y + oy as i32),
+                    export.pixel(x, y),
+                    "pixel {x},{y}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn transparent_canvas_is_checkered_on_screen_only() {
+        let mut doc = Document::new(base());
+        let mut h = History::new();
+        h.execute(
+            &mut doc,
+            "Extend",
+            Command::SetCanvas(Canvas {
+                rect: IRect::new(0, 0, 100, 40),
+                background: Background::Transparent,
+            }),
+        )
+        .unwrap();
+        let export = flatten(&doc, 1.0).unwrap();
+        assert_eq!(export.width(), 100);
+        assert_eq!(
+            export.pixel(80, 10).unwrap().a,
+            0,
+            "exported as transparent"
+        );
+        assert_eq!(export.pixel(10, 10), Some(palette::CORAL));
+        let screen = Bitmap::draw(100, 40, |cr| {
+            render(
+                cr,
+                &doc,
+                &Viewport::export(&doc, 1.0),
+                &Options::SCREEN_LIGHT,
+            )
+        })
+        .unwrap();
+        let (a, b) = Options::SCREEN_LIGHT.checker;
+        assert_eq!(screen.pixel(64, 0), Some(a));
+        assert_eq!(screen.pixel(72, 0), Some(b));
+        assert_eq!(screen.pixel(72, 8), Some(a));
+    }
+
+    #[test]
+    fn coloured_canvas_fills_the_extension() {
+        // Spec "Extend for callout": the new area is filled with the canvas colour.
+        let mut doc = Document::new(base());
+        let mut h = History::new();
+        let paper = Background::Color {
+            color: palette::PAPER,
+        };
+        h.execute(
+            &mut doc,
+            "Extend",
+            Command::SetCanvas(Canvas {
+                rect: IRect::new(0, 0, 264, 40),
+                background: paper,
+            }),
+        )
+        .unwrap();
+        let out = flatten(&doc, 1.0).unwrap();
+        assert_eq!((out.width(), out.height()), (264, 40));
+        assert_eq!(out.pixel(200, 20), Some(palette::PAPER));
+        assert_eq!(out.pixel(40, 30), Some(palette::INK));
+    }
+
+    #[test]
+    fn rounded_image_corners_show_the_background() {
+        let mut doc = Document::new(base());
+        let mut h = History::new();
+        let image = BaseImage {
+            bitmap: doc.image().bitmap.clone(),
+            corner_radius: 10.0,
+        };
+        h.execute(&mut doc, "Corner Radius", Command::SetImage(image))
+            .unwrap();
+        let out = flatten(&doc, 1.0).unwrap();
+        assert_eq!(out.pixel(0, 0).unwrap().a, 0);
+        assert_eq!(out.pixel(10, 10), Some(palette::CORAL));
+    }
+
+    #[test]
+    fn zoomed_render_scales_the_image() {
+        let doc = Document::new(base());
+        let out = Bitmap::draw(128, 80, |cr| {
+            render(
+                cr,
+                &doc,
+                &Viewport::new(2.0, Point::default()),
+                &Options::EXPORT,
+            )
+        })
+        .unwrap();
+        // At 200 % pixels are doubled (nearest filter): the quadrant edge moves to x = 64.
+        assert_eq!(out.pixel(63, 10), Some(palette::CORAL));
+        assert_eq!(out.pixel(64, 10), Some(palette::LIME));
+        assert_eq!(out.pixel(10, 41), Some(palette::AZURE));
+    }
+
+    #[test]
+    fn thumbnail_fits_the_longer_side() {
+        let doc = Document::new(Bitmap::filled(2000, 1000, palette::PAPER).unwrap());
+        let t = thumbnail(&doc, 512).unwrap();
+        assert_eq!((t.width(), t.height()), (512, 256));
+    }
+
+    /// Counts how often it is drawn.
+    #[derive(Clone, Debug, Serialize)]
+    struct Counted {
+        rect: Rect,
+        #[serde(skip)]
+        renders: Rc<Cell<usize>>,
+    }
+
+    impl Annotation for Counted {
+        fn type_name(&self) -> &'static str {
+            "counted"
+        }
+        fn bounds(&self) -> Rect {
+            self.rect
+        }
+        fn hit_test(&self, p: Point, _: f64) -> bool {
+            self.rect.contains(p)
+        }
+        fn render(&self, _: &cairo::Context, _: &RenderContext<'_>) -> Result<(), cairo::Error> {
+            self.renders.set(self.renders.get() + 1);
+            Ok(())
+        }
+        fn arrange(&self) -> Arrange {
+            Arrange::new(self.rect, 0.0)
+        }
+        fn set_arrange(&mut self, a: Arrange) {
+            self.rect = a.rect;
+        }
+        fn properties(&self) -> Vec<Property> {
+            Vec::new()
+        }
+        fn set_property(&mut self, k: &str, _: &PropertyValue) -> Result<(), PropertyError> {
+            Err(PropertyError::Unknown(k.into()))
+        }
+    }
+
+    #[test]
+    fn only_visible_objects_are_drawn() {
+        // 300 objects (spatial-index path) on a 3000 px wide canvas; the view shows 100 px.
+        let mut doc = Document::new(Bitmap::filled(3000, 100, palette::PAPER).unwrap());
+        let renders = Rc::new(Cell::new(0));
+        let ids = doc.scene().fresh_ids(300);
+        let nodes = ids
+            .iter()
+            .enumerate()
+            .map(|(i, &id)| {
+                let object = Counted {
+                    rect: Rect::new(i as f64 * 10.0, 10.0, 8.0, 8.0),
+                    renders: renders.clone(),
+                };
+                (i, Node::new(id, Box::new(object)))
+            })
+            .collect();
+        Command::Insert {
+            nodes,
+            resources: Vec::new(),
+        }
+        .apply(&mut doc)
+        .unwrap();
+        Bitmap::draw(100, 100, |cr| {
+            render(
+                cr,
+                &doc,
+                &Viewport::new(1.0, Point::new(-1000.0, 0.0)),
+                &Options::EXPORT,
+            )
+        })
+        .unwrap();
+        // x 1000..1100 touches objects 100..=110 (each 8 px wide at 10 px pitch).
+        assert_eq!(renders.get(), 11);
+        renders.set(0);
+        flatten(&doc, 1.0).unwrap();
+        assert_eq!(renders.get(), 300, "export draws everything");
+    }
+}
