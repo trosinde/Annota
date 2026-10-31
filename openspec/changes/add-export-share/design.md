@@ -493,13 +493,22 @@ file chooser is never opened (Copy to Folder's chooser only behind a cancelled w
 - Real portal round-trips, real drops and real pastes are maintainer checks:
   `manual-checks.md` (new).
 
-**Open questions for the maintainer** (do not block the next phases):
-- *Ctrl+C with a selection*: copy the selected objects (needs an object clipboard + paste,
-  an add-annotation-editor-scope follow-up) — or keep copying the whole image, as now? Until
-  decided, the context menu's "Copy" on a selection copies the whole image too.
-- *Drag with reversible redactions*: the drag that hits the warning is dropped and the user drags
-  again after answering (no way around that in GTK). Acceptable, or should drags skip the alert
-  and instead always convert/refuse?
-- *Hand-off retention*: temporary PNGs stay up to 24 h in the runtime dir (until the next
-  hand-off after that, or logout). Shorter (e.g. removed when Annota quits) risks a mail client
-  that attaches at send time losing the file.
+### Decided during apply (2026-10-31: maintainer follow-ups on tasks 2.3/2.4)
+- **Object copy/paste will be built, as task 2.4a** — over the "leave it for later"
+  recommendation (it's really an add-annotation-editor-shaped feature, but the maintainer wants
+  it in this change since the original mockup table assumed it already existed). `Ctrl+C` with
+  a selection puts the object(s) on the clipboard in a self-contained Annota-specific mime type
+  (geometry, properties, embedded resources — the same shape `.annota` already serializes, so
+  a copy survives the source document closing); `Ctrl+V` checks for that mime type first and
+  inserts into the *currently open* document (any open document, not only the one the objects
+  were copied from) as one undo step, offset like a duplicate (10px convention). No shortcut
+  collision with the existing app-level "paste a clipboard image as a new document": a new
+  editor-scoped `win.paste` tries the Annota mime type first and only falls through to that
+  existing behaviour when it isn't on the clipboard. See `tasks.md` 2.4a for the full scope.
+- **The drag/warning interaction is acceptable as built**: a drag with reversible redactions
+  doesn't start on the first attempt (GTK can't hold a drag open behind an alert) and shows the
+  warning instead; a second drag attempt after Drag Anyway/Convert to Solid goes through. No
+  change needed — this is a real GTK/libadwaita constraint, not a design choice to revisit.
+- **Hand-off retention stays 24h pruning, not deleted on Annota quit** — as built. Deleting on
+  quit risks breaking a mail client that reads the attachment lazily at send time; 24h is
+  generous for normal use, and `$XDG_RUNTIME_DIR` is cleared on logout/reboot regardless.

@@ -31,6 +31,21 @@
       toast; Open With… → `OpenURI` with the app chooser; Copy to Folder… → GTK's file
       chooser, no Email/OpenURI portal; real portal round-trips are maintainer checks,
       `manual-checks.md`)
+- [ ] 2.4a Object copy/paste (maintainer decision, 2026-10-31, over the "leave it for later"
+      recommendation — the original mockup table assumed this existed and it never did
+      anywhere in the app): `Ctrl+C` with a selection SHALL put the selected object(s) on the
+      system clipboard in an Annota-specific mime type (self-contained: geometry, properties,
+      embedded resources — same shape as the `.annota` format's own object serialization, so a
+      copy survives the source document closing). `Ctrl+V` while a document is open and
+      focused SHALL check the clipboard for that mime type first: if present, insert the
+      objects into the *currently open* document (works across documents — pasting into a
+      different document than the one they were copied from, or a later-opened one, is
+      supported) as one undo step, offset like a duplicate (10px, the established convention —
+      see add-annotation-editor's phase 2a decisions); if absent, fall back to the existing
+      `capture::import::paste` behaviour (a plain image on the clipboard opens as a new
+      document, unchanged). No shortcut collision: `win.paste` (new, editor-scoped) tries the
+      Annota mime type first and only falls through to the app-level new-document paste when
+      that mime type isn't on the clipboard.
 - [ ] 2.5 Batch export dialog
 - [ ] 2.6 "Save changes before closing?" — add-annotation-editor keeps every unsaved document's
       autosave when the editor window closes or Annota quits, because there was no Save yet

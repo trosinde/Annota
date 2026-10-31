@@ -52,6 +52,25 @@ A saved document SHALL take its file's name as title, lose its autosave and anno
 - **WHEN** the user presses Ctrl+C and pastes into another app
 - **THEN** the annotated image is pasted
 
+### Requirement: Object copy and paste
+`Ctrl+C` with a selection SHALL put the selected object(s) on the clipboard in a self-contained Annota-specific format instead of the flattened image. `Ctrl+V` in an open document SHALL check for that format first and insert the objects there as one undo step; without it, `Ctrl+V` SHALL fall back to the existing new-document paste.
+
+#### Scenario: Copy and paste into the same document
+- **WHEN** the user selects an arrow, presses Ctrl+C, then Ctrl+V in the same document
+- **THEN** a second arrow appears, offset from the first, as one undo step
+
+#### Scenario: Paste into a different document
+- **WHEN** an object copied from one document is pasted with Ctrl+V into a different open document
+- **THEN** it is inserted there, even though it was copied elsewhere
+
+#### Scenario: Paste after the source document closes
+- **WHEN** the source document is closed after the copy and Ctrl+V is pressed in another document
+- **THEN** the object still pastes, unaffected by the source closing
+
+#### Scenario: Plain image still opens as a new document
+- **WHEN** the clipboard holds an ordinary image, not Annota's object format, and Ctrl+V is pressed
+- **THEN** it opens as a new document, exactly as before object copy existed
+
 ### Requirement: Drag and drop
 Dragging the window title area (the header bar's title and subtitle, decision D1) SHALL provide the flattened image to other applications as a PNG file named after the document (`text/uri-list`) and as `image/png` data. Hovering the title area SHALL show the tooltip "Drag image to another app" (mockup 08); the drag image is a thumbnail with a "PNG" badge (mockup 09).
 
