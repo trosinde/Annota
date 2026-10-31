@@ -31,6 +31,11 @@ Annotated images must reach documents, chats and tickets in one step.
   (no way out of Annota existed yet); this change makes it the real warning (mockup 10, D7) on
   every way out it builds. Archive add-core-annotation-tools before this change: the MODIFIED
   delta needs its `annotation-tools` spec to exist.
+- `document-format` — "Autosave and recovery", "Closing keeps autosaves" and "Recovery dialog"
+  (add-annotation-editor) modified, "Save changes before closing" added (task 2.6): now that
+  Annota can save, closing asks and an autosave goes only when its document is saved or
+  discarded. Archive add-annotation-editor before this change: the MODIFIED delta needs its
+  `document-format` spec to exist.
 
 ## Impact
 - New module `src/export/` (encoders, `.annota` save); new crates `jpeg-encoder`, `libwebp-sys`
@@ -42,6 +47,8 @@ Annotated images must reach documents, chats and tickets in one step.
   saved document's file, name and autosave)
 - `src/export/handoff.rs`: the temporary PNG handed to other apps (drag-out, Email, Open With),
   in `$XDG_RUNTIME_DIR/annota/handoff`
+- "Save Changes?" when closing or quitting: `src/ui/editor/closing.rs`,
+  `data/ui/save-changes-dialog.blp`, the editor's close request and `app.quit`, `Session::close`
 - Batch export: the tray's selection mode (`src/ui/editor/tray.rs`, `editor-window.blp`),
   `src/ui/editor/batch.rs` + `data/ui/batch-export-dialog.blp`, sharing the export dialog's
   format rows

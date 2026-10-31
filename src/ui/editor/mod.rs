@@ -50,13 +50,18 @@
 //!
 //! **Placeholders.** Open Library belongs to add-capture-library.
 //!
-//! **Closing keeps autosaves.** Until "Save changes before closing?" exists (add-export-share
-//! task 2.6), closing the window — or quitting — writes a last autosave of every document with
-//! unsaved changes and keeps it, so nothing is lost; "Restore Unsaved Captures?" offers them at
-//! the next start, and only its Discard (or saving the document) removes them. See design.md
-//! ("Decided during apply — phase 2b-ii").
+//! **Save changes before closing** (task 2.6, mockup 15; [`closing`]). Closing the window
+//! (`Ctrl+W`, its close button) or quitting (`Ctrl+Q`, `app.quit`) asks "Save Changes?" for each
+//! document that would lose something, in the tray's Open order, showing each one behind its
+//! alert: Save is `Ctrl+S`'s quick save, Discard closes it without saving, Cancel — or a save
+//! that fails — stops the whole close or quit. An autosave is removed only when its document is
+//! saved or discarded. When Annota ends without asking, autosaves stay: killed or ended with the
+//! session, the 30 s autosaves are left as after a crash; a normal shutdown that did not ask
+//! writes the last autosave of every unsaved document first and keeps it, as
+//! add-annotation-editor's "Closing keeps autosaves" had it for every close before Save existed.
 
 mod batch;
+mod closing;
 mod colour;
 mod dialogs;
 mod export_dialog;
@@ -263,8 +268,22 @@ pub fn offer_recovery(app: &adw::Application) -> bool {
     true
 }
 
-/// Annota quits: every open document's unsaved changes are autosaved and kept (see the module
-/// documentation), exactly as when the window is closed.
+/// `Ctrl+Q` and `app.quit` (task 2.6, mockup 15): "Save Changes?" for every document of the
+/// editor window that would lose something, then Annota quits — unless the user cancels or a
+/// save fails.
+pub fn quit(app: &adw::Application) {
+    let Some(inner) = EDITOR.with(|e| e.borrow().clone()) else {
+        app.quit();
+        return;
+    };
+    let app = app.clone();
+    Editor { inner }.confirm_close(move |_| app.quit());
+}
+
+/// Annota ends (its `shutdown`): the documents still open are closed. After `Ctrl+Q` those are
+/// only documents without unsaved changes; if it shuts down without having asked, every unsaved
+/// document's last autosave is written and kept for "Restore Unsaved Captures?" at the next
+/// start (see the module documentation).
 pub fn shut_down() {
     if let Some(inner) = EDITOR.with(|e| e.borrow().clone()) {
         Editor { inner }.close_all();
@@ -423,6 +442,10 @@ struct Inner {
     drag_consent: Cell<Option<u64>>,
     /// The thumbnail of the drag in progress (mockup 09's drag image).
     drag_ghost: RefCell<Option<gdk::Texture>>,
+    /// "Save Changes?" is being asked (task 2.6): a second close or quit waits for it.
+    closing: Cell<bool>,
+    /// Every document was saved or discarded: the window may close now.
+    close_confirmed: Cell<bool>,
 }
 
 /// Picks a colour anywhere on the screen.
@@ -493,6 +516,8 @@ impl Editor {
             handoff_root: RefCell::new(share::handoff_root()),
             drag_consent: Cell::new(None),
             drag_ghost: RefCell::new(None),
+            closing: Cell::new(false),
+            close_confirmed: Cell::new(false),
         });
         let editor = Self { inner };
         editor.setup();
@@ -548,7 +573,18 @@ impl Editor {
         let weak = self.downgrade();
         w.window.connect_close_request(move |_| {
             if let Some(editor) = weak.upgrade() {
-                // Keeps every unsaved document's autosave (module documentation).
+                // Task 2.6: "Save Changes?" first; the window closes once every document that
+                // would lose something is saved or discarded (`close_confirmed`).
+                let asking = editor.inner.closing.get();
+                if !editor.inner.close_confirmed.get() && (asking || !editor.unsaved().is_empty()) {
+                    editor.confirm_close(|editor| {
+                        editor.inner.close_confirmed.set(true);
+                        editor.inner.w.window.close();
+                    });
+                    return glib::Propagation::Stop;
+                }
+                // Only documents without unsaved changes are left: closing them leaves no
+                // autosave (their last tick removes a stale one).
                 editor.close_all();
                 editor.inner.w.context_menu.unparent();
                 // Released when this handler returns; the window is destroyed after it.
@@ -679,8 +715,9 @@ impl Editor {
         self.inner.w.toast_overlay.add_toast(toast);
     }
 
-    /// Closes one document. `discard`: it is dropped on purpose (the Undo of a new capture),
-    /// so its autosave goes too; otherwise it is kept like when the window closes.
+    /// Closes one document. `discard`: it is dropped on purpose (the Undo of a new capture,
+    /// Discard in "Save Changes?"), so its autosave goes too; otherwise a last autosave tick
+    /// runs (it writes unsaved changes and keeps them, or removes a stale autosave).
     fn close_session(&self, uid: u64, discard: bool) {
         let Some(session) = self.session(uid) else {
             return;
@@ -804,9 +841,10 @@ impl Editor {
         self.refresh();
     }
 
-    /// The window closes (or Annota quits): every document with unsaved changes is autosaved
-    /// one last time and its autosave kept for the next start (spec document-format: Autosave
-    /// and recovery — until "Save changes before closing?", add-export-share task 2.6).
+    /// The window closes (or Annota ends): every document is closed with a last autosave tick.
+    /// After "Save Changes?" (task 2.6) only documents without unsaved changes are left, so no
+    /// autosave stays; when Annota shuts down without having asked, the tick writes and keeps the
+    /// autosave of every unsaved document (spec document-format: Closing keeps autosaves).
     fn close_all(&self) {
         // Text being typed belongs to the document: it is kept.
         for session in self.inner.sessions.borrow().iter() {
@@ -1614,9 +1652,64 @@ impl Editor {
         self.quick_save_now(uid);
     }
 
-    fn quick_save_now(&self, uid: u64) {
-        let Some(session) = self.session(uid) else {
+    // ---- save changes before closing (task 2.6) ----
+
+    /// The documents that would lose something if closed now ([`closing::needs_saving`]), in
+    /// the tray's Open order. Text being typed is finished first: it belongs to the document.
+    fn unsaved(&self) -> Vec<u64> {
+        self.sessions()
+            .iter()
+            .filter(|s| {
+                s.canvas.finish_text();
+                closing::needs_saving(s.origin.get(), &s.canvas.history_info())
+            })
+            .map(|s| s.uid)
+            .collect()
+    }
+
+    /// "Save Changes?" (mockup 15) for each document that would lose something, one after the
+    /// other in the tray's Open order, each shown behind its alert (maintainer decision,
+    /// 2026-10-31). Save does exactly what `Ctrl+S` does and closes the document; Discard closes
+    /// it and removes its autosave; Cancel stops — documents saved or discarded so far stay so —
+    /// and so does a save that fails (its toast says why). `then` runs once nothing is left to
+    /// ask (at once if there was nothing); not at all after Cancel or a failure. While the
+    /// alerts are up, another close or quit does nothing.
+    fn confirm_close(&self, then: impl FnOnce(&Editor) + 'static) {
+        if self.inner.closing.get() {
             return;
+        }
+        let pending = self.unsaved();
+        if pending.is_empty() {
+            then(self);
+            return;
+        }
+        self.inner.closing.set(true);
+        let window = self.inner.w.window.clone();
+        // A dialog still open over the window (Export Image, a warning …) goes first: closing
+        // the window would close it anyway.
+        for _ in 0..8 {
+            match window.visible_dialog() {
+                Some(dialog) => dialog.force_close(),
+                None => break,
+            }
+        }
+        window.present();
+        let weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let done = ask_each(&weak, &window, pending).await;
+            if let Some(editor) = weak.upgrade() {
+                editor.inner.closing.set(false);
+                if done {
+                    then(&editor);
+                }
+            }
+        });
+    }
+
+    /// Returns whether the document was saved (the failure toast says why not).
+    fn quick_save_now(&self, uid: u64) -> bool {
+        let Some(session) = self.session(uid) else {
+            return false;
         };
         let source = session.source.borrow().clone();
         let target = match source {
@@ -1627,7 +1720,7 @@ impl Editor {
                     crate::preferences::resolved_save_folder(&settings.string("save-folder"));
                 if let Err(err) = std::fs::create_dir_all(&folder) {
                     self.save_failed(uid, &folder, &ExportError::Io(err));
-                    return;
+                    return false;
                 }
                 let pattern = settings.string("filename-pattern");
                 let stem = glib::DateTime::now_local()
@@ -1636,7 +1729,7 @@ impl Editor {
                 saving::quick_save_path(None, &folder, &stem, Path::exists)
             }
         };
-        self.save_to(uid, &target);
+        self.save_to(uid, &target)
     }
 
     /// `Ctrl+Shift+S`: GTK's file chooser for the `.annota` file. No redaction warning, same
@@ -2899,7 +2992,7 @@ impl Editor {
     }
 
     /// Opens the picked autosaves. Each keeps its slot, so it stays recoverable until it is
-    /// saved or closed.
+    /// saved or discarded.
     fn restore(&self, picked: Vec<RecoveryEntry>) {
         for entry in picked {
             match self.inner.store.restore(&entry) {
@@ -2930,6 +3023,45 @@ impl Editor {
             }
         }
     }
+}
+
+/// One "Save Changes?" after another for `pending` (task 2.6, [`Editor::confirm_close`]);
+/// whether every one was saved or discarded. The editor is held only between the alerts, not
+/// while one is up.
+async fn ask_each(weak: &WeakEditor, window: &adw::ApplicationWindow, pending: Vec<u64>) -> bool {
+    for uid in pending {
+        let (name, saved_before) = {
+            let Some(editor) = weak.upgrade() else {
+                return false;
+            };
+            let Some(session) = editor.session(uid) else {
+                continue;
+            };
+            if !closing::needs_saving(session.origin.get(), &session.canvas.history_info()) {
+                continue;
+            }
+            // Redline: the document is visible behind its alert.
+            editor.switch_to(uid);
+            let saved_before = session.source.borrow().is_some();
+            (session.name(), saved_before)
+        };
+        let answer = closing::ask(window, &name, saved_before).await;
+        let Some(editor) = weak.upgrade() else {
+            return false;
+        };
+        match answer {
+            closing::Answer::Cancel => return false,
+            closing::Answer::Discard => editor.close_session(uid, true),
+            closing::Answer::Save => {
+                // Exactly Ctrl+S; if it fails, its toast says why and nothing more closes.
+                if !editor.quick_save_now(uid) {
+                    return false;
+                }
+                editor.close_session(uid, false);
+            }
+        }
+    }
+    true
 }
 
 struct WeakEditor(Weak<Inner>);
@@ -3967,9 +4099,10 @@ mod tests {
             dialog.force_close();
         }
 
-        // Closing keeps the autosaves (until Save exists): the restored document's slot and
-        // the capture's are still there, and a change made after the last tick is written
-        // when the window closes.
+        // A shutdown without "Save Changes?" (add-export-share task 2.6: `shut_down` without
+        // `app.quit` having asked) keeps the autosaves: the restored document's slot and the
+        // capture's are still there, and a change made after the last tick is written.
+        // (Closing the window asks first: `save_changes_on_a_live_display`.)
         let capture_canvas = editor
             .sessions()
             .iter()
@@ -3977,10 +4110,11 @@ mod tests {
             .map(|s| s.canvas.clone())
             .unwrap();
         capture_canvas.run(|doc, _| image_ops::rotate(doc, Turn::Right));
-        w.window.close();
+        editor.close_all();
+        w.window.destroy();
         pump(100);
         let kept = store.list().entries;
-        assert_eq!(kept.len(), 2, "closing keeps the autosaves");
+        assert_eq!(kept.len(), 2, "ending unasked keeps the autosaves");
         let capture = kept
             .iter()
             .find(|e| e.name.as_deref() == Some("Capture 2026-10-30 14-22-08"))
@@ -6408,6 +6542,234 @@ mod tests {
         assert!(tray.selecting(), "Cancel keeps the selection");
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
         window_done(&w.window);
+    }
+
+    /// Clicks the response button labelled `label` (with its mnemonic, "_Save") of an alert.
+    fn click_response(alert: &adw::Dialog, label: &str) -> bool {
+        click_button(alert.upcast_ref(), label)
+    }
+
+    /// add-export-share task 2.6 (mockup 15; spec document-format "Save changes before
+    /// closing", "Closing keeps autosaves"): closing the window and quitting ask "Save
+    /// Changes?" for each document that would lose something, in the tray's Open order, each
+    /// shown behind its alert; Cancel (or Esc) and a failed save stop everything, Discard and
+    /// Save close the document and remove its autosave; documents without unsaved changes close
+    /// silently and the window closes after the last answer. Everything is written to temporary
+    /// folders; no file chooser or portal is opened. Run on its own like the tests above.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn save_changes_on_a_live_display() {
+        use annota::document::geometry::Rect;
+        use annota::tools::redaction::Redaction;
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp =
+            TempDir(std::env::temp_dir().join(format!("annota-close-test-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        let captures = tmp.0.join("captures");
+        std::fs::create_dir_all(&captures).unwrap();
+        let app = environment(&tmp.0);
+        let store = Store::new(tmp.0.join("autosave"));
+        let editor = Editor::build(&app, store.clone(), style_paths(&tmp.0)).unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        editor
+            .inner
+            .settings
+            .set_string("save-folder", &captures.to_string_lossy())
+            .unwrap();
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let dialog = || w.window.visible_dialog();
+        let toasts = || w.toast_overlay.clone().upcast::<gtk::Widget>();
+        let names = |editor: &Editor| -> Vec<String> {
+            editor.sessions().iter().map(|s| s.name()).collect()
+        };
+
+        // Tray Open order: A an edited `.annota` file, B an unchanged one, C and D new
+        // captures, E an image opened from a file and left unchanged.
+        let file_a = tmp.0.join("Checkout flow.annota");
+        sample(&file_a);
+        let file_b = tmp.0.join("Clean report.annota");
+        annota::document::archive::save(
+            &Document::new(Bitmap::filled(80, 60, palette::PAPER).unwrap()),
+            &file_b,
+        )
+        .unwrap();
+        let png_e = tmp.0.join("Untouched.png");
+        Bitmap::filled(64, 48, palette::TEAL)
+            .unwrap()
+            .surface()
+            .write_to_png(&mut std::fs::File::create(&png_e).unwrap())
+            .unwrap();
+        editor.open_file(&file_a);
+        let a = editor.current().unwrap().uid;
+        editor.current_canvas().unwrap().run(|doc, _| {
+            ops::add(
+                doc,
+                Box::new(Redaction::new(Rect::new(5.0, 5.0, 40.0, 20.0))),
+            )
+        });
+        editor.open_file(&file_b);
+        let new = |name: &str| {
+            editor.add_session(
+                Loaded {
+                    document: Document::with_title(
+                        Bitmap::filled(400, 250, palette::LIME).unwrap(),
+                        name,
+                    ),
+                    source: None,
+                    path: None,
+                    name: name.into(),
+                },
+                Origin::New,
+                AutosaveId::generate(),
+            )
+        };
+        let c = new("Capture 2026-10-31 09-00-00");
+        let d = new("Pasted Image");
+        editor.open_file(&png_e);
+        assert_eq!(editor.sessions().len(), 5);
+        editor.autosave_now();
+        assert_eq!(store.list().entries.len(), 3, "A, C and D are autosaved");
+
+        // Ctrl+W: the first document that would lose something is shown behind the alert.
+        WidgetExt::activate_action(&w.window, "window.close", None).unwrap();
+        pump(200);
+        let alert = dialog().expect("Save Changes?");
+        assert_eq!(editor.inner.current.get(), Some(a));
+        let alert_dialog = alert.clone().downcast::<adw::AlertDialog>().unwrap();
+        assert_eq!(alert_dialog.heading().as_deref(), Some("Save Changes?"));
+        assert_eq!(
+            alert_dialog.body(),
+            "“Checkout flow” has unsaved changes. If you close without saving, they will be lost."
+        );
+        // Redline: Cancel · Discard (destructive) · Save (suggested, default); Esc is Cancel.
+        assert_eq!(alert_dialog.default_response().as_deref(), Some("save"));
+        assert_eq!(alert_dialog.close_response(), "cancel");
+        assert_eq!(
+            alert_dialog.response_appearance("discard"),
+            adw::ResponseAppearance::Destructive
+        );
+        assert_eq!(
+            alert_dialog.response_appearance("save"),
+            adw::ResponseAppearance::Suggested
+        );
+        shot(&w.window, "es15-save-changes");
+        // Esc (the close response): nothing closes, nothing changes.
+        alert.close();
+        pump(300);
+        assert!(dialog().is_none());
+        assert!(w.window.is_visible());
+        assert_eq!(editor.sessions().len(), 5);
+        assert_eq!(store.list().entries.len(), 3);
+
+        // Ctrl+Q: the same sequence. Another quit meanwhile does not stack alerts; Ctrl+W
+        // while it is up closes the alert (libadwaita closes a window's dialog first), which is
+        // Cancel.
+        quit(&app);
+        pump(200);
+        let alert = dialog().expect("Save Changes? on quit");
+        quit(&app);
+        pump(100);
+        assert_eq!(dialog().as_ref(), Some(&alert), "one alert at a time");
+        WidgetExt::activate_action(&w.window, "window.close", None).unwrap();
+        pump(300);
+        assert!(dialog().is_none() && w.window.is_visible());
+        assert_eq!(editor.sessions().len(), 5);
+        assert!(!editor.inner.closing.get(), "the sequence ended");
+        quit(&app);
+        pump(200);
+        let alert = dialog().expect("Save Changes? on quit");
+        assert_eq!(editor.inner.current.get(), Some(a));
+        // Save = Ctrl+S: over its own file; the document closes, its autosave goes.
+        assert!(click_response(&alert, "_Save"));
+        pump(300);
+        assert_eq!(
+            annota::document::archive::load(&file_a)
+                .unwrap()
+                .object_count(),
+            3
+        );
+        assert!(editor.session(a).is_none(), "A closed after saving");
+        assert_eq!(store.list().entries.len(), 2);
+        // Next: the never-saved capture, shown behind its alert.
+        let alert = dialog().expect("the next alert");
+        assert_eq!(editor.inner.current.get(), Some(c));
+        assert_eq!(
+            alert.clone().downcast::<adw::AlertDialog>().unwrap().body(),
+            "“Capture 2026-10-31 09-00-00” has never been saved. If you close without saving, it will be lost."
+        );
+        // Cancel stops the whole quit; A stays saved and closed.
+        assert!(click_response(&alert, "_Cancel"));
+        pump(300);
+        assert!(dialog().is_none());
+        assert!(w.window.is_visible() && EDITOR.with(|e| e.borrow().is_some()));
+        assert_eq!(
+            names(&editor),
+            [
+                "Clean report",
+                "Capture 2026-10-31 09-00-00",
+                "Pasted Image",
+                "Untouched"
+            ]
+        );
+        assert_eq!(store.list().entries.len(), 2);
+
+        // The window's close button again: Discard closes C without saving and removes its
+        // autosave; then D.
+        w.window.close();
+        pump(200);
+        let alert = dialog().expect("C's alert");
+        assert_eq!(editor.inner.current.get(), Some(c));
+        assert!(click_response(&alert, "_Discard"));
+        pump(300);
+        assert!(editor.session(c).is_none());
+        assert_eq!(store.list().entries.len(), 1, "only D's autosave is left");
+        assert_eq!(
+            std::fs::read_dir(&captures).unwrap().count(),
+            0,
+            "C not saved"
+        );
+        let alert = dialog().expect("D's alert");
+        assert_eq!(editor.inner.current.get(), Some(d));
+        // A save that fails stops the close with quick save's own toast; D stays, autosaved.
+        std::fs::set_permissions(&captures, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let root_user = std::fs::write(captures.join("probe"), b"").is_ok();
+        if !root_user {
+            assert!(click_response(&alert, "_Save"));
+            pump(300);
+            assert!(dialog().is_none(), "no further alert after a failed save");
+            assert!(shows_label(
+                &toasts(),
+                "No permission to write to this folder"
+            ));
+            assert!(find_button(&toasts(), "Save As…").is_some());
+            assert!(w.window.is_visible());
+            assert!(editor.session(d).is_some());
+            assert_eq!(store.list().entries.len(), 1, "D keeps its autosave");
+            dismiss_toasts(&w.toast_overlay);
+            w.window.close();
+            pump(200);
+        } else {
+            std::fs::remove_file(captures.join("probe")).unwrap();
+        }
+        std::fs::set_permissions(&captures, std::fs::Permissions::from_mode(0o700)).unwrap();
+        // Save works now: D goes to the save folder under the filename pattern, and with nothing
+        // else to ask about (B and E are unchanged) the window closes. No autosave is left.
+        let alert = dialog().expect("D's alert again");
+        assert!(click_response(&alert, "_Save"));
+        pump(400);
+        let saved: Vec<PathBuf> = std::fs::read_dir(&captures)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        assert_eq!(saved.len(), 1, "{saved:?}");
+        assert!(session::file_stem(&saved[0]).starts_with("Annota 20"));
+        assert!(EDITOR.with(|e| e.borrow().is_none()), "the window closed");
+        assert!(!w.window.is_visible());
+        assert!(store.list().entries.is_empty(), "no autosave is left");
     }
 
     /// Closes every toast shown or waiting under `overlay` (one is shown at a time).

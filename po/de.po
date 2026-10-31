@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 19:47+0100\n"
+"POT-Creation-Date: 2026-10-31 20:00+0100\n"
 "PO-Revision-Date: 2026-10-30 15:01+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -20,7 +20,7 @@ msgstr ""
 #: data/io.github.trosinde.Annota.desktop.in:2
 #: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:42
 #: data/ui/editor-window.blp:268 data/ui/editor-window.blp:317
-#: src/ui/editor/mod.rs:876 src/ui/editor/mod.rs:878
+#: src/ui/editor/mod.rs:913 src/ui/editor/mod.rs:915
 msgid "Annota"
 msgstr "Annota"
 
@@ -38,15 +38,15 @@ msgstr "Bildschirm aufnehmen, markieren und aufzeichnen"
 msgid "screenshot;capture;annotate;arrow;markup;redact;screen;recording;"
 msgstr "Bildschirmfoto;Screenshot;Aufnahme;Anmerken;Pfeil;Markieren;Schwärzen;Bildschirm;Aufzeichnung;"
 
-#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:351
+#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:352
 msgid "Capture Region"
 msgstr "Bereich aufnehmen"
 
-#: data/io.github.trosinde.Annota.desktop.in:21 src/application.rs:352
+#: data/io.github.trosinde.Annota.desktop.in:21 src/application.rs:353
 msgid "Capture Window"
 msgstr "Fenster aufnehmen"
 
-#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:353
+#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:354
 msgid "Capture Screen"
 msgstr "Bildschirm aufnehmen"
 
@@ -482,7 +482,7 @@ msgid "Open in Editor"
 msgstr "Im Editor öffnen"
 
 #: data/ui/preferences.blp:188 data/ui/editor-window.blp:345
-#: src/ui/editor/mod.rs:2966
+#: src/ui/editor/mod.rs:3097
 msgid "Copy to Clipboard"
 msgstr "In die Zwischenablage kopieren"
 
@@ -897,7 +897,7 @@ msgstr "Bibliothek öffnen"
 msgid "Save"
 msgstr "Speichern"
 
-#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1730
+#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1822
 msgid "Save As…"
 msgstr "Speichern unter …"
 
@@ -945,7 +945,7 @@ msgid "Copy to Folder…"
 msgstr "In Ordner kopieren …"
 
 #: data/ui/editor-window.blp:125 src/capture/delivery.rs:315
-#: src/ui/editor/mod.rs:656
+#: src/ui/editor/mod.rs:691
 msgid "Copy"
 msgstr "Kopieren"
 
@@ -1005,8 +1005,8 @@ msgid "Zoom Out"
 msgstr "Verkleinern"
 
 #: data/ui/editor-window.blp:299 src/capture/delivery.rs:300
-#: src/ui/editor/mod.rs:669 src/ui/editor/mod.rs:1340 src/ui/editor/mod.rs:1477
-#: src/ui/editor/mod.rs:2437 src/ui/editor/mod.rs:2844
+#: src/ui/editor/mod.rs:704 src/ui/editor/mod.rs:1377 src/ui/editor/mod.rs:1514
+#: src/ui/editor/mod.rs:2529 src/ui/editor/mod.rs:2936
 #: src/ui/editor/text.rs:101
 msgid "Undo"
 msgstr "Rückgängig"
@@ -1117,7 +1117,7 @@ msgstr "Schwärzen (B)"
 msgid "Redact"
 msgstr "Schwärzen"
 
-#: data/ui/editor-window.blp:526 src/ui/editor/mod.rs:961
+#: data/ui/editor-window.blp:526 src/ui/editor/mod.rs:998
 msgid "Crop (C)"
 msgstr "Zuschneiden (C)"
 
@@ -1897,8 +1897,8 @@ msgstr "Mit aktuellen Eigenschaften aktualisieren"
 msgid "Restore Unsaved Captures?"
 msgstr "Nicht gespeicherte Aufnahmen wiederherstellen?"
 
-#. Not "closed unexpectedly": until Save exists (add-export-share), closing the editor
-#. keeps autosaves too, so this is the common case, not only a crash.
+#. Not "closed unexpectedly": an autosave is also kept when Annota ends without being
+#. able to ask (a logout), which is not a crash.
 #: data/ui/restore-dialog.blp:31
 msgid ""
 "These documents have changes that are not saved in a file. Annota kept a "
@@ -1920,7 +1920,7 @@ msgstr "Wiederherstellen"
 msgid "Newer Annota Version Needed"
 msgstr "Neuere Annota-Version erforderlich"
 
-#: data/ui/newer-version-dialog.blp:39 src/ui/editor/mod.rs:1747
+#: data/ui/newer-version-dialog.blp:39 src/ui/editor/mod.rs:1839
 msgid "Show in Files"
 msgstr "In Dateien anzeigen"
 
@@ -2214,19 +2214,35 @@ msgstr "Ersetzen"
 msgid "Skip"
 msgstr "Überspringen"
 
-#: src/application.rs:136 src/capture/import.rs:72
+#: data/ui/save-changes-dialog.blp:14
+msgid "Save Changes?"
+msgstr "Änderungen speichern?"
+
+#: data/ui/save-changes-dialog.blp:19
+msgid "_Cancel"
+msgstr "_Abbrechen"
+
+#: data/ui/save-changes-dialog.blp:20
+msgid "_Discard"
+msgstr "_Verwerfen"
+
+#: data/ui/save-changes-dialog.blp:21
+msgid "_Save"
+msgstr "_Speichern"
+
+#: src/application.rs:137 src/capture/import.rs:72
 msgid "The editor could not be opened"
 msgstr "Der Editor konnte nicht geöffnet werden"
 
-#: src/application.rs:318 src/capture/overlay.rs:284 src/preferences.rs:232
+#: src/application.rs:319 src/capture/overlay.rs:284 src/preferences.rs:232
 msgid "{seconds} s"
 msgstr "{seconds} s"
 
-#: src/application.rs:484
+#: src/application.rs:487
 msgid "The capture library arrives in milestone 0.1"
 msgstr "Die Aufnahme-Bibliothek folgt mit Meilenstein 0.1"
 
-#: src/application.rs:517
+#: src/application.rs:520
 msgid "Works entirely on this computer. No account, no tracking."
 msgstr "Arbeitet vollständig auf diesem Computer. Kein Konto, kein Tracking."
 
@@ -2430,6 +2446,14 @@ msgstr[1] "{n} Bilder konnten nicht exportiert werden: {reason}"
 msgid "{percent} %"
 msgstr "{percent} %"
 
+#: src/ui/editor/closing.rs:54
+msgid "“{name}” has unsaved changes. If you close without saving, they will be lost."
+msgstr "„{name}“ hat ungespeicherte Änderungen. Wenn Sie ohne Speichern schließen, gehen sie verloren."
+
+#: src/ui/editor/closing.rs:56
+msgid "“{name}” has never been saved. If you close without saving, it will be lost."
+msgstr "„{name}“ wurde noch nie gespeichert. Wenn Sie ohne Speichern schließen, geht es verloren."
+
 #: src/ui/editor/export_dialog.rs:248
 msgid "{percent} % · {width} × {height} px"
 msgstr "{percent} % · {width} × {height} px"
@@ -2459,59 +2483,59 @@ msgstr "{width} × {height} px · {format}"
 msgid "Custom Width…"
 msgstr "Eigene Breite …"
 
-#: src/ui/editor/mod.rs:642 src/ui/editor/mod.rs:2678
+#: src/ui/editor/mod.rs:677 src/ui/editor/mod.rs:2770
 msgid "Could not open “{name}”: {error}"
 msgstr "„{name}“ konnte nicht geöffnet werden: {error}"
 
-#: src/ui/editor/mod.rs:898
+#: src/ui/editor/mod.rs:935
 msgid "Pick a colour anywhere on the screen"
 msgstr "Eine Farbe irgendwo auf dem Bildschirm aufnehmen"
 
-#: src/ui/editor/mod.rs:1668
+#: src/ui/editor/mod.rs:1760
 msgid "Annota Documents"
 msgstr "Annota-Dokumente"
 
-#: src/ui/editor/mod.rs:1673
+#: src/ui/editor/mod.rs:1765
 msgid "Save As"
 msgstr "Speichern unter"
 
-#: src/ui/editor/mod.rs:2076
+#: src/ui/editor/mod.rs:2168
 msgid "PNG Images"
 msgstr "PNG-Bilder"
 
-#: src/ui/editor/mod.rs:2081
+#: src/ui/editor/mod.rs:2173
 msgid "Copy to Folder"
 msgstr "In Ordner kopieren"
 
-#: src/ui/editor/mod.rs:2082
+#: src/ui/editor/mod.rs:2174
 msgid "_Copy"
 msgstr "_Kopieren"
 
-#: src/ui/editor/mod.rs:2540
+#: src/ui/editor/mod.rs:2632
 msgid "Picking a colour from the screen needs xdg-desktop-portal"
 msgstr "Farben vom Bildschirm aufnehmen braucht xdg-desktop-portal"
 
-#: src/ui/editor/mod.rs:2543
+#: src/ui/editor/mod.rs:2635
 msgid "Annota may not read colours from the screen"
 msgstr "Annota darf keine Farben vom Bildschirm lesen"
 
-#: src/ui/editor/mod.rs:2547 src/ui/editor/theme_editor.rs:764
+#: src/ui/editor/mod.rs:2639 src/ui/editor/theme_editor.rs:764
 msgid "The colour could not be picked"
 msgstr "Die Farbe konnte nicht aufgenommen werden"
 
-#: src/ui/editor/mod.rs:2573
+#: src/ui/editor/mod.rs:2665
 msgid "Canvas Colour"
 msgstr "Leinwandfarbe"
 
-#: src/ui/editor/mod.rs:2832
+#: src/ui/editor/mod.rs:2924
 msgid "Could not insert the image"
 msgstr "Das Bild konnte nicht eingefügt werden"
 
-#: src/ui/editor/mod.rs:2843
+#: src/ui/editor/mod.rs:2935
 msgid "Image inserted"
 msgstr "Bild eingefügt"
 
-#: src/ui/editor/mod.rs:2926
+#: src/ui/editor/mod.rs:3018
 msgid "Could not restore “{name}”: {error}"
 msgstr "„{name}“ konnte nicht wiederhergestellt werden: {error}"
 

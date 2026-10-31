@@ -140,10 +140,13 @@ impl Session {
         }
     }
 
-    /// The document is closed. Until Annota can save (add-export-share), closing keeps the
-    /// autosave as the only safety net: a last tick writes what changed since the previous
-    /// one, so the document is offered again at the next start. Only "Discard" in "Restore
-    /// Unsaved Captures?" (or getting back to the saved state) removes it.
+    /// The document is closed with a last autosave tick: one without unsaved changes loses a
+    /// stale autosave; one with unsaved changes — only possible when Annota shuts down without
+    /// having asked "Save Changes?" (add-export-share task 2.6: Save and Discard there leave
+    /// nothing unsaved) — gets what changed since the previous tick written, and the autosave
+    /// is kept for the next start. An autosave goes only when its document is saved
+    /// ([`Session::forget_autosave`]) or discarded ([`Session::discard`], "Restore Unsaved
+    /// Captures?").
     pub fn close(&self, store: &Store) {
         if let Some(id) = self.thumbnail_pending.take() {
             id.remove();
@@ -151,8 +154,8 @@ impl Session {
         self.autosave_tick(store);
     }
 
-    /// The document is dropped on purpose (the Undo of a new capture's toast): its autosave
-    /// goes too.
+    /// The document is dropped on purpose (the Undo of a new capture's toast, Discard in "Save
+    /// Changes?"): its autosave goes too.
     pub fn discard(&self, store: &Store) {
         if let Some(id) = self.thumbnail_pending.take() {
             id.remove();

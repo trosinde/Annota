@@ -3,8 +3,8 @@
 Everything around the system boundaries is covered automatically: unit tests (`src/export/tests.rs`,
 `src/ui/editor/{share,saving,export_dialog,redaction_warning}.rs`) and the live-GTK tests
 `export_and_save_on_a_live_display`, `copy_drag_and_share_on_a_live_display`,
-`object_copy_and_paste_on_a_live_display` (task 2.4a) and `batch_export_on_a_live_display`
-(task 2.5) in `src/ui/editor/mod.rs` (`#[ignore]`d; one per process, see below). Those live tests replace the
+`object_copy_and_paste_on_a_live_display` (task 2.4a), `batch_export_on_a_live_display`
+(task 2.5) and `save_changes_on_a_live_display` (task 2.6) in `src/ui/editor/mod.rs` (`#[ignore]`d; one per process, see below). Those live tests replace the
 portals with a stand-in (`Inner::sharer`), never open a file chooser, and write only to temporary
 folders. What they cannot cover is the other side of each boundary — a real mail app, a real app
 chooser, a real drop target, a real paste — which needs the maintainer's real desktop session.
@@ -42,3 +42,7 @@ fails and screenshots (`ANNOTA_SHOTS`) do not show Annota's CSS (task 2.5, desig
 | 10 | On Wayland: copy objects (as in 9), close Annota's window, start Annota again and press Ctrl+V in a new capture | The objects paste (Annota was held running while it owned the clipboard, like the image copy in 7). |
 | 11 | Tray → Select, select two open documents and a recent capture, Export 3… → in "Export 3 Images" press the folder button (and, with an unwritable export folder, the banner's Choose Folder…) | GTK's folder chooser (on a sandboxed or portal-configured desktop the FileChooser portal) opens at the export folder; the chosen folder shows in the Folder row and the "→ …" lines; Export writes the three files there; the toast "3 images exported to <folder>" opens that folder with Show in Files. |
 | 12 | The same in the maintainer's own theme (Everforest `gtk.css`) | The tray's Select / selection bar and the batch dialog stay usable; colours, button sizes and the "Open"/"Recent" labels fading out follow the personal theme where it overrides Annota's stylesheet (known, not a bug — see the note above). |
+| 13 | Edit a saved capture and take a new one, then press Ctrl+W (Wayland and X11); repeat with the window's close button and with Ctrl+Q | "Save Changes?" (372 px, Cancel · Discard · Save, Save focused) over the edited capture, then over the new one ("has never been saved"), each shown behind its alert. Esc keeps everything open; Save writes like Ctrl+S and closes that document; after the last answer the window closes / Annota quits. Restarting Annota offers nothing to restore. |
+| 14 | Quit Annota from GNOME Shell (right-click the dash icon → Quit) with an unsaved capture | The same "Save Changes?" as with Ctrl+Q. |
+| 15 | Change an unsaved capture, wait over 30 s, then log out (or `kill -TERM` Annota) and start Annota again | No alert could be shown; "Restore Unsaved Captures?" offers the capture with that change (the 30 s autosave; changes after the last one are lost, as after any crash). |
+| 16 | On Ubuntu 24.04 (libadwaita 1.5): the alert of 13 | Responses side by side (not stacked), Discard as red text on the neutral fill as in mockup 15. |

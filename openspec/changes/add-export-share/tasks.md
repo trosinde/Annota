@@ -67,7 +67,7 @@
       rows shared as `FormatRows`/`Encoding`; pattern `%name`/`%n`/strftime, If a file exists;
       redaction warning once for the whole selection; toast of mockup 13; see design.md
       "Decided during apply (2026-10-31: task 2.5 batch export)")
-- [ ] 2.6 "Save changes before closing?" — add-annotation-editor keeps every unsaved document's
+- [x] 2.6 "Save changes before closing?" — add-annotation-editor keeps every unsaved document's
       autosave when the editor window closes or Annota quits, because there was no Save yet
       (maintainer decision; see add-annotation-editor's design.md, phase 2b-ii, and its
       document-format requirement "Closing keeps autosaves"). Once Save exists: ask before closing
@@ -77,6 +77,15 @@
       the user discards it" — in the code (`Session::close`, `Editor::close_all`,
       `editor::shut_down`) and as a MODIFIED delta of `document-format` ("Autosave and recovery",
       "Closing keeps autosaves", "Recovery dialog").
+      **Built (2026-10-31):** `src/ui/editor/closing.rs`, `data/ui/save-changes-dialog.blp`
+      (AdwAlertDialog, 372 px), `Editor::confirm_close` on the window's close request and on
+      `app.quit` (`editor::quit`); Save = quick save then close, a failed save or Cancel stops
+      everything, Discard removes the autosave; ending without asking (logout, a signal) still
+      keeps autosaves. `specs/document-format/spec.md`: the three requirements MODIFIED
+      (copied from add-annotation-editor's delta, not archived yet — archive it first) plus
+      ADDED "Save changes before closing". No "Quit" main-menu item exists or was added (open
+      question). See design.md "Decided during apply (2026-10-31: task 2.6 save changes before
+      closing)".
 - [x] 2.7 Redaction export warning — add-core-annotation-tools builds blur, pixelate and solid
       redactions (`annota::tools::redaction::Redaction`) but has no way out of Annota to guard;
       its requirement "Redaction export warning" (spec annotation-tools, decision D7) is only a

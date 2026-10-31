@@ -17,6 +17,7 @@ blueprints = custom_target(
     'ui/export-dialog.blp',
     'ui/redaction-warning.blp',
     'ui/batch-export-dialog.blp',
+    'ui/save-changes-dialog.blp',
   ),
   output: '.',
   command: [blueprint_compiler, 'batch-compile', '@OUTPUT@', '@CURRENT_SOURCE_DIR@', '@INPUT@'],

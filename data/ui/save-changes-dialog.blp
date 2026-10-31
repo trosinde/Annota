@@ -1,0 +1,23 @@
+using Gtk 4.0;
+using Adw 1;
+
+// "Save Changes?" (add-export-share mockup 15, task 2.6; redline "Save changes before closing
+// (15)"): an AdwAlertDialog over the editor window, no icon, horizontal responses Cancel ·
+// Discard (destructive) · Save (suggested, default, Enter); Esc or closing is Cancel. The body
+// names the document and whether it was saved before; it is set in src/ui/editor/closing.rs.
+
+Adw.AlertDialog save_changes_dialog {
+  // The kit's `.dialog.alert` width (372 px): wide enough for the three responses side by
+  // side. Without it the alert is 300 px and libadwaita stacks them (`content-width` is not
+  // used by AdwAlertDialog).
+  width-request: 372;
+  heading: _("Save Changes?");
+  default-response: "save";
+  close-response: "cancel";
+
+  responses [
+    cancel: _("_Cancel"),
+    discard: _("_Discard") destructive,
+    save: _("_Save") suggested,
+  ]
+}

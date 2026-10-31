@@ -16,6 +16,7 @@ data/ui/theme-editor.blp
 data/ui/export-dialog.blp
 data/ui/redaction-warning.blp
 data/ui/batch-export-dialog.blp
+data/ui/save-changes-dialog.blp
 src/application.rs
 src/capture/countdown.rs
 src/capture/delivery.rs
@@ -26,6 +27,7 @@ src/capture/shortcut_dialog.rs
 src/capture/shortcuts.rs
 src/preferences.rs
 src/ui/editor/batch.rs
+src/ui/editor/closing.rs
 src/ui/editor/dialogs.rs
 src/ui/editor/export_dialog.rs
 src/ui/editor/mod.rs

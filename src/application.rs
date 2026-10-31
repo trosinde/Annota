@@ -30,7 +30,8 @@ pub fn run() -> glib::ExitCode {
         setup_actions(app);
         shortcuts::start_portal_shortcuts(app);
     });
-    // Quitting keeps every open document's unsaved changes as an autosave (until Save exists).
+    // Annota ends: open documents are closed; unsaved ones nobody was asked about (a shutdown
+    // without `app.quit`) keep their autosave, with a last tick.
     app.connect_shutdown(|_| crate::ui::editor::shut_down());
 
     app.run()
@@ -445,8 +446,10 @@ fn setup_drop_target(
 }
 
 fn setup_actions(app: &adw::Application) {
+    // Ctrl+Q (and GNOME Shell's Quit): "Save Changes?" for unsaved documents first
+    // (add-export-share task 2.6).
     let quit = gio::ActionEntry::builder("quit")
-        .activate(|app: &adw::Application, _, _| app.quit())
+        .activate(|app: &adw::Application, _, _| crate::ui::editor::quit(app))
         .build();
     let about = gio::ActionEntry::builder("about")
         .activate(|app: &adw::Application, _, _| show_about(app))

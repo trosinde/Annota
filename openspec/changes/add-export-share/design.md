@@ -802,3 +802,106 @@ disabled, Cancel keeps the selection.
   Annota's. That is the cause of the long-standing `quick_styles_on_a_live_display` "theme issue"
   noted above: it passes with `XDG_CONFIG_HOME` pointed at an empty folder and fails with the
   real one. Live tests are now run that way (`manual-checks.md`).
+
+### Decided during apply (2026-10-31: task 2.6 save changes before closing)
+
+**The alert** (`data/ui/save-changes-dialog.blp`, `src/ui/editor/closing.rs`; mockup 15 and its
+redline): an `AdwAlertDialog`, heading "Save Changes?", no icon, responses `cancel` "_Cancel" ·
+`discard` "_Discard" (destructive) · `save` "_Save" (suggested), default `save` (Enter), close
+response `cancel` (Esc). Body (`closing::body`): "“<title>” has unsaved changes. If you close
+without saving, they will be lost." for a document that has its own `.annota` file (opened from
+or saved to one, or restored from an autosave that belongs to one — `Session::source`), "“<title>”
+has never been saved. If you close without saving, it will be lost." otherwise; `<title>` is the
+header bar's title (`Session::name`).
+- *Width*: `width-request: 372` (the kit's `.dialog.alert`). Without it AdwAlertDialog is 300 px
+  wide and stacks the three responses vertically; it ignores `content-width`. With it the
+  responses sit side by side as drawn. libadwaita 1.9 (this dev container) draws the destructive
+  response as red text on a red-tinted fill; libadwaita 1.5 (Ubuntu 24.04) as red text on the
+  neutral fill, as drawn.
+
+**Which documents are asked about** (`closing::needs_saving`): a document of a `.annota` file
+and an image opened from a file only once they differ from that file (`HistoryInfo::dirty`; an
+untouched image's pixels are on disk), a new capture / pasted image and a document restored from
+an autosave always (they exist nowhere else). Text being typed is finished first (it is the
+document's). Others close silently. (The tray's unsaved dot also shows on an untouched opened
+image — unchanged, not this task's.)
+
+**The sequence** (`Editor::confirm_close`, `ask_each`): the documents to ask about, in the tray's
+Open order; for each, the editor switches to it (redline: visible behind its alert), then asks.
+- **Save** = `quick_save_now`, exactly `Ctrl+S` (own file, or the filename pattern in the save
+  folder — no file chooser); on success the autosave is gone (as for every save) and the
+  document closes (`close_session`), then the next alert. **On failure** quick save's own toast
+  (the export banner's words + Save As…) shows, the document stays open and unsaved with its
+  autosave, and the whole close or quit stops — no further alert.
+- **Discard** closes the document and removes its autosave (`close_session(uid, true)`, the same
+  path as a new capture's Undo); its file, if any, is untouched.
+- **Cancel** (or Esc, or closing the alert) stops the whole close or quit; documents saved or
+  discarded so far stay so (they are closed), the rest stay open.
+- After the last answer: the window closes (close path) or Annota quits (quit path). While the
+  alerts are up another `Ctrl+Q` does nothing (`Inner::closing`); `Ctrl+W` / the close button
+  closes the *alert* — libadwaita closes a window's open dialog instead of emitting
+  `close-request` — which is Cancel.
+- A dialog already open when quitting (Export Image, a warning, Restore Unsaved Captures?) is
+  closed first (`force_close`; for Restore that keeps the autosaves). On the close path
+  libadwaita does this itself: `Ctrl+W` with Export Image open first closes that dialog, a second
+  `Ctrl+W` asks.
+
+**Entry points.** Closing: the window's `close-request` (close button, `Ctrl+W` =
+`window.close`) — stopped while there is something to ask, re-issued by `confirm_close` with
+`close_confirmed` set once there is not. Quitting: `app.quit` (`Ctrl+Q`; GNOME Shell's "Quit"
+activates the same action) now calls `editor::quit`, which asks first and calls
+`Application::quit` only after the last answer. *Not built*: a "Quit" item in the editor's
+main menu — the redline mentions "main menu Quit", but neither the built main menu nor
+add-annotation-editor's mockup 17 has one (GNOME's HIG keeps Quit out of primary menus); open
+question below.
+
+**Autosaves on close — add-annotation-editor's "always keep" reverted.** An autosave is removed
+only when its document is saved or the user discards it. Since every document that would lose
+something is saved or discarded before the window closes (or Annota quits), `close_all` /
+`Session::close` (a last autosave tick) only ever see documents without unsaved changes there,
+and a stale autosave of one (changed, then undone) is removed by that tick. When Annota ends
+**without** asking, its autosaves stay: killed, crashed or ended with the session (GTK does not
+run `shutdown` then), the 30 s autosaves are what is left, as for any crash; if it still shuts
+down normally without having asked (only `editor::quit` calls `Application::quit`, so this is
+the window being destroyed some other way), the same last tick writes and keeps every unsaved
+document's autosave. Either way "Restore Unsaved Captures?" offers them at the next start; that
+dialog's text ("changes not saved in a file … Annota kept a copy") was
+already neutral and stays. Doc comments in `session.rs`, `mod.rs` (module docs, `close_all`,
+`shut_down`, `close_session`, `restore`), `application.rs` and `restore-dialog.blp` updated.
+
+**Spec deltas.** New `specs/document-format/spec.md`: MODIFIED "Autosave and recovery" (also
+removed by Discard in "Save Changes?"; new scenario "Discarded when closing"), "Closing keeps
+autosaves" (kept name — still true for every autosave nobody was asked about — now: removed only
+by Save/Discard in "Save Changes?", kept when Annota ends without asking, written once more on a
+normal shutdown that did not ask; scenarios "Ended without
+asking keeps the autosave", "Closed after saving or discarding"), "Recovery dialog" (left after a
+crash or an ending without asking); ADDED "Save changes before closing" (scenarios "Document
+saved before", "Never saved", "Several unsaved documents", "Save", "Save fails", "Discard",
+"Cancel"). **Sourced verbatim** from add-annotation-editor's own `specs/document-format/spec.md`
+delta (that change is not archived, so there is no `openspec/specs/document-format/` yet — the
+same situation as task 2.4a's/2.7's `annotation-tools` delta copied from
+add-core-annotation-tools'): unchanged scenarios copied word for word, changed text only where
+the behaviour changed. **Archive order: add-annotation-editor before add-export-share** (`openspec
+validate` notes archiving would refuse the MODIFIED delta without the base spec). `proposal.md`
+lists `document-format` under Modified Capabilities.
+
+**Tests.** Unit (`ui::editor::closing`): which documents are asked about (every origin, changed
+or not), the two bodies, response ids → answers. Live (`#[ignore]`,
+`save_changes_on_a_live_display`, isolated bus, temporary folders, no file chooser): five
+documents (an edited `.annota` file, an unchanged one, two new captures, an untouched opened
+image) → `window.close` → alert for the edited file, shown behind it, heading/body/default/close
+response/appearances as in the redline → Esc → nothing changed → `Ctrl+Q` (`editor::quit`) → a
+second quit does not stack alerts, `window.close` closes the alert (Cancel) → quit again → Save:
+written over its own file, closed, autosave gone → next alert: the never-saved capture, its body
+→ Cancel: quit stopped, saved document stays closed, others open with their autosaves → close
+button → Discard: closed, autosave gone, nothing written → next document, save folder read-only
+→ Save fails: quick save's toast with Save As…, no further alert, window and document open,
+autosave kept → close again → Save: written under the filename pattern, then the window closes
+by itself (the unchanged file and image are not asked about) and no autosave is left.
+`editor_window_on_a_live_display`'s last part now checks the other half — Annota ending without
+asking (`close_all`, as `shut_down` does) keeps the unsaved documents' autosaves with their last
+change — since a plain window close asks now.
+
+**Open question for the maintainer**: should the editor's main menu get a "Quit" item (the
+redline and the brief mention "main menu Quit", nothing draws one)? As built, quitting is `Ctrl+Q`
+and GNOME Shell's Quit, both through the same "Save Changes?" path.
