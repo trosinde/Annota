@@ -499,12 +499,15 @@ file chooser is never opened (Copy to Folder's chooser only behind a cancelled w
   it in this change since the original mockup table assumed it already existed). `Ctrl+C` with
   a selection puts the object(s) on the clipboard in a self-contained Annota-specific mime type
   (geometry, properties, embedded resources — the same shape `.annota` already serializes, so
-  a copy survives the source document closing); `Ctrl+V` checks for that mime type first and
-  inserts into the *currently open* document (any open document, not only the one the objects
-  were copied from) as one undo step, offset like a duplicate (10px convention). No shortcut
-  collision with the existing app-level "paste a clipboard image as a new document": a new
-  editor-scoped `win.paste` tries the Annota mime type first and only falls through to that
-  existing behaviour when it isn't on the clipboard. See `tasks.md` 2.4a for the full scope.
+  a copy survives the source document closing). **Correction to the first-pass scoping**: the
+  existing "paste a clipboard image as a new document" (`capture::import::paste`,
+  `app.paste-image`) turns out to be bound to **Shift+Ctrl+V**, not Ctrl+V — checked against
+  `src/application.rs` after writing the first version of this note, which wrongly assumed a
+  Ctrl+V collision to work around. Plain Ctrl+V is free, so the new editor-scoped `win.paste`
+  simply binds it: it checks for the Annota mime type first and inserts into the *currently
+  open* document (any open document, not only the one the objects were copied from) as one
+  undo step, offset like a duplicate (10px convention); without that mime type it falls back to
+  the same behaviour as `app.paste-image`. `Shift+Ctrl+V` is untouched. See `tasks.md` 2.4a.
 - **The drag/warning interaction is acceptable as built**: a drag with reversible redactions
   doesn't start on the first attempt (GTK can't hold a drag open behind an alert) and shows the
   warning instead; a second drag attempt after Drag Anyway/Convert to Solid goes through. No

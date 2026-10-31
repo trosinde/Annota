@@ -36,16 +36,18 @@
       anywhere in the app): `Ctrl+C` with a selection SHALL put the selected object(s) on the
       system clipboard in an Annota-specific mime type (self-contained: geometry, properties,
       embedded resources — same shape as the `.annota` format's own object serialization, so a
-      copy survives the source document closing). `Ctrl+V` while a document is open and
-      focused SHALL check the clipboard for that mime type first: if present, insert the
-      objects into the *currently open* document (works across documents — pasting into a
-      different document than the one they were copied from, or a later-opened one, is
-      supported) as one undo step, offset like a duplicate (10px, the established convention —
-      see add-annotation-editor's phase 2a decisions); if absent, fall back to the existing
-      `capture::import::paste` behaviour (a plain image on the clipboard opens as a new
-      document, unchanged). No shortcut collision: `win.paste` (new, editor-scoped) tries the
-      Annota mime type first and only falls through to the app-level new-document paste when
-      that mime type isn't on the clipboard.
+      copy survives the source document closing). **Correction (2026-10-31, checked against the
+      actual code — the first-pass wording below wrongly assumed Ctrl+V was already bound):**
+      the existing "paste a clipboard image as a new document" (`capture::import::paste`,
+      `app.paste-image`) is bound to **Shift+Ctrl+V**, not Ctrl+V — plain Ctrl+V is free. So
+      this task newly binds `Ctrl+V`, editor-scoped (`win.paste`), as the smart paste: with a
+      document open and focused, it checks the clipboard for Annota's object mime type first
+      and inserts the objects into the *currently open* document (works across documents —
+      pasting into a different document than the one they were copied from, or a later-opened
+      one, is supported) as one undo step, offset like a duplicate (10px, the established
+      convention — see add-annotation-editor's phase 2a decisions); without that mime type, it
+      falls back to the same behaviour as `app.paste-image` (a plain clipboard image opens as a
+      new document). `Shift+Ctrl+V` keeps working exactly as it does today, untouched.
 - [ ] 2.5 Batch export dialog
 - [ ] 2.6 "Save changes before closing?" — add-annotation-editor keeps every unsaved document's
       autosave when the editor window closes or Annota quits, because there was no Save yet
