@@ -412,6 +412,57 @@ banner.annota-error-banner.annota-banner-destructive button {
   background-image: linear-gradient(to right, alpha(@window_bg_color, 0), @window_bg_color);
 }
 
+/* Batch selection (add-export-share mockups 11, 13): "Select" and the selection bar sit in
+ * the label row, 22 px buttons with 13 px bold labels; the bar takes the labels' place. */
+.annota-tray-action {
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.annota-tray-action-label {
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.annota-tray.selecting .annota-tray-label,
+.annota-tray.selecting .annota-tray-dot {
+  opacity: 0;
+}
+
+/* In selection mode only the selection is ringed: 3 px accent ring, and a check, 18 px,
+ * top-right (empty box while not selected). */
+.annota-tray.selecting .annota-tray-item.current .annota-tray-thumb {
+  box-shadow: inset 0 0 0 1px alpha(black, 0.1);
+}
+
+.annota-tray.selecting .annota-tray-item.selected .annota-tray-thumb {
+  box-shadow: 0 0 0 3px @accent_bg_color;
+}
+
+.annota-tray-check {
+  min-width: 18px;
+  min-height: 18px;
+  margin: 4px;
+  border-radius: 5px;
+  color: transparent;
+  background-color: alpha(white, 0.9);
+  box-shadow: inset 0 0 0 1.5px alpha(black, 0.55);
+}
+
+.annota-tray-item.selected .annota-tray-check {
+  color: @accent_fg_color;
+  background-color: @accent_bg_color;
+  box-shadow: 0 0 0 1.5px white;
+}
+
+/* The batch dialog's file name pattern (mockup 12): monospace like a token. */
+.annota-pattern-row text {
+  font-family: monospace;
+}
+
 /* Dragging a thumbnail onto the canvas (mockup 11): inset 3 px accent ring at 50 %, drag
  * image with a 2 px accent ring. */
 .annota-drop-ring {

@@ -2,9 +2,9 @@
 
 Everything around the system boundaries is covered automatically: unit tests (`src/export/tests.rs`,
 `src/ui/editor/{share,saving,export_dialog,redaction_warning}.rs`) and the live-GTK tests
-`export_and_save_on_a_live_display`, `copy_drag_and_share_on_a_live_display` and
-`object_copy_and_paste_on_a_live_display` (task 2.4a) in
-`src/ui/editor/mod.rs` (`#[ignore]`d; one per process, see below). Those live tests replace the
+`export_and_save_on_a_live_display`, `copy_drag_and_share_on_a_live_display`,
+`object_copy_and_paste_on_a_live_display` (task 2.4a) and `batch_export_on_a_live_display`
+(task 2.5) in `src/ui/editor/mod.rs` (`#[ignore]`d; one per process, see below). Those live tests replace the
 portals with a stand-in (`Inner::sharer`), never open a file chooser, and write only to temporary
 folders. What they cannot cover is the other side of each boundary — a real mail app, a real app
 chooser, a real drop target, a real paste — which needs the maintainer's real desktop session.
@@ -15,13 +15,16 @@ uses the session config, which lets GTK's own settings lookup start `xdg-desktop
 private bus — isolated from the real session, but not needed):
 
 ```
-GDK_BACKEND=x11 xvfb-run -a dbus-run-session --config-file=<no-servicedir.conf> \
+XDG_CONFIG_HOME=<empty folder> GDK_BACKEND=x11 xvfb-run -a dbus-run-session --config-file=<no-servicedir.conf> \
   cargo test --bin annota -- --ignored --exact ui::editor::tests::copy_drag_and_share_on_a_live_display
 ```
 
 where `<no-servicedir.conf>` is a session bus config (`<type>session</type>`, a `unix:tmpdir`
 listen address, `EXTERNAL` auth, an allow-all policy) **without** any `<servicedir>` /
-`<standard_session_servicedirs/>`.
+`<standard_session_servicedirs/>`. `XDG_CONFIG_HOME` points at an empty folder so that a
+personal `~/.config/gtk-4.0/gtk.css` (GTK loads it above Annota's own stylesheet) does not
+restyle the window: with the maintainer's Everforest theme, `quick_styles_on_a_live_display`
+fails and screenshots (`ANNOTA_SHOTS`) do not show Annota's CSS (task 2.5, design.md).
 
 ## Pending (maintainer, real GNOME session; Wayland and X11 where marked)
 
@@ -37,3 +40,5 @@ listen address, `EXTERNAL` auth, an allow-all policy) **without** any `<serviced
 | 8 | Each of 1, 3, 4, 5, 7, 9 on a document with a blur or pixelate redaction | "Make Redactions Solid?" first, with "Share Anyway" (1, 3, 4), "Drag Anyway" (5) or "Copy Anyway" (7, 9). For a drag the drag does not start; after either button, the toast "You can drag the image out now" and the next drag goes through. |
 | 9 | Select an arrow and an inserted picture, Ctrl+C, then open a second capture and press Ctrl+V; close the first document and press Ctrl+V again (Wayland and X11) | Toast "Image and 2 objects copied to clipboard" (no redaction warning in a document without blur/pixelate redactions; with them, see 8). Each Ctrl+V inserts both, 10 px down and right of where they were, selected, one "Undo Paste 2 Objects". Pasting the same copy into another app (a chat, an email) gives the whole annotated image, as in 7 — also right after drawing an arrow (it stays selected) and pressing Ctrl+C. Shift+Ctrl+V still opens a clipboard image as a new document, and Ctrl+V in a sidebar text field pastes text. |
 | 10 | On Wayland: copy objects (as in 9), close Annota's window, start Annota again and press Ctrl+V in a new capture | The objects paste (Annota was held running while it owned the clipboard, like the image copy in 7). |
+| 11 | Tray → Select, select two open documents and a recent capture, Export 3… → in "Export 3 Images" press the folder button (and, with an unwritable export folder, the banner's Choose Folder…) | GTK's folder chooser (on a sandboxed or portal-configured desktop the FileChooser portal) opens at the export folder; the chosen folder shows in the Folder row and the "→ …" lines; Export writes the three files there; the toast "3 images exported to <folder>" opens that folder with Show in Files. |
+| 12 | The same in the maintainer's own theme (Everforest `gtk.css`) | The tray's Select / selection bar and the batch dialog stay usable; colours, button sizes and the "Open"/"Recent" labels fading out follow the personal theme where it overrides Annota's stylesheet (known, not a bug — see the note above). |

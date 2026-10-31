@@ -674,7 +674,7 @@ Adw.ApplicationWindow editor_window {
               transition-type: slide_up;
               reveal-child: true;
 
-              child: Box {
+              child: Box tray_box {
                 height-request: 107;
                 styles ["annota-tray"]
 
@@ -733,6 +733,51 @@ Adw.ApplicationWindow editor_window {
                     width-request: 48;
                     can-target: false;
                     styles ["annota-tray-fade"]
+                  }
+
+                  // Batch export (add-export-share task 2.5, mockups 11/13): "Select" at the
+                  // right end of the label row enters selection mode, whose bar takes the label
+                  // row's place (the "Open"/"Recent" labels fade out): Cancel · "<n> Selected"
+                  // · Select All · Export <n>… (suggested). Shown by src/ui/editor/tray.rs.
+                  [overlay]
+                  Button select_button {
+                    visible: false;
+                    halign: end;
+                    valign: start;
+                    label: _("Select");
+                    tooltip-text: _("Select Images to Export");
+                    styles ["flat", "annota-tray-action"]
+                  }
+
+                  [overlay]
+                  CenterBox selection_bar {
+                    visible: false;
+                    valign: start;
+
+                    [start]
+                    Button selection_cancel_button {
+                      label: _("Cancel");
+                      styles ["flat", "annota-tray-action"]
+                    }
+
+                    [center]
+                    Label selection_label {
+                      styles ["annota-tray-action-label"]
+                    }
+
+                    [end]
+                    Box {
+                      spacing: 6;
+
+                      Button select_all_button {
+                        label: _("Select All");
+                        styles ["annota-tray-action"]
+                      }
+
+                      Button batch_export_button {
+                        styles ["suggested-action", "annota-tray-action"]
+                      }
+                    }
                   }
                 }
 

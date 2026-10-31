@@ -71,36 +71,29 @@ pub enum Size {
     Width(i32),
 }
 
-/// The dialog's values.
+/// The format and its own settings — the Format toggle, Compression (WebP), Quality (JPG,
+/// lossy WebP), Keep annotations as vectors and Page size (PDF). Shared by "Export Image" and
+/// the batch export dialog ([`super::batch`], redline "Batch": "same controls as single
+/// export").
 #[derive(Clone, Debug, PartialEq)]
-pub struct Form {
-    /// The document's canvas in pixels.
-    pub canvas: (i32, i32),
+pub struct Encoding {
     pub kind: Kind,
     pub jpeg_quality: u8,
     pub webp_lossy: bool,
     pub webp_quality: u8,
     pub pdf: PdfOptions,
-    pub size: Size,
-    /// The file name as typed, without the extension (shown dim and not editable).
-    pub name: String,
-    pub folder: PathBuf,
 }
 
-impl Form {
-    /// The defaults of the redline: 100 %, JPG 85, WebP lossless (lossy at 80), PDF with
-    /// vectors on a page the size of the image.
-    pub fn new(canvas: (i32, i32), kind: Kind, name: &str, folder: PathBuf) -> Self {
+impl Encoding {
+    /// The defaults of the redline: JPG 85, WebP lossless (lossy at 80), PDF with vectors on a
+    /// page the size of the image.
+    pub fn new(kind: Kind) -> Self {
         Self {
-            canvas: (canvas.0.max(1), canvas.1.max(1)),
             kind,
             jpeg_quality: DEFAULT_JPEG_QUALITY,
             webp_lossy: false,
             webp_quality: DEFAULT_WEBP_QUALITY,
             pdf: PdfOptions::default(),
-            size: Size::Percent(100),
-            name: saving::file_stem(name).unwrap_or_default(),
-            folder,
         }
     }
 
@@ -121,6 +114,60 @@ impl Form {
             },
             Kind::Pdf => Format::Pdf(self.pdf),
         }
+    }
+
+    /// The Quality slider's value: the format's own (JPG and WebP remember theirs apart).
+    pub fn quality(&self) -> u8 {
+        match self.kind {
+            Kind::WebP => self.webp_quality,
+            _ => self.jpeg_quality,
+        }
+    }
+
+    pub fn set_quality(&mut self, quality: u8) {
+        match self.kind {
+            Kind::WebP => self.webp_quality = quality,
+            _ => self.jpeg_quality = quality,
+        }
+    }
+
+    /// An output of `size` pixels larger than the format allows (WebP 16383 px per side, the
+    /// renderer 32767).
+    pub fn limit_problem(&self, size: (i32, i32)) -> Option<Problem> {
+        let (format, max) = match self.kind {
+            Kind::WebP => ("WebP", WEBP_MAX_SIDE),
+            _ => (self.format().name(), MAX_SIDE),
+        };
+        (size.0 > max || size.1 > max).then_some(Problem::TooLarge { format, max })
+    }
+}
+
+/// The dialog's values.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Form {
+    /// The document's canvas in pixels.
+    pub canvas: (i32, i32),
+    pub encoding: Encoding,
+    pub size: Size,
+    /// The file name as typed, without the extension (shown dim and not editable).
+    pub name: String,
+    pub folder: PathBuf,
+}
+
+impl Form {
+    /// The defaults of the redline: 100 % and [`Encoding::new`]'s.
+    pub fn new(canvas: (i32, i32), kind: Kind, name: &str, folder: PathBuf) -> Self {
+        Self {
+            canvas: (canvas.0.max(1), canvas.1.max(1)),
+            encoding: Encoding::new(kind),
+            size: Size::Percent(100),
+            name: saving::file_stem(name).unwrap_or_default(),
+            folder,
+        }
+    }
+
+    pub fn format(&self) -> Format {
+        self.encoding.format()
     }
 
     /// Output pixels per document pixel.
@@ -166,12 +213,7 @@ impl Form {
 
     /// An image larger than the format allows (WebP 16383 px per side, the renderer 32767).
     pub fn limit_problem(&self) -> Option<Problem> {
-        let (w, h) = self.output_size();
-        let (format, max) = match self.kind {
-            Kind::WebP => ("WebP", WEBP_MAX_SIDE),
-            _ => (self.format().name(), MAX_SIDE),
-        };
-        (w > max || h > max).then_some(Problem::TooLarge { format, max })
+        self.encoding.limit_problem(self.output_size())
     }
 
     /// What keeps the export from working, checked before anything is written: the size, the
@@ -271,7 +313,7 @@ pub fn estimate(doc: &Document, form: &Form) -> Option<u64> {
 /// Whether files can be created in `folder` — or, if it does not exist yet, in the nearest
 /// folder above it that does (the export creates the rest). Unknown counts as writable; the
 /// export itself reports what really happens.
-fn folder_writable(folder: &Path) -> bool {
+pub(super) fn folder_writable(folder: &Path) -> bool {
     let Some(existing) = folder.ancestors().find(|dir| dir.exists()) else {
         return true;
     };
@@ -285,6 +327,122 @@ fn folder_writable(folder: &Path) -> bool {
         .unwrap_or(true)
 }
 
+/// Changes the [`Encoding`] of a dialog (a format row was edited).
+pub(super) type EditEncoding = Rc<dyn Fn(&dyn Fn(&mut Encoding))>;
+
+/// The rows of an [`Encoding`]: the Format toggle (`png_button` … `pdf_button`), Compression
+/// (`compression_row`, `lossy_button`), Quality (`quality_row`, `quality_scale`) and the PDF
+/// rows (`vectors_row`, `page_row`) — the same object ids in `export-dialog.ui` and
+/// `batch-export-dialog.ui`.
+pub(super) struct FormatRows {
+    kinds: [(Kind, gtk::ToggleButton); 4],
+    compression_row: adw::ActionRow,
+    lossy_button: gtk::ToggleButton,
+    quality_row: adw::ActionRow,
+    quality_scale: gtk::Scale,
+    vectors_row: adw::SwitchRow,
+    page_row: adw::ComboRow,
+}
+
+impl FormatRows {
+    pub(super) fn new(builder: &gtk::Builder, ui: &str) -> Option<Self> {
+        macro_rules! get {
+            ($name:expr) => {
+                match builder.object($name) {
+                    Some(object) => object,
+                    None => {
+                        eprintln!("annota: {} is missing object '{}'", ui, $name);
+                        return None;
+                    }
+                }
+            };
+        }
+        Some(Self {
+            kinds: [
+                (Kind::Png, get!("png_button")),
+                (Kind::Jpeg, get!("jpg_button")),
+                (Kind::WebP, get!("webp_button")),
+                (Kind::Pdf, get!("pdf_button")),
+            ],
+            compression_row: get!("compression_row"),
+            lossy_button: get!("lossy_button"),
+            quality_row: get!("quality_row"),
+            quality_scale: get!("quality_scale"),
+            vectors_row: get!("vectors_row"),
+            page_row: get!("page_row"),
+        })
+    }
+
+    /// Shows `encoding`: the toggles, which rows apply to the format, the quality. The caller
+    /// makes sure the handlers of [`FormatRows::connect`] do not take this for an edit.
+    pub(super) fn show(&self, encoding: &Encoding) {
+        for (kind, button) in &self.kinds {
+            // A toggle group: activating one deactivates the others.
+            if *kind == encoding.kind && !button.is_active() {
+                button.set_active(true);
+            }
+        }
+        if self.lossy_button.is_active() != encoding.webp_lossy {
+            self.lossy_button.set_active(encoding.webp_lossy);
+        }
+        let pdf = encoding.kind == Kind::Pdf;
+        self.compression_row
+            .set_visible(encoding.kind == Kind::WebP);
+        self.quality_row.set_visible(
+            encoding.kind == Kind::Jpeg || (encoding.kind == Kind::WebP && encoding.webp_lossy),
+        );
+        self.vectors_row.set_visible(pdf);
+        self.page_row.set_visible(pdf);
+        if self.vectors_row.is_active() != encoding.pdf.vectors {
+            self.vectors_row.set_active(encoding.pdf.vectors);
+        }
+        let page = match encoding.pdf.page {
+            PageSize::FitToImage => 0,
+            PageSize::A4 => 1,
+            PageSize::Letter => 2,
+        };
+        if self.page_row.selected() != page {
+            self.page_row.set_selected(page);
+        }
+        self.quality_scale.set_value(f64::from(encoding.quality()));
+    }
+
+    /// Edits go through `edit`.
+    pub(super) fn connect(&self, edit: EditEncoding) {
+        for (kind, button) in &self.kinds {
+            let (kind, edit) = (*kind, edit.clone());
+            button.connect_toggled(move |button| {
+                if button.is_active() {
+                    edit(&|e| e.kind = kind);
+                }
+            });
+        }
+        let e = edit.clone();
+        self.lossy_button.connect_toggled(move |button| {
+            let lossy = button.is_active();
+            e(&|enc| enc.webp_lossy = lossy);
+        });
+        let e = edit.clone();
+        self.quality_scale.connect_value_changed(move |scale| {
+            let quality = scale.value().round().clamp(1.0, 100.0) as u8;
+            e(&|enc| enc.set_quality(quality));
+        });
+        let e = edit.clone();
+        self.vectors_row.connect_active_notify(move |row| {
+            let vectors = row.is_active();
+            e(&|enc| enc.pdf.vectors = vectors);
+        });
+        self.page_row.connect_selected_notify(move |row| {
+            let page = match row.selected() {
+                1 => PageSize::A4,
+                2 => PageSize::Letter,
+                _ => PageSize::FitToImage,
+            };
+            edit(&|enc| enc.pdf.page = page);
+        });
+    }
+}
+
 /// The dialog's widgets (from `export-dialog.ui`).
 struct Widgets {
     dialog: adw::Dialog,
@@ -296,15 +454,9 @@ struct Widgets {
     extension_label: gtk::Label,
     folder_row: adw::ActionRow,
     folder_button: gtk::Button,
-    kinds: [(Kind, gtk::ToggleButton); 4],
-    compression_row: adw::ActionRow,
-    lossy_button: gtk::ToggleButton,
-    quality_row: adw::ActionRow,
-    quality_scale: gtk::Scale,
+    rows: FormatRows,
     size_button: gtk::MenuButton,
     flatten_row: adw::ActionRow,
-    vectors_row: adw::SwitchRow,
-    page_row: adw::ComboRow,
     custom_width: adw::AlertDialog,
     width_spin: gtk::SpinButton,
 }
@@ -346,18 +498,8 @@ impl State {
         let form = self.form.borrow().clone();
         let w = &self.w;
         self.updating.set(true);
-        let raster = form.kind != Kind::Pdf;
-        w.compression_row.set_visible(form.kind == Kind::WebP);
-        w.quality_row
-            .set_visible(form.kind == Kind::Jpeg || (form.kind == Kind::WebP && form.webp_lossy));
-        w.flatten_row.set_visible(raster);
-        w.vectors_row.set_visible(!raster);
-        w.page_row.set_visible(!raster);
-        let quality = match form.kind {
-            Kind::WebP => form.webp_quality,
-            _ => form.jpeg_quality,
-        };
-        w.quality_scale.set_value(f64::from(quality));
+        w.rows.show(&form.encoding);
+        w.flatten_row.set_visible(form.encoding.kind != Kind::Pdf);
         w.extension_label
             .set_text(&format!(".{}", form.format().extension()));
         w.size_button.set_label(&size_label(&form));
@@ -543,20 +685,9 @@ fn widgets(builder: &gtk::Builder) -> Option<Widgets> {
         extension_label: obj!(builder, "extension_label"),
         folder_row: obj!(builder, "folder_row"),
         folder_button: obj!(builder, "folder_button"),
-        kinds: [
-            (Kind::Png, obj!(builder, "png_button")),
-            (Kind::Jpeg, obj!(builder, "jpg_button")),
-            (Kind::WebP, obj!(builder, "webp_button")),
-            (Kind::Pdf, obj!(builder, "pdf_button")),
-        ],
-        compression_row: obj!(builder, "compression_row"),
-        lossy_button: obj!(builder, "lossy_button"),
-        quality_row: obj!(builder, "quality_row"),
-        quality_scale: obj!(builder, "quality_scale"),
+        rows: FormatRows::new(builder, "export-dialog.ui")?,
         size_button: obj!(builder, "size_button"),
         flatten_row: obj!(builder, "flatten_row"),
-        vectors_row: obj!(builder, "vectors_row"),
-        page_row: obj!(builder, "page_row"),
         custom_width: obj!(builder, "custom_width_dialog"),
         width_spin: obj!(builder, "width_spin"),
     })
@@ -622,9 +753,6 @@ pub fn present(
         thumbnail_box.append(&area);
     }
     w.name_row.set_text(&form.name);
-    for (k, button) in &w.kinds {
-        button.set_active(*k == form.kind);
-    }
     w.size_button.set_menu_model(Some(&size_menu(size)));
 
     let state = Rc::new(State {
@@ -688,50 +816,13 @@ fn connect(state: &Rc<State>) {
             state.choose_folder();
         }
     });
-    for (kind, button) in &w.kinds {
-        let (kind, s) = (*kind, weak());
-        button.connect_toggled(move |button| {
-            if !button.is_active() {
-                return;
-            }
+    let s = weak();
+    w.rows
+        .connect(Rc::new(move |change: &dyn Fn(&mut Encoding)| {
             if let Some(state) = s.upgrade() {
-                state.edit(|f| f.kind = kind);
+                state.edit(|f| change(&mut f.encoding));
             }
-        });
-    }
-    let s = weak();
-    w.lossy_button.connect_toggled(move |button| {
-        if let Some(state) = s.upgrade() {
-            state.edit(|f| f.webp_lossy = button.is_active());
-        }
-    });
-    let s = weak();
-    w.quality_scale.connect_value_changed(move |scale| {
-        if let Some(state) = s.upgrade() {
-            let quality = scale.value().round().clamp(1.0, 100.0) as u8;
-            state.edit(|f| match f.kind {
-                Kind::WebP => f.webp_quality = quality,
-                _ => f.jpeg_quality = quality,
-            });
-        }
-    });
-    let s = weak();
-    w.vectors_row.connect_active_notify(move |row| {
-        if let Some(state) = s.upgrade() {
-            state.edit(|f| f.pdf.vectors = row.is_active());
-        }
-    });
-    let s = weak();
-    w.page_row.connect_selected_notify(move |row| {
-        if let Some(state) = s.upgrade() {
-            let page = match row.selected() {
-                1 => PageSize::A4,
-                2 => PageSize::Letter,
-                _ => PageSize::FitToImage,
-            };
-            state.edit(|f| f.pdf.page = page);
-        }
-    });
+        }));
 
     // The size menu's actions.
     let group = gio::SimpleActionGroup::new();
@@ -813,9 +904,9 @@ mod tests {
                 "/home/mara/Pictures/Annota/Exports/Checkout flow.png"
             ))
         );
-        assert_eq!(f.jpeg_quality, 85);
-        assert_eq!(f.webp_quality, 80);
-        assert_eq!(f.pdf, PdfOptions::default());
+        assert_eq!(f.encoding.jpeg_quality, 85);
+        assert_eq!(f.encoding.webp_quality, 80);
+        assert_eq!(f.encoding.pdf, PdfOptions::default());
         // The `default-export-format` preference picks the toggle.
         assert_eq!(Kind::from_setting(0), Kind::Png);
         assert_eq!(Kind::from_setting(1), Kind::Jpeg);
@@ -841,7 +932,7 @@ mod tests {
                 compression: WebPCompression::Lossless
             }
         );
-        f.webp_lossy = true;
+        f.encoding.webp_lossy = true;
         assert_eq!(
             f.format(),
             Format::WebP {
@@ -850,7 +941,7 @@ mod tests {
         );
         // Mockup 05: PDF, vectors, A4.
         let mut f = form(Kind::Pdf);
-        f.pdf.page = PageSize::A4;
+        f.encoding.pdf.page = PageSize::A4;
         assert_eq!(
             f.format(),
             Format::Pdf(PdfOptions {
@@ -924,7 +1015,7 @@ mod tests {
                 max: 16383
             })
         );
-        big.kind = Kind::Png;
+        big.encoding.kind = Kind::Png;
         assert_eq!(big.problem(yes, no, None), None);
         big.size = Size::Percent(2100);
         assert_eq!(
@@ -985,7 +1076,7 @@ mod tests {
         // Every format can be estimated.
         for kind in [Kind::Jpeg, Kind::WebP, Kind::Pdf] {
             let mut g = f.clone();
-            g.kind = kind;
+            g.encoding.kind = kind;
             assert!(estimate(&doc, &g).is_some_and(|b| b > 0), "{kind:?}");
         }
     }

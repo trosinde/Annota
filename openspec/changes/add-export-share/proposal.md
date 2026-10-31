@@ -42,3 +42,6 @@ Annotated images must reach documents, chats and tickets in one step.
   saved document's file, name and autosave)
 - `src/export/handoff.rs`: the temporary PNG handed to other apps (drag-out, Email, Open With),
   in `$XDG_RUNTIME_DIR/annota/handoff`
+- Batch export: the tray's selection mode (`src/ui/editor/tray.rs`, `editor-window.blp`),
+  `src/ui/editor/batch.rs` + `data/ui/batch-export-dialog.blp`, sharing the export dialog's
+  format rows

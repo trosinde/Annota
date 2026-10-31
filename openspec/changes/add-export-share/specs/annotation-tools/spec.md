@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Redaction export warning
-Before a document that contains blur or pixelate redactions is exported, copied, dragged out or shared, the system SHALL warn that these may be reversible and offer to convert them to solid (decision D7; add-export-share mockup 10). Redactions count at any depth, members of groups included. The alert "Make Redactions Solid?" SHALL name how many redactions use blur or pixelate and offer Cancel, a button that continues as it is ("Export Anyway", "Copy Anyway", etc., named after the way out) and Convert to Solid (suggested). Convert to Solid SHALL turn every blur and pixelate redaction into a solid one as one undo step and then continue; Cancel SHALL write nothing and leave the document unchanged; continuing as it is SHALL leave the document unchanged. The warning does not apply to saving the document as `.annota` (quick save, Save As): that format keeps the original image under every redaction regardless of this choice, so the warning would not be true there. A document without blur or pixelate redactions SHALL continue without the warning.
+Before a document that contains blur or pixelate redactions is exported (in a batch export once for the whole selection), copied, dragged out or shared, the system SHALL warn that these may be reversible and offer to convert them to solid (decision D7; add-export-share mockup 10). Redactions count at any depth, members of groups included. The alert "Make Redactions Solid?" SHALL name how many redactions use blur or pixelate and offer Cancel, a button that continues as it is ("Export Anyway", "Copy Anyway", etc., named after the way out) and Convert to Solid (suggested). Convert to Solid SHALL turn every blur and pixelate redaction into a solid one as one undo step and then continue; Cancel SHALL write nothing and leave the document unchanged; continuing as it is SHALL leave the document unchanged. The warning does not apply to saving the document as `.annota` (quick save, Save As): that format keeps the original image under every redaction regardless of this choice, so the warning would not be true there. A document without blur or pixelate redactions SHALL continue without the warning.
 
 #### Scenario: Warning before export
 - **WHEN** a document with one pixelate redaction at the top level and one inside a group is exported with Ctrl+E
@@ -30,6 +30,11 @@ Before a document that contains blur or pixelate redactions is exported, copied,
 #### Scenario: Warning before share
 - **WHEN** a document with a blur redaction is shared with Email…, Open With… or Copy to Folder…
 - **THEN** "Make Redactions Solid?" offers Cancel, Share Anyway and Convert to Solid, and Cancel shares nothing
+
+#### Scenario: Warning before batch export
+- **WHEN** three documents are selected in the tray for a batch export and two of them hold one blur and one pixelate redaction
+- **THEN** a single "Make Redactions Solid?" says "2 redactions use blur or pixelate" and offers Cancel, Export Anyway and Convert to Solid before "Export 3 Images" opens
+- **AND** Convert to Solid converts them in every selected document — in an open document as its own undo step, in a recent file only in the copy that is exported, never in the file
 
 #### Scenario: No warning before a save
 - **WHEN** a document with a blur redaction is saved with Ctrl+S or Ctrl+Shift+S

@@ -44,6 +44,10 @@
 //! it is still open; without them it opens a clipboard image as a new document, exactly as
 //! `Shift+Ctrl+V` (`app.paste-image`, unchanged) does.
 //!
+//! **Batch export** (task 2.5; [`batch`]). The tray's Select picks documents of both groups
+//! (open ones and recent files); Export <n>… asks the redaction warning once for the whole
+//! selection, then "Export <n> Images" writes them with one format, size and file name pattern.
+//!
 //! **Placeholders.** Open Library belongs to add-capture-library.
 //!
 //! **Closing keeps autosaves.** Until "Save changes before closing?" exists (add-export-share
@@ -52,6 +56,7 @@
 //! the next start, and only its Discard (or saving the document) removes them. See design.md
 //! ("Decided during apply — phase 2b-ii").
 
+mod batch;
 mod colour;
 mod dialogs;
 mod export_dialog;
@@ -1148,6 +1153,10 @@ impl Editor {
         let tray = self.inner.settings.boolean("show-tray");
         self.inner.tray.revealer.set_reveal_child(tray);
         w.show_tray_button.set_visible(!tray && !narrow);
+        // Selection mode lives in the tray: it ends when the tray goes.
+        if (!tray || narrow) && self.inner.tray.selecting() {
+            self.inner.tray.set_selecting(false);
+        }
     }
 
     // ---- actions ----
@@ -1509,7 +1518,8 @@ impl Editor {
     ///
     /// Used by Export (`Ctrl+E`), Copy (`Ctrl+C`, [`Purpose::Copy`]), drag-out
     /// ([`Purpose::Drag`]; see [`Editor::drag_prepare`] for why a drag cannot simply wait) and
-    /// the three Share items ([`Purpose::Share`]); batch export (task 2.5) is to call it too.
+    /// the three Share items ([`Purpose::Share`]). Batch export (task 2.5) asks once for the
+    /// whole selection through the same alert, [`Editor::ask_redactions`].
     fn guard_redactions(&self, purpose: Purpose, proceed: impl FnOnce(&Editor) + 'static) {
         let Some(canvas) = self.current_canvas() else {
             return;
@@ -1517,8 +1527,26 @@ impl Editor {
         let found = canvas
             .with_document(redactions::reversible)
             .unwrap_or_default();
+        self.ask_redactions(found, purpose, move |editor, convert| {
+            if convert {
+                canvas.run(|doc, _| redactions::make_solid(doc));
+            }
+            proceed(editor);
+        });
+    }
+
+    /// The alert behind [`Editor::guard_redactions`] and the batch export's
+    /// [`Editor::batch_export`], for `found` redactions: `answer` gets whether to convert them
+    /// first (Convert to Solid) or not (the middle button), and is not called on Cancel.
+    /// Without reversible redactions `answer(false)` runs at once.
+    fn ask_redactions(
+        &self,
+        found: redactions::Reversible,
+        purpose: Purpose,
+        answer: impl FnOnce(&Editor, bool) + 'static,
+    ) {
         if found.is_empty() {
-            proceed(self);
+            answer(self, false);
             return;
         }
         let weak = self.downgrade();
@@ -1528,11 +1556,8 @@ impl Editor {
             };
             match response {
                 Response::Cancel => {}
-                Response::Anyway => proceed(&editor),
-                Response::Convert => {
-                    canvas.run(|doc, _| redactions::make_solid(doc));
-                    proceed(&editor);
-                }
+                Response::Anyway => answer(&editor, false),
+                Response::Convert => answer(&editor, true),
             }
         });
     }
@@ -2169,6 +2194,11 @@ impl Editor {
         if !self.routes_to_canvas(key) {
             return false;
         }
+        // Esc leaves the tray's selection mode first (task 2.5, mockup 11's Cancel).
+        if key == gdk::Key::Escape && self.inner.tray.selecting() {
+            self.inner.tray.set_selecting(false);
+            return true;
+        }
         let Some(canvas) = self.current_canvas() else {
             return false;
         };
@@ -2570,11 +2600,32 @@ impl Editor {
             let Some(editor) = weak.upgrade() else {
                 return;
             };
+            // Selection mode (task 2.5, mockup 11): a click selects the tile.
+            if editor.inner.tray.selecting() {
+                editor.inner.tray.toggle(&key);
+                return;
+            }
             match key {
                 TrayKey::Open(uid) => editor.switch_to(uid),
                 TrayKey::Recent(path) => editor.open_file(&path),
             }
         });
+        let buttons = &self.inner.tray.buttons;
+        type Handler = fn(&Editor);
+        let bar: [(&gtk::Button, Handler); 4] = [
+            (&buttons.select, |e| e.inner.tray.set_selecting(true)),
+            (&buttons.cancel, |e| e.inner.tray.set_selecting(false)),
+            (&buttons.select_all, |e| e.inner.tray.select_all()),
+            (&buttons.export, |e| e.batch_export()),
+        ];
+        for (button, f) in bar {
+            let weak = self.downgrade();
+            button.connect_clicked(move |_| {
+                if let Some(editor) = weak.upgrade() {
+                    f(&editor);
+                }
+            });
+        }
         // The save folder changes while Annota runs: look again whenever the window is
         // activated and when the tray is shown.
         let weak = self.downgrade();
@@ -2586,6 +2637,113 @@ impl Editor {
             }
         });
         self.refresh_recent_tray();
+    }
+
+    /// The tray's Export <n>… (task 2.5, mockups 11–12; spec export-share "Batch export"): the
+    /// selected documents in tray order — open ones as they are, recent files read for this
+    /// batch — then the redaction warning **once for the whole selection** (one alert counting
+    /// every selected document's blur and pixelate redactions; "Export Anyway" or Convert to
+    /// Solid, which converts in each open document as that document's own undo step and in a
+    /// recent file's copy read for the batch, never in the file), then "Export <n> Images".
+    fn batch_export(&self) {
+        if self.inner.w.window.visible_dialog().is_some() {
+            return;
+        }
+        let mut items = Vec::new();
+        for key in self.inner.tray.selected() {
+            match key {
+                TrayKey::Open(uid) => {
+                    if let Some(session) = self.session(uid) {
+                        // Text being typed belongs to the document: it is exported too.
+                        session.canvas.finish_text();
+                        items.push(batch::Item {
+                            name: session.name(),
+                            source: batch::Source::Open(session.canvas.clone()),
+                        });
+                    }
+                }
+                TrayKey::Recent(path) => match session::load(&path) {
+                    Ok(loaded) => items.push(batch::Item {
+                        name: Some(loaded.name)
+                            .filter(|n| !n.is_empty())
+                            .unwrap_or_else(|| session::file_stem(&path)),
+                        source: batch::Source::Closed(Box::new(loaded.document)),
+                    }),
+                    Err(err) => {
+                        let name = path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned())
+                            .unwrap_or_default();
+                        self.toast_now(
+                            &gettext("Could not open “{name}”: {error}")
+                                .replace("{name}", &name)
+                                .replace("{error}", &err.to_string()),
+                        );
+                    }
+                },
+            }
+        }
+        if items.is_empty() {
+            return;
+        }
+        let mut found = redactions::Reversible::default();
+        for item in &items {
+            let counted = match &item.source {
+                batch::Source::Open(canvas) => canvas
+                    .with_document(redactions::reversible)
+                    .unwrap_or_default(),
+                batch::Source::Closed(doc) => redactions::reversible(doc),
+            };
+            found.blur += counted.blur;
+            found.pixelate += counted.pixelate;
+        }
+        self.ask_redactions(found, Purpose::Export, move |editor, convert| {
+            if convert {
+                for item in &mut items {
+                    match &mut item.source {
+                        batch::Source::Open(canvas) => {
+                            canvas.run(|doc, _| redactions::make_solid(doc));
+                        }
+                        batch::Source::Closed(doc) => make_solid_copy(doc),
+                    }
+                }
+            }
+            editor.present_batch(items);
+        });
+    }
+
+    fn present_batch(&self, items: Vec<batch::Item>) {
+        let weak = self.downgrade();
+        batch::present(
+            &self.inner.w.window,
+            items,
+            &self.inner.settings,
+            move |result| {
+                if let Some(editor) = weak.upgrade() {
+                    editor.batch_done(&result);
+                }
+            },
+        );
+    }
+
+    /// Mockup 13: "3 images exported to Exports" with Show in Files, and back out of selection
+    /// mode. If some could not be written, a toast says why and the selection stays, to try
+    /// again.
+    fn batch_done(&self, result: &batch::BatchResult) {
+        if let Some(first) = result.exported.first() {
+            self.toast_with_files(
+                &batch::done_toast(result.exported.len(), &result.folder),
+                first.clone(),
+            );
+        }
+        if result.failed > 0 {
+            self.toast_now(&batch::failed_toast(
+                result.failed,
+                result.problem.unwrap_or(saving::Problem::Failed),
+            ));
+        } else {
+            self.inner.tray.set_selecting(false);
+        }
     }
 
     /// Dropping a tray thumbnail on the canvas inserts its image (mockup 11, spec "Picture in
@@ -2813,6 +2971,18 @@ fn narrow_menu(main: &gio::MenuModel) -> gio::Menu {
         }
     }
     menu
+}
+
+/// Convert to Solid for a recent file read for a batch export (task 2.5): applied to that copy
+/// in memory — no editor holds it, so it is not an undo step — and never written to the file.
+fn make_solid_copy(doc: &mut Document) {
+    let Some(edit) = redactions::make_solid(doc) else {
+        return;
+    };
+    let mut history = annota::document::command::History::new();
+    if let Err(err) = history.execute(doc, "", edit.command) {
+        eprintln!("annota: converting the redactions of a batch copy failed: {err}");
+    }
 }
 
 /// A recent file's flattened image (a tray thumbnail dropped on the canvas).
@@ -5943,6 +6113,300 @@ mod tests {
             assert!(dialog().is_none(), "{name}: Cancel shares nothing");
         }
         assert_eq!(calls.borrow().len(), 3, "no portal call after Cancel");
+        window_done(&w.window);
+    }
+
+    /// The shown widget of type `T` whose `title` property is `title` (a row of a dialog).
+    fn find_row<T: IsA<gtk::Widget>>(root: &gtk::Widget, title: &str) -> Option<T> {
+        if let Some(row) = root.downcast_ref::<T>() {
+            let own: Option<String> = row.property("title");
+            if own.as_deref() == Some(title) && row.is_mapped() {
+                return Some(row.clone());
+            }
+        }
+        let mut child = root.first_child();
+        while let Some(c) = child {
+            if let Some(found) = find_row(&c, title) {
+                return Some(found);
+            }
+            child = c.next_sibling();
+        }
+        None
+    }
+
+    /// add-export-share task 2.5 (spec export-share "Batch export", mockups 11–13; the batch
+    /// part of task 2.7's redaction warning): the tray's Select, choosing tiles of both groups,
+    /// Select All, Esc; Export <n>… with the warning once for the whole selection (Cancel,
+    /// then Convert to Solid: an undo step in the open document, the recent file untouched);
+    /// "Export 3 Images" with its live "→ <file>" lines, If a file exists, the pattern; the
+    /// export itself, the toast, and the end of selection mode. The folder is set through the
+    /// `export-folder` preference — the folder chooser (maybe a portal) is never opened.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn batch_export_on_a_live_display() {
+        use annota::document::annotation::Annotation;
+        use annota::document::geometry::Rect;
+        use annota::tools::redaction::{Redaction, RedactionKind};
+
+        let tmp =
+            TempDir(std::env::temp_dir().join(format!("annota-batch-test-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        let captures = tmp.0.join("captures");
+        let exports = tmp.0.join("exports");
+        std::fs::create_dir_all(&captures).unwrap();
+        let app = environment(&tmp.0);
+        let store = Store::new(tmp.0.join("autosave"));
+        let editor = Editor::build(&app, store, style_paths(&tmp.0)).unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let settings = editor.inner.settings.clone();
+        settings
+            .set_string("save-folder", &captures.to_string_lossy())
+            .unwrap();
+        settings
+            .set_string("export-folder", &exports.to_string_lossy())
+            .unwrap();
+        let w = &editor.inner.w;
+        let tray = &editor.inner.tray;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let dialog = || w.window.visible_dialog();
+        let toasts = || w.toast_overlay.clone().upcast::<gtk::Widget>();
+        let redaction = |kind: RedactionKind| -> Box<dyn Annotation> {
+            let mut r = Redaction::new(Rect::new(10.0, 10.0, 40.0, 20.0));
+            r.kind = kind;
+            Box::new(r)
+        };
+
+        // Two open documents (the first with a pixelate redaction) and a recent file with a
+        // blur redaction.
+        let open = |name: &str, colour| {
+            editor.add_session(
+                Loaded {
+                    document: Document::with_title(Bitmap::filled(400, 250, colour).unwrap(), name),
+                    source: None,
+                    path: None,
+                    name: name.into(),
+                },
+                Origin::New,
+                AutosaveId::generate(),
+            )
+        };
+        let checkout = open("Checkout flow", palette::PAPER);
+        let dashboard = open("September dashboard", palette::AZURE);
+        let checkout_canvas = editor.session(checkout).unwrap().canvas.clone();
+        checkout_canvas.run(|doc, _| ops::add(doc, redaction(RedactionKind::Pixelate)));
+        let recent = captures.join("Chat with Jonas.annota");
+        {
+            let mut doc = Document::with_title(
+                Bitmap::filled(300, 200, palette::LIME).unwrap(),
+                "Chat with Jonas",
+            );
+            let edit = ops::add(&doc, redaction(RedactionKind::Blur)).unwrap();
+            History::new()
+                .execute(&mut doc, "Add", edit.command)
+                .unwrap();
+            annota::document::archive::save(&doc, &recent).unwrap();
+        }
+        let recent_bytes = std::fs::read(&recent).unwrap();
+        editor.refresh_recent_tray();
+        pump(300);
+        assert_eq!(tray.counts(), (2, 1));
+
+        // Mockup 13's tray: "Select" at the end of the label row.
+        let buttons = &tray.buttons;
+        assert!(buttons.select.is_visible() && !tray.selecting());
+        buttons.select.emit_clicked();
+        pump(50);
+        // Mockup 11: Cancel · "0 Selected" · Select All · Export 0… (disabled).
+        assert!(tray.selecting() && !buttons.select.is_visible());
+        assert!(buttons.cancel.is_mapped() && buttons.select_all.is_mapped());
+        assert!(shows_label(w.window.upcast_ref(), "0 Selected"));
+        assert_eq!(buttons.export.label().as_deref(), Some("Export 0…"));
+        assert!(!buttons.export.is_sensitive());
+        // A click selects instead of switching documents; recent tiles count too.
+        let tiles = tray.tile_buttons();
+        assert_eq!(tiles.len(), 3);
+        tiles[2].emit_clicked();
+        tiles[0].emit_clicked();
+        pump(50);
+        assert_eq!(editor.inner.current.get(), Some(dashboard), "no switch");
+        assert_eq!(editor.sessions().len(), 2, "the recent file is not opened");
+        assert!(shows_label(w.window.upcast_ref(), "2 Selected"));
+        assert!(tiles[0].has_css_class("selected") && !tiles[1].has_css_class("selected"));
+        // Select All, then one let go and taken again: tray order, not click order.
+        buttons.select_all.emit_clicked();
+        tiles[1].emit_clicked();
+        tiles[1].emit_clicked();
+        pump(50);
+        assert_eq!(buttons.export.label().as_deref(), Some("Export 3…"));
+        assert_eq!(
+            tray.selected(),
+            [
+                TrayKey::Open(checkout),
+                TrayKey::Open(dashboard),
+                TrayKey::Recent(recent.clone())
+            ]
+        );
+        shot(&w.window, "es11-batch-select");
+        // Esc and Cancel leave selection mode and forget the selection.
+        assert!(editor.key_pressed(gdk::Key::Escape, gdk::ModifierType::empty()));
+        assert!(!tray.selecting() && buttons.select.is_visible());
+        buttons.select.emit_clicked();
+        assert!(tray.selected().is_empty());
+        buttons.cancel.emit_clicked();
+        assert!(!tray.selecting());
+        // Hiding the tray ends it too.
+        buttons.select.emit_clicked();
+        settings.set_boolean("show-tray", false).unwrap();
+        pump(50);
+        assert!(!tray.selecting());
+        settings.set_boolean("show-tray", true).unwrap();
+        pump(300);
+
+        // Export 3…: one warning for the whole selection, counting both documents'.
+        buttons.select.emit_clicked();
+        buttons.select_all.emit_clicked();
+        buttons.export.emit_clicked();
+        pump(150);
+        let alert = dialog().expect("the redaction warning");
+        assert!(shows_label(
+            alert.upcast_ref(),
+            "2 redactions use blur or pixelate. Blurred or pixelated text can sometimes be reconstructed. Solid boxes hide it for good."
+        ));
+        assert!(find_button(alert.upcast_ref(), "Export Anyway").is_some());
+        assert!(click_button(alert.upcast_ref(), "Cancel"));
+        pump(300);
+        assert!(dialog().is_none(), "Cancel opens no batch dialog");
+        assert!(tray.selecting(), "the selection stays");
+        assert_eq!(
+            checkout_canvas.history_info().undo_label.as_deref(),
+            Some("Add Redaction")
+        );
+        // Again, Convert to Solid: the open document's own undo step; the recent file is read
+        // for the batch and converted there only.
+        buttons.export.emit_clicked();
+        pump(150);
+        let alert = dialog().expect("the redaction warning");
+        assert!(click_button(alert.upcast_ref(), "Convert to Solid"));
+        pump(300);
+        assert_eq!(
+            checkout_canvas.history_info().undo_label.as_deref(),
+            Some("Convert Redaction to Solid")
+        );
+        assert_eq!(
+            std::fs::read(&recent).unwrap(),
+            recent_bytes,
+            "file untouched"
+        );
+
+        // Mockup 12: "Export 3 Images", the documents in tray order, "→ <file>" each.
+        let batch = dialog().expect("Export 3 Images");
+        let root: &gtk::Widget = batch.upcast_ref();
+        assert_eq!(batch.title(), "Export 3 Images");
+        assert_eq!(
+            batch::shown_targets(&batch),
+            [
+                "→ Checkout flow.png",
+                "→ September dashboard.png",
+                "→ Chat with Jonas.png"
+            ]
+        );
+        // JPG: the extension follows and Quality shows (the export dialog's rows).
+        assert!(!shows_label(root, "Quality"));
+        assert!(click_button(root, "JPG"));
+        pump(50);
+        assert!(shows_label(root, "Quality"));
+        assert_eq!(batch::shown_targets(&batch)[0], "→ Checkout flow.jpg");
+        // A file of that name is there already: Add a number (default), Skip, Replace.
+        std::fs::create_dir_all(&exports).unwrap();
+        let old = exports.join("September dashboard.jpg");
+        std::fs::write(&old, b"old").unwrap();
+        let exists_row: adw::ComboRow = find_row(root, "If a file exists").unwrap();
+        exists_row.set_selected(2);
+        pump(20);
+        assert_eq!(
+            batch::shown_targets(&batch)[1],
+            "Skipped · “September dashboard.jpg” already exists"
+        );
+        exists_row.set_selected(1);
+        pump(20);
+        assert_eq!(
+            batch::shown_targets(&batch)[1],
+            "→ September dashboard.jpg · replaces the existing file"
+        );
+        exists_row.set_selected(0);
+        pump(20);
+        assert_eq!(
+            batch::shown_targets(&batch)[1],
+            "→ September dashboard 2.jpg"
+        );
+        // The pattern: %n and %name, updated as typed.
+        let pattern: adw::EntryRow = find_row(root, "File name pattern").unwrap();
+        assert_eq!(pattern.text(), "%name");
+        pattern.set_text("%n %name");
+        pump(20);
+        assert_eq!(batch::shown_targets(&batch)[2], "→ 3 Chat with Jonas.jpg");
+        pattern.set_text("%name");
+        pump(20);
+        shot(&w.window, "es12-batch-dialog");
+
+        // Export: three JPGs, the existing file kept, the dialog closed, mockup 13's toast,
+        // selection mode over.
+        assert!(click_button(root, "Export"));
+        pump(800);
+        assert!(dialog().is_none(), "the dialog closes after exporting");
+        for name in [
+            "Checkout flow.jpg",
+            "September dashboard 2.jpg",
+            "Chat with Jonas.jpg",
+        ] {
+            let bytes = std::fs::read(exports.join(name)).unwrap();
+            assert_eq!(&bytes[..2], &[0xFF, 0xD8], "{name} is a JPG");
+        }
+        assert_eq!(std::fs::read(&old).unwrap(), b"old");
+        // The recent file's copy was exported with its redaction solid.
+        let mut converted = annota::document::archive::load(&recent).unwrap();
+        make_solid_copy(&mut converted);
+        assert!(redactions::reversible(&converted).is_empty());
+        assert_eq!(
+            std::fs::read(exports.join("Chat with Jonas.jpg")).unwrap(),
+            export::encode(&converted, &export::Format::Jpeg { quality: 85 }, 1.0).unwrap()
+        );
+        assert!(shows_label(&toasts(), "3 images exported to exports"));
+        assert!(find_button(&toasts(), "Show in Files").is_some());
+        assert!(!tray.selecting() && buttons.select.is_visible());
+        shot(&w.window, "es13-batch-done");
+        // Exporting is not saving.
+        assert!(editor.session(dashboard).unwrap().status().unsaved());
+
+        // A folder that cannot be written: the banner, Export disabled (unless root).
+        use std::os::unix::fs::PermissionsExt;
+        let locked = tmp.0.join("locked");
+        std::fs::create_dir_all(&locked).unwrap();
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let root_user = std::fs::write(locked.join("probe"), b"").is_ok();
+        settings
+            .set_string("export-folder", &locked.to_string_lossy())
+            .unwrap();
+        dismiss_toasts(&w.toast_overlay);
+        buttons.select.emit_clicked();
+        tiles[1].emit_clicked();
+        buttons.export.emit_clicked();
+        pump(300);
+        let batch = dialog().expect("Export 1 Image, no warning without redactions");
+        let root: &gtk::Widget = batch.upcast_ref();
+        assert_eq!(batch.title(), "Export 1 Image");
+        if !root_user {
+            assert!(shows_label(root, "No permission to write to this folder"));
+            assert!(find_button(root, "Choose Folder…").is_some());
+            assert!(!find_button(root, "Export").unwrap().is_sensitive());
+        }
+        assert!(click_button(root, "Cancel"));
+        pump(300);
+        assert!(dialog().is_none());
+        assert!(tray.selecting(), "Cancel keeps the selection");
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
         window_done(&w.window);
     }
 

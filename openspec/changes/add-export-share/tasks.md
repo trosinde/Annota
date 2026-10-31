@@ -60,7 +60,13 @@
       content (`share::selection_content`), behind the redaction warning ("Copy Anyway"; Convert
       to Solid applies to both); toast "Image and object copied to clipboard". See design.md
       "Decided during apply (2026-10-31: selection copy includes the image)".
-- [ ] 2.5 Batch export dialog
+- [x] 2.5 Batch export dialog (mockups 11–13, built against the real tray: "Select" at the
+      right end of its label row, a selection bar in that row's place — Cancel · "<n> Selected"
+      · Select All · Export <n>…; open documents and recent files both selectable;
+      `src/ui/editor/batch.rs`, `data/ui/batch-export-dialog.blp`, the export dialog's format
+      rows shared as `FormatRows`/`Encoding`; pattern `%name`/`%n`/strftime, If a file exists;
+      redaction warning once for the whole selection; toast of mockup 13; see design.md
+      "Decided during apply (2026-10-31: task 2.5 batch export)")
 - [ ] 2.6 "Save changes before closing?" — add-annotation-editor keeps every unsaved document's
       autosave when the editor window closes or Annota quits, because there was no Save yet
       (maintainer decision; see add-annotation-editor's design.md, phase 2b-ii, and its
@@ -71,7 +77,7 @@
       the user discards it" — in the code (`Session::close`, `Editor::close_all`,
       `editor::shut_down`) and as a MODIFIED delta of `document-format` ("Autosave and recovery",
       "Closing keeps autosaves", "Recovery dialog").
-- [ ] 2.7 Redaction export warning — add-core-annotation-tools builds blur, pixelate and solid
+- [x] 2.7 Redaction export warning — add-core-annotation-tools builds blur, pixelate and solid
       redactions (`annota::tools::redaction::Redaction`) but has no way out of Annota to guard;
       its requirement "Redaction export warning" (spec annotation-tools, decision D7) is only a
       placeholder scenario there (no export path exists yet when that change archives) —
@@ -92,8 +98,14 @@
       under every redaction regardless of the choice made here, so the warning does not apply
       to a save — `Purpose::Save` was removed. **Copy, drag-out and Share wired too
       (2026-10-31, tasks 2.3/2.4):** `Purpose::Copy` ("Copy Anyway"), `Purpose::Drag` ("Drag
-      Anyway"), `Purpose::Share` ("Share Anyway"). Still to call `guard_redactions` from batch
-      export (2.5) — then tick this.
+      Anyway"), `Purpose::Share` ("Share Anyway"). **Batch export wired too (2026-10-31, task
+      2.5) — now complete on every way out of Annota** (Export, Copy, drag-out, Share, batch
+      export; never on a save): batch export asks **once for the whole selection** (one alert
+      counting every selected document's blur/pixelate redactions, "Export Anyway" —
+      `Purpose::Export` reused; Convert to Solid converts in each open document as its own undo
+      step and in a recent file's exported copy only), through `Editor::ask_redactions`, the
+      alert half of `guard_redactions`; scenario "Warning before batch export". See design.md,
+      task 2.5.
 
 ## 3. Verify
 - [ ] 3.1 Tests for every scenario (unit, golden-image or documented manual check)

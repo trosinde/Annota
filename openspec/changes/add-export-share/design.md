@@ -681,3 +681,124 @@ Copy then shows no warning and offers both types. All other live tests unchanged
 (each in its own process, isolated bus without service directories) except
 `quick_styles_on_a_live_display`'s known theme issue (above). Manual check rows 8 and 9 updated
 (paste the selection copy into another app → the whole image).
+
+### Decided during apply (2026-10-31: task 2.5 batch export, task 2.7 completed)
+
+**Entry point — built against the real tray, not mockup 11's drawing.** Mockups 11/13 still draw
+the pre-add-annotation-editor tray (one "Recent Captures" row, captions under the tiles); the
+built tray has an "Open" and a "Recent" group, each with its own 15 px label, and Open Library /
+Hide Tray on the right (add-annotation-editor's redline). Kept from the mockups: **"Select"** at
+the right end of the label row (mockup 13; a flat 22 px button with a 13 px bold label, overlaid
+on the scroller's top-right, tooltip "Select Images to Export", shown only while the tray has
+tiles), and in selection mode **a bar in the label row's place** (mockup 11): Cancel (flat) ·
+"<n> Selected" (centred, `GtkCenterBox`) · Select All · **Export <n>…** (suggested, disabled at
+0). The "Open"/"Recent" labels and the unsaved dots fade out (CSS `opacity: 0`, so nothing
+moves); the current document's ring is dropped; selected tiles get the 3 px accent ring and the
+18 px check (top-right; an empty white box on unselected tiles, as drawn). Not drawn and decided
+here:
+- *Both groups are selectable.* Open documents as they are (text being typed is finished
+  first); recent files (the save folder's `.annota`/`.png`, the tray's stand-in for the capture
+  library) are read with `session::load` when Export <n>… is pressed — one that cannot be read
+  gets the editor's existing "Could not open “…”: …" toast and is left out.
+- *Order* is the tray's (Open left to right, then Recent), not the click order: the dialog's list
+  and `%n` follow what the user sees.
+- A click in selection mode selects instead of opening/switching; dragging a tile onto the
+  canvas still works. Cancel, **Esc** (window key, before the canvas gets it), hiding the tray
+  (`show-tray`, the narrow layout) and a successful export leave selection mode and forget the
+  selection; a failed export or the dialog's Cancel keep it, to try again. Tiles that go away
+  (document closed, file gone) leave the selection; without tiles there is no selection mode.
+  Tiles carry the accessible `checked` state while selecting.
+
+**The dialog** (`src/ui/editor/batch.rs`, `data/ui/batch-export-dialog.blp`; mockup 12): AdwDialog
+580 px, Cancel | "Export <n> Images" (ngettext) | **Export** (suggested, default widget), then
+the list of documents (64 × 40 thumbnail radius 4, name, "→ <file>" updated on every change),
+Format / Quality / Size, then File name pattern (monospace, info button with a popover listing
+the tokens), Folder (folder button: GTK's folder chooser) and If a file exists (Add a number /
+Replace / Skip). As in "Export Image", every open starts from the preferences
+(`default-export-format`, `export-folder`) and nothing is remembered.
+- *Shared with the export dialog, not duplicated*: `export_dialog::Encoding` (format, JPG/WebP
+  qualities, WebP lossy, PDF options → `export::Format`, the per-format size limit) and
+  `export_dialog::FormatRows` (the Format toggle, Compression, Quality, Keep annotations as
+  vectors, Page size: shows an `Encoding`, reports edits) — the same object ids in both `.blp`
+  files. The export dialog's `Form` now holds an `Encoding` (behaviour unchanged, its tests
+  adjusted).
+- *Size* is an `AdwComboRow` of the presets "200 %" … "25 %" without pixel sizes (they differ
+  per document) and without Custom Width… (a width for documents of different widths would be
+  a different feature). *No "Flatten annotations" row* (not drawn in 12).
+- *Banner* (not drawn in 12, the export dialog's): "No permission to write to this folder" +
+  Choose Folder…, or a document too large for the format at this size; Export disabled. Export
+  is also disabled when every document would be skipped.
+- *Pattern* (`batch::expand_pattern`): `%name` (the name the tray shows), `%n` (number in the
+  selection, zero-padded to the selection's size: 1–9, 01–12), strftime for the rest (glib's
+  `DateTime::format`, like the `filename-pattern` preference), `%%` a literal `%`. `%name`/`%n`
+  are replaced before strftime, so a `%` in a document's name stays literal. The time is the
+  moment the dialog opened — the names shown are the names written. `/` becomes `-`; a pattern
+  that leaves nothing falls back to the document's name.
+- *If a file exists* (`batch::plan`) is about files already in the folder. Names **inside one
+  batch never collide** whatever it says (a later document gets " 2", " 3" …, quick save's
+  numbering): a pattern without `%name`/`%n`, or two documents of the same name, still give
+  every document its own file, and Replace never replaces what the batch itself just wrote.
+  The lines say "→ name.jpg · replaces the existing file" / "Skipped · “name.jpg” already
+  exists" (not drawn).
+- *Writing*: one document after the other on the main loop with a yield in between (the window
+  redraws); the dialog cannot be closed meanwhile and closes when done. The folder is created if
+  missing. A document that fails is counted and the others go on. Exporting is not saving.
+
+**Done** (mockup 13): "3 images exported to Exports" (ngettext; the folder's own name) with
+**Show in Files** (opens the folder with the first file selected), and selection mode ends. If
+some failed (not drawn): a high-priority toast "2 images could not be exported: <the export
+banner's words>" and the selection stays.
+
+**Redaction warning for a batch — decided: once for the whole selection** (task 2.7's open
+call). One "Make Redactions Solid?" before "Export <n> Images" opens, its body counting the blur
+and pixelate redactions of every selected document together (mockup 10's text, no new strings),
+middle button **Export Anyway** (`Purpose::Export` reused — it is an export). Cancel exports
+nothing and keeps the selection; Convert to Solid converts in every selected document: an open
+document gets its own "Convert Redaction(s) to Solid" undo step (one per document — undo is per
+document), a recent file only in the copy read for this batch (`make_solid_copy`; no editor holds
+it, so no undo step, and its file is never written). Per-document alerts were rejected: a batch
+of ten would ask up to ten times, and the alert's choice ("make them solid before they leave
+Annota") is the same question for the whole batch. Implementation: `Editor::ask_redactions` is
+the alert half of `guard_redactions` (which keeps counting the current document only), so every
+way out goes through the same alert. **Task 2.7 is complete**: Export, Copy, drag-out, Share and
+batch export; never a save.
+
+**Deviations / not drawn**: the tray's actual layout (above); "Select Images to Export", the
+Replace/Skip lines, the failure toast, the banner, the Size entries without pixel sizes. The info
+button uses `dialog-information-symbolic` like every other info button in Annota (an "i" in
+Ubuntu 24.04's adwaita-icon-theme 46; adwaita-icon-theme 50 draws it as a light bulb).
+
+**Open question for the maintainer**: mockups 11 and 13 should be redrawn against the real tray
+(Open/Recent groups, no captions) now that the entry point is built — the follow-up the
+2026-10-31 "other staleness" note foresaw for 11/12/13; 12 matches as built.
+
+**Spec deltas.** export-share "Batch export" rewritten (Select, both groups, Export <n>…, the
+pattern tokens, If a file exists, the toast) with scenarios "Batch" (+ toast, end of selection
+mode), "Selection mode", "File name pattern", "File exists". annotation-tools "Redaction export
+warning": "(in a batch export once for the whole selection)" and scenario "Warning before batch
+export".
+
+**Tests.** Unit (`ui::editor::batch`): pattern tokens (`%name`, padded `%n`, strftime, a name's
+own `%`, `%%`, glib dropping a trailing `%`), stems (`/`, fallbacks), Add a number / Replace /
+Skip, no collisions inside a batch for every policy and Replace never hitting the batch's own
+file, the form's plan per format and pattern (scenarios "Batch", "File name pattern"), problems
+(no permission, one document too large for WebP at 200 %), the texts of mockups 11–13.
+`export_dialog` tests unchanged in substance. Live (`#[ignore]`,
+`batch_export_on_a_live_display`, isolated bus, temporary folders, `export-folder` set through
+the preference — the folder chooser is never opened): Select → bar, "0 Selected", Export 0…
+disabled; clicks select tiles of both groups without switching or opening; Select All and tray
+order; Esc, Cancel and hiding the tray end selection mode; Export 3… → one warning "2
+redactions use blur or pixelate" with Export Anyway → Cancel (nothing changed, selection kept) →
+again → Convert to Solid (open document's undo step, recent file's bytes unchanged) → "Export 3
+Images" with the three "→ …png" lines → JPG (Quality shows, lines follow) → a file in the way:
+Skip / Replace / Add a number lines → pattern `%n %name` → Export: three JPGs (the existing file
+untouched, the recent file's JPG byte-equal to its converted copy's encoding), toast with Show
+in Files, selection mode over, documents still unsaved; a read-only folder → banner, Export
+disabled, Cancel keeps the selection.
+- **Found while comparing screenshots** (not a regression): the maintainer's
+  `~/.config/gtk-4.0/gtk.css` (a symlink to the Everforest-Green-Dark theme) is loaded by GTK at
+  `USER` priority, above Annota's own stylesheet, so live tests run with the real
+  `XDG_CONFIG_HOME` render — and assert — that theme's buttons, labels and colours instead of
+  Annota's. That is the cause of the long-standing `quick_styles_on_a_live_display` "theme issue"
+  noted above: it passes with `XDG_CONFIG_HOME` pointed at an empty folder and fails with the
+  real one. Live tests are now run that way (`manual-checks.md`).

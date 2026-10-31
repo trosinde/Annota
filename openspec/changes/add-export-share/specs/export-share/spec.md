@@ -104,8 +104,21 @@ The dropdown of the Export split button (Share, decision D1) SHALL offer `Email�
 - **THEN** the flattened image is written there as PNG, a toast "Copied as “<name>.png”" offers Show in Files, and the document stays unsaved
 
 ### Requirement: Batch export
-Users SHALL select multiple documents in the tray and export them with the same format, size and filename pattern.
+The tray's Select SHALL let users select several documents — open ones and recent files — and Export <n>… SHALL export them in one format, size, file name pattern and folder ("Export <n> Images", mockup 12). The pattern knows `%name`, `%n` and strftime; names inside one batch never collide, and "If a file exists" adds a number, replaces or skips. A toast SHALL say how many images went to which folder (mockup 13).
 
 #### Scenario: Batch
 - **WHEN** three documents are selected and exported as JPG
 - **THEN** three JPG files are written
+- **AND** the toast "3 images exported to <folder name>" offers Show in Files and the tray leaves selection mode
+
+#### Scenario: Selection mode
+- **WHEN** the user presses Select in the tray and clicks tiles
+- **THEN** the tiles are selected (accent ring and check) instead of opened, the bar shows "<n> Selected" and Export <n>…, and Cancel or Esc leaves selection mode
+
+#### Scenario: File name pattern
+- **WHEN** three documents are exported with the pattern `%n %name`
+- **THEN** their files are named "1 <name>", "2 <name>", "3 <name>" in tray order, and the dialog shows each name before anything is written
+
+#### Scenario: File exists
+- **WHEN** a file with a document's output name is already in the folder
+- **THEN** "Add a number" writes "<name> 2", "Replace" writes over the file, and "Skip" leaves it and exports the other documents

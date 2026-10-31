@@ -1,0 +1,237 @@
+using Gtk 4.0;
+using Adw 1;
+
+// "Export <n> Images" (add-export-share mockup 12, redline "Batch"): AdwDialog 580 px, header
+// Cancel | "Export 3 Images" | Export (suggested). Body: error banner (as in the export dialog;
+// hidden until needed), the list of selected documents (64 × 40 thumbnail, name, "→ <output
+// file name>" updated live), Format / Quality / Size (the export dialog's format rows, same
+// object ids — `FormatRows` in src/ui/editor/export_dialog.rs), then File name pattern (info
+// popover with the tokens), Folder and If a file exists. The document rows, the title and the
+// Size entries are set in src/ui/editor/batch.rs.
+
+Adw.Dialog batch_dialog {
+  content-width: 580;
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      show-start-title-buttons: false;
+      show-end-title-buttons: false;
+
+      [start]
+      Button cancel_button {
+        label: _("Cancel");
+      }
+
+      [end]
+      Button export_button {
+        label: _("Export");
+        styles ["suggested-action"]
+      }
+    }
+
+    content: ScrolledWindow {
+      hscrollbar-policy: never;
+      propagate-natural-height: true;
+
+      child: Box {
+        orientation: vertical;
+        spacing: 18;
+        margin-top: 6;
+        margin-bottom: 24;
+        margin-start: 24;
+        margin-end: 24;
+
+        // "No permission to write to this folder" + Choose Folder…, or a document too large
+        // for the format at this size.
+        Adw.Banner error_banner {
+          revealed: false;
+          styles ["annota-error-banner"]
+        }
+
+        ListBox items_list {
+          selection-mode: none;
+          styles ["boxed-list"]
+
+          accessibility {
+            label: _("Images to export");
+          }
+        }
+
+        ListBox {
+          selection-mode: none;
+          styles ["boxed-list"]
+
+          Adw.ActionRow {
+            title: _("Format");
+            activatable: false;
+
+            [suffix]
+            Box {
+              valign: center;
+              homogeneous: true;
+              styles ["annota-segmented"]
+
+              ToggleButton png_button {
+                label: "PNG";
+                active: true;
+              }
+
+              ToggleButton jpg_button {
+                label: "JPG";
+                group: png_button;
+              }
+
+              ToggleButton webp_button {
+                label: "WebP";
+                group: png_button;
+              }
+
+              ToggleButton pdf_button {
+                label: "PDF";
+                group: png_button;
+              }
+            }
+          }
+
+          // WebP only.
+          Adw.ActionRow compression_row {
+            title: _("Compression");
+            activatable: false;
+
+            [suffix]
+            Box {
+              valign: center;
+              homogeneous: true;
+              styles ["annota-segmented"]
+
+              ToggleButton lossless_button {
+                label: _("Lossless");
+                active: true;
+              }
+
+              ToggleButton lossy_button {
+                label: _("Lossy");
+                group: lossless_button;
+              }
+            }
+          }
+
+          // JPG, and lossy WebP: 1–100, value right-aligned.
+          Adw.ActionRow quality_row {
+            title: _("Quality");
+            activatable: false;
+
+            [suffix]
+            Scale quality_scale {
+              width-request: 220;
+              valign: center;
+              draw-value: true;
+              value-pos: right;
+              digits: 0;
+              round-digits: 0;
+
+              adjustment: Adjustment {
+                lower: 1;
+                upper: 100;
+                step-increment: 1;
+                page-increment: 10;
+                value: 85;
+              };
+
+              accessibility {
+                label: _("Quality");
+              }
+            }
+          }
+
+          // 200 %, 100 %, 50 %, 25 % of each image (set in code).
+          Adw.ComboRow size_row {
+            title: _("Size");
+          }
+
+          // PDF only.
+          Adw.SwitchRow vectors_row {
+            title: _("Keep annotations as vectors");
+            subtitle: _("Text and shapes stay sharp at any zoom");
+            active: true;
+          }
+
+          Adw.ComboRow page_row {
+            title: _("Page size");
+
+            model: StringList {
+              strings [
+                _("Fit to image"),
+                _("A4"),
+                _("Letter"),
+              ]
+            };
+          }
+        }
+
+        ListBox {
+          selection-mode: none;
+          styles ["boxed-list"]
+
+          Adw.EntryRow pattern_row {
+            title: _("File name pattern");
+            activates-default: true;
+            styles ["annota-pattern-row"]
+
+            [suffix]
+            MenuButton {
+              icon-name: "dialog-information-symbolic";
+              valign: center;
+              tooltip-text: _("Pattern Tokens");
+              styles ["flat"]
+
+              accessibility {
+                label: _("Pattern Tokens");
+              }
+
+              popover: Popover {
+                child: Label {
+                  label: _("%name — the image’s name\n%n — its number in the selection\n%Y %m %d %H %M %S — year, month, day, hour, minute, second\n%% — a percent sign");
+                  margin-top: 6;
+                  margin-bottom: 6;
+                  margin-start: 6;
+                  margin-end: 6;
+                  xalign: 0;
+                };
+              };
+            }
+          }
+
+          Adw.ActionRow folder_row {
+            title: _("Folder");
+
+            [suffix]
+            Button folder_button {
+              icon-name: "folder-open-symbolic";
+              valign: center;
+              tooltip-text: _("Choose Folder…");
+              styles ["flat"]
+
+              accessibility {
+                label: _("Choose Folder…");
+              }
+            }
+          }
+
+          Adw.ComboRow exists_row {
+            title: _("If a file exists");
+
+            model: StringList {
+              strings [
+                _("Add a number"),
+                _("Replace"),
+                _("Skip"),
+              ]
+            };
+          }
+        }
+      };
+    };
+  };
+}

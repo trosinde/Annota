@@ -9,6 +9,12 @@
 //! Thumbnails come from the file's own `thumbnail.png` (`.annota`) or the scaled-down image
 //! (`.png`) and are decoded off the main thread. Dragging any tile onto the canvas inserts its
 //! image as an object (spec "Picture in picture").
+//!
+//! **Selection mode** (add-export-share task 2.5, mockups 11/13; spec export-share "Batch
+//! export"). "Select" sits at the right end of the label row; in selection mode a bar takes the
+//! row's place — Cancel · "<n> Selected" · Select All · Export <n>… — clicking a tile (of either
+//! group) selects it, selected tiles get a 3 px accent ring and a check. The editor decides what
+//! a click means ([`Tray::selecting`]) and runs the batch export.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -193,40 +199,161 @@ pub struct OpenTile {
 
 pub type Activate = Rc<dyn Fn(TrayKey)>;
 
+/// Selection mode's buttons (add-export-share task 2.5, mockup 11); the editor connects them.
+pub struct SelectionButtons {
+    /// "Select", at the right end of the label row: enters selection mode.
+    pub select: gtk::Button,
+    pub cancel: gtk::Button,
+    pub select_all: gtk::Button,
+    /// "Export <n>…" (suggested): the batch export dialog.
+    pub export: gtk::Button,
+}
+
 /// The tray's widgets (from `editor-window.ui`) and the "Recent" state.
 pub struct Tray {
     pub revealer: gtk::Revealer,
+    root: gtk::Box,
     open_section: gtk::Box,
     open_separator: gtk::Separator,
     open_items: gtk::Box,
     recent_section: gtk::Box,
     recent_items: gtk::Box,
+    pub buttons: SelectionButtons,
+    selection_bar: gtk::CenterBox,
+    selection_label: gtk::Label,
     activate: RefCell<Option<Activate>>,
     /// The "Open" tiles by session uid; updated in place, so a tile being dragged survives.
     open_tiles: RefCell<Vec<(u64, Tile)>>,
+    /// The "Recent" tiles, in listing order.
+    recent_tiles: RefCell<Vec<Tile>>,
     /// The listing the "Recent" tiles show.
     recent: RefCell<Vec<RecentFile>>,
     /// Decoded thumbnails by file and modification time.
     cache: Rc<RefCell<HashMap<PathBuf, (SystemTime, gdk::Texture)>>>,
     /// Bumped on every refresh, so a slow thumbnail of an older listing is dropped.
     generation: Rc<Cell<u64>>,
+    /// Selection mode (mockup 11): clicking a tile selects it instead of opening it.
+    selecting: Cell<bool>,
+    /// The selected tiles, in the order they were selected (see [`Tray::selected`]).
+    selected: RefCell<Vec<TrayKey>>,
 }
 
 impl Tray {
     pub fn new(builder: &gtk::Builder) -> Option<Self> {
         Some(Self {
             revealer: builder.object("tray_revealer")?,
+            root: builder.object("tray_box")?,
             open_section: builder.object("open_section")?,
             open_separator: builder.object("open_separator")?,
             open_items: builder.object("open_items")?,
             recent_section: builder.object("recent_section")?,
             recent_items: builder.object("recent_items")?,
+            buttons: SelectionButtons {
+                select: builder.object("select_button")?,
+                cancel: builder.object("selection_cancel_button")?,
+                select_all: builder.object("select_all_button")?,
+                export: builder.object("batch_export_button")?,
+            },
+            selection_bar: builder.object("selection_bar")?,
+            selection_label: builder.object("selection_label")?,
             activate: RefCell::new(None),
             open_tiles: RefCell::new(Vec::new()),
+            recent_tiles: RefCell::new(Vec::new()),
             recent: RefCell::new(Vec::new()),
             cache: Rc::default(),
             generation: Rc::default(),
+            selecting: Cell::new(false),
+            selected: RefCell::new(Vec::new()),
         })
+    }
+
+    // ---- selection mode (add-export-share task 2.5, mockups 11, 13) ----
+
+    pub fn selecting(&self) -> bool {
+        self.selecting.get()
+    }
+
+    /// Enters or leaves selection mode; leaving it forgets the selection.
+    pub fn set_selecting(&self, on: bool) {
+        self.selecting.set(on);
+        if !on {
+            self.selected.borrow_mut().clear();
+        }
+        self.refresh_selection();
+    }
+
+    /// A click on a tile in selection mode: selects it, or lets it go.
+    pub fn toggle(&self, key: &TrayKey) {
+        {
+            let mut selected = self.selected.borrow_mut();
+            match selected.iter().position(|k| k == key) {
+                Some(at) => {
+                    selected.remove(at);
+                }
+                None => selected.push(key.clone()),
+            }
+        }
+        self.refresh_selection();
+    }
+
+    pub fn select_all(&self) {
+        self.selected.replace(self.keys());
+        self.refresh_selection();
+    }
+
+    /// Every tile's key in tray order: "Open", then "Recent".
+    fn keys(&self) -> Vec<TrayKey> {
+        self.open_tiles
+            .borrow()
+            .iter()
+            .map(|(_, t)| t.key.clone())
+            .chain(self.recent_tiles.borrow().iter().map(|t| t.key.clone()))
+            .collect()
+    }
+
+    /// The selected tiles in tray order ("Open" first, left to right, then "Recent") — the
+    /// order of the batch dialog's list and of its `%n`.
+    pub fn selected(&self) -> Vec<TrayKey> {
+        let selected = self.selected.borrow();
+        self.keys()
+            .into_iter()
+            .filter(|k| selected.contains(k))
+            .collect()
+    }
+
+    /// Shows the mode and the selection: "Select" or the bar, its count and Export <n>…, each
+    /// tile's ring and check. Tiles that went away leave the selection; without tiles there is
+    /// no selection mode.
+    fn refresh_selection(&self) {
+        let keys = self.keys();
+        self.selected.borrow_mut().retain(|k| keys.contains(k));
+        if keys.is_empty() && self.selecting.get() {
+            self.selecting.set(false);
+            self.selected.borrow_mut().clear();
+        }
+        let selecting = self.selecting.get();
+        let n = self.selected.borrow().len();
+        if selecting {
+            self.root.add_css_class("selecting");
+        } else {
+            self.root.remove_css_class("selecting");
+        }
+        self.buttons
+            .select
+            .set_visible(!selecting && !keys.is_empty());
+        self.selection_bar.set_visible(selecting);
+        self.selection_label
+            .set_text(&super::batch::selected_label(n));
+        self.buttons
+            .export
+            .set_label(&super::batch::export_button_label(n));
+        self.buttons.export.set_sensitive(n > 0);
+        let selected = self.selected.borrow();
+        let open = self.open_tiles.borrow();
+        let recent = self.recent_tiles.borrow();
+        for tile in open.iter().map(|(_, t)| t).chain(recent.iter()) {
+            tile.mark(selecting, selected.contains(&tile.key));
+        }
     }
 
     /// What clicking a tile does.
@@ -278,6 +405,7 @@ impl Tray {
         self.open_section.set_visible(!tiles.is_empty());
         self.open_separator
             .set_visible(!tiles.is_empty() && self.recent_section.is_visible());
+        self.refresh_selection();
     }
 
     /// Shows the "Recent" group for `dir`, leaving out `open` files. Does nothing if the
@@ -292,6 +420,7 @@ impl Tray {
         clear(&self.recent_items);
         let activate = self.activate();
         let mut missing = Vec::new();
+        let mut tiles = Vec::new();
         for file in &files {
             let cached = self
                 .cache
@@ -310,11 +439,14 @@ impl Tray {
                 missing.push((file.clone(), tile.picture.downgrade()));
             }
             self.recent_items.append(&tile.button);
+            tiles.push(tile);
         }
+        self.recent_tiles.replace(tiles);
         self.recent_section.set_visible(!files.is_empty());
         self.open_separator
             .set_visible(self.open_section.is_visible() && !files.is_empty());
         self.recent.replace(files);
+        self.refresh_selection();
         if missing.is_empty() {
             return;
         }
@@ -342,6 +474,17 @@ impl Tray {
         });
     }
 
+    /// The tiles' buttons in tray order (live tests click them).
+    #[cfg(test)]
+    pub fn tile_buttons(&self) -> Vec<gtk::Button> {
+        self.open_tiles
+            .borrow()
+            .iter()
+            .map(|(_, t)| t.button.clone())
+            .chain(self.recent_tiles.borrow().iter().map(|t| t.button.clone()))
+            .collect()
+    }
+
     #[cfg(test)]
     pub fn counts(&self) -> (usize, usize) {
         let count = |b: &gtk::Box| {
@@ -363,11 +506,15 @@ fn clear(container: &gtk::Box) {
     }
 }
 
-/// A thumbnail button: picture, unsaved dot, click to activate, drag onto the canvas.
+/// A thumbnail button: picture, unsaved dot, selection check, click to activate, drag onto the
+/// canvas.
 struct Tile {
+    key: TrayKey,
     button: gtk::Button,
     picture: gtk::Picture,
     dot: gtk::Box,
+    /// Selection mode's check (mockup 11: 18 px, top-right; an empty box until selected).
+    check: gtk::Box,
 }
 
 impl Tile {
@@ -388,8 +535,23 @@ impl Tile {
             .can_target(false)
             .css_classes(["annota-tray-dot"])
             .build();
+        let check = gtk::Box::builder()
+            .halign(gtk::Align::End)
+            .valign(gtk::Align::Start)
+            .visible(false)
+            .can_target(false)
+            .css_classes(["annota-tray-check"])
+            .build();
+        let mark = gtk::Image::builder()
+            .icon_name("object-select-symbolic")
+            .pixel_size(12)
+            .hexpand(true)
+            .halign(gtk::Align::Center)
+            .build();
+        check.append(&mark);
         let overlay = gtk::Overlay::builder().child(&picture).build();
         overlay.add_overlay(&dot);
+        overlay.add_overlay(&check);
         let button = gtk::Button::builder()
             .child(&overlay)
             .tooltip_text(name)
@@ -434,9 +596,32 @@ impl Tile {
         ));
         button.add_controller(source);
         Self {
+            key,
             button,
             picture,
             dot,
+            check,
+        }
+    }
+
+    /// Selection mode's marks: the check, the ring (CSS `selected`) and the accessible state.
+    fn mark(&self, selecting: bool, selected: bool) {
+        self.check.set_visible(selecting);
+        if selecting && selected {
+            self.button.add_css_class("selected");
+        } else {
+            self.button.remove_css_class("selected");
+        }
+        if selecting {
+            let state = if selected {
+                gtk::AccessibleTristate::True
+            } else {
+                gtk::AccessibleTristate::False
+            };
+            self.button
+                .update_state(&[gtk::accessible::State::Checked(state)]);
+        } else {
+            self.button.reset_state(gtk::AccessibleState::Checked);
         }
     }
 }
