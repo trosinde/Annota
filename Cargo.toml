@@ -24,6 +24,10 @@ zip = { version = "6", default-features = false, features = ["deflate-flate2"] }
 # zip's `deflate-flate2` names no flate2 backend; pick the pure-Rust one (no zlib build-dep).
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 rstar = "0.13"
+# Text layout in the shared renderer (add-core-annotation-tools: text, callout, step labels).
+# Same gtk-rs 0.20 generation as cairo-rs; libpango is already linked through GTK.
+pango = "0.20"
+pangocairo = "0.20"
 
 [profile.release]
 lto = "thin"

@@ -78,9 +78,67 @@ pub fn blur_a8(data: &mut [u8], width: usize, height: usize, stride: usize, sigm
     }
 }
 
+/// Blurs a cairo `ARGB32` image (premultiplied, 4 bytes per pixel) in place, each channel on
+/// its own (premultiplied channels blur correctly). Pixels outside count as transparent, so
+/// callers blur a margin of 3 σ more than they show.
+pub fn blur_argb32(data: &mut [u8], width: usize, height: usize, stride: usize, sigma: f64) {
+    if sigma < 0.5 || width == 0 || height == 0 || data.len() < stride * height {
+        return;
+    }
+    let mut plane = vec![0u8; width * height];
+    for channel in 0..4 {
+        for y in 0..height {
+            for x in 0..width {
+                if let (Some(dst), Some(src)) = (
+                    plane.get_mut(y * width + x),
+                    data.get(y * stride + x * 4 + channel),
+                ) {
+                    *dst = *src;
+                }
+            }
+        }
+        blur_a8(&mut plane, width, height, width, sigma);
+        for y in 0..height {
+            for x in 0..width {
+                if let (Some(dst), Some(src)) = (
+                    data.get_mut(y * stride + x * 4 + channel),
+                    plane.get(y * width + x),
+                ) {
+                    *dst = *src;
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn argb_blur_mixes_neighbouring_colours() {
+        // A red half and a blue half: after blurring, the border mixes both, the far ends stay.
+        let (w, h) = (40usize, 20usize);
+        let stride = w * 4;
+        let mut data = vec![0u8; stride * h];
+        for y in 0..h {
+            for x in 0..w {
+                let px: u32 = if x < 20 { 0xFFFF_0000 } else { 0xFF00_00FF };
+                data[y * stride + x * 4..y * stride + x * 4 + 4].copy_from_slice(&px.to_ne_bytes());
+            }
+        }
+        blur_argb32(&mut data, w, h, stride, 2.0);
+        let at = |x: usize| {
+            let o = 10 * stride + x * 4;
+            u32::from_ne_bytes([data[o], data[o + 1], data[o + 2], data[o + 3]])
+        };
+        let r = |p: u32| (p >> 16) & 0xFF;
+        let b = |p: u32| p & 0xFF;
+        let mid = at(20);
+        assert!(r(mid) > 40 && b(mid) > 40, "{mid:08X}");
+        assert!(r(at(10)) > 240 && b(at(10)) < 10);
+        assert!(b(at(30)) > 240 && r(at(30)) < 10);
+    }
 
     #[test]
     fn small_sigma_is_a_no_op() {

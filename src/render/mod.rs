@@ -9,6 +9,7 @@
 
 pub mod blur;
 pub mod overlay;
+pub mod redact;
 pub mod shadow;
 pub mod view;
 

@@ -21,8 +21,16 @@ use super::annotation::{Annotation, Property, PropertyError, PropertyValue, Rend
 use super::geometry::{Arrange, Point, Rect};
 use super::residual;
 use super::scene::{Node, ObjectId};
+use crate::tools::arrow::Arrow;
+use crate::tools::callout::Callout;
 use crate::tools::group::Group;
+use crate::tools::highlighter::Highlighter;
 use crate::tools::image::Image;
+use crate::tools::pen::Pen;
+use crate::tools::redaction::Redaction;
+use crate::tools::shape::Shape;
+use crate::tools::step::Step;
+use crate::tools::text::Text;
 
 type Decoder = fn(Value) -> Result<Box<dyn Annotation>, serde_json::Error>;
 
@@ -36,6 +44,15 @@ fn decode<T: Annotation + DeserializeOwned + 'static>(
 const TYPES: &[(&str, Decoder)] = &[
     (Image::TYPE, decode::<Image>),
     (Group::TYPE, decode::<Group>),
+    (Arrow::TYPE, decode::<Arrow>),
+    (Arrow::LINE_TYPE, Arrow::decode_line),
+    (Pen::TYPE, decode::<Pen>),
+    (Shape::TYPE, decode::<Shape>),
+    (Text::TYPE, decode::<Text>),
+    (Callout::TYPE, decode::<Callout>),
+    (Step::TYPE, decode::<Step>),
+    (Highlighter::TYPE, decode::<Highlighter>),
+    (Redaction::TYPE, decode::<Redaction>),
 ];
 
 /// The tags of all known object types.
@@ -257,7 +274,7 @@ pub(crate) fn check_reads_back(object: &dyn Annotation) -> Result<(), serde_json
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::document::geometry::Rect;
     use serde_json::json;
@@ -274,7 +291,7 @@ mod tests {
                     ObjectId(8),
                     Box::new(Image::new("images/1.png", Rect::new(1.0, 2.0, 30.0, 40.0))),
                 )])),
-                other => panic!("add a sample for new type '{other}'"),
+                other => sample(other),
             };
             assert_eq!(sample.type_name(), name);
             let node = Node::new(ObjectId(7), sample);
@@ -288,6 +305,46 @@ mod tests {
             let back = node_from_json(value.clone(), false).unwrap();
             assert!(back.residual.is_none());
             assert_eq!(node_to_json(&back).unwrap(), value);
+        }
+    }
+
+    /// An object of every type added by add-core-annotation-tools, with non-default values
+    /// where they matter for the format.
+    pub(crate) fn sample(type_name: &str) -> Box<dyn Annotation> {
+        use crate::document::geometry::Point;
+        let (a, b) = (Point::new(10.0, 20.0), Point::new(200.0, 80.0));
+        let rect = Rect::new(10.0, 20.0, 190.0, 60.0);
+        match type_name {
+            Arrow::TYPE => Box::new(Arrow::new(a, b)),
+            Arrow::LINE_TYPE => Box::new(Arrow::line(a, b)),
+            Pen::TYPE => {
+                let mut pen = Pen::new(a);
+                pen.points.push(b);
+                Box::new(pen)
+            }
+            Shape::TYPE => {
+                let style = Shape::new(rect);
+                Box::new(Shape::polygon(&[a, b, Point::new(10.0, 90.0)], &style).unwrap())
+            }
+            Text::TYPE => {
+                let mut text = Text::new(a);
+                text.text = "Runs nightly\non mains power".into();
+                Box::new(text)
+            }
+            Callout::TYPE => {
+                let mut callout = Callout::new(rect, Point::new(300.0, 300.0));
+                callout.text = "Both paths".into();
+                callout.tails.push(Point::new(0.0, 300.0));
+                Box::new(callout)
+            }
+            Step::TYPE => {
+                let mut step = Step::new(a, 2, 3);
+                step.value = Some("7".into());
+                Box::new(step)
+            }
+            Highlighter::TYPE => Box::new(Highlighter::new(rect)),
+            Redaction::TYPE => Box::new(Redaction::new(rect)),
+            other => panic!("add a sample for new type '{other}'"),
         }
     }
 

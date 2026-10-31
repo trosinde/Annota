@@ -23,6 +23,25 @@ pub struct Shadow {
 }
 
 impl Shadow {
+    /// The shadow new annotation objects get (add-core-annotation-tools redline "Defaults":
+    /// Ink, angle 45°, distance 9 px, blur 12 px, opacity 45 %). The redline's "blur 12 px" is
+    /// a CSS-style blur radius, i.e. twice the Gaussian standard deviation stored here — the
+    /// mockups render it as 3 px at 50 % zoom.
+    pub const DEFAULT: Shadow = Shadow {
+        enabled: true,
+        color: super::color::palette::INK,
+        opacity: 0.45,
+        angle: 45.0,
+        distance: 9.0,
+        blur: 6.0,
+    };
+
+    /// [`Shadow::DEFAULT`] switched off (text: "shadow off").
+    pub const DEFAULT_OFF: Shadow = Shadow {
+        enabled: false,
+        ..Shadow::DEFAULT
+    };
+
     pub const OFF: Shadow = Shadow {
         enabled: false,
         color: Rgba::opaque(0, 0, 6),
@@ -53,9 +72,70 @@ impl Shadow {
     }
 }
 
+/// How a line or outline is drawn (sidebar: Line style — Solid / Dashed / Dotted).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LineStyle {
+    #[default]
+    Solid,
+    Dashed,
+    Dotted,
+}
+
+impl LineStyle {
+    pub const ALL: [LineStyle; 3] = [LineStyle::Solid, LineStyle::Dashed, LineStyle::Dotted];
+
+    /// Stable key, as stored and as `PropertyValue::Choice`.
+    pub fn key(self) -> &'static str {
+        match self {
+            LineStyle::Solid => "solid",
+            LineStyle::Dashed => "dashed",
+            LineStyle::Dotted => "dotted",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| s.key() == key)
+    }
+
+    /// Dash pattern for a line `width` wide with round caps (mockups 03, 04: dashes 2.5 × the
+    /// width with 1⅔ × the width between them, dots every 2 × the width).
+    pub fn dashes(self, width: f64) -> Vec<f64> {
+        let w = width.max(0.5);
+        match self {
+            LineStyle::Solid => Vec::new(),
+            LineStyle::Dashed => vec![2.5 * w, 5.0 * w / 3.0],
+            LineStyle::Dotted => vec![0.0, 2.0 * w],
+        }
+    }
+
+    /// Sets dashes, round caps and round joins for a stroke `width` wide.
+    pub fn apply(self, cr: &cairo::Context, width: f64) {
+        cr.set_line_width(width);
+        cr.set_line_cap(cairo::LineCap::Round);
+        cr.set_line_join(cairo::LineJoin::Round);
+        cr.set_dash(&self.dashes(width), 0.0);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn line_styles_round_trip_their_keys() {
+        for style in LineStyle::ALL {
+            assert_eq!(LineStyle::from_key(style.key()), Some(style));
+            assert_eq!(
+                serde_json::to_value(style).unwrap(),
+                serde_json::json!(style.key())
+            );
+        }
+        assert_eq!(LineStyle::from_key("wavy"), None);
+        assert!(LineStyle::Solid.dashes(6.0).is_empty());
+        assert_eq!(LineStyle::Dashed.dashes(6.0), vec![15.0, 10.0]);
+        assert_eq!(LineStyle::Dotted.dashes(4.0), vec![0.0, 8.0]);
+    }
 
     #[test]
     fn offset_follows_angle() {

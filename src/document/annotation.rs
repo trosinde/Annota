@@ -123,8 +123,13 @@ pub enum HandleKind {
     Resize,
     /// Round rotation handle on a stem.
     Rotate,
-    /// Round handle on a point of the shape (arrow end, polygon vertex).
+    /// Round handle on a point of the shape (polygon vertex), 10 px.
     Point,
+    /// End point of an arrow or line: a 12 px white circle (add-core-annotation-tools redline
+    /// "On-canvas handles").
+    End,
+    /// Tip of a callout tail: a filled 12 px accent circle.
+    Tip,
     /// Diamond handle that bends a path.
     Curve,
     /// Filled handle that adds something when dragged (callout tail).

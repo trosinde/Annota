@@ -14,7 +14,9 @@
 use crate::document::annotation::{Handle, HandleKind};
 use crate::document::color::Rgba;
 use crate::document::geometry::{Arrange, IRect, Point, Rect};
-use crate::editing::selection::{visible_handles, SelectionFrame, HANDLE_SIZE, ROTATE_HANDLE_SIZE};
+use crate::editing::selection::{
+    visible_handles, SelectionFrame, END_HANDLE_SIZE, HANDLE_SIZE, ROTATE_HANDLE_SIZE,
+};
 use crate::editing::snap::{Axis, Guide};
 
 use super::Viewport;
@@ -163,6 +165,16 @@ fn draw_handle(
             cr.new_sub_path();
             cr.arc(c.x, c.y, HANDLE_SIZE / 2.0, 0.0, std::f64::consts::TAU);
             fill_and_stroke(cr, Rgba::WHITE, ACCENT, HANDLE_BORDER)
+        }
+        HandleKind::End => {
+            cr.new_sub_path();
+            cr.arc(c.x, c.y, END_HANDLE_SIZE / 2.0, 0.0, std::f64::consts::TAU);
+            fill_and_stroke(cr, Rgba::WHITE, ACCENT, HANDLE_BORDER)
+        }
+        HandleKind::Tip => {
+            cr.new_sub_path();
+            cr.arc(c.x, c.y, END_HANDLE_SIZE / 2.0, 0.0, std::f64::consts::TAU);
+            fill_and_stroke(cr, ACCENT, Rgba::WHITE, HANDLE_BORDER)
         }
         HandleKind::Curve => {
             square_path(cr, c, 12.0 / std::f64::consts::SQRT_2, 45.0)?;

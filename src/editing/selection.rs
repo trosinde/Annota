@@ -197,6 +197,9 @@ pub const HANDLE_SIZE: f64 = 10.0;
 pub const ROTATE_HANDLE_SIZE: f64 = 14.0;
 /// Extra grab distance around a handle, in screen pixels.
 pub const HANDLE_SLACK: f64 = 3.0;
+/// Diameter of arrow/line end handles and callout tail tips, in screen pixels
+/// (add-core-annotation-tools redline "On-canvas handles").
+pub const END_HANDLE_SIZE: f64 = 12.0;
 
 /// What the canvas draws for the selection (redline: Canvas — selection).
 #[derive(Clone, Debug)]
@@ -287,7 +290,7 @@ pub fn handle_radius(kind: HandleKind) -> f64 {
     let size = match kind {
         HandleKind::Rotate => ROTATE_HANDLE_SIZE,
         HandleKind::Add => 18.0,
-        HandleKind::Curve => 12.0,
+        HandleKind::Curve | HandleKind::End | HandleKind::Tip => END_HANDLE_SIZE,
         _ => HANDLE_SIZE,
     };
     size / 2.0 + HANDLE_SLACK

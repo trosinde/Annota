@@ -1062,6 +1062,41 @@ pub(crate) mod tests {
         let group_schema = &schema["$defs"]["group_object"];
         assert_eq!(keys(&group_json), required(group_schema));
         assert_eq!(keys(&group_json), props(group_schema));
+        // Every type of add-core-annotation-tools: exactly the fields it writes, and its tag
+        // routed to its definition.
+        let routes: Vec<(String, String)> = schema["$defs"]["object"]["allOf"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|rule| {
+                (
+                    rule["if"]["properties"]["type"]["const"]
+                        .as_str()
+                        .unwrap()
+                        .to_string(),
+                    rule["then"]["$ref"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+        for type_name in crate::document::registry::types() {
+            let def = routes
+                .iter()
+                .find(|(t, _)| t == type_name)
+                .map(|(_, d)| d.trim_start_matches("#/$defs/").to_string())
+                .unwrap_or_else(|| panic!("schema has no rule for '{type_name}'"));
+            if matches!(type_name, "image" | "group") {
+                continue;
+            }
+            let object = crate::document::registry::tests::sample(type_name);
+            let written =
+                crate::document::annotation::AnnotationBase::to_json(object.as_ref()).unwrap();
+            let def = &schema["$defs"][def.as_str()];
+            assert_eq!(keys(&written), required(def), "{type_name}");
+            assert_eq!(keys(&written), props(def), "{type_name}");
+            if let Some(shadow) = written.get("shadow") {
+                assert_eq!(keys(shadow), required(&schema["$defs"]["shadow"]));
+            }
+        }
         assert_eq!(
             schema["properties"]["format"]["pattern"],
             json!(format!("^{}\\.[0-9]+$", FORMAT.major))

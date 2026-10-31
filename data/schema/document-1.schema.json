@@ -115,6 +115,42 @@
         {
           "if": { "properties": { "type": { "const": "group" } } },
           "then": { "$ref": "#/$defs/group_object" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "arrow" } } },
+          "then": { "$ref": "#/$defs/arrow_object" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "line" } } },
+          "then": { "$ref": "#/$defs/arrow_object" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "pen" } } },
+          "then": { "$ref": "#/$defs/pen_object" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "shape" } } },
+          "then": { "$ref": "#/$defs/shape_object" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "text" } } },
+          "then": { "$ref": "#/$defs/text_object" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "callout" } } },
+          "then": { "$ref": "#/$defs/callout_object" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "step" } } },
+          "then": { "$ref": "#/$defs/step_object" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "highlighter" } } },
+          "then": { "$ref": "#/$defs/highlighter_object" }
+        },
+        {
+          "if": { "properties": { "type": { "const": "redaction" } } },
+          "then": { "$ref": "#/$defs/redaction_object" }
         }
       ]
     },
@@ -130,6 +166,169 @@
           "minItems": 1,
           "items": { "$ref": "#/$defs/object" }
         }
+      }
+    },
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+    },
+    "line_style": { "enum": ["solid", "dashed", "dotted"] },
+    "end_style": { "enum": ["none", "triangle", "open", "circle", "square", "bar"] },
+    "alignment": { "enum": ["left", "center", "right"] },
+    "arrow_object": {
+      "description": "An arrow or, with type \"line\", a line: a quadratic Bézier from start to end that passes middle halfway (middle is halfway between the ends when the line is straight).",
+      "type": "object",
+      "required": ["start", "end", "middle", "color", "width", "start_style", "end_style", "start_size", "end_size", "line_style", "opacity", "shadow"],
+      "properties": {
+        "start": { "$ref": "#/$defs/point" },
+        "end": { "$ref": "#/$defs/point" },
+        "middle": { "$ref": "#/$defs/point" },
+        "color": { "$ref": "#/$defs/color" },
+        "width": { "type": "number", "minimum": 1, "maximum": 40 },
+        "start_style": { "$ref": "#/$defs/end_style" },
+        "end_style": { "$ref": "#/$defs/end_style" },
+        "start_size": { "type": "number", "minimum": 0.25, "maximum": 4, "description": "Head size, 1 = 100 %." },
+        "end_size": { "type": "number", "minimum": 0.25, "maximum": 4, "description": "Head size, 1 = 100 %." },
+        "line_style": { "$ref": "#/$defs/line_style" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "shadow": { "$ref": "#/$defs/shadow" }
+      }
+    },
+    "pen_object": {
+      "description": "A freehand stroke: the points the pointer went through, in document pixels. Width, smoothing and colour apply when it is drawn, so they can change later.",
+      "type": "object",
+      "required": ["points", "color", "width", "smoothing", "opacity", "shadow"],
+      "properties": {
+        "points": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/point" } },
+        "color": { "$ref": "#/$defs/color" },
+        "width": { "type": "number", "minimum": 1, "maximum": 40 },
+        "smoothing": { "type": "number", "minimum": 0, "maximum": 100 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "shadow": { "$ref": "#/$defs/shadow" }
+      }
+    },
+    "shape_object": {
+      "description": "A rectangle, rounded rectangle, ellipse or polygon in a box.",
+      "type": "object",
+      "required": ["kind", "x", "y", "width", "height", "rotation", "points", "corner_radius", "outline_color", "outline_width", "fill", "fill_opacity", "line_style", "opacity", "shadow"],
+      "properties": {
+        "kind": { "enum": ["rectangle", "rounded_rectangle", "ellipse", "polygon"] },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "rotation": { "type": "number" },
+        "points": { "type": "array", "items": { "$ref": "#/$defs/point" }, "description": "Polygon vertices as fractions (0–1) of the box, in order; empty for the other kinds." },
+        "corner_radius": { "type": "number", "minimum": 0, "description": "Rounded rectangle only." },
+        "outline_color": { "$ref": "#/$defs/color" },
+        "outline_width": { "type": "number", "minimum": 0, "maximum": 40, "description": "0 = no outline." },
+        "fill": { "$ref": "#/$defs/color", "description": "Transparent = no fill." },
+        "fill_opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "line_style": { "$ref": "#/$defs/line_style" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "shadow": { "$ref": "#/$defs/shadow" }
+      }
+    },
+    "text_object": {
+      "description": "Text. Its box is the text's extent; x and y are its top-left corner before rotation.",
+      "type": "object",
+      "required": ["text", "x", "y", "rotation", "font_family", "font_size", "bold", "italic", "underline", "strikethrough", "alignment", "color", "outline_color", "outline_width", "opacity", "shadow"],
+      "properties": {
+        "text": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "rotation": { "type": "number" },
+        "font_family": { "type": "string" },
+        "font_size": { "type": "number", "exclusiveMinimum": 0, "description": "Pixel size." },
+        "bold": { "type": "boolean" },
+        "italic": { "type": "boolean" },
+        "underline": { "type": "boolean" },
+        "strikethrough": { "type": "boolean" },
+        "alignment": { "$ref": "#/$defs/alignment" },
+        "color": { "$ref": "#/$defs/color" },
+        "outline_color": { "$ref": "#/$defs/color", "description": "Transparent = no outline." },
+        "outline_width": { "type": "number", "minimum": 0 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "shadow": { "$ref": "#/$defs/shadow" }
+      }
+    },
+    "callout_object": {
+      "description": "A text box with one or more tails. The body is drawn taller than height when its text needs the room.",
+      "type": "object",
+      "required": ["text", "x", "y", "width", "height", "rotation", "shape", "tails", "fill", "outline_color", "outline_width", "padding", "corner_radius", "font_family", "font_size", "bold", "text_color", "alignment", "opacity", "shadow"],
+      "properties": {
+        "text": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "rotation": { "type": "number" },
+        "shape": { "enum": ["rectangle", "rounded_rectangle", "ellipse", "cloud"] },
+        "tails": { "type": "array", "items": { "$ref": "#/$defs/point" }, "description": "Tail tips in document space." },
+        "fill": { "$ref": "#/$defs/color" },
+        "outline_color": { "$ref": "#/$defs/color" },
+        "outline_width": { "type": "number", "minimum": 0, "description": "0 = no outline." },
+        "padding": { "type": "number", "minimum": 0 },
+        "corner_radius": { "type": "number", "minimum": 0, "description": "Rounded rectangle only." },
+        "font_family": { "type": "string" },
+        "font_size": { "type": "number", "exclusiveMinimum": 0, "description": "Pixel size." },
+        "bold": { "type": "boolean" },
+        "text_color": { "$ref": "#/$defs/color" },
+        "alignment": { "$ref": "#/$defs/alignment" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "shadow": { "$ref": "#/$defs/shadow" }
+      }
+    },
+    "step_object": {
+      "description": "A step marker: position number of its sequence, labelled in the sequence's counting unless a value was typed for it.",
+      "type": "object",
+      "required": ["x", "y", "radius", "shape", "color", "label_color", "ring_color", "ring_width", "sequence", "number", "counting", "value", "opacity", "shadow"],
+      "properties": {
+        "x": { "type": "number", "description": "Centre of the marker's head." },
+        "y": { "type": "number" },
+        "radius": { "type": "number", "exclusiveMinimum": 0 },
+        "shape": { "enum": ["circle", "square", "rounded_square", "pin"] },
+        "color": { "$ref": "#/$defs/color" },
+        "label_color": { "$ref": "#/$defs/color" },
+        "ring_color": { "$ref": "#/$defs/color" },
+        "ring_width": { "type": "number", "minimum": 0 },
+        "sequence": { "type": "integer", "minimum": 0, "description": "Markers of one sequence count together; Restart Sequence starts a new one." },
+        "number": { "type": "integer", "minimum": 0, "description": "Position in the sequence, from 1." },
+        "counting": { "enum": ["numbers", "upper_letters", "lower_letters", "roman"] },
+        "value": { "type": ["string", "null"], "description": "A label typed for this marker only." },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "shadow": { "$ref": "#/$defs/shadow" }
+      }
+    },
+    "highlighter_object": {
+      "description": "A highlight, drawn with multiply blending.",
+      "type": "object",
+      "required": ["x", "y", "width", "height", "rotation", "color", "opacity"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "rotation": { "type": "number" },
+        "color": { "$ref": "#/$defs/color" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "redaction_object": {
+      "description": "Blur or pixelate the original image's pixels underneath, or cover them with a solid box.",
+      "type": "object",
+      "required": ["kind", "intensity", "shape", "x", "y", "width", "height", "rotation", "color"],
+      "properties": {
+        "kind": { "enum": ["blur", "pixelate", "solid"] },
+        "intensity": { "type": "number", "minimum": 0, "maximum": 100 },
+        "shape": { "enum": ["rectangle", "ellipse"] },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "rotation": { "type": "number" },
+        "color": { "$ref": "#/$defs/color", "description": "Colour of a solid box." }
       }
     },
     "image_object": {

@@ -16,6 +16,57 @@ pub fn paint(
     blur: f64,
     shape: impl Fn(&cairo::Context),
 ) -> Result<(), cairo::Error> {
+    // Shape extents in user space.
+    cr.save()?;
+    cr.new_path();
+    shape(cr);
+    let extents = cr.fill_extents()?;
+    cr.new_path();
+    cr.restore()?;
+    paint_mask(cr, color, opacity, blur, extents, |mcr| {
+        shape(mcr);
+        mcr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
+        mcr.fill()
+    })
+}
+
+/// The drop shadow of `shadow` for whatever `draw` paints (its alpha, like CSS
+/// `drop-shadow()`): strokes, text outlines and several shapes at once. `bounds` (user space)
+/// must cover everything `draw` paints. Paint the content itself afterwards.
+pub fn drop_shadow(
+    cr: &cairo::Context,
+    shadow: &crate::document::style::Shadow,
+    bounds: crate::document::geometry::Rect,
+    draw: impl Fn(&cairo::Context) -> Result<(), cairo::Error>,
+) -> Result<(), cairo::Error> {
+    if !shadow.is_visible() || bounds.is_none() {
+        return Ok(());
+    }
+    let (dx, dy) = shadow.offset();
+    cr.save()?;
+    cr.translate(dx, dy);
+    let painted = paint_mask(
+        cr,
+        shadow.color,
+        shadow.opacity,
+        shadow.blur,
+        (bounds.x, bounds.y, bounds.right(), bounds.bottom()),
+        draw,
+    );
+    cr.restore()?;
+    painted
+}
+
+/// Blurs the alpha of what `fill_mask` paints within `extents` (user space) and paints
+/// `color` × `opacity` through it.
+fn paint_mask(
+    cr: &cairo::Context,
+    color: Rgba,
+    opacity: f64,
+    blur: f64,
+    extents: (f64, f64, f64, f64),
+    fill_mask: impl FnOnce(&cairo::Context) -> Result<(), cairo::Error>,
+) -> Result<(), cairo::Error> {
     let alpha = f64::from(color.a) / 255.0 * opacity.clamp(0.0, 1.0);
     if alpha <= 0.0 {
         return Ok(());
@@ -24,14 +75,7 @@ pub fn paint(
     let user_scale = (m.xx() * m.yy() - m.xy() * m.yx()).abs().sqrt();
     let (dsx, dsy) = cr.target().device_scale();
     let sigma = blur.max(0.0) * user_scale;
-
-    // Shape extents in (CTM-)device space.
-    cr.save()?;
-    cr.new_path();
-    shape(cr);
-    let (x1, y1, x2, y2) = cr.fill_extents()?;
-    cr.new_path();
-    cr.restore()?;
+    let (x1, y1, x2, y2) = extents;
     let (mut dx0, mut dy0, mut dx1, mut dy1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
     for (x, y) in [(x1, y1), (x2, y1), (x2, y2), (x1, y2)] {
         let (dx, dy) = cr.user_to_device(x, y);
@@ -71,9 +115,7 @@ pub fn paint(
             m.x0() - x0,
             m.y0() - y0,
         ));
-        shape(&mcr);
-        mcr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
-        mcr.fill()?;
+        fill_mask(&mcr)?;
     }
     mask.flush();
     let stride = mask.stride() as usize;
