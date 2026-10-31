@@ -32,6 +32,8 @@ use annota::tools::image::Image;
 
 use super::panel::{self, TypePanel};
 use super::properties::{self, PanelInfo};
+use super::quick_styles::QuickStyles;
+use super::styles::Styles;
 use super::text;
 use crate::application::accel_label;
 use crate::ui::labels::object_name;
@@ -390,6 +392,8 @@ pub struct Sidebar {
     pub(super) arrange_box: gtk::Box,
     /// The type properties.
     pub panel: std::rc::Rc<TypePanel>,
+    /// Quick styles and favourites (add-style-system).
+    pub quick: std::rc::Rc<QuickStyles>,
     pub(super) crop_entries: [gtk::Entry; 4],
     pub(super) crop_aspect: gtk::DropDown,
     /// Space around the image: Left, Top, Right, Bottom (pixels beyond each image edge).
@@ -411,7 +415,7 @@ pub struct Sidebar {
 }
 
 impl Sidebar {
-    pub fn new(builder: &gtk::Builder) -> Option<std::rc::Rc<Self>> {
+    pub fn new(builder: &gtk::Builder, styles: std::rc::Rc<Styles>) -> Option<std::rc::Rc<Self>> {
         let get = |name: &str| -> Option<glib::Object> {
             let object = builder.object(name);
             if object.is_none() {
@@ -476,6 +480,7 @@ impl Sidebar {
             group_note: obj!("group_note"),
             arrange_box: obj!("arrange_box"),
             panel: TypePanel::new(builder)?,
+            quick: QuickStyles::new(builder, styles)?,
             crop_entries: [
                 obj!("crop_x"),
                 obj!("crop_y"),
@@ -721,6 +726,12 @@ impl Sidebar {
                 }
                 self.stack.set_visible_child_name("crop");
             }
+        }
+        // Quick styles go with the type properties (add-style-system).
+        match state {
+            State::Tool(info) => self.quick.show(Some(info)),
+            State::Selection(info) => self.quick.show(info.panel.as_ref()),
+            _ => self.quick.show(None),
         }
         self.updating.set(false);
     }

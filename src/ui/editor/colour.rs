@@ -64,19 +64,31 @@ impl SwatchSet {
         }
     }
 
-    /// The swatches, line by line.
+    /// The swatches, line by line, with the default palette ([`PALETTE`], the Annota theme).
+    #[cfg(test)]
     pub fn lines(self, recent: &[Rgba]) -> Vec<Vec<Swatch>> {
-        let palette = |yellow: bool| -> Vec<Swatch> {
-            PALETTE
-                .iter()
-                .map(|c| {
-                    if yellow && *c == palette::AMBER {
-                        Swatch::Colour(HIGHLIGHT_YELLOW)
-                    } else {
-                        Swatch::Colour(*c)
-                    }
-                })
-                .collect()
+        self.lines_with(&PALETTE, recent)
+    }
+
+    /// The swatches, line by line, with `palette` in the palette's places — the current
+    /// theme's colours (add-style-system mockup 07: "Properties palette shows the theme
+    /// colours"). The highlighter's set shows its yellow where the palette has Amber, else
+    /// first.
+    pub fn lines_with(self, colours: &[Rgba], recent: &[Rgba]) -> Vec<Vec<Swatch>> {
+        let first = |yellow: bool| -> Vec<Swatch> {
+            let mut line: Vec<Swatch> = colours.iter().map(|c| Swatch::Colour(*c)).collect();
+            if yellow {
+                let yellow = Swatch::Colour(HIGHLIGHT_YELLOW);
+                match line
+                    .iter()
+                    .position(|s| *s == Swatch::Colour(palette::AMBER))
+                {
+                    Some(i) => line[i] = yellow,
+                    None if !line.contains(&yellow) => line.insert(0, yellow),
+                    None => {}
+                }
+            }
+            line
         };
         let second = |none: bool| -> Vec<Swatch> {
             let mut line = Vec::new();
@@ -90,17 +102,17 @@ impl SwatchSet {
             line
         };
         match self {
-            SwatchSet::Full { none } => vec![palette(false), second(none)],
-            SwatchSet::Highlight => vec![palette(true), second(false)],
-            SwatchSet::Palette | SwatchSet::Shadow => vec![palette(false)],
+            SwatchSet::Full { none } => vec![first(false), second(none)],
+            SwatchSet::Highlight => vec![first(true), second(false)],
+            SwatchSet::Palette | SwatchSet::Shadow => vec![first(false)],
             SwatchSet::Outline => {
                 let mut line = vec![Swatch::None, Swatch::Colour(palette::PAPER)];
-                line.extend(palette(false));
+                line.extend(first(false));
                 vec![line]
             }
             SwatchSet::Text => {
                 let mut line = vec![Swatch::Colour(palette::PAPER)];
-                line.extend(palette(false));
+                line.extend(first(false));
                 vec![line]
             }
         }
@@ -310,6 +322,22 @@ mod tests {
             vec![PALETTE.map(Swatch::Colour).to_vec()]
         );
         assert!(!SwatchSet::Palette.custom());
+    }
+
+    #[test]
+    fn a_theme_replaces_the_palette_swatches() {
+        // add-style-system mockup 07: the theme's colours in the palette's places.
+        let brand = [
+            Rgba::opaque(0x0B, 0x5C, 0xAD),
+            Rgba::opaque(0x00, 0xA0, 0xB0),
+        ];
+        let lines = SwatchSet::Full { none: false }.lines_with(&brand, &[]);
+        assert_eq!(lines[0], brand.map(Swatch::Colour).to_vec());
+        assert_eq!(lines[1][0], Swatch::Colour(palette::PAPER));
+        // A theme without Amber: the highlighter's yellow comes first.
+        let highlight = SwatchSet::Highlight.lines_with(&brand, &[]);
+        assert_eq!(highlight[0][0], Swatch::Colour(HIGHLIGHT_YELLOW));
+        assert_eq!(highlight[0].len(), 3);
     }
 
     #[test]

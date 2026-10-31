@@ -60,13 +60,16 @@ type Release = Rc<dyn Fn(f64)>;
 /// A toggle group: the choice each button stands for.
 type Choices = Vec<(&'static str, gtk::ToggleButton)>;
 
+/// What a colour row's swatches were built from: the set, the palette, the recent colours.
+pub(super) type BuiltSwatches = (SwatchSet, Vec<Rgba>, Vec<Rgba>);
+
 /// One colour row: its property, its swatches and where they go.
 pub(super) struct ColourRow {
     pub(super) key: &'static str,
     pub(super) caption: gtk::Label,
     pub(super) container: gtk::Box,
-    /// The set, the recent colours and the buttons it was built with.
-    pub(super) built: RefCell<Option<(SwatchSet, Vec<Rgba>)>>,
+    /// The set, the palette and the recent colours the buttons were built with.
+    pub(super) built: RefCell<Option<BuiltSwatches>>,
     pub(super) buttons: RefCell<Vec<(Swatch, gtk::Button)>>,
 }
 
@@ -173,6 +176,8 @@ pub struct TypePanel {
     pub(super) info: RefCell<Option<PanelInfo>>,
     /// Custom colours committed recently (newest first).
     pub(super) recent: RefCell<Vec<Rgba>>,
+    /// The palette swatches: the current theme's colours (add-style-system).
+    pub(super) palette: RefCell<Vec<Rgba>>,
     /// The property whose colour the screen eyedropper is picking.
     pub(super) picking: Cell<Option<&'static str>>,
     pub(super) updating: Cell<bool>,
@@ -521,6 +526,7 @@ impl TypePanel {
             },
             info: RefCell::new(None),
             recent: RefCell::new(Vec::new()),
+            palette: RefCell::new(colour::PALETTE.to_vec()),
             picking: Cell::new(None),
             updating: Cell::new(false),
             handler: RefCell::new(None),
@@ -611,6 +617,19 @@ impl TypePanel {
             if let Some(info) = self.info.borrow().clone() {
                 self.show_colours(&info);
             }
+        }
+    }
+
+    /// The palette swatches of the colour rows: the current theme's colours.
+    pub fn set_palette(self: &Rc<Self>, colours: &[Rgba]) {
+        if *self.palette.borrow() == colours {
+            return;
+        }
+        self.palette.replace(colours.to_vec());
+        if let Some(info) = self.info.borrow().clone() {
+            let was = self.updating.replace(true);
+            self.show_colours(&info);
+            self.updating.set(was);
         }
     }
 
@@ -1171,6 +1190,7 @@ impl TypePanel {
     fn show_colours(self: &Rc<Self>, info: &PanelInfo) {
         let rows = properties::rows(info);
         let recent = self.recent.borrow().clone();
+        let palette = self.palette.borrow().clone();
         for (index, row) in self.colour_rows.iter().enumerate() {
             let Some(set) = rows.iter().find_map(|r| match r {
                 Row::Colour { key, set } if *key == row.key => Some(*set),
@@ -1182,6 +1202,7 @@ impl TypePanel {
                 .set_text(&colour_caption(info.type_name, row.key));
             let wanted = (
                 set,
+                palette.clone(),
                 if set.custom() {
                     recent.clone()
                 } else {
@@ -1193,7 +1214,7 @@ impl TypePanel {
                     row.container.remove(&child);
                 }
                 let mut buttons = Vec::new();
-                for line in set.lines(&recent) {
+                for line in set.lines_with(&palette, &recent) {
                     let boxed = gtk::Box::new(gtk::Orientation::Horizontal, 6);
                     for swatch in line {
                         let button = self.swatch_button(swatch, set.size());
@@ -1652,7 +1673,7 @@ fn mark(button: &gtk::Button, current: bool) {
 }
 
 /// A swatch's tooltip: the palette colour's name, else its hex value.
-fn swatch_name(c: Rgba) -> String {
+pub(super) fn swatch_name(c: Rgba) -> String {
     match c {
         palette::CORAL => gettext("Coral"),
         palette::AMBER => gettext("Amber"),

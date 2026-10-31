@@ -31,10 +31,13 @@ mod dialogs;
 mod glyphs;
 mod panel;
 pub(crate) mod properties;
+mod quick_styles;
 mod resize;
 mod session;
 mod sidebar;
+mod styles;
 mod text;
+mod theme_editor;
 mod tray;
 
 use std::cell::{Cell, RefCell};
@@ -59,11 +62,16 @@ use annota::editing::ops::{self, Stacking, Subject};
 use annota::editing::selection::Selection;
 use annota::editing::tool::{Tool, Toolbox};
 use annota::render::{self, view};
+use annota::styles::store::StylePaths;
+use annota::styles::theme::Theme;
+use annota::styles::{generate, value as style_value};
 use annota::tools::group::Group;
 
 use self::panel::PanelEvent;
+use self::quick_styles::QuickEvent;
 use self::session::{LoadError, Loaded, Origin, Session};
 use self::sidebar::{CropInfo, Event, Sidebar};
+use self::styles::Styles;
 use self::tray::{OpenTile, Tray, TrayKey};
 use crate::cli::CaptureMode;
 use crate::config;
@@ -227,6 +235,11 @@ fn default_store() -> Store {
     Store::new(autosave::default_dir(&glib::user_cache_dir()))
 }
 
+/// `~/.local/share/annota/styles` and `/usr/share/annota/themes` (add-style-system).
+fn default_style_paths() -> StylePaths {
+    StylePaths::new(&glib::user_data_dir())
+}
+
 /// The header bar, layout and OSD widgets of `editor-window.ui`.
 struct Widgets {
     window: adw::ApplicationWindow,
@@ -356,6 +369,10 @@ struct Inner {
     screen_picker: RefCell<ScreenPicker>,
     /// The property whose colour the screen eyedropper is picking.
     picking: Cell<Option<&'static str>>,
+    /// Quick styles, favourites and themes (add-style-system).
+    styles: Rc<Styles>,
+    /// The theme the tool defaults and the palette swatches were last set from.
+    applied_theme: RefCell<Option<Theme>>,
 }
 
 /// Picks a colour anywhere on the screen.
@@ -389,15 +406,16 @@ impl Editor {
         if let Some(inner) = EDITOR.with(|e| e.borrow().clone()) {
             return Some(Self { inner });
         }
-        let editor = Self::build(app, default_store())?;
+        let editor = Self::build(app, default_store(), default_style_paths())?;
         EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
         Some(editor)
     }
 
-    fn build(app: &adw::Application, store: Store) -> Option<Self> {
+    fn build(app: &adw::Application, store: Store, style_paths: StylePaths) -> Option<Self> {
         let builder = gtk::Builder::from_resource(UI_EDITOR);
         let w = Widgets::new(&builder)?;
-        let sidebar = Sidebar::new(&builder)?;
+        let styles = Styles::load(style_paths);
+        let sidebar = Sidebar::new(&builder, styles.clone())?;
         let tray = Tray::new(&builder)?;
         w.window.set_application(Some(app));
         let settings = gio::Settings::new(config::APP_ID);
@@ -419,6 +437,8 @@ impl Editor {
             toolbox: Rc::new(RefCell::new(Toolbox::default())),
             screen_picker: RefCell::new(portal_picker()),
             picking: Cell::new(None),
+            styles,
+            applied_theme: RefCell::new(None),
         });
         let editor = Self { inner };
         editor.setup();
@@ -1443,6 +1463,14 @@ impl Editor {
         if on_slider && is_navigation_key(key) {
             return false;
         }
+        // A quick style grid moves, applies, renames, reorders and deletes its tiles with
+        // these keys (add-style-system redline "Keyboard"), not the selection.
+        let on_style_grid = focus
+            .ancestor(gtk::FlowBox::static_type())
+            .is_some_and(|grid| grid.has_css_class("annota-style-grid"));
+        if on_style_grid && is_style_grid_key(key) {
+            return false;
+        }
         on_canvas || !activates
     }
 
@@ -1550,6 +1578,20 @@ impl Editor {
             }
         });
         let weak = self.downgrade();
+        self.inner.sidebar.quick.connect_event(move |event| {
+            if let Some(editor) = weak.upgrade() {
+                editor.quick_event(event);
+            }
+        });
+        let weak = self.downgrade();
+        self.inner.styles.connect_changed(move || {
+            if let Some(editor) = weak.upgrade() {
+                editor.styles_changed();
+            }
+        });
+        // The current theme's defaults and palette from the start.
+        self.apply_theme();
+        let weak = self.downgrade();
         self.inner
             .settings
             .connect_changed(Some("snap-to-guides"), move |settings, key| {
@@ -1640,6 +1682,89 @@ impl Editor {
             }
             PanelEvent::NextStep(n) => canvas.set_next_step(Some(n)),
         }
+    }
+
+    // ---- quick styles and themes (add-style-system) ----
+
+    /// What the quick styles ask for.
+    fn quick_event(&self, event: QuickEvent) {
+        match event {
+            QuickEvent::Apply(values) => {
+                if let Some(canvas) = self.current_canvas() {
+                    if !canvas.apply_style(&values) {
+                        self.refresh_sidebar();
+                    }
+                }
+            }
+            QuickEvent::Favourite(tool, values) => self.apply_favourite(tool, &values),
+            QuickEvent::UseTheme(id) => self.inner.styles.set_theme(&id),
+            QuickEvent::ManageThemes => self.present_themes(),
+            QuickEvent::Toast(title, undo) => {
+                let toast = adw::Toast::new(&title);
+                toast.set_use_markup(false);
+                // Its Undo is for what was just done: shown at once, not queued behind an
+                // earlier toast.
+                toast.set_priority(adw::ToastPriority::High);
+                if let Some(undo) = undo {
+                    toast.set_button_label(Some(&gettext("Undo")));
+                    toast.connect_button_clicked(move |_| undo());
+                }
+                self.inner.w.toast_overlay.add_toast(toast);
+            }
+        }
+    }
+
+    /// A favourite (scenario "Use favourite", mockups 04 → 05): its tool becomes active with
+    /// that style. A selection of that tool's objects gets the style (one undo step); any other
+    /// selection is let go, so the tool's defaults show and take the style.
+    fn apply_favourite(&self, tool: Tool, values: &[annota::document::annotation::Property]) {
+        let Some(canvas) = self.current_canvas() else {
+            return;
+        };
+        let selection = canvas.selection();
+        let own = canvas.with_document(|doc| {
+            !selection.is_empty()
+                && selection.iter().all(|id| {
+                    doc.scene()
+                        .get(*id)
+                        .is_some_and(|n| Some(n.object.type_name()) == tool.object_type())
+                })
+        });
+        if own != Some(true) {
+            canvas.deselect();
+        }
+        self.select_tool(tool);
+        canvas.apply_style(values);
+        self.refresh_sidebar();
+    }
+
+    /// The styles or themes changed: a different (or edited) current theme sets the tools'
+    /// defaults to its first styles and the palette swatches to its colours.
+    fn styles_changed(&self) {
+        self.apply_theme();
+        self.refresh_sidebar();
+    }
+
+    fn apply_theme(&self) {
+        let theme = self.inner.styles.current_theme();
+        if self.inner.applied_theme.borrow().as_ref() == Some(&theme) {
+            return;
+        }
+        {
+            let mut toolbox = self.inner.toolbox.borrow_mut();
+            for tool in style_value::TOOLS {
+                for p in generate::style(&theme, tool, 0) {
+                    let _ = toolbox.set_property(tool, p.key, &p.value);
+                }
+            }
+        }
+        self.inner.sidebar.panel.set_palette(&theme.colours);
+        self.inner.applied_theme.replace(Some(theme));
+    }
+
+    /// The theme editor (mockup 06).
+    fn present_themes(&self) {
+        theme_editor::present(&self.inner.w.window, self.inner.styles.clone());
     }
 
     /// The eyedropper (redline "Eyedropper", mockup 17): xdg-desktop-portal picks a colour
@@ -2095,6 +2220,24 @@ fn is_navigation_key(key: gdk::Key) -> bool {
     )
 }
 
+/// Keys a focused quick style grid uses itself.
+fn is_style_grid_key(key: gdk::Key) -> bool {
+    is_navigation_key(key)
+        || matches!(
+            key,
+            gdk::Key::Delete
+                | gdk::Key::KP_Delete
+                | gdk::Key::BackSpace
+                | gdk::Key::F2
+                | gdk::Key::F10
+                | gdk::Key::Menu
+                | gdk::Key::Return
+                | gdk::Key::KP_Enter
+                | gdk::Key::ISO_Enter
+                | gdk::Key::space
+        )
+}
+
 fn is_image_op_key(key: gdk::Key, modifiers: gdk::ModifierType) -> bool {
     let ctrl = modifiers.contains(gdk::ModifierType::CONTROL_MASK);
     let other = modifiers.intersects(gdk::ModifierType::ALT_MASK | gdk::ModifierType::SUPER_MASK);
@@ -2188,6 +2331,14 @@ mod tests {
         app
     }
 
+    /// Quick styles and themes in the test's directory, no system themes.
+    fn style_paths(tmp: &Path) -> StylePaths {
+        StylePaths {
+            data: tmp.join("styles"),
+            system_themes: tmp.join("system-themes"),
+        }
+    }
+
     fn sample(path: &Path) {
         let mut doc = Document::with_title(
             Bitmap::filled(1600, 1000, palette::PAPER).unwrap(),
@@ -2276,7 +2427,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp.0);
         // Before GLib reads it: the default autosave store lives in the temporary directory.
         std::env::set_var("XDG_CACHE_HOME", tmp.0.join("cache"));
+        // Quick styles too (add-style-system): never the real ones.
+        std::env::set_var("XDG_DATA_HOME", tmp.0.join("data"));
         let app = environment(&tmp.0);
+        assert!(default_style_paths().data.starts_with(&tmp.0));
         assert!(
             default_store().dir().starts_with(&tmp.0),
             "never the real cache"
@@ -2374,6 +2528,25 @@ mod tests {
         false
     }
 
+    /// Clicks the shown button labelled `text` under `root` (a toast's Undo); whether there was
+    /// one.
+    fn click_button(root: &gtk::Widget, text: &str) -> bool {
+        if let Some(button) = root.downcast_ref::<gtk::Button>() {
+            if button.label().as_deref() == Some(text) && button.is_mapped() {
+                button.emit_clicked();
+                return true;
+            }
+        }
+        let mut child = root.first_child();
+        while let Some(c) = child {
+            if click_button(&c, text) {
+                return true;
+            }
+            child = c.next_sibling();
+        }
+        false
+    }
+
     /// N1: a document with an object of a type from a newer Annota disables crop, rotate, flip,
     /// resize image and flatten (menu, sidebar, keys), says why, and keeps the rest editable.
     /// Run on its own like the test below.
@@ -2385,7 +2558,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp.0);
         std::fs::create_dir_all(tmp.0.join("captures")).unwrap();
         let app = environment(&tmp.0);
-        let editor = Editor::build(&app, Store::new(tmp.0.join("autosave"))).unwrap();
+        let editor = Editor::build(
+            &app,
+            Store::new(tmp.0.join("autosave")),
+            style_paths(&tmp.0),
+        )
+        .unwrap();
         EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
         let w = &editor.inner.w;
         w.window.set_default_size(1280, 800);
@@ -2519,7 +2697,7 @@ mod tests {
         std::fs::create_dir_all(tmp.0.join("captures")).unwrap();
         let app = environment(&tmp.0);
         let store = Store::new(tmp.0.join("autosave"));
-        let editor = Editor::build(&app, store.clone()).unwrap();
+        let editor = Editor::build(&app, store.clone(), style_paths(&tmp.0)).unwrap();
         // The application's editor window, as `get_or_create` would have registered it.
         EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
         let settings = editor.inner.settings.clone();
@@ -2982,7 +3160,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp.0);
         std::fs::create_dir_all(tmp.0.join("captures")).unwrap();
         let app = environment(&tmp.0);
-        let editor = Editor::build(&app, Store::new(tmp.0.join("autosave"))).unwrap();
+        let editor = Editor::build(
+            &app,
+            Store::new(tmp.0.join("autosave")),
+            style_paths(&tmp.0),
+        )
+        .unwrap();
         EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
         let w = &editor.inner.w;
         w.window.set_default_size(1280, 800);
@@ -3142,7 +3325,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp.0);
         std::fs::create_dir_all(tmp.0.join("captures")).unwrap();
         let app = environment(&tmp.0);
-        let editor = Editor::build(&app, Store::new(tmp.0.join("autosave"))).unwrap();
+        let editor = Editor::build(
+            &app,
+            Store::new(tmp.0.join("autosave")),
+            style_paths(&tmp.0),
+        )
+        .unwrap();
         EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
         let w = &editor.inner.w;
         w.window.set_default_size(1280, 800);
@@ -3216,7 +3404,10 @@ mod tests {
             sidebar.stack.visible_child_name().as_deref(),
             Some("selection")
         );
-        assert_eq!(sidebar.selection_heading.text(), "Arrow");
+        // add-style-system: the tool's name moved to the quick styles' toggle; the heading of
+        // the rows says "Properties" (mockup 01).
+        assert_eq!(sidebar.selection_heading.text(), "Properties");
+        assert_eq!(sidebar.quick.tool_label(), "Arrow");
         assert_eq!(sidebar.selection_caption.text(), "Tool defaults");
         assert!(!sidebar.arrange_box.is_visible());
         assert_eq!(
@@ -3575,6 +3766,446 @@ mod tests {
             Some(PropertyValue::Bool(false))
         );
         let _ = Arrow::TYPE;
+        window_done(&w.window);
+    }
+
+    const HARBOR: &str = r##"{"format": "1.0", "requires": "0.1", "name": "Harbor Corporate",
+        "colours": ["#14324F", "#3FA7D6", "#F0C808", "#D1495B"],
+        "fonts": {"heading": "DejaVu Serif", "body": "DejaVu Sans"}}"##;
+
+    /// An editor window in `tmp` with one document open and Harbor Corporate installed "by an
+    /// administrator" (the test's system theme directory).
+    fn styles_editor(tmp: &Path) -> Editor {
+        std::fs::create_dir_all(tmp.join("captures")).unwrap();
+        std::fs::create_dir_all(tmp.join("system-themes")).unwrap();
+        std::fs::write(tmp.join("system-themes/harbor.annota-theme"), HARBOR).unwrap();
+        let app = environment(tmp);
+        let editor =
+            Editor::build(&app, Store::new(tmp.join("autosave")), style_paths(tmp)).unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let file = tmp.join("captures/Checkout flow.annota");
+        sample(&file);
+        editor.open_file(&file);
+        pump(300);
+        editor
+    }
+
+    fn tool_default(editor: &Editor, tool: Tool, key: &str) -> Option<PropertyValue> {
+        editor
+            .inner
+            .toolbox
+            .borrow()
+            .properties(tool)
+            .into_iter()
+            .find(|p| p.key == key)
+            .map(|p| p.value)
+    }
+
+    /// add-style-system tasks 2.1, 2.2 and the theme switcher: the quick style grid, Save as
+    /// Quick Style, the context menu and its keys, Favourites, switching themes.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn quick_styles_on_a_live_display() {
+        use annota::document::color::palette;
+        use annota::document::geometry::Point;
+        use annota::styles::library::Library;
+
+        let tmp =
+            TempDir(std::env::temp_dir().join(format!("annota-quick-test-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        let editor = styles_editor(&tmp.0);
+        let w = &editor.inner.w;
+        let canvas = editor.current_canvas().unwrap();
+        canvas.grab_focus();
+        let none = gdk::ModifierType::empty();
+        let sidebar = &editor.inner.sidebar;
+        let quick = &sidebar.quick;
+        let at = |x: f64, y: f64| canvas.view_point(Point::new(x, y)).unwrap();
+        let revision = || canvas.history_info().revision;
+        let library = || {
+            Library::parse(&std::fs::read_to_string(tmp.0.join("styles/styles.json")).unwrap())
+                .unwrap()
+        };
+
+        // Mockup 01: the arrow tool: "Arrow | Favourites", eight theme styles, the first one
+        // (the built-in default) selected, nothing modified, nothing to save.
+        assert!(editor.key_pressed(gdk::Key::a, none));
+        pump(50);
+        assert_eq!(quick.tool_label(), "Arrow");
+        let tiles = quick.tiles();
+        assert_eq!(tiles.len(), 8, "no user styles yet");
+        assert!(tiles[0].1 && tiles.iter().skip(1).all(|t| !t.1));
+        assert_eq!(tiles[0].0, "Coral · 8 px · shadow");
+        assert!(!quick.modified_shown() && !quick.save_enabled());
+        assert_eq!(sidebar.selection_caption.text(), "Tool defaults");
+        shot(&w.window, "s01-quick-style-grid");
+
+        // Scenario "Save style" (mockups 02, 03): Teal and 12 px → Modified, Save enabled;
+        // the new style is the last tile, selected, with the halo and a toast with Undo.
+        canvas.set_property("color", PropertyValue::Color(palette::TEAL));
+        canvas.set_property("width", PropertyValue::Number(12.0));
+        pump(50);
+        assert!(quick.modified_shown() && quick.save_enabled());
+        assert!(quick.tiles().iter().all(|t| !t.1), "no tile matches");
+        let (name, summary, place) = quick.open_save();
+        assert_eq!(name, "Teal bold");
+        assert_eq!(summary, "Teal · 12 px · shadow");
+        assert_eq!(place, "Added to the end of Arrow");
+        pump(50);
+        shot(&w.window, "s02-save-as-quick-style");
+        quick.save();
+        pump(50);
+        let tiles = quick.tiles();
+        assert_eq!(tiles.len(), 9);
+        assert!(tiles[8].0.starts_with("Teal bold\n"));
+        assert!(tiles[8].1, "selected");
+        assert!(tiles[8].2, "Add to Favourites was checked");
+        assert!(quick.has_halo(8));
+        assert!(!quick.modified_shown() && !quick.save_enabled());
+        assert!(shows_label(
+            w.toast_overlay.upcast_ref(),
+            "Quick style “Teal bold” saved"
+        ));
+        assert_eq!(
+            library().styles(Tool::Arrow).len(),
+            1,
+            "saved to styles.json"
+        );
+        shot(&w.window, "s03-style-saved");
+        // Mockup 03: Delete in the destructive colour, the other items not.
+        let delete = quick.menu_item_colour(8, "Delete").unwrap();
+        let apply = quick.menu_item_colour(8, "Apply").unwrap();
+        assert!(delete.red() > 0.6 && delete.green() < 0.3, "{delete}");
+        assert!(apply.red() < 0.3, "{apply}");
+        assert!(
+            quick.menu_item_colour(0, "Delete").is_none(),
+            "theme styles have no Delete"
+        );
+        // The Menu key and Shift+F10 open it on the focused tile.
+        assert!(quick.press_on(8, gdk::Key::Menu, none));
+        assert!(quick.menu_shown());
+        assert!(quick.press_on(0, gdk::Key::F10, gdk::ModifierType::SHIFT_MASK));
+        assert!(quick.menu_shown());
+        pump(2100);
+        assert!(!quick.has_halo(8), "the halo fades after 2 s");
+
+        // A theme tile applies to the tool defaults; no document step.
+        let before = revision();
+        quick.activate(2);
+        pump(50);
+        assert_eq!(revision(), before);
+        assert_eq!(
+            tool_default(&editor, Tool::Arrow, "color"),
+            Some(PropertyValue::Color(palette::LIME))
+        );
+        assert!(quick.tiles()[2].1);
+
+        // On a selection: one undo step for all the style's properties.
+        let draw = |from: (f64, f64), to: (f64, f64)| {
+            canvas.pointer_pressed(at(from.0, from.1), Default::default());
+            canvas.pointer_moved(at(to.0, to.1), Default::default());
+            canvas.pointer_released();
+            pump(30);
+        };
+        draw((400.0, 300.0), (900.0, 500.0));
+        assert_eq!(sidebar.selection_caption.text(), "1 selected");
+        let before = revision();
+        quick.activate(8);
+        pump(50);
+        assert_eq!(revision(), before + 1);
+        assert_eq!(canvas.undo_label().as_deref(), Some("Apply Style to Arrow"));
+        let arrow = || {
+            canvas
+                .with_document(|d| {
+                    let id = *d.scene().of_type("arrow").last().unwrap();
+                    d.scene().get(id).unwrap().object.clone()
+                })
+                .unwrap()
+        };
+        assert_eq!(
+            ops::property(arrow().as_ref(), "color"),
+            Some(PropertyValue::Color(palette::TEAL))
+        );
+        assert_eq!(
+            ops::property(arrow().as_ref(), "width"),
+            Some(PropertyValue::Number(12.0))
+        );
+        // Already in use: no phantom step.
+        quick.activate(8);
+        pump(30);
+        assert_eq!(revision(), before + 1);
+        canvas.undo();
+        pump(30);
+        assert_eq!(
+            ops::property(arrow().as_ref(), "color"),
+            Some(PropertyValue::Color(palette::LIME)),
+            "one undo restores every property"
+        );
+
+        // A second user style, then the keyboard (redline): F2 renames, Ctrl+← moves, Delete
+        // deletes (toast with Undo) — and none of these keys reach the canvas's selection.
+        quick.menu_action(8, "apply");
+        pump(30);
+        canvas.set_property("width", PropertyValue::Number(4.0));
+        pump(30);
+        let (name, _, _) = quick.open_save();
+        assert_eq!(name, "Teal thin");
+        quick.save();
+        pump(50);
+        assert_eq!(quick.tiles().len(), 10);
+        let objects = || canvas.with_document(|d| d.scene().len()).unwrap();
+        let count = objects();
+        assert!(quick.press_on(9, gdk::Key::F2, none));
+        quick.rename_to("Fine teal");
+        pump(30);
+        assert!(quick.tiles()[9].0.starts_with("Fine teal\n"));
+        // Keys on a focused tile stay with the grid.
+        assert!(!editor.routes_to_canvas(gdk::Key::Delete));
+        assert!(!editor.routes_to_canvas(gdk::Key::Left));
+        assert!(!editor.routes_to_canvas(gdk::Key::Menu));
+        assert!(quick.press_on(9, gdk::Key::Left, gdk::ModifierType::CONTROL_MASK));
+        pump(30);
+        let names: Vec<String> = library()
+            .styles(Tool::Arrow)
+            .iter()
+            .map(|s| s.name.clone())
+            .collect();
+        assert_eq!(names, ["Fine teal", "Teal bold"]);
+        assert!(!quick.menu_action(8, "move-left"), "disabled at the start");
+        assert!(quick.press_on(8, gdk::Key::Delete, none));
+        pump(50);
+        assert_eq!(objects(), count, "the selection was not deleted");
+        assert_eq!(library().styles(Tool::Arrow).len(), 1);
+        assert!(shows_label(
+            w.toast_overlay.upcast_ref(),
+            "Quick style “Fine teal” deleted"
+        ));
+        // The toast's Undo puts it back where it was.
+        pump(300);
+        assert!(click_button(w.toast_overlay.upcast_ref(), "Undo"));
+        pump(50);
+        let names: Vec<String> = library()
+            .styles(Tool::Arrow)
+            .iter()
+            .map(|s| s.name.clone())
+            .collect();
+        assert_eq!(names, ["Fine teal", "Teal bold"]);
+        assert_eq!(quick.tiles().len(), 10);
+        // Delete again for what follows.
+        assert!(quick.press_on(8, gdk::Key::Delete, none));
+        pump(50);
+        // Theme tiles have no Rename/Delete/Move; Update from Current Properties on a user one.
+        assert!(!quick.menu_action(0, "delete"));
+        assert!(!quick.menu_action(0, "rename"));
+        assert!(!quick.press_on(0, gdk::Key::Delete, none));
+        canvas.set_property("width", PropertyValue::Number(20.0));
+        pump(30);
+        assert!(quick.menu_action(8, "update"));
+        pump(30);
+        assert!(quick.tiles()[8].1 && !quick.modified_shown());
+
+        // Favourites (mockups 04, 05): star a callout theme style; the view groups by tool.
+        assert!(editor.key_pressed(gdk::Key::Escape, none));
+        assert!(editor.key_pressed(gdk::Key::Escape, none));
+        assert!(canvas.selection().is_empty());
+        assert!(editor.key_pressed(gdk::Key::k, none));
+        pump(30);
+        assert_eq!(quick.tool_label(), "Callout");
+        assert!(quick.menu_action(3, "star"));
+        assert!(!quick.menu_action(3, "star"), "already starred");
+        assert!(quick.tiles()[3].2);
+        assert!(editor.key_pressed(gdk::Key::a, none));
+        draw((300.0, 700.0), (600.0, 800.0));
+        quick.show_favourites(true);
+        pump(50);
+        let (visible, groups) = quick.favourites();
+        assert!(visible && !sidebar.stack.is_visible());
+        assert_eq!(
+            groups,
+            [("Arrow".to_string(), 1), ("Callout".to_string(), 1)]
+        );
+        shot(&w.window, "s04-favourites");
+        // Scenario "Use favourite": the callout tool becomes active with that style; the arrow
+        // selection is let go.
+        quick.activate_favourite(1);
+        pump(50);
+        assert_eq!(editor.inner.tool.get(), Tool::Callout);
+        assert!(canvas.selection().is_empty());
+        assert_eq!(quick.tool_label(), "Callout");
+        assert!(sidebar.stack.is_visible(), "back to the tool's page");
+        assert!(quick.tiles()[3].1, "the favourite's tile is selected");
+        assert_eq!(
+            tool_default(&editor, Tool::Callout, "fill"),
+            Some(PropertyValue::Color(palette::TEAL))
+        );
+        shot(&w.window, "s05-favourite-applied");
+        // Nothing starred: only the hint.
+        let favourites: Vec<_> = editor
+            .inner
+            .styles
+            .library()
+            .favourites()
+            .into_iter()
+            .cloned()
+            .collect();
+        for f in favourites {
+            editor.inner.styles.change(|l| l.set_favourite(&f, false));
+        }
+        quick.show_favourites(true);
+        pump(30);
+        let (visible, groups) = quick.favourites();
+        assert!(visible && groups.is_empty());
+        quick.show_favourites(false);
+
+        // The theme switcher (mockup 07): built-in, the administrator's, a check on the current
+        // one. Picking Harbor colours every tool's theme styles and the palette swatches, and
+        // sets the tool defaults; user styles stay.
+        assert_eq!(
+            quick.theme_rows(),
+            ["annota", "monochrome", "system/harbor"]
+        );
+        assert!(editor.key_pressed(gdk::Key::a, none));
+        pump(30);
+        quick.pick_theme(2);
+        pump(50);
+        let navy = annota::document::color::Rgba::opaque(0x14, 0x32, 0x4F);
+        assert_eq!(editor.inner.styles.current_theme().id, "system/harbor");
+        assert_eq!(
+            tool_default(&editor, Tool::Arrow, "color"),
+            Some(PropertyValue::Color(navy))
+        );
+        assert_eq!(
+            tool_default(&editor, Tool::Step, "color"),
+            Some(PropertyValue::Color(navy))
+        );
+        assert_eq!(
+            tool_default(&editor, Tool::Text, "font_family"),
+            Some(PropertyValue::Text("DejaVu Serif".into()))
+        );
+        assert_eq!(sidebar.panel.palette.borrow()[0], navy);
+        let tiles = quick.tiles();
+        assert!(tiles[0].1, "the new defaults are the theme's first style");
+        assert_eq!(tiles.len(), 9, "the user's style stays");
+        assert_eq!(library().theme, "system/harbor");
+        shot(&w.window, "s07-theme-applied");
+        window_done(&w.window);
+    }
+
+    /// add-style-system tasks 2.3, 2.4: the theme editor, managed themes, import/export.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn theme_editor_on_a_live_display() {
+        use annota::document::color::Rgba;
+        use annota::styles::store;
+
+        let tmp =
+            TempDir(std::env::temp_dir().join(format!("annota-theme-test-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        let editor = styles_editor(&tmp.0);
+        let w = &editor.inner.w;
+        let styles = editor.inner.styles.clone();
+        let themes = theme_editor::present(&w.window, styles.clone()).unwrap();
+        pump(200);
+        assert_eq!(themes.list(), ["annota", "monochrome", "system/harbor"]);
+        assert_eq!(themes.selected(), "annota");
+        // (banner, name editable, fonts, Add tile, More menu, Use Theme)
+        assert_eq!(
+            themes.detail(),
+            (false, false, false, false, true, false),
+            "Annota in use"
+        );
+        shot(&w.window, "s06-theme-editor");
+
+        // Scenario "Managed theme" (mockup 08): read-only, banner, no Add, no More menu.
+        themes.show_theme("system/harbor");
+        pump(50);
+        assert_eq!(themes.detail(), (true, false, false, false, false, true));
+        shot(&w.window, "s08-managed-theme");
+        // Duplicate makes an editable copy under My Themes.
+        themes.duplicate_for_test();
+        pump(50);
+        assert_eq!(themes.selected(), "user/harbor-corporate-copy");
+        assert_eq!(themes.detail(), (false, true, true, true, true, true));
+        let theme = || styles.theme(&themes.selected()).unwrap();
+        assert_eq!(theme().name, "Harbor Corporate Copy");
+        themes.rename("Northwind Ferries");
+        pump(30);
+        assert_eq!(theme().name, "Northwind Ferries");
+        // Palette: edit, add (up to 8: the Add tile goes), remove (down to 2), reorder.
+        let blue = Rgba::opaque(0x0B, 0x5C, 0xAD);
+        themes.edit_colour(0, blue);
+        pump(30);
+        assert_eq!(theme().colours[0], blue);
+        for _ in 0..4 {
+            themes.add_colour();
+            pump(20);
+        }
+        assert_eq!(theme().colours.len(), 8);
+        assert!(!themes.detail().3, "no Add tile at 8 colours");
+        themes.move_colour(1, 1);
+        pump(20);
+        assert_eq!(theme().colours[2], Rgba::opaque(0x3F, 0xA7, 0xD6));
+        for _ in 0..7 {
+            themes.remove_colour(0);
+            pump(20);
+        }
+        assert_eq!(theme().colours.len(), 2, "never fewer than 2");
+        // Use Theme: the sidebar's quick styles follow; "In use" replaces the button.
+        themes.use_theme();
+        pump(50);
+        assert_eq!(styles.current_theme().id, "user/harbor-corporate-copy");
+        assert!(!themes.detail().5);
+        // Export, then import: the same theme comes back as a new one.
+        let out = tmp.0.join("northwind.annota-theme");
+        themes.export(&theme(), &out);
+        let exported = store::check(&out).unwrap();
+        assert_eq!(exported.name, "Northwind Ferries");
+        themes.import(&out);
+        pump(50);
+        // Its name is taken (the theme it was exported from): told apart by a number.
+        assert_eq!(themes.selected(), "user/northwind-ferries-2");
+        assert!(shows_label(
+            themes.widget().upcast_ref(),
+            "Theme “Northwind Ferries 2” imported"
+        ));
+        shot(&w.window, "s09-theme-imported");
+        // Mockup 10: an invalid file gets the alert with its reason.
+        let bad = tmp.0.join("brand-2024.annota-theme");
+        let eleven: Vec<String> = (0..11).map(|i| format!("\"#1010{i:02}\"")).collect();
+        std::fs::write(
+            &bad,
+            format!(
+                r#"{{"format": "1.0", "name": "Brand", "colours": [{}], "fonts": {{"heading": "a", "body": "b"}}}}"#,
+                eleven.join(", ")
+            ),
+        )
+        .unwrap();
+        themes.import(&bad);
+        pump(100);
+        let alert = w
+            .window
+            .visible_dialog()
+            .and_downcast::<adw::AlertDialog>()
+            .unwrap();
+        assert_eq!(alert.heading().as_deref(), Some("Can’t Import Theme"));
+        assert_eq!(
+            alert.body().as_str(),
+            "“brand-2024.annota-theme” is not a valid Annota theme. It contains 11 colours; a theme needs 2–8."
+        );
+        shot(&w.window, "s10-import-error");
+        alert.force_close();
+        pump(50);
+        // New theme: from the shown theme, under My Themes.
+        themes.new_theme_for_test();
+        pump(30);
+        assert!(themes.selected().starts_with("user/new-theme"));
+        assert_eq!(themes.list().len(), 6);
+        themes.close();
+        pump(50);
         window_done(&w.window);
     }
 

@@ -533,3 +533,149 @@ banner.annota-warning-banner > revealer > widget {
 popover.annota-colour-popover > contents {
   padding: 12px;
 }
+
+/* ---- add-style-system ---- */
+
+/* "Quick Styles" (redline: 15 px bold); the Favourites captions and the hint (13 px). */
+.annota-section-heading {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.annota-favourites-caption {
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.annota-hint-text,
+.annota-modified-label {
+  font-size: 13px;
+}
+
+/* "Modified": 8 px accent dot. */
+.annota-modified-dot {
+  min-width: 8px;
+  min-height: 8px;
+  border-radius: 4px;
+  background-color: @accent_bg_color;
+}
+
+/* Quick style tiles (redline): 63 × 48, radius 9, always paper — also in dark, so a style
+ * shows as it will on a capture —, a 1 px ring; hover a stronger ring and a tint; selected a
+ * 2 px accent ring; keyboard focus a 2 px accent 50 % outline 2 px out; newly saved also a
+ * 4 px accent 25 % halo that fades. The tile's picture keeps 2 px off the edge, so the ring
+ * stays visible. */
+.annota-style-grid {
+  padding: 0;
+}
+
+.annota-style-grid > flowboxchild,
+.annota-style-tile {
+  min-width: 63px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 9px;
+  background-color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 6, 0.15);
+  transition: box-shadow 600ms ease-out, background-color 150ms;
+}
+
+.annota-style-grid > flowboxchild:hover {
+  background-color: #f4f4f5;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 6, 0.3);
+}
+
+.annota-style-grid > flowboxchild.annota-style-selected {
+  box-shadow: inset 0 0 0 2px @accent_bg_color;
+}
+
+.annota-style-grid > flowboxchild:focus-visible {
+  outline: 2px solid alpha(@accent_bg_color, 0.5);
+  outline-offset: 2px;
+}
+
+.annota-style-grid > flowboxchild.annota-style-new {
+  box-shadow: inset 0 0 0 2px @accent_bg_color, 0 0 0 4px alpha(@accent_bg_color, 0.25);
+}
+
+/* Favourite: the star 12 px in Annota amber, top-right. */
+.annota-style-star {
+  color: #f5a524;
+}
+
+/* The theme switcher (mockup 07): 250 px, rows like menu items. */
+popover.annota-theme-switcher > contents {
+  padding: 6px;
+}
+
+.annota-theme-list {
+  background: none;
+}
+
+.annota-theme-list > row {
+  border-radius: 6px;
+}
+
+button.annota-menu-item {
+  font-weight: normal;
+  padding: 6px 12px;
+}
+
+/* Theme editor (mockups 06, 08): the list on the sidebar background; the managed banner;
+ * 40 px swatches with radius 9 and the hex below (11 px mono); the dashed Add tile. */
+.annota-theme-sidebar {
+  background-color: @sidebar_bg_color;
+}
+
+.annota-managed-banner {
+  padding: 6px 6px 6px 18px;
+  border-radius: 12px;
+  background-color: alpha(@accent_bg_color, 0.2);
+}
+
+button.annota-theme-swatch {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 9px;
+  background: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 6, 0.1);
+}
+
+button.annota-theme-add {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 9px;
+  background: none;
+  border: 1px dashed alpha(currentColor, 0.4);
+}
+
+.annota-hex-caption {
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.annota-theme-preview {
+  padding: 12px;
+}
+
+.annota-preview-heading {
+  font-size: 15px;
+}
+
+/* A read-only theme's name (mockup 08): the lock, no edit pencil. */
+.annota-readonly .edit-icon {
+  opacity: 0;
+}
+
+/* Delete in a quick style's context menu (mockup 03): the destructive text colour. It is the
+ * menu's last section. */
+popover.annota-style-menu stack > box > box > box:last-child modelbutton {
+  color: @destructive_color;
+}
+
+/* The theme dropdown (redline: chips + theme name, 13 px, flat). */
+.annota-theme-button label {
+  font-weight: normal;
+}

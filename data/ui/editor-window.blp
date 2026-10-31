@@ -778,7 +778,65 @@ Adw.ApplicationWindow editor_window {
 // The properties (redline "Sidebar contents"). Lives in the sidebar or in the bottom sheet.
 Box properties_box {
   orientation: vertical;
+  spacing: 18;
   styles ["annota-properties"]
+
+  // Quick styles (add-style-system mockups 01, 04): "<Tool>" | Favourites, full width. Shown
+  // with the type properties of a tool or a selection of one type.
+  Box quick_switch {
+    visible: false;
+    homogeneous: true;
+    styles ["annota-segmented"]
+
+    ToggleButton quick_tool_toggle {
+      active: true;
+
+      accessibility {
+        label: _("Quick Styles of This Tool");
+      }
+    }
+
+    ToggleButton quick_favourites_toggle {
+      group: quick_tool_toggle;
+
+      child: Box {
+        halign: center;
+        spacing: 6;
+
+        Image {
+          icon-name: "starred-symbolic";
+        }
+
+        Label {
+          label: _("Favourites");
+        }
+      };
+
+      accessibility {
+        label: _("Favourites");
+      }
+    }
+  }
+
+  // Favourites (mockup 04): the starred styles of every tool, grouped by tool (built in code),
+  // then the hint. With nothing starred only the hint shows.
+  Box favourites_view {
+    visible: false;
+    orientation: vertical;
+    spacing: 18;
+
+    Box favourites_groups {
+      orientation: vertical;
+      spacing: 18;
+    }
+
+    Label favourites_hint {
+      label: _("Pick a favourite to switch to its tool. Star any quick style with right-click → Add to Favourites.");
+      wrap: true;
+      xalign: 0;
+      styles ["dim-label", "annota-hint-text"]
+    }
+  }
 
   Stack properties_stack {
     vhomogeneous: false;
@@ -1321,12 +1379,155 @@ Box properties_box {
         orientation: vertical;
         spacing: 18;
 
+        // Quick styles of the tool (add-style-system mockups 01–03, 05, 07): the theme's eight
+        // generated styles, then "My Styles". Tiles are built in code (`quick_styles.rs`).
+        Box quick_styles {
+          visible: false;
+          orientation: vertical;
+          spacing: 12;
+
+          Label {
+            label: _("Quick Styles");
+            xalign: 0;
+            styles ["annota-section-heading"]
+          }
+
+          Box {
+            spacing: 12;
+
+            Label {
+              label: _("Theme");
+              hexpand: true;
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            MenuButton theme_button {
+              tooltip-text: _("Theme");
+              styles ["flat", "annota-theme-button"]
+
+              child: Box {
+                spacing: 8;
+
+                DrawingArea theme_chips {
+                  content-width: 46;
+                  content-height: 10;
+                  valign: center;
+                  can-target: false;
+                }
+
+                Label theme_name {
+                  ellipsize: end;
+                  max-width-chars: 18;
+                }
+
+                Image {
+                  icon-name: "pan-down-symbolic";
+                }
+              };
+
+              popover: Popover theme_switcher {
+                styles ["menu", "annota-theme-switcher"]
+
+                child: Box {
+                  orientation: vertical;
+                  width-request: 250;
+
+                  ListBox theme_list {
+                    selection-mode: none;
+                    styles ["annota-theme-list"]
+                  }
+
+                  Separator {
+                    margin-top: 6;
+                    margin-bottom: 6;
+                  }
+
+                  Button manage_themes_button {
+                    styles ["flat", "annota-menu-item"]
+
+                    child: Label {
+                      label: _("Manage Themes…");
+                      xalign: 0;
+                    };
+                  }
+                };
+              };
+
+              accessibility {
+                label: _("Theme");
+              }
+            }
+          }
+
+          // 63 × 48 tiles (redline) also where the sidebar is wider than 300 px.
+          FlowBox theme_grid {
+            halign: start;
+            min-children-per-line: 4;
+            max-children-per-line: 4;
+            column-spacing: 8;
+            row-spacing: 8;
+            homogeneous: true;
+            selection-mode: none;
+            activate-on-single-click: true;
+            styles ["annota-style-grid"]
+
+            accessibility {
+              label: _("Theme Quick Styles");
+            }
+          }
+
+          Label my_styles_caption {
+            label: _("My Styles");
+            xalign: 0;
+            margin-top: 6;
+            styles ["dim-label"]
+          }
+
+          FlowBox user_grid {
+            halign: start;
+            min-children-per-line: 4;
+            max-children-per-line: 4;
+            column-spacing: 8;
+            row-spacing: 8;
+            homogeneous: true;
+            selection-mode: none;
+            activate-on-single-click: true;
+            styles ["annota-style-grid"]
+
+            accessibility {
+              label: _("My Styles");
+            }
+          }
+        }
+
         Box {
+          spacing: 8;
+
           Label selection_heading {
             hexpand: true;
             xalign: 0;
             ellipsize: end;
             styles ["heading"]
+          }
+
+          // "Modified": the values differ from every quick style (redline, mockup 02).
+          Box style_modified {
+            visible: false;
+            spacing: 6;
+            valign: center;
+
+            Box {
+              width-request: 8;
+              height-request: 8;
+              valign: center;
+              styles ["annota-modified-dot"]
+            }
+
+            Label {
+              label: _("Modified");
+              styles ["dim-label", "annota-modified-label"]
+            }
           }
 
           Label selection_caption {
@@ -3123,6 +3324,103 @@ Box properties_box {
           }
         }
 
+        // Redline: full-width, `plus` "Save as Quick Style", disabled when nothing changed.
+        MenuButton save_style_button {
+          visible: false;
+          sensitive: false;
+          direction: up;
+
+          child: Box {
+            halign: center;
+            spacing: 6;
+
+            Image {
+              icon-name: "list-add-symbolic";
+            }
+
+            Label {
+              label: _("Save as Quick Style");
+            }
+          };
+
+          popover: Popover save_style_popover {
+            position: top;
+            default-widget: save_style_confirm;
+
+            child: Box {
+              orientation: vertical;
+              spacing: 12;
+              width-request: 252;
+
+              Label {
+                label: _("Save as Quick Style");
+                xalign: 0;
+                styles ["heading"]
+              }
+
+              Box {
+                spacing: 12;
+
+                DrawingArea save_style_preview {
+                  content-width: 63;
+                  content-height: 48;
+                  styles ["annota-style-tile"]
+                }
+
+                Box {
+                  orientation: vertical;
+                  valign: center;
+                  spacing: 2;
+
+                  Label save_style_summary {
+                    xalign: 0;
+                    wrap: true;
+                    styles ["dim-label", "caption"]
+                  }
+
+                  Label save_style_where {
+                    xalign: 0;
+                    wrap: true;
+                    styles ["dim-label", "caption"]
+                  }
+                }
+              }
+
+              Entry save_style_name {
+                activates-default: true;
+
+                accessibility {
+                  label: _("Name");
+                }
+              }
+
+              // Mockup 02: checked; it keeps the last choice.
+              CheckButton save_style_favourite {
+                label: _("Add to Favourites");
+                active: true;
+              }
+
+              Box {
+                spacing: 8;
+                halign: end;
+
+                Button save_style_cancel {
+                  label: _("Cancel");
+                }
+
+                Button save_style_confirm {
+                  label: _("Save");
+                  styles ["suggested-action"]
+                }
+              }
+            };
+          };
+
+          accessibility {
+            label: _("Save as Quick Style");
+          }
+        }
+
         Box arrange_box {
           orientation: vertical;
           spacing: 12;
@@ -3449,4 +3747,109 @@ Popover colour_popover {
       }
     }
   };
+}
+
+// Rename a user quick style (context menu Rename…, F2).
+Popover style_rename_popover {
+  default-widget: style_rename_confirm;
+
+  child: Box {
+    orientation: vertical;
+    spacing: 12;
+    width-request: 252;
+
+    Label {
+      label: _("Rename Quick Style");
+      xalign: 0;
+      styles ["heading"]
+    }
+
+    Entry style_rename_entry {
+      activates-default: true;
+
+      accessibility {
+        label: _("Name");
+      }
+    }
+
+    Box {
+      spacing: 8;
+      halign: end;
+
+      Button style_rename_cancel {
+        label: _("Cancel");
+      }
+
+      Button style_rename_confirm {
+        label: _("Rename");
+        styles ["suggested-action"]
+      }
+    }
+  };
+}
+
+// Context menu of a user quick style (add-style-system mockup 03): right-click, long-press or
+// the Menu key. The keys are handled by the grid; here they are only shown (`accel`). Theme
+// styles and the Favourites view show only Apply and the favourite item (the other actions are
+// disabled and hidden).
+menu style_menu {
+  section {
+    item {
+      label: _("Apply");
+      action: "style.apply";
+      accel: "Return";
+    }
+
+    item {
+      label: _("Rename…");
+      action: "style.rename";
+      accel: "F2";
+      hidden-when: "action-disabled";
+    }
+  }
+
+  section {
+    item {
+      label: _("Move Left");
+      action: "style.move-left";
+      accel: "<Control>Left";
+      hidden-when: "action-missing";
+    }
+
+    item {
+      label: _("Move Right");
+      action: "style.move-right";
+      accel: "<Control>Right";
+      hidden-when: "action-missing";
+    }
+  }
+
+  section {
+    item {
+      label: _("Add to Favourites");
+      action: "style.star";
+      hidden-when: "action-disabled";
+    }
+
+    item {
+      label: _("Remove from Favourites");
+      action: "style.unstar";
+      hidden-when: "action-disabled";
+    }
+
+    item {
+      label: _("Update from Current Properties");
+      action: "style.update";
+      hidden-when: "action-missing";
+    }
+  }
+
+  section {
+    item {
+      label: _("Delete");
+      action: "style.delete";
+      accel: "Delete";
+      hidden-when: "action-missing";
+    }
+  }
 }

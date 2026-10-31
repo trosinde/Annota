@@ -28,7 +28,7 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gtk::{gdk, glib, graphene};
 
-use annota::document::annotation::{Annotation, HandleId, Modifiers, PropertyValue};
+use annota::document::annotation::{Annotation, HandleId, Modifiers, Property, PropertyValue};
 use annota::document::bitmap::Bitmap;
 use annota::document::color::Rgba;
 use annota::document::command::{Command, History};
@@ -1332,6 +1332,56 @@ impl Canvas {
         changed || recounted
     }
 
+    /// Applies a quick style (add-style-system) where the sidebar's properties go: the text
+    /// being edited (part of its one undo step), else the selection — **one** undo step for all
+    /// of the style's properties, none if it is already in use —, else the drawing tool's
+    /// defaults (which, like every tool default, are not part of a document's history).
+    /// Returns whether anything changed.
+    pub fn apply_style(&self, values: &[Property]) -> bool {
+        self.with_state(|s| s.property_preview = None);
+        let typed = self
+            .with_state(|s| {
+                s.text.as_mut().map(|t| {
+                    values.iter().fold(false, |changed, p| {
+                        t.set_property(p.key, &p.value) || changed
+                    })
+                })
+            })
+            .flatten();
+        if let Some(changed) = typed {
+            self.view.queue_draw();
+            self.update_chips();
+            self.notify_changed();
+            return changed;
+        }
+        if !self.selection().is_empty() {
+            let edit = self
+                .with_state(|s| ops::set_properties(&s.doc, s.selection.ids(), values))
+                .flatten();
+            let done = edit.is_some_and(|edit| self.execute(edit).is_some());
+            if !done {
+                self.view.queue_draw();
+                self.notify_changed();
+            }
+            return done;
+        }
+        let changed = self
+            .with_state(|s| {
+                let tool = s.tool;
+                let before = s.toolbox.borrow().properties(tool);
+                for p in values {
+                    let _ = s.toolbox.borrow_mut().set_property(tool, p.key, &p.value);
+                }
+                s.toolbox.borrow().properties(tool) != before
+            })
+            .unwrap_or(false);
+        self.update_cursor();
+        self.update_chips();
+        self.view.queue_draw();
+        self.notify_changed();
+        changed
+    }
+
     /// Shows `value` for `key` on the selection or the text being edited without changing the
     /// document (a sidebar slider being dragged); tool defaults have nothing to preview.
     pub fn preview_property(&self, key: &'static str, value: PropertyValue) {
@@ -1843,6 +1893,21 @@ impl Canvas {
     pub fn selection(&self) -> Vec<ObjectId> {
         self.with_state(|s| s.selection.ids().to_vec())
             .unwrap_or_default()
+    }
+
+    /// Lets go of the selection (a favourite of another tool, add-style-system).
+    pub fn deselect(&self) {
+        let had = self
+            .with_state(|s| {
+                let had = !s.selection.is_empty();
+                s.selection.clear();
+                had
+            })
+            .unwrap_or(false);
+        if had {
+            self.view.queue_draw();
+            self.notify_changed();
+        }
     }
 
     /// "Select All <Type>" (sidebar) and the per-type "Select" buttons (mockup 16).

@@ -1,0 +1,368 @@
+using Gtk 4.0;
+using Adw 1;
+
+// Theme editor (add-style-system mockups 06, 08, 09; redline "Theme editor"): 900 × 700, the
+// theme list on the left (260 px), the selected theme on the right. List rows, palette swatches
+// and the preview tiles' drawing are filled in code (`theme_editor.rs`).
+
+menu theme_more_menu {
+  section {
+    item {
+      label: _("Export Theme…");
+      action: "theme.export";
+    }
+
+    item {
+      label: _("Duplicate");
+      action: "theme.duplicate";
+    }
+  }
+
+  section {
+    item {
+      label: _("Delete Theme");
+      action: "theme.delete";
+      hidden-when: "action-disabled";
+    }
+  }
+}
+
+Adw.Dialog theme_editor {
+  content-width: 900;
+  content-height: 700;
+  title: _("Themes");
+
+  child: Adw.ToastOverlay theme_toasts {
+    child: Box {
+      Adw.ToolbarView {
+        width-request: 260;
+        styles ["annota-theme-sidebar"]
+
+        [top]
+        Adw.HeaderBar {
+          show-end-title-buttons: false;
+
+          [start]
+          Button new_theme_button {
+            icon-name: "list-add-symbolic";
+            tooltip-text: _("New Theme");
+
+            accessibility {
+              label: _("New Theme");
+            }
+          }
+
+          title-widget: Label {
+            label: _("Themes");
+            styles ["heading"]
+          };
+
+          [end]
+          Button import_theme_button {
+            icon-name: "folder-symbolic";
+            tooltip-text: _("Import Theme…");
+
+            accessibility {
+              label: _("Import Theme…");
+            }
+          }
+        }
+
+        content: ScrolledWindow {
+          hscrollbar-policy: never;
+          vexpand: true;
+
+          child: ListBox theme_rows {
+            selection-mode: single;
+            styles ["navigation-sidebar"]
+
+            accessibility {
+              label: _("Themes");
+            }
+          };
+        };
+      }
+
+      Separator {}
+
+      Adw.ToolbarView {
+        hexpand: true;
+
+        [top]
+        Adw.HeaderBar {
+          show-start-title-buttons: false;
+
+          [start]
+          Button use_theme_button {
+            label: _("Use Theme");
+            styles ["suggested-action"]
+          }
+
+          [start]
+          Label in_use_label {
+            label: _("In use");
+            margin-start: 6;
+            styles ["dim-label"]
+          }
+
+          title-widget: Label detail_title {
+            ellipsize: end;
+            styles ["heading"]
+          };
+
+          [end]
+          MenuButton theme_more_button {
+            icon-name: "view-more-symbolic";
+            menu-model: theme_more_menu;
+            tooltip-text: _("More");
+
+            accessibility {
+              label: _("More");
+            }
+          }
+
+          [end]
+          Button export_theme_button {
+            icon-name: "annota-export-symbolic";
+            tooltip-text: _("Export Theme…");
+
+            accessibility {
+              label: _("Export Theme…");
+            }
+          }
+        }
+
+        content: ScrolledWindow {
+          hscrollbar-policy: never;
+          vexpand: true;
+
+          child: Adw.Clamp {
+            maximum-size: 600;
+
+            child: Box {
+              orientation: vertical;
+              spacing: 18;
+              margin-top: 6;
+              margin-bottom: 24;
+              margin-start: 24;
+              margin-end: 24;
+
+              // Mockup 08: "Managed by your administrator · read-only" + Duplicate.
+              Box managed_banner {
+                visible: false;
+                spacing: 12;
+                halign: fill;
+                styles ["annota-managed-banner"]
+
+                Label {
+                  label: _("Managed by your administrator · read-only");
+                  hexpand: true;
+                  wrap: true;
+                }
+
+                Button banner_duplicate_button {
+                  label: _("Duplicate");
+                  valign: center;
+                }
+              }
+
+              ListBox {
+                selection-mode: none;
+                styles ["boxed-list"]
+
+                Adw.EntryRow theme_name_row {
+                  title: _("Name");
+
+                  [suffix]
+                  Image name_lock {
+                    icon-name: "changes-prevent-symbolic";
+                    tooltip-text: _("Read-only");
+                    valign: center;
+                  }
+                }
+              }
+
+              Box {
+                orientation: vertical;
+                spacing: 4;
+
+                Label {
+                  label: _("Palette");
+                  xalign: 0;
+                  styles ["heading"]
+                }
+
+                Label {
+                  label: _("2–8 colours. The first colour is the default for every tool.");
+                  xalign: 0;
+                  wrap: true;
+                  styles ["dim-label"]
+                }
+              }
+
+              // Swatches (40 × 40, radius 9) with the hex value below; the dashed Add tile is
+              // hidden at 8 colours and for read-only themes.
+              Box palette_box {
+                spacing: 12;
+              }
+
+              ListBox {
+                selection-mode: none;
+                styles ["boxed-list"]
+
+                Adw.ActionRow {
+                  title: _("Heading font");
+                  subtitle: _("Callout titles, text tool headings");
+                  activatable-widget: heading_font_button;
+
+                  [suffix]
+                  FontDialogButton heading_font_button {
+                    valign: center;
+                    level: family;
+                    use-font: true;
+
+                    dialog: FontDialog {
+                      title: _("Heading font");
+                    };
+                  }
+                }
+
+                Adw.ActionRow {
+                  title: _("Body font");
+                  subtitle: _("Callout and text body, step numbers");
+                  activatable-widget: body_font_button;
+
+                  [suffix]
+                  FontDialogButton body_font_button {
+                    valign: center;
+                    level: family;
+                    use-font: true;
+
+                    dialog: FontDialog {
+                      title: _("Body font");
+                    };
+                  }
+                }
+              }
+
+              Box {
+                orientation: vertical;
+                spacing: 4;
+
+                Label {
+                  label: _("Preview");
+                  xalign: 0;
+                  styles ["heading"]
+                }
+
+                Label {
+                  label: _("Theme quick styles generated for every tool");
+                  xalign: 0;
+                  wrap: true;
+                  styles ["dim-label"]
+                }
+              }
+
+              Box {
+                orientation: vertical;
+                spacing: 12;
+                styles ["card", "annota-theme-preview"]
+
+                Box preview_tiles {
+                  spacing: 8;
+                  homogeneous: true;
+                }
+
+                Separator {}
+
+                Box {
+                  spacing: 12;
+
+                  Label preview_heading {
+                    label: _("Delivery address");
+                    styles ["annota-preview-heading"]
+                  }
+
+                  Label preview_body {
+                    label: _("Enter a 5-digit postcode");
+                    hexpand: true;
+                    xalign: 0;
+                    ellipsize: end;
+                  }
+
+                  Label preview_fonts {
+                    styles ["dim-label", "caption"]
+                  }
+                }
+              }
+            };
+          };
+        };
+      }
+    };
+  };
+}
+
+// A swatch's colour chooser (redline: eyedropper, hex entry, Remove).
+Popover swatch_popover {
+  child: Box {
+    orientation: vertical;
+    spacing: 12;
+    width-request: 220;
+
+    Box {
+      spacing: 8;
+
+      Entry swatch_hex {
+        hexpand: true;
+        max-width-chars: 9;
+
+        accessibility {
+          label: _("Hex");
+        }
+      }
+
+      Button swatch_pick {
+        icon-name: "color-select-symbolic";
+        tooltip-text: _("Pick From Screen");
+
+        accessibility {
+          label: _("Pick From Screen");
+        }
+      }
+    }
+
+    Button swatch_custom {
+      label: _("Custom Colour…");
+    }
+
+    Box {
+      spacing: 8;
+
+      Button swatch_move_left {
+        icon-name: "go-previous-symbolic";
+        tooltip-text: _("Move Left (Ctrl+←)");
+
+        accessibility {
+          label: _("Move Left");
+        }
+      }
+
+      Button swatch_move_right {
+        icon-name: "go-next-symbolic";
+        tooltip-text: _("Move Right (Ctrl+→)");
+
+        accessibility {
+          label: _("Move Right");
+        }
+      }
+
+      Button swatch_remove {
+        label: _("Remove");
+        hexpand: true;
+        halign: end;
+        styles ["destructive-action"]
+      }
+    }
+  };
+}

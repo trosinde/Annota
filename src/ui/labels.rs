@@ -67,6 +67,7 @@ pub fn undo_label(edit: &Edit) -> String {
         Action::Insert => with_object(gettext("Insert {object}")),
         Action::Add => with_object(gettext("Add {object}")),
         Action::Style => with_object(gettext("Change {object}")),
+        Action::ApplyStyle => with_object(gettext("Apply Style to {object}")),
         Action::Crop => gettext("Crop"),
         Action::ResizeImage => gettext("Resize Image"),
         Action::RotateLeft => gettext("Rotate Left"),
