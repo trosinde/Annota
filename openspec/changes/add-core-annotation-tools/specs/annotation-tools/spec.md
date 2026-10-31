@@ -99,8 +99,9 @@ The redact tool SHALL support types blur, pixelate and solid, with intensity and
 - **THEN** the area shows blocks of averaged colour on the canvas and in the export, and the text cannot be read
 
 ### Requirement: Redaction export warning
-When exporting or sharing a document that contains blur or pixelate redactions, the system SHALL warn that these may be reversible and offer to convert them to solid. The warning applies to every way out of Annota: export, copy, drag and share (decision D7).
+When exporting or sharing a document that contains blur or pixelate redactions, the system SHALL warn that these may be reversible and offer to convert them to solid. The warning applies to every way out of Annota: export, copy, drag and share (decision D7). None of those paths exist yet — `add-export-share` completes this requirement with a `MODIFIED Requirements` delta once they do.
 
-#### Scenario: Export warning
-- **WHEN** a document with a pixelate redaction is exported
-- **THEN** a warning offers conversion to solid boxes
+#### Scenario: No way out of Annota yet
+- **WHEN** a document contains a blur or pixelate redaction
+- **THEN** the redaction renders and is editable like any object
+- **AND** no export/copy/drag/share path exists yet to warn on, since `add-export-share` hasn't shipped

@@ -22,7 +22,11 @@
 - [ ] 2.7 Redaction export warning — add-core-annotation-tools builds blur, pixelate and solid
       redactions (`annota::tools::redaction::Redaction`) but has no way out of Annota to guard;
       its requirement "Redaction export warning" (spec annotation-tools, decision D7, that
-      change's mockup 19 and this change's mockup 10) is verified here. Before every export,
+      change's mockup 19 and this change's mockup 10) is only a placeholder scenario there (no
+      export path exists yet when that change archives) — complete it here as a `## MODIFIED
+      Requirements` delta on the `annotation-tools` capability, full requirement block copied
+      from the archived spec per the project's established MODIFIED-delta convention. Before
+      every export,
       Copy, drag-out, share and quick save of a document with blur or pixelate redactions (at
       any depth, groups included): the alert "Redactions May Be Reversible" with **Convert to
       Solid and Export** (suggested; "… and Copy" for Copy), **Export As Is** and **Cancel**.
