@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 07:42+0100\n"
+"POT-Creation-Date: 2026-10-31 07:46+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1788,8 +1788,8 @@ msgctxt "colour"
 msgid "B"
 msgstr ""
 
-#: data/ui/editor-window.blp:3739 data/ui/theme-editor.blp:327
-#: data/ui/theme-editor.blp:330 src/ui/editor/panel.rs:1164
+#: data/ui/editor-window.blp:3739 data/ui/theme-editor.blp:329
+#: data/ui/theme-editor.blp:332 src/ui/editor/panel.rs:1164
 msgid "Pick From Screen"
 msgstr ""
 
@@ -1809,11 +1809,11 @@ msgstr ""
 msgid "Rename…"
 msgstr ""
 
-#: data/ui/editor-window.blp:3813 data/ui/theme-editor.blp:347
+#: data/ui/editor-window.blp:3813 data/ui/theme-editor.blp:349
 msgid "Move Left"
 msgstr ""
 
-#: data/ui/editor-window.blp:3820 data/ui/theme-editor.blp:356
+#: data/ui/editor-window.blp:3820 data/ui/theme-editor.blp:358
 msgid "Move Right"
 msgstr ""
 
@@ -1958,47 +1958,49 @@ msgstr ""
 msgid "Callout titles, text tool headings"
 msgstr ""
 
-#: data/ui/theme-editor.blp:231 data/ui/theme-editor.blp:242
+#: data/ui/theme-editor.blp:231 data/ui/theme-editor.blp:244
 msgid "Body font"
 msgstr ""
 
-#: data/ui/theme-editor.blp:232
-msgid "Callout and text body, step numbers"
+#. The redline's "…, step numbers" is left out: step markers have no font
+#. property (add-style-system design.md).
+#: data/ui/theme-editor.blp:234
+msgid "Callout text and plain body text"
 msgstr ""
 
-#: data/ui/theme-editor.blp:253
+#: data/ui/theme-editor.blp:255
 msgid "Preview"
 msgstr ""
 
-#: data/ui/theme-editor.blp:259
+#: data/ui/theme-editor.blp:261
 msgid "Theme quick styles generated for every tool"
 msgstr ""
 
-#: data/ui/theme-editor.blp:282
+#: data/ui/theme-editor.blp:284
 msgid "Delivery address"
 msgstr ""
 
-#: data/ui/theme-editor.blp:287
+#: data/ui/theme-editor.blp:289
 msgid "Enter a 5-digit postcode"
 msgstr ""
 
-#: data/ui/theme-editor.blp:321
+#: data/ui/theme-editor.blp:323
 msgid "Hex"
 msgstr ""
 
-#: data/ui/theme-editor.blp:336
+#: data/ui/theme-editor.blp:338
 msgid "Custom Colour…"
 msgstr ""
 
-#: data/ui/theme-editor.blp:344
+#: data/ui/theme-editor.blp:346
 msgid "Move Left (Ctrl+←)"
 msgstr ""
 
-#: data/ui/theme-editor.blp:353
+#: data/ui/theme-editor.blp:355
 msgid "Move Right (Ctrl+→)"
 msgstr ""
 
-#: data/ui/theme-editor.blp:361
+#: data/ui/theme-editor.blp:363
 msgid "Remove"
 msgstr ""
 

@@ -229,7 +229,9 @@ Adw.Dialog theme_editor {
 
                 Adw.ActionRow {
                   title: _("Body font");
-                  subtitle: _("Callout and text body, step numbers");
+                  // The redline's "…, step numbers" is left out: step markers have no font
+                  // property (add-style-system design.md).
+                  subtitle: _("Callout text and plain body text");
                   activatable-widget: body_font_button;
 
                   [suffix]

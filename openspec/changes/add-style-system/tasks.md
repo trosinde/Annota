@@ -5,10 +5,10 @@
 - [x] 1.2 Maintainer approval recorded in design.md
 
 ## 2. Implementation
-- [ ] 2.1 Quick style grid + save/rename/delete
-- [ ] 2.2 Favourites view
-- [ ] 2.3 Theme editor + generator
-- [ ] 2.4 Import/export + system theme dir
+- [x] 2.1 Quick style grid + save/rename/delete
+- [x] 2.2 Favourites view
+- [x] 2.3 Theme editor + generator
+- [x] 2.4 Import/export + system theme dir
 
 ## 3. Verify
 - [ ] 3.1 Tests for every scenario (unit, golden-image or documented manual check)

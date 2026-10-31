@@ -3879,8 +3879,9 @@ mod tests {
         // Mockup 03: Delete in the destructive colour, the other items not.
         let delete = quick.menu_item_colour(8, "Delete").unwrap();
         let apply = quick.menu_item_colour(8, "Apply").unwrap();
-        assert!(delete.red() > 0.6 && delete.green() < 0.3, "{delete}");
-        assert!(apply.red() < 0.3, "{apply}");
+        // Red (light: #C30000, dark: a light red), the others neutral.
+        assert!(delete.red() - delete.green() > 0.3, "{delete}");
+        assert!((apply.red() - apply.green()).abs() < 0.1, "{apply}");
         assert!(
             quick.menu_item_colour(0, "Delete").is_none(),
             "theme styles have no Delete"

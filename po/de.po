@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 07:42+0100\n"
+"POT-Creation-Date: 2026-10-31 07:46+0100\n"
 "PO-Revision-Date: 2026-10-30 15:01+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -1169,7 +1169,9 @@ msgstr "Favoriten"
 msgid ""
 "Pick a favourite to switch to its tool. Star any quick style with right-"
 "click → Add to Favourites."
-msgstr "Wählen Sie einen Favoriten, um zu seinem Werkzeug zu wechseln. Jeden Schnellstil können Sie per Rechtsklick → Zu Favoriten hinzufügen markieren."
+msgstr ""
+"Wählen Sie einen Favoriten, um zu seinem Werkzeug zu wechseln. Jeden "
+"Schnellstil können Sie per Rechtsklick → Zu Favoriten hinzufügen markieren."
 
 #: data/ui/editor-window.blp:866
 msgid "Document"
@@ -1836,8 +1838,8 @@ msgctxt "colour"
 msgid "B"
 msgstr "B"
 
-#: data/ui/editor-window.blp:3739 data/ui/theme-editor.blp:327
-#: data/ui/theme-editor.blp:330 src/ui/editor/panel.rs:1164
+#: data/ui/editor-window.blp:3739 data/ui/theme-editor.blp:329
+#: data/ui/theme-editor.blp:332 src/ui/editor/panel.rs:1164
 msgid "Pick From Screen"
 msgstr "Vom Bildschirm aufnehmen"
 
@@ -1857,11 +1859,11 @@ msgstr "Anwenden"
 msgid "Rename…"
 msgstr "Umbenennen …"
 
-#: data/ui/editor-window.blp:3813 data/ui/theme-editor.blp:347
+#: data/ui/editor-window.blp:3813 data/ui/theme-editor.blp:349
 msgid "Move Left"
 msgstr "Nach links verschieben"
 
-#: data/ui/editor-window.blp:3820 data/ui/theme-editor.blp:356
+#: data/ui/editor-window.blp:3820 data/ui/theme-editor.blp:358
 msgid "Move Right"
 msgstr "Nach rechts verschieben"
 
@@ -2009,47 +2011,49 @@ msgstr "Schrift für Überschriften"
 msgid "Callout titles, text tool headings"
 msgstr "Sprechblasentitel, Überschriften des Textwerkzeugs"
 
-#: data/ui/theme-editor.blp:231 data/ui/theme-editor.blp:242
+#: data/ui/theme-editor.blp:231 data/ui/theme-editor.blp:244
 msgid "Body font"
 msgstr "Schrift für Fließtext"
 
-#: data/ui/theme-editor.blp:232
-msgid "Callout and text body, step numbers"
-msgstr "Text in Sprechblasen und Texten, Schrittnummern"
+#. The redline's "…, step numbers" is left out: step markers have no font
+#. property (add-style-system design.md).
+#: data/ui/theme-editor.blp:234
+msgid "Callout text and plain body text"
+msgstr "Text in Sprechblasen und schlichter Fließtext"
 
-#: data/ui/theme-editor.blp:253
+#: data/ui/theme-editor.blp:255
 msgid "Preview"
 msgstr "Vorschau"
 
-#: data/ui/theme-editor.blp:259
+#: data/ui/theme-editor.blp:261
 msgid "Theme quick styles generated for every tool"
 msgstr "Für jedes Werkzeug erzeugte Schnellstile des Designs"
 
-#: data/ui/theme-editor.blp:282
+#: data/ui/theme-editor.blp:284
 msgid "Delivery address"
 msgstr "Lieferadresse"
 
-#: data/ui/theme-editor.blp:287
+#: data/ui/theme-editor.blp:289
 msgid "Enter a 5-digit postcode"
 msgstr "Fünfstellige Postleitzahl eingeben"
 
-#: data/ui/theme-editor.blp:321
+#: data/ui/theme-editor.blp:323
 msgid "Hex"
 msgstr "Hex"
 
-#: data/ui/theme-editor.blp:336
+#: data/ui/theme-editor.blp:338
 msgid "Custom Colour…"
 msgstr "Eigene Farbe …"
 
-#: data/ui/theme-editor.blp:344
+#: data/ui/theme-editor.blp:346
 msgid "Move Left (Ctrl+←)"
 msgstr "Nach links verschieben (Strg+←)"
 
-#: data/ui/theme-editor.blp:353
+#: data/ui/theme-editor.blp:355
 msgid "Move Right (Ctrl+→)"
 msgstr "Nach rechts verschieben (Strg+→)"
 
-#: data/ui/theme-editor.blp:361
+#: data/ui/theme-editor.blp:363
 msgid "Remove"
 msgstr "Entfernen"
 
@@ -2876,7 +2880,9 @@ msgstr "Design „{name}“ löschen?"
 
 #: src/ui/editor/theme_editor.rs:855
 msgid "Its generated quick styles disappear. Your own quick styles stay."
-msgstr "Seine erzeugten Schnellstile verschwinden. Ihre eigenen Schnellstile bleiben erhalten."
+msgstr ""
+"Seine erzeugten Schnellstile verschwinden. Ihre eigenen Schnellstile bleiben "
+"erhalten."
 
 #: src/ui/editor/theme_editor.rs:881
 msgid "Annota Themes"
@@ -3095,6 +3101,9 @@ msgid "{n} object flattened into the image"
 msgid_plural "{n} objects flattened into the image"
 msgstr[0] "{n} Objekt in das Bild eingebrannt"
 msgstr[1] "{n} Objekte in das Bild eingebrannt"
+
+#~ msgid "Callout and text body, step numbers"
+#~ msgstr "Text in Sprechblasen und Texten, Schrittnummern"
 
 #~ msgid "Pre-release build. Editing arrives with milestone 0.1."
 #~ msgstr "Vorabversion. Bearbeiten folgt mit Meilenstein 0.1."
