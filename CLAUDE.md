@@ -109,15 +109,19 @@ annota/
 
 **Status (2026-10-31)**
 - Roadmap: 18 OpenSpec changes in `openspec/changes/`, all validated. `bootstrap-app-shell` is
-  archived. `add-screen-capture` and `add-annotation-editor` are both **fully implemented and
-  reviewer-verified, but not archived yet** — both need live testing against a real
-  xdg-desktop-portal/GNOME session (screenshot/window capture, global shortcuts, the Print-key
-  takeover) that was deliberately left to the maintainer rather than run from a dev session; see
-  `openspec/changes/add-screen-capture/manual-checks.md`. **Archive order matters: archive
-  add-screen-capture first**, since `add-annotation-editor`'s spec deltas build on it (task 5.6
-  in its `tasks.md`). `add-screen-capture` task 4.6 (a first-launch Print-key-takeover prompt)
-  also still needs a designer mockup before it can be built. The other 16 MVP/P2/P3 changes have
-  no implementation yet.
+  archived. `add-screen-capture`, `add-annotation-editor` and `add-core-annotation-tools` are all
+  **fully implemented and reviewer-verified, but not archived yet** — the first two need live
+  testing against a real xdg-desktop-portal/GNOME session (screenshot/window capture, global
+  shortcuts, the Print-key takeover; `add-core-annotation-tools` adds one more such check, the
+  eyedropper's PickColor call) that was deliberately left to the maintainer rather than run from
+  a dev session; see `openspec/changes/add-screen-capture/manual-checks.md` (covers the
+  eyedropper row too) and `add-core-annotation-tools/manual-checks.md`. **Archive order:
+  add-screen-capture, then add-annotation-editor** (its spec deltas build on the first — task 5.6
+  in its `tasks.md`); `add-core-annotation-tools` has no technical ordering dependency on either
+  (new `annotation-tools` capability only) but logically assumes the editor exists, so archive it
+  third. `add-screen-capture` task 4.6 (a first-launch Print-key-takeover prompt) also still needs
+  a designer mockup before it can be built. The other 15 MVP/P2/P3 changes have no implementation
+  yet.
 - Design: kit in `docs/design/kit/`, mockups for all 18 changes (267 screens) in `docs/design/<change>/`,
   cross-change decisions in `docs/design/decisions.md`. **The 7 MVP (0.1) changes are
   design-approved** (bootstrap-app-shell, add-screen-capture, add-annotation-editor,
@@ -129,23 +133,27 @@ annota/
   Screenshot-portal access, the region overlay (selection, handles, loupe, snapping, nudging),
   window/screen/delayed capture, the GlobalShortcuts portal and GNOME-custom-keybinding fallback
   (D9 Print-key takeover, GNOME-keybinding path only). `add-annotation-editor` — `src/document/`,
-  `src/render/`, `src/editing/`, `src/tools/`, `src/ui/editor/`: full scene graph, undo/redo,
-  `.annota` format with forward-compatible unknown-data preservation, a viewport-sized canvas,
-  selection/handles/rotation/snapping/grouping, the real editor window (header bar, sidebar,
-  tray, zoom, autosave/recovery), crop/resize/rotate/flip/canvas-extension/flatten. `--open
-  <file>` and captures/paste/drop now really open in this editor (the previous PNG-quick-save
-  and placeholder-toast stand-ins are gone). This took 4 implementation phases and 5 review
-  rounds — see `openspec/changes/add-annotation-editor/design.md`'s full "Decided during apply"
-  history before touching this code again.
-- Packaging: `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean for all three
+  `src/render/`, `src/editing/`, `src/tools/image.rs`+`group.rs`, `src/ui/editor/`: full scene
+  graph, undo/redo, `.annota` format with forward-compatible unknown-data preservation, a
+  viewport-sized canvas, selection/handles/rotation/snapping/grouping, the real editor window
+  (header bar, sidebar, tray, zoom, autosave/recovery), crop/resize/rotate/flip/canvas-extension/
+  flatten. `--open <file>` and captures/paste/drop now really open in this editor (the previous
+  PNG-quick-save and placeholder-toast stand-ins are gone). `add-core-annotation-tools` —
+  `src/tools/{arrow,pen,shape,text,callout,step,highlighter,redaction}.rs`: all 9 concrete
+  annotation types against the `Annotation` trait, single-key tool shortcuts, a property sidebar
+  per type, a colour picker with a real-portal eyedropper, a shadow editor. Each of these three
+  changes took multiple implementation phases and review rounds — see each change's `design.md`
+  "Decided during apply" history before touching its code again, it's long for a reason.
+- Packaging: `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean for all four
   implemented changes, verified repeatedly in this dev container (cargo/rustc 1.93, not the
   pinned 1.85 — several real bugs surfaced and got fixed here regardless, see each change's
   `tasks.md`). CI should be green (its known step-order bug is fixed) but hasn't been confirmed
   on an actual ubuntu-24.04 runner — check the Actions tab before trusting it blindly.
-- Next step: the maintainer runs the live portal/hotkey checks for `add-screen-capture`
-  (`manual-checks.md`), then both changes archive in order. After that, `add-core-annotation-tools`
-  is next in the roadmap (arrow/line/pen/shape/text/callout/step/highlighter/redact — the first
-  change that implements concrete `Annotation` trait types beyond `Image`/`Group`).
+- Next step: the maintainer runs the live portal/hotkey checks tracked across
+  `add-screen-capture/manual-checks.md` and `add-core-annotation-tools/manual-checks.md`, then
+  all three changes archive in order (screen-capture, annotation-editor, core-annotation-tools).
+  After that, `add-style-system` is next in the roadmap (quick styles/favourites, themes) — the
+  last 3 MVP changes after it are `add-export-share`, `add-capture-library`.
 
 **Build dependencies (Ubuntu 24.04)**
 ```bash
