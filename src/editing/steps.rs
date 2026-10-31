@@ -18,7 +18,9 @@
 //! * A value typed for one marker only (`Step::value`) is just its label; it keeps its place in
 //!   the sequence and is not renumbered visibly.
 //!
-//! New markers count like the markers already in their sequence (1, 2, 3 or A, B, C …).
+//! New markers count like the markers already in their sequence (1, 2, 3 or A, B, C …), and
+//! changing how a marker counts changes its whole sequence ([`recounted`]), so the markers of
+//! one sequence always count the same way.
 
 use std::collections::HashMap;
 
@@ -104,32 +106,80 @@ pub fn renumbered(scene: &Scene, removed: &[ObjectId]) -> Vec<(ObjectId, Box<dyn
             numbers.iter().filter(|&&n| n < step.number).count() as u32
         })
     };
-    fn renumber(object: &mut dyn Annotation, shift: &dyn Fn(&Step) -> u32) -> bool {
-        let any = object.as_any_mut();
-        if let Some(step) = any.downcast_mut::<Step>() {
-            let by = shift(step);
-            if by > 0 {
-                step.number = step.number.saturating_sub(by).max(1);
-                return true;
-            }
-            return false;
+    let renumber = |step: &mut Step| {
+        let by = shift(step);
+        if by > 0 {
+            step.number = step.number.saturating_sub(by).max(1);
         }
-        let Some(group) = any.downcast_mut::<Group>() else {
-            return false;
-        };
-        let mut changed = false;
-        for child in &mut group.children {
-            changed |= renumber(child.object.as_mut(), shift);
-        }
-        changed
-    }
+        by > 0
+    };
     scene
         .nodes()
         .iter()
         .filter(|n| !removed.contains(&n.id))
         .filter_map(|n| {
             let mut copy = n.object.clone();
-            renumber(copy.as_mut(), &shift).then_some((n.id, copy))
+            change_markers(copy.as_mut(), &renumber).then_some((n.id, copy))
+        })
+        .collect()
+}
+
+/// Applies `change` to every marker in `object` (itself or inside a group, at any depth);
+/// whether any changed.
+fn change_markers(object: &mut dyn Annotation, change: &dyn Fn(&mut Step) -> bool) -> bool {
+    let any = object.as_any_mut();
+    if let Some(step) = any.downcast_mut::<Step>() {
+        return change(step);
+    }
+    let Some(group) = any.downcast_mut::<Group>() else {
+        return false;
+    };
+    let mut changed = false;
+    for child in &mut group.children {
+        changed |= change_markers(child.object.as_mut(), change);
+    }
+    changed
+}
+
+/// The sequences the markers among `ids` (top-level objects, groups included) belong to.
+pub fn sequences_of(scene: &Scene, ids: &[ObjectId]) -> Vec<u32> {
+    let mut out = Vec::new();
+    for id in ids {
+        if let Some(node) = scene.get(*id) {
+            let mut found = Vec::new();
+            collect(node.object.as_ref(), &mut found);
+            for step in found {
+                if !out.contains(&step.sequence) {
+                    out.push(step.sequence);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Every marker of the `sequences` counting with `counting` (the sidebar's Sequence: 1, 2, 3 ·
+/// A, B, C · a, b, c · I, II, III), as replacements of their top-level objects — the whole
+/// sequence changes, never one marker, so a sequence never reads 1, B, 3 (phase-A review B1).
+/// Empty if every marker already counts that way.
+pub fn recounted(
+    scene: &Scene,
+    sequences: &[u32],
+    counting: Counting,
+) -> Vec<(ObjectId, Box<dyn Annotation>)> {
+    let change = |step: &mut Step| {
+        let change = sequences.contains(&step.sequence) && step.counting != counting;
+        if change {
+            step.counting = counting;
+        }
+        change
+    };
+    scene
+        .nodes()
+        .iter()
+        .filter_map(|n| {
+            let mut copy = n.object.clone();
+            change_markers(copy.as_mut(), &change).then_some((n.id, copy))
         })
         .collect()
 }
@@ -319,5 +369,42 @@ mod tests {
         assert_eq!(read, ["1", "2", "7"]);
         // Deleting a non-step object renumbers nothing.
         assert!(renumbered(doc.scene(), &[]).is_empty());
+    }
+
+    #[test]
+    fn changing_the_counting_changes_the_whole_sequence() {
+        // B1: the sidebar's Sequence applies to every marker of the selected marker's sequence
+        // (one undo step), never to one marker, so a sequence never reads 1, B, 3.
+        let (mut doc, mut history) = doc();
+        let first: Vec<ObjectId> = (0..3)
+            .map(|k| place(&mut doc, &mut history, 1, 50.0 + 50.0 * f64::from(k)))
+            .collect();
+        let other = place(&mut doc, &mut history, 2, 500.0);
+        // Group two markers of the first sequence: they still follow.
+        let mut sel = Selection::new();
+        sel.set(doc.scene(), [first[1], first[2]]);
+        let edit = ops::group(&doc, &sel).unwrap();
+        history.execute(&mut doc, "Group", edit.command).unwrap();
+        assert_eq!(sequences_of(doc.scene(), &[first[0]]), vec![1]);
+        let letters = crate::document::annotation::PropertyValue::Choice("upper_letters".into());
+        let edit = ops::set_property(&doc, &[first[0]], "counting", &letters).unwrap();
+        history.execute(&mut doc, "Change", edit.command).unwrap();
+        assert_eq!(
+            labels(&doc),
+            vec![
+                (1, "A".into()),
+                (1, "B".into()),
+                (1, "C".into()),
+                (2, "1".into())
+            ]
+        );
+        // Already so: nothing to do.
+        assert!(ops::set_property(&doc, &[first[0]], "counting", &letters).is_none());
+        // One undo brings the numbers back.
+        history.undo(&mut doc).unwrap();
+        let read: Vec<String> = labels(&doc).into_iter().map(|(_, l)| l).collect();
+        assert_eq!(read, ["1", "2", "3", "1"]);
+        assert!(doc.scene().get(other).is_some());
+        assert!(recounted(doc.scene(), &[7], Counting::Roman).is_empty());
     }
 }

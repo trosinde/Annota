@@ -5,7 +5,7 @@
 
 use std::collections::HashSet;
 
-use crate::document::annotation::Annotation;
+use crate::document::annotation::{Annotation, PropertyValue};
 use crate::document::bitmap::Bitmap;
 use crate::document::command::Command;
 use crate::document::geometry::{Arrange, Point};
@@ -42,6 +42,8 @@ pub enum Action {
     Insert,
     /// A new object drawn with a tool (add-core-annotation-tools).
     Add,
+    /// A property changed in the sidebar (colour, width, shadow …).
+    Style,
     // Operations on the whole document (`super::image_ops`).
     Crop,
     ResizeImage,
@@ -276,6 +278,70 @@ pub fn ungroup(doc: &Document, selection: &Selection) -> Option<Edit> {
         subject: Subject::of(doc.scene(), selection.ids()),
         command,
         select: Some(members),
+    })
+}
+
+/// The current value of property `key` of `object`, if it has one.
+pub fn property(object: &dyn Annotation, key: &str) -> Option<PropertyValue> {
+    object
+        .properties()
+        .into_iter()
+        .find(|p| p.key == key)
+        .map(|p| p.value)
+}
+
+/// Copies of the objects `ids` with property `key` set to `value`: only the objects that have
+/// the property, accept the value and actually change (compared as saved). Empty if nothing
+/// would change — the sidebar's guard against phantom undo steps.
+///
+/// `counting` (how step markers count) changes every marker of the selected markers'
+/// sequences ([`super::steps::recounted`]), not just the selected ones.
+pub fn restyled(
+    doc: &Document,
+    ids: &[ObjectId],
+    key: &str,
+    value: &PropertyValue,
+) -> Vec<(ObjectId, Box<dyn Annotation>)> {
+    let scene = doc.scene();
+    if key == "counting" {
+        let Some(counting) = (match value {
+            PropertyValue::Choice(k) => crate::tools::step::Counting::from_key(k),
+            _ => None,
+        }) else {
+            return Vec::new();
+        };
+        let sequences = super::steps::sequences_of(scene, ids);
+        return super::steps::recounted(scene, &sequences, counting);
+    }
+    ids.iter()
+        .filter_map(|&id| {
+            let original = scene.get(id)?.object.as_ref();
+            let mut copy = original.clone_box();
+            copy.set_property(key, value).ok()?;
+            let changed = copy.to_json().ok()? != original.to_json().ok()?;
+            changed.then_some((id, copy))
+        })
+        .collect()
+}
+
+/// A property edit in the sidebar as one undo step ("Change Arrow"); `None` if nothing
+/// changes (no object has the property, the value is refused, or it is the current value).
+pub fn set_property(
+    doc: &Document,
+    ids: &[ObjectId],
+    key: &str,
+    value: &PropertyValue,
+) -> Option<Edit> {
+    let objects = restyled(doc, ids, key, value);
+    if objects.is_empty() {
+        return None;
+    }
+    let changed: Vec<ObjectId> = objects.iter().map(|(id, _)| *id).collect();
+    Some(Edit {
+        action: Action::Style,
+        subject: Subject::of(doc.scene(), &changed),
+        command: Command::Replace { objects },
+        select: None,
     })
 }
 
@@ -698,5 +764,48 @@ mod tests {
         assert_eq!(doc.resources().len(), 1);
         history.undo(&mut doc).unwrap();
         assert_eq!(doc.scene().len(), 1);
+    }
+
+    #[test]
+    fn property_edits_are_one_step_and_only_real_changes() {
+        use crate::document::color::palette;
+        use crate::tools::arrow::Arrow;
+        use crate::tools::highlighter::Highlighter;
+        let mut doc = Document::new(Bitmap::filled(400, 300, Rgba::WHITE).unwrap());
+        let mut history = History::new();
+        let a = Arrow::new(Point::new(10.0, 10.0), Point::new(100.0, 10.0));
+        let b = Arrow::new(Point::new(10.0, 50.0), Point::new(100.0, 50.0));
+        let h = Highlighter::new(Rect::new(10.0, 100.0, 50.0, 20.0));
+        for object in [Box::new(a) as Box<dyn Annotation>, Box::new(b), Box::new(h)] {
+            let edit = add(&doc, object).unwrap();
+            history.execute(&mut doc, "Add", edit.command).unwrap();
+        }
+        let ids = doc.scene().ids();
+        let azure = PropertyValue::Color(palette::AZURE);
+        // Both arrows, one step, "Change 2 Objects".
+        let edit = set_property(&doc, &ids[..2], "color", &azure).unwrap();
+        assert_eq!(edit.action, Action::Style);
+        assert_eq!(edit.subject, Subject::Many(2));
+        history.execute(&mut doc, "Change", edit.command).unwrap();
+        for id in &ids[..2] {
+            assert_eq!(
+                property(doc.scene().get(*id).unwrap().object.as_ref(), "color"),
+                Some(azure.clone())
+            );
+        }
+        // The same value again, a refused value, or a property the object does not have: no
+        // step (the phantom-edit guard).
+        assert!(set_property(&doc, &ids[..2], "color", &azure).is_none());
+        assert!(set_property(&doc, &ids[..1], "width", &PropertyValue::Number(99.0)).is_none());
+        assert!(set_property(&doc, &ids[2..], "shadow", &PropertyValue::Bool(true)).is_none());
+        // A mixed selection changes the objects that have the property.
+        let edit = set_property(&doc, &ids, "opacity", &PropertyValue::Number(0.5)).unwrap();
+        assert_eq!(edit.subject, Subject::Many(3));
+        history.undo(&mut doc).unwrap();
+        assert_eq!(
+            property(doc.scene().get(ids[0]).unwrap().object.as_ref(), "color"),
+            Some(PropertyValue::Color(palette::CORAL)),
+            "one undo restores the colour"
+        );
     }
 }

@@ -174,20 +174,32 @@ impl Toolbox {
         })
     }
 
-    /// The tool's defaults ("Tool defaults" in the sidebar).
+    /// Properties of the prototypes that are not tool defaults: what an object says (a text's
+    /// or callout's text, a marker's typed value) belongs to that object alone (phase-A review
+    /// B2). New objects start without them anyway.
+    pub const INTERNAL: [&'static str; 2] = ["text", "value"];
+
+    /// The tool's defaults ("Tool defaults" in the sidebar), without [`Toolbox::INTERNAL`].
     pub fn properties(&self, tool: Tool) -> Vec<Property> {
         self.prototype(tool)
             .map(Annotation::properties)
             .unwrap_or_default()
+            .into_iter()
+            .filter(|p| !Self::INTERNAL.contains(&p.key))
+            .collect()
     }
 
-    /// Changes a default of the tool; new objects get it.
+    /// Changes a default of the tool; new objects get it. [`Toolbox::INTERNAL`] keys are not
+    /// defaults and are refused.
     pub fn set_property(
         &mut self,
         tool: Tool,
         key: &str,
         value: &PropertyValue,
     ) -> Result<(), PropertyError> {
+        if Self::INTERNAL.contains(&key) {
+            return Err(PropertyError::Unknown(key.to_string()));
+        }
         match self.prototype_mut(tool) {
             Some(p) => p.set_property(key, value),
             None => Err(PropertyError::Unknown(key.to_string())),
@@ -865,6 +877,21 @@ mod tests {
         ));
         let a = object(&edit).as_any().downcast_ref::<Arrow>().unwrap();
         assert_eq!(a.color, palette::AZURE);
+        // B2: what an object says is not a tool default.
+        for (tool, key) in [
+            (Tool::Text, "text"),
+            (Tool::Callout, "text"),
+            (Tool::Step, "value"),
+        ] {
+            assert!(tb.properties(tool).iter().all(|p| p.key != key), "{key}");
+            assert!(tb
+                .set_property(tool, key, &PropertyValue::Text("7".into()))
+                .is_err());
+        }
+        assert!(tb
+            .properties(Tool::Step)
+            .iter()
+            .any(|p| p.key == "counting"));
         // Each tool's prototype is its redline default type.
         for tool in Tool::ALL {
             assert_eq!(

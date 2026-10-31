@@ -280,6 +280,22 @@ impl TextEdit {
         }
     }
 
+    /// Sets a property of the edited object (the sidebar while editing, mockup 08): it is part
+    /// of the one undo step editing makes. Returns whether the object changed; refused values
+    /// and the text itself (typed, not set) change nothing.
+    pub fn set_property(&mut self, key: &str, value: &PropertyValue) -> bool {
+        if key == "text" {
+            return false;
+        }
+        let before = self.object.to_json().ok();
+        let mut copy = self.object.clone_box();
+        if copy.set_property(key, value).is_err() || copy.to_json().ok() == before {
+            return false;
+        }
+        self.object = copy;
+        true
+    }
+
     /// Ends editing: the change as one undo step, or `None` if nothing changes (a new text
     /// object left empty is not added).
     pub fn finish(self, doc: &Document) -> Option<Edit> {
@@ -432,6 +448,41 @@ mod tests {
         assert_eq!(e.caret(), 5);
         e.drag_to(Point::new(top.x + 500.0, top.y + 2.0));
         assert_eq!(e.selected_text(), "wo");
+    }
+
+    #[test]
+    fn sidebar_changes_while_editing_are_part_of_the_one_step() {
+        // Mockup 08: the sidebar edits the text being typed; finishing is still one step.
+        let d = doc();
+        let mut e = new_text();
+        e.insert("Runs nightly");
+        assert!(e.set_property("font_size", &PropertyValue::Number(48.0)));
+        assert!(
+            !e.set_property("font_size", &PropertyValue::Number(48.0)),
+            "unchanged"
+        );
+        assert!(
+            !e.set_property("font_size", &PropertyValue::Number(-1.0)),
+            "refused"
+        );
+        assert!(
+            !e.set_property("text", &PropertyValue::Text("x".into())),
+            "typed only"
+        );
+        assert_eq!(e.text(), "Runs nightly");
+        let edit = e.finish(&d).unwrap();
+        assert_eq!(edit.subject, Subject::One("text"));
+        let crate::document::command::Command::Insert { nodes, .. } = &edit.command else {
+            panic!("insert expected");
+        };
+        let size = nodes[0]
+            .1
+            .object
+            .properties()
+            .into_iter()
+            .find(|p| p.key == "font_size")
+            .map(|p| p.value);
+        assert_eq!(size, Some(PropertyValue::Number(48.0)));
     }
 
     impl TextEdit {
