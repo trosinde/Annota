@@ -275,17 +275,17 @@ title and pixels.
   ("Redactions May Be Reversible", stacked "Convert to Solid and Export" / "Export As Is" /
   Cancel). The body names the kind: "use pixelate" / "use blur" as drawn, and — not drawn — "use
   blur or pixelate. Blurred or pixelated text …" when there are both.
-- *Middle button*: "Export Anyway" before an export (as drawn), **"Save Anyway"** before quick
-  save and Save As (not drawn; "Export Anyway" would mislabel a save). Save As gets the warning
-  like quick save (D7 names quick save; Save As writes the same file).
+- *Middle button*: "Export Anyway" before an export (as drawn). **Superseded below** (2026-10-31
+  maintainer follow-up): a save was decided to never show this warning at all — `.annota` keeps
+  the original image under every redaction regardless, so no "Save Anyway" exists any more;
+  `Purpose::Save` was removed rather than kept unused.
 - *When*: before the export dialog opens (mockup 10 shows the alert over the editor, not over the
-  dialog; "then the export continues" = the dialog opens, already showing the solid result),
-  and before a save writes anything.
-- *Covered call sites*: Export (`Ctrl+E`, header Export), quick save (`Ctrl+S`), Save As
-  (`Ctrl+Shift+S`). *Not yet*: Copy (`Ctrl+C`) and drag-out (task 2.3), Share (2.4), batch export
-  (2.5) — they are to call `guard_redactions` too (batch: per document, or once for the
-  selection — to decide with 2.5). Task 2.6's Save goes through quick save, so it gets the
-  warning without more work. Task 2.7 stays unticked until then.
+  dialog; "then the export continues" = the dialog opens, already showing the solid result).
+- *Covered call sites (as of this entry, now superseded — see the 2026-10-31 "Decided during
+  apply" entry below for the current state)*: Export (`Ctrl+E`, header Export), quick save
+  (`Ctrl+S`), Save As (`Ctrl+Shift+S`). *Not yet*: Copy (`Ctrl+C`) and drag-out (task 2.3), Share
+  (2.4), batch export (2.5) — they are to call `guard_redactions` too (batch: per document, or
+  once for the selection — to decide with 2.5). Task 2.7 stays unticked until then.
 
 **Spec deltas.** `specs/annotation-tools/spec.md` MODIFIES "Redaction export warning" — copied
 from add-core-annotation-tools' delta (that change is not archived, so there is no
