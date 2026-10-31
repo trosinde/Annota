@@ -170,7 +170,26 @@ pub fn copy_to_clipboard(app: &adw::Application, texture: &gdk::Texture) {
     };
     let clipboard = display.clipboard();
     clipboard.set_texture(texture);
+    hold_until_replaced(app, &clipboard);
+}
 
+/// Puts `content` on the clipboard (Annota's copied objects, add-export-share task 2.4a), held
+/// like [`copy_to_clipboard`]'s image.
+pub fn copy_content_to_clipboard(app: &adw::Application, content: &gdk::ContentProvider) {
+    let Some(display) = gdk::Display::default() else {
+        return;
+    };
+    let clipboard = display.clipboard();
+    if let Err(err) = clipboard.set_content(Some(content)) {
+        eprintln!("annota: copying to the clipboard failed: {err}");
+        return;
+    }
+    hold_until_replaced(app, &clipboard);
+}
+
+/// Keeps the application running while it owns the clipboard (Wayland empties it when its
+/// owner exits), until another program takes the clipboard over.
+fn hold_until_replaced(app: &adw::Application, clipboard: &gdk::Clipboard) {
     let guard = Rc::new(RefCell::new(Some(app.hold())));
     let handler: Rc<RefCell<Option<glib::SignalHandlerId>>> = Rc::new(RefCell::new(None));
     let id = clipboard.connect_changed(glib::clone!(

@@ -284,6 +284,12 @@ impl Annotation for Group {
             .collect()
     }
 
+    fn rename_resources(&mut self, rename: &dyn Fn(&str) -> Option<String>) {
+        for child in &mut self.children {
+            child.object.rename_resources(rename);
+        }
+    }
+
     fn children(&self) -> &[Node] {
         &self.children
     }

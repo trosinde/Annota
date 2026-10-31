@@ -1,12 +1,13 @@
-//! One-shot editing operations on the selection: nudge (arrow keys), delete, duplicate,
-//! stacking order and grouping (spec editor-canvas: Object selection and manipulation,
-//! Z-order and grouping). Each returns an [`Edit`]: one `Command` (one undo step) plus what the
+//! One-shot editing operations on the selection: nudge (arrow keys), delete, duplicate, paste
+//! (add-export-share task 2.4a), stacking order and grouping (spec editor-canvas: Object
+//! selection and manipulation, Z-order and grouping). Each returns an [`Edit`]: one `Command` (one undo step) plus what the
 //! editor needs to name it ("Undo Move Group") and the selection afterwards.
 
 use std::collections::HashSet;
 
 use crate::document::annotation::{Annotation, Property, PropertyValue};
 use crate::document::bitmap::Bitmap;
+use crate::document::clipboard::Clip;
 use crate::document::command::Command;
 use crate::document::geometry::{Arrange, Point};
 use crate::document::scene::{Node, ObjectId, Scene};
@@ -19,7 +20,8 @@ use super::selection::Selection;
 /// Arrow keys move the selection 1 px, with Shift 10 px (spec: Keyboard nudge).
 pub const NUDGE: f64 = 1.0;
 pub const NUDGE_LARGE: f64 = 10.0;
-/// Copies made with Duplicate (Ctrl+D) are offset by this much, so they are visible.
+/// Copies made with Duplicate (Ctrl+D) are offset by this much, so they are visible; so are
+/// pasted objects ([`paste`]).
 pub const DUPLICATE_OFFSET: f64 = 10.0;
 
 /// What an edit does; the editor turns it into the undo label.
@@ -32,6 +34,8 @@ pub enum Action {
     Reshape,
     Delete,
     Duplicate,
+    /// Objects pasted from Annota's object clipboard (Ctrl+V).
+    Paste,
     BringToFront,
     BringForward,
     SendBackward,
@@ -189,6 +193,100 @@ pub fn duplicate(doc: &Document, selection: &Selection) -> Option<Edit> {
         },
         select: Some(copies),
     })
+}
+
+/// Paste (Ctrl+V; spec export-share "Object copy and paste"): copied objects (`clip`, read from
+/// the clipboard — nothing refers back to the document they came from) on top of everything,
+/// offset by [`DUPLICATE_OFFSET`] like Duplicate, in their stacking order, as one undo step;
+/// they become the selection. They get ids of this document (group members too), and their
+/// embedded images get ids of this document as well — unless the document already has that
+/// very picture (pasting into the document they were copied from), which is then shared, as
+/// a duplicate shares it. Objects of a newer Annota raise the document's minor format version
+/// in the same step (`Command::SetFormatMinor`), so it saves and reopens with them.
+pub fn paste(doc: &Document, clip: &Clip) -> Option<Edit> {
+    if clip.is_empty() {
+        return None;
+    }
+    let scene = doc.scene();
+    let mut next_image = doc
+        .resources()
+        .ids()
+        .filter_map(crate::document::parse_resource_id)
+        .max()
+        .unwrap_or(0);
+    let mut renamed: Vec<(String, String)> = Vec::with_capacity(clip.resources.len());
+    let mut resources = Vec::new();
+    for (id, bitmap) in &clip.resources {
+        let target = match same_image(doc, id, bitmap) {
+            Some(existing) => existing,
+            None => {
+                next_image = next_image.checked_add(1)?;
+                let fresh = format!("images/{next_image}.png");
+                resources.push((fresh.clone(), bitmap.clone()));
+                fresh
+            }
+        };
+        renamed.push((id.clone(), target));
+    }
+    let rename = |old: &str| {
+        renamed
+            .iter()
+            .find(|(from, _)| from == old)
+            .map(|(_, to)| to.clone())
+    };
+
+    let mut next = scene.fresh_ids(1).first()?.0;
+    let mut fresh = || {
+        let id = ObjectId(next);
+        next += 1;
+        id
+    };
+    let mut nodes = Vec::with_capacity(clip.len());
+    let mut pasted = Vec::with_capacity(clip.len());
+    for (k, original) in clip.nodes().iter().enumerate() {
+        let mut node = original.clone();
+        node.id = fresh();
+        node.object.renumber_nested(&mut fresh);
+        node.object.rename_resources(&rename);
+        node.object.translate(DUPLICATE_OFFSET, DUPLICATE_OFFSET);
+        pasted.push(node.id);
+        nodes.push((scene.len() + k, node));
+    }
+    let subject = match clip.nodes() {
+        [one] => Subject::One(one.object.type_name()),
+        all => Subject::Many(all.len()),
+    };
+    let insert = Command::Insert { nodes, resources };
+    let command = if clip.format_minor > doc.format_minor {
+        Command::Batch(vec![insert, Command::SetFormatMinor(clip.format_minor)])
+    } else {
+        insert
+    };
+    Some(Edit {
+        action: Action::Paste,
+        subject,
+        command,
+        select: Some(pasted),
+    })
+}
+
+/// The id under which `doc` already has the picture `bitmap` (same size, same PNG encoding),
+/// trying `id` first.
+fn same_image(doc: &Document, id: &str, bitmap: &Bitmap) -> Option<String> {
+    let png = bitmap.png().ok()?;
+    let same = |candidate: &Bitmap| {
+        candidate.ptr_eq(bitmap)
+            || (candidate.width() == bitmap.width()
+                && candidate.height() == bitmap.height()
+                && candidate.png().is_ok_and(|p| p == png))
+    };
+    if doc.resources().get(id).is_some_and(same) {
+        return Some(id.to_string());
+    }
+    doc.resources()
+        .ids()
+        .find(|other| doc.resources().get(other).is_some_and(same))
+        .map(str::to_string)
 }
 
 /// Stacking changes (context menu; Ctrl+] / Ctrl+[ one step, with Shift to the front/back).
@@ -891,5 +989,332 @@ mod tests {
             Some(PropertyValue::Color(palette::CORAL))
         );
         assert_eq!(property(first, "width"), Some(PropertyValue::Number(8.0)));
+    }
+
+    // ---- paste (add-export-share task 2.4a; spec export-share "Object copy and paste") ----
+
+    mod paste_tests {
+        use super::*;
+        use crate::document::archive;
+        use crate::document::clipboard::{self, Clip};
+        use crate::document::color::palette;
+        use crate::document::registry::{node_from_json, node_to_json, UnknownObject};
+        use crate::tools::arrow::Arrow;
+        use serde_json::json;
+
+        /// A document with an arrow (coral, 10,20 → 90,60).
+        fn arrow_doc() -> (Document, History, ObjectId) {
+            let mut doc = Document::new(Bitmap::filled(400, 300, Rgba::WHITE).unwrap());
+            let mut history = History::new();
+            let mut arrow = Arrow::new(Point::new(10.0, 20.0), Point::new(90.0, 60.0));
+            arrow.color = palette::CORAL;
+            let edit = add(&doc, Box::new(arrow)).unwrap();
+            history.execute(&mut doc, "Add", edit.command).unwrap();
+            let id = doc.scene().ids()[0];
+            (doc, history, id)
+        }
+
+        /// What Ctrl+C puts on the clipboard and Ctrl+V reads back: bytes in between.
+        fn copied(doc: &Document, ids: &[ObjectId]) -> Clip {
+            clipboard::decode(&clipboard::encode(doc, ids).unwrap().unwrap()).unwrap()
+        }
+
+        fn arrow(doc: &Document, id: ObjectId) -> Arrow {
+            doc.scene()
+                .get(id)
+                .unwrap()
+                .object
+                .as_any()
+                .downcast_ref::<Arrow>()
+                .unwrap()
+                .clone()
+        }
+
+        #[test]
+        fn copy_and_paste_into_the_same_document() {
+            // Scenario "Copy and paste into the same document": a second arrow, offset, as one
+            // undo step, selected.
+            let (mut doc, mut history, original) = arrow_doc();
+            let mut sel = Selection::new();
+            sel.set(doc.scene(), [original]);
+            let clip = copied(&doc, sel.ids());
+            let edit = paste(&doc, &clip).unwrap();
+            assert_eq!(
+                (edit.action, edit.subject),
+                (Action::Paste, Subject::One("arrow"))
+            );
+            apply(&mut doc, &mut history, &mut sel, edit);
+            let all = doc.scene().ids();
+            assert_eq!(all.len(), 2);
+            assert_eq!(all[0], original);
+            assert_eq!(sel.ids(), &all[1..], "the pasted arrow is selected");
+            let (a, b) = (arrow(&doc, original), arrow(&doc, all[1]));
+            assert_eq!(b.start, Point::new(a.start.x + 10.0, a.start.y + 10.0));
+            assert_eq!(b.end, Point::new(a.end.x + 10.0, a.end.y + 10.0));
+            assert_eq!(b.color, a.color);
+            assert_eq!(b.width, a.width);
+            // One undo step.
+            history.undo(&mut doc).unwrap();
+            assert_eq!(doc.scene().ids(), vec![original]);
+            history.redo(&mut doc).unwrap();
+            assert_eq!(doc.scene().len(), 2);
+            // The same clip pastes again (fresh ids every time), at the same offset.
+            let edit = paste(&doc, &clip).unwrap();
+            apply(&mut doc, &mut history, &mut sel, edit);
+            let all = doc.scene().ids();
+            assert_eq!(all.len(), 3);
+            assert_eq!(arrow(&doc, all[2]).start, b.start);
+        }
+
+        #[test]
+        fn paste_matches_duplicate() {
+            // Same command shape, offset and selection as Ctrl+D.
+            let (doc, _, original) = arrow_doc();
+            let mut sel = Selection::new();
+            sel.set(doc.scene(), [original]);
+            let dup = duplicate(&doc, &sel).unwrap();
+            let pasted = paste(&doc, &copied(&doc, sel.ids())).unwrap();
+            assert_eq!(dup.select, pasted.select);
+            let nodes = |c: &Command| match c {
+                Command::Insert { nodes, resources } => {
+                    assert!(resources.is_empty());
+                    nodes
+                        .iter()
+                        .map(|(at, n)| (*at, node_to_json(n).unwrap()))
+                        .collect::<Vec<_>>()
+                }
+                other => panic!("expected Insert, got {other:?}"),
+            };
+            assert_eq!(nodes(&dup.command), nodes(&pasted.command));
+        }
+
+        #[test]
+        fn paste_into_another_document_after_the_source_closed() {
+            // Scenarios "Paste into a different document" and "Paste after the source document
+            // closes": two image objects sharing images/1.png, pasted into a document whose own
+            // images/1.png is another picture.
+            let source = archive::tests::sample();
+            let ids = source.scene().ids();
+            let picture = source
+                .resources()
+                .get("images/1.png")
+                .unwrap()
+                .png()
+                .unwrap();
+            let expected: Vec<serde_json::Value> = source
+                .scene()
+                .nodes()
+                .iter()
+                .map(|n| {
+                    let mut moved = n.clone();
+                    moved.object.translate(10.0, 10.0);
+                    node_to_json(&moved).unwrap()
+                })
+                .collect();
+            let bytes = clipboard::encode(&source, &ids).unwrap().unwrap();
+            drop(source); // closed
+
+            let mut target = Document::new(Bitmap::filled(300, 200, palette::PAPER).unwrap());
+            let mut history = History::new();
+            let own = Bitmap::filled(20, 20, palette::CORAL).unwrap();
+            let cmd = Image::insert_command(&target, own.clone(), Point::new(50.0, 50.0));
+            history.execute(&mut target, "Insert", cmd).unwrap();
+            let mut sel = Selection::new();
+            let edit = paste(&target, &clipboard::decode(&bytes).unwrap()).unwrap();
+            assert_eq!(edit.subject, Subject::Many(2));
+            apply(&mut target, &mut history, &mut sel, edit);
+            assert_eq!(target.object_count(), 3);
+            assert_eq!(sel.ids(), &target.scene().ids()[1..]);
+            // The target's own picture is untouched; the pasted objects share a new id.
+            assert!(target.resources().get("images/1.png").unwrap().ptr_eq(&own));
+            assert_eq!(
+                target
+                    .resources()
+                    .get("images/2.png")
+                    .unwrap()
+                    .png()
+                    .unwrap(),
+                picture
+            );
+            for (k, node) in target.scene().nodes()[1..].iter().enumerate() {
+                assert_eq!(node.object.resources(), vec!["images/2.png"]);
+                // Everything else exactly as copied (and moved by the offset).
+                let mut written = node_to_json(node).unwrap();
+                let mut want = expected[k].clone();
+                for v in [&mut written, &mut want] {
+                    v["id"] = json!(0);
+                    v["source"] = json!("");
+                }
+                assert_eq!(written, want);
+            }
+            // The document saves and reopens with all three.
+            let back = archive::decode(&archive::encode(&target).unwrap()).unwrap();
+            assert_eq!(back.object_count(), 3);
+            assert_eq!(back.resources().len(), 2);
+            // One undo step takes both pasted objects away.
+            history.undo(&mut target).unwrap();
+            assert_eq!(target.object_count(), 1);
+        }
+
+        #[test]
+        fn pasting_where_the_picture_is_already_shares_it() {
+            // Back into the source document: like Duplicate, no second copy of the image.
+            let mut doc = archive::tests::sample();
+            let mut history = History::new();
+            let mut sel = Selection::new();
+            let first = doc.scene().ids()[0];
+            let edit = paste(&doc, &copied(&doc, &[first])).unwrap();
+            match &edit.command {
+                Command::Insert { resources, .. } => assert!(resources.is_empty()),
+                other => panic!("expected Insert, got {other:?}"),
+            }
+            apply(&mut doc, &mut history, &mut sel, edit);
+            assert_eq!(doc.resources().len(), 1);
+            let pasted = sel.ids()[0];
+            assert_eq!(
+                doc.scene().get(pasted).unwrap().object.resources(),
+                vec!["images/1.png"]
+            );
+        }
+
+        #[test]
+        fn pasted_groups_get_new_member_ids() {
+            let (mut doc, mut history, ids) = doc_with(0);
+            assert!(ids.is_empty());
+            for x in [10.0, 100.0] {
+                let edit = add(
+                    &doc,
+                    Box::new(Arrow::new(Point::new(x, 10.0), Point::new(x + 50.0, 40.0))),
+                )
+                .unwrap();
+                history.execute(&mut doc, "Add", edit.command).unwrap();
+            }
+            let mut sel = Selection::new();
+            sel.set(doc.scene(), doc.scene().ids());
+            let edit = group(&doc, &sel).unwrap();
+            apply(&mut doc, &mut history, &mut sel, edit);
+            let gid = sel.ids()[0];
+            let clip = copied(&doc, &[gid]);
+            for _ in 0..2 {
+                let edit = paste(&doc, &clip).unwrap();
+                assert_eq!(edit.subject, Subject::One("group"));
+                apply(&mut doc, &mut history, &mut sel, edit);
+            }
+            let groups = doc.scene().ids();
+            assert_eq!(groups.len(), 3);
+            let mut seen = HashSet::new();
+            for id in &groups {
+                assert!(seen.insert(*id));
+                for m in doc.scene().get(*id).unwrap().object.nested_ids() {
+                    assert!(seen.insert(m), "member id {m:?} repeated");
+                    assert_eq!(doc.scene().owner(m), Some(*id));
+                }
+            }
+        }
+
+        #[test]
+        fn objects_of_a_newer_annota_paste_and_the_document_still_reopens() {
+            // A payload of format 1.3: an arrow with a key this version does not know, and an
+            // arrow this version cannot read. Both are kept; the document's file says 1.3, so a
+            // save reopens (a 1.0 file with an unreadable arrow would not).
+            let (mut doc, mut history, _) = arrow_doc();
+            let mut known = node_to_json(&doc.scene().nodes()[0]).unwrap();
+            known["glow"] = json!({"radius": 4});
+            let clip = Clip {
+                format_minor: 3,
+                nodes: vec![
+                    node_from_json(known, true).unwrap(),
+                    node_from_json(json!({"id": 9, "type": "arrow", "head": "spiral"}), true)
+                        .unwrap(),
+                ],
+                resources: Vec::new(),
+            };
+            let mut sel = Selection::new();
+            let edit = paste(&doc, &clip).unwrap();
+            apply(&mut doc, &mut history, &mut sel, edit);
+            assert_eq!(doc.object_count(), 3);
+            // Only the arrow this version can show is selectable.
+            assert_eq!(sel.ids().len(), 1);
+            let saved = archive::document_json(&doc).unwrap();
+            assert_eq!(saved["format"], json!("1.3"));
+            assert_eq!(saved["objects"][1]["glow"], json!({"radius": 4}));
+            assert_eq!(saved["objects"][2]["head"], json!("spiral"));
+            let back = archive::decode(&archive::encode(&doc).unwrap()).unwrap();
+            assert_eq!(back.object_count(), 3);
+            assert_eq!(
+                back.scene().nodes()[2].object.type_name(),
+                UnknownObject::TYPE
+            );
+            // Undo puts the document's own version back too.
+            history.undo(&mut doc).unwrap();
+            assert_eq!(
+                archive::document_json(&doc).unwrap()["format"],
+                json!("1.0")
+            );
+            // A payload of this version leaves the document's version alone.
+            let plain = paste(&doc, &copied(&doc, &doc.scene().ids())).unwrap();
+            assert!(matches!(plain.command, Command::Insert { .. }));
+        }
+
+        #[test]
+        fn unknown_objects_get_new_ids_and_image_names() {
+            // An unknown container that holds children and an image reference.
+            let mut doc = Document::new(Bitmap::filled(40, 30, Rgba::WHITE).unwrap());
+            let mut history = History::new();
+            let own = Bitmap::filled(4, 4, palette::CORAL).unwrap();
+            let cmd = Image::insert_command(&doc, own, Point::new(10.0, 10.0));
+            history.execute(&mut doc, "Insert", cmd).unwrap();
+            let mut unknown = node_from_json(
+                json!({"id": 5, "type": "stack", "art": "images/1.png",
+                       "children": [{"id": 6, "type": "arrow"}]}),
+                true,
+            )
+            .unwrap();
+            let art = Bitmap::filled(8, 8, palette::AZURE).unwrap();
+            unknown
+                .object
+                .as_any_mut()
+                .downcast_mut::<UnknownObject>()
+                .unwrap()
+                .resources
+                .push("images/1.png".into());
+            let clip = Clip {
+                format_minor: 2,
+                nodes: vec![unknown],
+                resources: vec![("images/1.png".into(), art.clone())],
+            };
+            let mut sel = Selection::new();
+            for _ in 0..2 {
+                let edit = paste(&doc, &clip).unwrap();
+                apply(&mut doc, &mut history, &mut sel, edit);
+            }
+            let saved = archive::document_json(&doc).unwrap();
+            let objects = saved["objects"].as_array().unwrap();
+            assert_eq!(objects.len(), 3);
+            assert_eq!(objects[1]["art"], json!("images/2.png"));
+            assert_eq!(
+                objects[2]["art"],
+                json!("images/2.png"),
+                "shared the 2nd time"
+            );
+            assert_ne!(
+                objects[1]["children"][0]["id"],
+                objects[2]["children"][0]["id"]
+            );
+            assert!(doc.resources().get("images/2.png").unwrap().ptr_eq(&art));
+            let back = archive::decode(&archive::encode(&doc).unwrap()).unwrap();
+            assert_eq!(back.object_count(), 3);
+        }
+
+        #[test]
+        fn nothing_to_paste() {
+            let (doc, _, _) = arrow_doc();
+            let empty = Clip {
+                format_minor: 0,
+                nodes: Vec::new(),
+                resources: Vec::new(),
+            };
+            assert!(paste(&doc, &empty).is_none());
+        }
     }
 }

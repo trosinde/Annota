@@ -5,6 +5,10 @@
 //! * **Clipboard**: the flattened document as a `GdkTexture` on the system clipboard
 //!   ([`texture`], `capture::delivery::copy_to_clipboard`); GTK offers a texture as `image/png`
 //!   (and other image types) to whoever pastes. No file is written.
+//! * **Object clipboard** (task 2.4a): with a selection, Copy puts the selected objects there
+//!   instead, as `annota::document::clipboard`'s self-contained payload under its own type
+//!   ([`objects_content`]); `Ctrl+V` reads that type first ([`paste_kind`], [`read_payload`])
+//!   and otherwise opens a clipboard image as a new document, as `Shift+Ctrl+V` does.
 //! * **Drag-out**: a temporary PNG named after the document (`annota::export::handoff`), offered
 //!   as `text/uri-list` (a `GdkFileList`) together with the same bytes as `image/png`
 //!   ([`drag_content`]); the drag image is mockup 09's 160 × 100 thumbnail with a "PNG" badge
@@ -24,11 +28,13 @@ use std::pin::Pin;
 use std::rc::Rc;
 
 use ashpd::WindowIdentifier;
-use gettextrs::gettext;
+use gettextrs::{gettext, ngettext};
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
 
+use annota::document::archive::ArchiveError;
 use annota::document::bitmap::Bitmap;
+use annota::document::clipboard;
 use annota::document::Document;
 use annota::export::handoff::Handoff;
 use annota::export::ExportError;
@@ -148,6 +154,63 @@ pub fn texture(bitmap: &Bitmap) -> Option<gdk::Texture> {
     tray::scaled_pixels(bitmap, bitmap.width(), bitmap.height()).map(tray::texture)
 }
 
+/// What `Ctrl+V` pastes, by the types the clipboard offers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PasteKind {
+    /// Annota's copied objects: into the current document.
+    Objects,
+    /// Anything else: a clipboard image opens as a new document (`app.paste-image`, which
+    /// also says so when there is no image).
+    Image,
+}
+
+/// Annota's object type wins over anything else the clipboard offers.
+pub fn paste_kind<S: AsRef<str>>(mime_types: &[S]) -> PasteKind {
+    if mime_types
+        .iter()
+        .any(|m| m.as_ref() == clipboard::MIME_TYPE)
+    {
+        PasteKind::Objects
+    } else {
+        PasteKind::Image
+    }
+}
+
+/// Copied objects for the clipboard: the payload under Annota's object type, and only that —
+/// it is not an image for other apps (the whole image is what Copy without a selection gives).
+pub fn objects_content(payload: Vec<u8>) -> gdk::ContentProvider {
+    gdk::ContentProvider::for_bytes(clipboard::MIME_TYPE, &glib::Bytes::from_owned(payload))
+}
+
+/// A payload larger than this is not read (the clipboard can hold anything another program
+/// puts there under Annota's type).
+pub const MAX_PAYLOAD: usize = 1 << 30;
+const READ_CHUNK: usize = 1 << 16;
+
+/// Reads Annota's copied objects from `clipboard`, at most [`MAX_PAYLOAD`] bytes.
+pub async fn read_payload(clipboard: &gdk::Clipboard) -> Result<Vec<u8>, glib::Error> {
+    let (stream, _) = clipboard
+        .read_future(&[clipboard::MIME_TYPE], glib::Priority::DEFAULT)
+        .await?;
+    let mut payload = Vec::new();
+    loop {
+        let chunk = stream
+            .read_bytes_future(READ_CHUNK, glib::Priority::DEFAULT)
+            .await?;
+        if chunk.is_empty() {
+            break;
+        }
+        if payload.len() + chunk.len() > MAX_PAYLOAD {
+            return Err(glib::Error::new(
+                gio::IOErrorEnum::MessageTooLarge,
+                "the copied objects are too large",
+            ));
+        }
+        payload.extend_from_slice(&chunk);
+    }
+    Ok(payload)
+}
+
 /// The drag image's thumbnail of `bitmap`.
 pub fn ghost_texture(bitmap: &Bitmap) -> Option<gdk::Texture> {
     tray::scaled_pixels(
@@ -241,6 +304,35 @@ pub fn drag_ready_toast() -> String {
     gettext("You can drag the image out now")
 }
 
+/// After Copy with a selection (not drawn; worded like mockup 07's "Image copied to
+/// clipboard", so it is never unclear which of the two was copied). `n` counts the selected
+/// objects, a group as one.
+pub fn objects_copied_toast(n: usize) -> String {
+    ngettext(
+        "Object copied to clipboard",
+        "{n} objects copied to clipboard",
+        u32::try_from(n).unwrap_or(u32::MAX),
+    )
+    .replace("{n}", &n.to_string())
+}
+
+/// The copied objects could not be pasted (not drawn): from an Annota with a newer major
+/// format, or damaged.
+pub fn paste_failed_toast(err: &ArchiveError) -> String {
+    match err {
+        ArchiveError::NewerFormat { .. } => {
+            gettext("These objects were copied from a newer Annota and cannot be pasted here")
+        }
+        _ => gettext("The copied objects could not be pasted"),
+    }
+}
+
+/// The selected objects could not be put on the clipboard (an embedded image that cannot be
+/// encoded, out of memory).
+pub fn objects_copy_failed_toast() -> String {
+    gettext("The objects could not be copied")
+}
+
 /// The image could not be drawn (too large for the renderer, out of memory).
 pub fn copy_failed_toast() -> String {
     gettext("The image could not be copied")
@@ -298,6 +390,45 @@ mod tests {
             "Copied as “Checkout flow.png”"
         );
         assert_ne!(failed_toast(Target::Email), failed_toast(Target::OpenWith));
+    }
+
+    #[test]
+    fn annota_objects_paste_first_anything_else_opens_as_an_image() {
+        // Scenario "Plain image still opens as a new document": only Annota's own type pastes
+        // objects; an image, text or nothing falls back to the new-document paste.
+        assert_eq!(clipboard::MIME_TYPE, "application/x-annota-objects");
+        assert_eq!(
+            paste_kind(&["image/png", clipboard::MIME_TYPE]),
+            PasteKind::Objects
+        );
+        assert_eq!(paste_kind(&[clipboard::MIME_TYPE]), PasteKind::Objects);
+        assert_eq!(
+            paste_kind(&["image/png", "image/jpeg", "text/uri-list"]),
+            PasteKind::Image
+        );
+        assert_eq!(paste_kind(&["text/plain;charset=utf-8"]), PasteKind::Image);
+        assert_eq!(paste_kind::<&str>(&[]), PasteKind::Image);
+        // A look-alike is not Annota's.
+        assert_eq!(
+            paste_kind(&["application/x-annota-objects-v2"]),
+            PasteKind::Image
+        );
+    }
+
+    #[test]
+    fn object_copy_and_paste_texts() {
+        assert_eq!(objects_copied_toast(1), "Object copied to clipboard");
+        assert_eq!(objects_copied_toast(3), "3 objects copied to clipboard");
+        assert_ne!(objects_copied_toast(1), copied_toast());
+        let newer = ArchiveError::NewerFormat {
+            found: annota::document::archive::FormatVersion { major: 2, minor: 0 },
+            requires: Some("2.1".into()),
+        };
+        assert!(paste_failed_toast(&newer).contains("newer Annota"));
+        assert_eq!(
+            paste_failed_toast(&ArchiveError::Invalid("x".into())),
+            "The copied objects could not be pasted"
+        );
     }
 
     #[test]

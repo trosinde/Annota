@@ -31,7 +31,7 @@
       toast; Open With… → `OpenURI` with the app chooser; Copy to Folder… → GTK's file
       chooser, no Email/OpenURI portal; real portal round-trips are maintainer checks,
       `manual-checks.md`)
-- [ ] 2.4a Object copy/paste (maintainer decision, 2026-10-31, over the "leave it for later"
+- [x] 2.4a Object copy/paste (maintainer decision, 2026-10-31, over the "leave it for later"
       recommendation — the original mockup table assumed this existed and it never did
       anywhere in the app): `Ctrl+C` with a selection SHALL put the selected object(s) on the
       system clipboard in an Annota-specific mime type (self-contained: geometry, properties,
@@ -48,6 +48,13 @@
       convention — see add-annotation-editor's phase 2a decisions); without that mime type, it
       falls back to the same behaviour as `app.paste-image` (a plain clipboard image opens as a
       new document). `Shift+Ctrl+V` keeps working exactly as it does today, untouched.
+      **Built (2026-10-31):** clipboard type `application/x-annota-objects`, payload = a
+      cut-down `.annota` (`objects.json` with the file's versioning keys + `images/<n>.png`;
+      `src/document/clipboard.rs`), paste = `editing::ops::paste` (Duplicate's shape, images
+      re-numbered or shared, newer-minor data kept via `Command::SetFormatMinor`), `win.paste`
+      as a window key, shortcuts-window row "Paste"; see design.md "Decided during apply
+      (2026-10-31: task 2.4a object copy/paste)". Cross-process paste: `manual-checks.md` rows
+      9-10.
 - [ ] 2.5 Batch export dialog
 - [ ] 2.6 "Save changes before closing?" — add-annotation-editor keeps every unsaved document's
       autosave when the editor window closes or Annota quits, because there was no Save yet

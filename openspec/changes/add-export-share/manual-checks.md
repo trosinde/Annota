@@ -2,7 +2,8 @@
 
 Everything around the system boundaries is covered automatically: unit tests (`src/export/tests.rs`,
 `src/ui/editor/{share,saving,export_dialog,redaction_warning}.rs`) and the live-GTK tests
-`export_and_save_on_a_live_display` and `copy_drag_and_share_on_a_live_display` in
+`export_and_save_on_a_live_display`, `copy_drag_and_share_on_a_live_display` and
+`object_copy_and_paste_on_a_live_display` (task 2.4a) in
 `src/ui/editor/mod.rs` (`#[ignore]`d; one per process, see below). Those live tests replace the
 portals with a stand-in (`Inner::sharer`), never open a file chooser, and write only to temporary
 folders. What they cannot cover is the other side of each boundary — a real mail app, a real app
@@ -34,3 +35,5 @@ listen address, `EXTERNAL` auth, an allow-all policy) **without** any `<serviced
 | 6 | Drag the title area into an app that takes image data but no files (e.g. a chat or a document editor) | The image is inserted (`image/png`). |
 | 7 | Ctrl+C with nothing selected, paste into another app (Wayland and X11) | Toast "Image copied to clipboard" for 3 s; the annotated image is pasted. Quit Annota after copying on Wayland: pasting still works until another app takes the clipboard. |
 | 8 | Each of 1, 3, 4, 5, 7 on a document with a blur or pixelate redaction | "Make Redactions Solid?" first, with "Share Anyway" (1, 3, 4), "Drag Anyway" (5) or "Copy Anyway" (7). For a drag the drag does not start; after either button, the toast "You can drag the image out now" and the next drag goes through. |
+| 9 | Select an arrow and an inserted picture, Ctrl+C, then open a second capture and press Ctrl+V; close the first document and press Ctrl+V again (Wayland and X11) | Toast "2 objects copied to clipboard", no redaction warning. Each Ctrl+V inserts both, 10 px down and right of where they were, selected, one "Undo Paste 2 Objects". Pasting into another app (a chat, a text editor) gives nothing — objects are Annota-only. Shift+Ctrl+V still opens a clipboard image as a new document, and Ctrl+V in a sidebar text field pastes text. |
+| 10 | On Wayland: copy objects (as in 9), close Annota's window, start Annota again and press Ctrl+V in a new capture | The objects paste (Annota was held running while it owned the clipboard, like the image copy in 7). |

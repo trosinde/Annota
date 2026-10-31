@@ -312,6 +312,12 @@ pub trait Annotation: AnnotationBase + fmt::Debug {
         Vec::new()
     }
 
+    /// Points the object at other embedded images: `rename` gives the new id for an old one, or
+    /// `None` to keep it. Resource ids belong to one document, so objects pasted into another
+    /// document (or pasted twice) get the ids the paste gives their images. Types that draw
+    /// embedded images override this, together with [`Annotation::resources`].
+    fn rename_resources(&mut self, _rename: &dyn Fn(&str) -> Option<String>) {}
+
     /// Objects nested inside this one, bottom to top (a group's members). They are nodes with
     /// ids of their own, unique in the whole document; they are not in the scene's top level, so
     /// they cannot be selected on their own.

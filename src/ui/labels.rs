@@ -58,6 +58,7 @@ pub fn undo_label(edit: &Edit) -> String {
         Action::Reshape => with_object(gettext("Edit {object}")),
         Action::Delete => with_object(gettext("Delete {object}")),
         Action::Duplicate => with_object(gettext("Duplicate {object}")),
+        Action::Paste => with_object(gettext("Paste {object}")),
         Action::BringToFront => gettext("Bring to Front"),
         Action::BringForward => gettext("Bring Forward"),
         Action::SendBackward => gettext("Send Backward"),
@@ -295,6 +296,15 @@ mod tests {
         assert_eq!(
             undo_label(&edit(Action::Add, Subject::One("step"))),
             "Add Step"
+        );
+        // add-export-share task 2.4a: Ctrl+V of copied objects.
+        assert_eq!(
+            undo_label(&edit(Action::Paste, Subject::One("arrow"))),
+            "Paste Arrow"
+        );
+        assert_eq!(
+            undo_label(&edit(Action::Paste, Subject::Many(2))),
+            "Paste 2 Objects"
         );
         assert_eq!(
             undo_label(&edit(Action::Reshape, Subject::One("text"))),

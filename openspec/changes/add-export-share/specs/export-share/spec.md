@@ -46,14 +46,14 @@ A saved document SHALL take its file's name as title, lose its autosave and anno
 - **THEN** a toast says "No permission to write to this folder", the document stays "Not saved" and keeps its autosave
 
 ### Requirement: Clipboard
-`Ctrl+C` with no object selected, and the header's Copy, SHALL copy the flattened image to the clipboard as PNG and confirm with the toast "Image copied to clipboard" (mockup 07, 3 s). Copying SHALL not count as saving the document.
+`Ctrl+C` and the header's Copy (one action), with no object selected, SHALL copy the flattened image to the clipboard as PNG and confirm with the toast "Image copied to clipboard" (mockup 07, 3 s). Copying SHALL not count as saving the document.
 
 #### Scenario: Paste elsewhere
 - **WHEN** the user presses Ctrl+C and pastes into another app
 - **THEN** the annotated image is pasted
 
 ### Requirement: Object copy and paste
-`Ctrl+C` with a selection SHALL put the selected object(s) on the clipboard in a self-contained Annota-specific format instead of the flattened image. `Ctrl+V` in an open document SHALL check for that format first and insert the objects there as one undo step; without it, `Ctrl+V` SHALL fall back to the existing new-document paste.
+`Ctrl+C` (or the header's Copy) with a selection SHALL put the selected object(s) on the clipboard in a self-contained Annota-specific format instead of the flattened image, without the redaction warning, and confirm with the toast "Object copied to clipboard" ("<n> objects copied to clipboard"). `Ctrl+V` in an open document SHALL check for that format first and insert the objects there as one undo step; without it, `Ctrl+V` SHALL fall back to the existing new-document paste.
 
 #### Scenario: Copy and paste into the same document
 - **WHEN** the user selects an arrow, presses Ctrl+C, then Ctrl+V in the same document

@@ -33,6 +33,15 @@
 //! 14), Copy to Folder… through GTK's file chooser. Each goes through the redaction warning
 //! first, like Export.
 //!
+//! **Object copy and paste** (task 2.4a). With a selection, `Ctrl+C` and the header's Copy put
+//! the selected objects on the clipboard instead, in Annota's own self-contained type
+//! (`annota::document::clipboard`, the `.annota` object format) — no redaction warning, nothing
+//! leaves Annota as an image. `Ctrl+V` (`win.paste`, a window key like `Ctrl+C`, so text fields
+//! keep pasting text) inserts such objects into the current document as one undo step, offset
+//! and selected like a duplicate (`ops::paste`), whichever document they came from and whether
+//! it is still open; without them it opens a clipboard image as a new document, exactly as
+//! `Shift+Ctrl+V` (`app.paste-image`, unchanged) does.
+//!
 //! **Placeholders.** Open Library belongs to add-capture-library.
 //!
 //! **Closing keeps autosaves.** Until "Save changes before closing?" exists (add-export-share
@@ -72,8 +81,10 @@ use annota::document::annotation::PropertyValue;
 use annota::document::archive::ArchiveError;
 use annota::document::autosave::{self, AutosaveId, RecoveryEntry, Schedule, Store};
 use annota::document::bitmap::Bitmap;
+use annota::document::clipboard;
 use annota::document::color::Rgba;
 use annota::document::geometry::Mirror;
+use annota::document::scene::ObjectId;
 use annota::document::{Background, Document};
 use annota::editing::canvas_edit;
 use annota::editing::image_ops::{self, Turn};
@@ -1263,8 +1274,10 @@ impl Editor {
             }
         }
         // add-export-share task 2.3: the flattened image to the clipboard (mockup 07), behind
-        // the redaction warning (task 2.7, mockup 10).
-        entry("copy", |e| e.copy_image());
+        // the redaction warning (task 2.7, mockup 10); with a selection, the objects (2.4a).
+        entry("copy", |e| e.copy());
+        // Task 2.4a: Ctrl+V, copied objects into this document (or a clipboard image as a new one).
+        entry("paste", |e| e.paste());
         // add-export-share: the export dialog (mockups 02–05) behind the redaction warning,
         // quick save and Save As (task 2.2, mockup 06) without it.
         entry("export", |e| e.export());
@@ -1726,17 +1739,111 @@ impl Editor {
 
     // ---- copy, drag-out and Share (add-export-share tasks 2.3, 2.4) ----
 
-    /// `Ctrl+C` and the header's Copy (spec export-share "Clipboard", mockup 07): the redaction
-    /// warning ("Copy Anyway"), then the flattened image on the clipboard and "Image copied to
-    /// clipboard" for 3 s. Objects cannot be copied as objects yet (no editor change builds
-    /// that), so with a selection it copies the image too — see design.md.
-    fn copy_image(&self) {
+    /// `Ctrl+C` and the header's Copy. With a selection (spec export-share "Object copy and
+    /// paste", task 2.4a): the selected objects in Annota's own clipboard type, no redaction
+    /// warning — they stay Annota objects, redactions included. Without (spec "Clipboard",
+    /// mockup 07): the redaction warning ("Copy Anyway"), then the flattened image on the
+    /// clipboard and "Image copied to clipboard" for 3 s.
+    fn copy(&self) {
         let Some(session) = self.current_without_dialog() else {
             return;
         };
         session.canvas.finish_text();
+        let selected = session.canvas.selection();
+        if !selected.is_empty() {
+            self.copy_objects(&session, &selected);
+            return;
+        }
         let uid = session.uid;
         self.guard_redactions(Purpose::Copy, move |editor| editor.copy_now(uid));
+    }
+
+    fn application(&self) -> Option<adw::Application> {
+        self.inner
+            .w
+            .window
+            .application()
+            .and_then(|a| a.downcast::<adw::Application>().ok())
+    }
+
+    /// The objects `ids` of `session` on the clipboard: a self-contained payload (their
+    /// embedded images included), so they paste after the document is closed too.
+    fn copy_objects(&self, session: &Session, ids: &[ObjectId]) {
+        let payload = session
+            .canvas
+            .with_document(|doc| clipboard::encode(doc, ids));
+        let payload = match payload {
+            Some(Ok(Some(payload))) => payload,
+            Some(Ok(None)) | None => return,
+            Some(Err(err)) => {
+                eprintln!("annota: copying the objects failed: {err}");
+                self.toast(&share::objects_copy_failed_toast());
+                return;
+            }
+        };
+        let Some(app) = self.application() else {
+            self.toast(&share::objects_copy_failed_toast());
+            return;
+        };
+        crate::capture::delivery::copy_content_to_clipboard(&app, &share::objects_content(payload));
+        let toast = adw::Toast::builder()
+            .title(share::objects_copied_toast(ids.len()))
+            .timeout(share::COPIED_TOAST_SECONDS)
+            .build();
+        toast.set_use_markup(false);
+        self.inner.w.toast_overlay.add_toast(toast);
+    }
+
+    /// `Ctrl+V` (spec export-share "Object copy and paste"): Annota's copied objects into the
+    /// current document; anything else is what `Shift+Ctrl+V` does — a clipboard image opens as
+    /// a new document (`capture::import::paste`, also its "no image" toast).
+    fn paste(&self) {
+        let Some(session) = self.current_without_dialog() else {
+            return;
+        };
+        session.canvas.finish_text();
+        let clipboard = self.inner.w.window.clipboard();
+        match share::paste_kind(&clipboard.formats().mime_types()) {
+            share::PasteKind::Image => {
+                if let Some(app) = self.application() {
+                    crate::capture::import::paste(&app);
+                }
+            }
+            share::PasteKind::Objects => {
+                // Into the document Ctrl+V was pressed in, even if another one is shown by the
+                // time the clipboard answers.
+                let uid = session.uid;
+                let weak = self.downgrade();
+                glib::spawn_future_local(async move {
+                    let payload = share::read_payload(&clipboard).await;
+                    if let Some(editor) = weak.upgrade() {
+                        editor.paste_payload(uid, payload);
+                    }
+                });
+            }
+        }
+    }
+
+    fn paste_payload(&self, uid: u64, payload: Result<Vec<u8>, glib::Error>) {
+        let Some(session) = self.session(uid) else {
+            return;
+        };
+        let clip = payload
+            .map_err(|err| ArchiveError::Invalid(err.to_string()))
+            .and_then(|bytes| clipboard::decode(&bytes));
+        let failed = match clip {
+            Ok(clip) => session
+                .canvas
+                .run(|doc, _| ops::paste(doc, &clip))
+                .is_none()
+                .then(|| ArchiveError::Invalid("the objects do not fit this document".into())),
+            Err(err) => Some(err),
+        };
+        if let Some(err) = failed {
+            eprintln!("annota: pasting the objects failed: {err}");
+            // It answers the Ctrl+V just pressed (like the share failures).
+            self.toast_now(&share::paste_failed_toast(&err));
+        }
     }
 
     fn copy_now(&self, uid: u64) {
@@ -2071,6 +2178,12 @@ impl Editor {
             // need it. Text being edited on the canvas took Ctrl+C above (copies the text).
             gdk::Key::c if ctrl => {
                 let _ = WidgetExt::activate_action(&self.inner.w.window, "win.copy", None);
+                true
+            }
+            // Paste (Ctrl+V, task 2.4a) — a window key for the same reason. Shift+Ctrl+V is
+            // `app.paste-image`'s accelerator and never gets here.
+            gdk::Key::v if ctrl && !modifiers.contains(gdk::ModifierType::SHIFT_MASK) => {
+                let _ = WidgetExt::activate_action(&self.inner.w.window, "win.paste", None);
                 true
             }
             // Crop (C) is a mode of the canvas.
@@ -2709,6 +2822,8 @@ fn install_actions(window: &adw::ApplicationWindow, settings: &gio::Settings) ->
     // Only useful with a document open.
     let document = [
         "copy",
+        // Task 2.4a: objects into the open document (or a clipboard image as a new one).
+        "paste",
         "export",
         // Decision D1's Share menu (add-export-share task 2.4).
         "share-email",
@@ -5103,6 +5218,241 @@ mod tests {
             assert_eq!(store.list().entries.len(), 1, "the autosave is kept");
         }
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
+        window_done(&w.window);
+    }
+
+    /// add-export-share task 2.4a (spec export-share "Object copy and paste", all four
+    /// scenarios) through the display's real clipboard (Xvfb's, not the desktop's): Ctrl+C with
+    /// a selection puts only Annota's object type there — no redaction warning, although the
+    /// document has a pixelate redaction —, Ctrl+V pastes into the same document, into another
+    /// one, and again after the first one is closed; a plain image still opens as a new document,
+    /// a damaged payload is a toast. No portal is involved. Run on its own like the tests above.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn object_copy_and_paste_on_a_live_display() {
+        use annota::document::geometry::Rect;
+        use annota::tools::arrow::Arrow;
+        use annota::tools::redaction::{Redaction, RedactionKind};
+
+        let tmp =
+            TempDir(std::env::temp_dir().join(format!("annota-paste-test-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(&tmp.0).unwrap();
+        let app = environment(&tmp.0);
+        let editor = Editor::build(
+            &app,
+            Store::new(tmp.0.join("autosave")),
+            style_paths(&tmp.0),
+        )
+        .unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let toasts = || w.toast_overlay.clone().upcast::<gtk::Widget>();
+        let clipboard = gdk::Display::default().unwrap().clipboard();
+        let ctrl = gdk::ModifierType::CONTROL_MASK;
+        let offers = |mime: &str| {
+            clipboard
+                .formats()
+                .union_serialize_mime_types()
+                .contain_mime_type(mime)
+        };
+        // No document: nothing to paste into.
+        assert!(!w.window.lookup_action("paste").unwrap().is_enabled());
+
+        // "Checkout flow": a pixelate redaction, an inserted picture and an arrow (selected).
+        let picture = Bitmap::filled(60, 40, palette::AZURE).unwrap();
+        let first = editor.add_session(
+            Loaded {
+                document: Document::with_title(
+                    Bitmap::filled(400, 250, palette::PAPER).unwrap(),
+                    "Checkout flow",
+                ),
+                source: None,
+                path: None,
+                name: "Checkout flow".into(),
+            },
+            Origin::New,
+            AutosaveId::generate(),
+        );
+        let a = editor.session(first).unwrap();
+        a.canvas.run(|doc, _| {
+            let mut r = Redaction::new(Rect::new(10.0, 10.0, 40.0, 20.0));
+            r.kind = RedactionKind::Pixelate;
+            ops::add(doc, Box::new(r))
+        });
+        a.canvas.run(|doc, _| {
+            ops::insert_image(
+                doc,
+                picture.clone(),
+                annota::document::geometry::Point::new(300.0, 150.0),
+            )
+        });
+        let start = annota::document::geometry::Point::new(40.0, 120.0);
+        let end = annota::document::geometry::Point::new(160.0, 200.0);
+        a.canvas
+            .run(|doc, _| ops::add(doc, Box::new(Arrow::new(start, end))));
+        let arrow_id = a.canvas.selection()[0];
+        assert!(w.window.lookup_action("paste").unwrap().is_enabled());
+        let arrow_at = |canvas: &Canvas, id: ObjectId| {
+            canvas
+                .with_document(|doc| {
+                    let arrow = doc.scene().get(id).unwrap();
+                    let arrow = arrow.object.as_any().downcast_ref::<Arrow>().unwrap();
+                    (arrow.start, arrow.end)
+                })
+                .unwrap()
+        };
+
+        // ---- Scenario "Copy and paste into the same document" ----
+        a.canvas.grab_focus();
+        assert!(editor.key_pressed(gdk::Key::c, ctrl));
+        pump(200);
+        assert!(
+            w.window.visible_dialog().is_none(),
+            "no redaction warning for objects"
+        );
+        assert!(offers(clipboard::MIME_TYPE));
+        assert!(!offers("image/png"), "objects only, not the image");
+        assert!(shows_label(&toasts(), "Object copied to clipboard"));
+        assert!(!shows_label(&toasts(), "Image copied to clipboard"));
+        assert!(editor.key_pressed(gdk::Key::v, ctrl));
+        pump(300);
+        let ids = a.canvas.with_document(|d| d.scene().ids()).unwrap();
+        assert_eq!(ids.len(), 4);
+        let pasted = ids[3];
+        assert_eq!(a.canvas.selection(), vec![pasted], "the copy is selected");
+        assert_eq!(
+            arrow_at(&a.canvas, arrow_id),
+            (start, end),
+            "original stays"
+        );
+        let moved = |p: annota::document::geometry::Point| {
+            annota::document::geometry::Point::new(p.x + 10.0, p.y + 10.0)
+        };
+        assert_eq!(arrow_at(&a.canvas, pasted), (moved(start), moved(end)));
+        assert_eq!(
+            a.canvas.history_info().undo_label.as_deref(),
+            Some("Paste Arrow")
+        );
+        a.canvas.undo();
+        assert_eq!(a.canvas.with_document(|d| d.object_count()), Some(3));
+
+        // ---- Scenario "Paste into a different document" ----
+        // The picture this time, through the header's Copy (the same action).
+        a.canvas.select_type(annota::tools::image::Image::TYPE);
+        WidgetExt::activate_action(&w.window, "win.copy", None).unwrap();
+        pump(200);
+        assert!(w.window.visible_dialog().is_none());
+        assert!(offers(clipboard::MIME_TYPE));
+        // "Release notes" has its own picture under the same image id.
+        let second = editor.add_session(
+            Loaded {
+                document: Document::with_title(
+                    Bitmap::filled(300, 200, palette::PAPER).unwrap(),
+                    "Release notes",
+                ),
+                source: None,
+                path: None,
+                name: "Release notes".into(),
+            },
+            Origin::New,
+            AutosaveId::generate(),
+        );
+        let b = editor.session(second).unwrap();
+        let own = Bitmap::filled(20, 20, palette::CORAL).unwrap();
+        b.canvas.run(|doc, _| {
+            ops::insert_image(
+                doc,
+                own.clone(),
+                annota::document::geometry::Point::new(50.0, 50.0),
+            )
+        });
+        assert_eq!(editor.current().unwrap().uid, second);
+        b.canvas.grab_focus();
+        assert!(editor.key_pressed(gdk::Key::v, ctrl));
+        pump(300);
+        let (count, sources, own_kept, pixels) = b
+            .canvas
+            .with_document(|doc| {
+                let sources: Vec<String> = doc
+                    .scene()
+                    .nodes()
+                    .iter()
+                    .flat_map(|n| n.object.resources().into_iter().map(str::to_string))
+                    .collect();
+                let pasted = doc.resources().get(&sources[1]).unwrap();
+                (
+                    doc.object_count(),
+                    sources.clone(),
+                    doc.resources().get("images/1.png").unwrap().ptr_eq(&own),
+                    pasted.png().unwrap() == picture.png().unwrap(),
+                )
+            })
+            .unwrap();
+        assert_eq!(count, 2);
+        assert_eq!(sources, vec!["images/1.png", "images/2.png"]);
+        assert!(own_kept && pixels, "own picture kept, pasted picture equal");
+        assert_eq!(b.canvas.selection().len(), 1);
+        // Pasted objects are the document's: it saves and reopens with them.
+        let reopened = b
+            .canvas
+            .with_document(|doc| {
+                annota::document::archive::decode(&annota::document::archive::encode(doc).unwrap())
+                    .unwrap()
+                    .object_count()
+            })
+            .unwrap();
+        assert_eq!(reopened, 2);
+
+        // ---- Scenario "Paste after the source document closes" ----
+        editor.close_session(first, true);
+        pump(100);
+        assert!(editor.session(first).is_none());
+        assert_eq!(editor.current().unwrap().uid, second);
+        b.canvas.grab_focus();
+        assert!(editor.key_pressed(gdk::Key::v, ctrl));
+        pump(300);
+        assert_eq!(b.canvas.with_document(|d| d.object_count()), Some(3));
+        assert_eq!(
+            b.canvas.history_info().undo_label.as_deref(),
+            Some("Paste Image")
+        );
+
+        // A damaged payload under Annota's type: a toast, nothing pasted.
+        clipboard
+            .set_content(Some(&share::objects_content(b"not annota".to_vec())))
+            .unwrap();
+        pump(100);
+        assert!(editor.key_pressed(gdk::Key::v, ctrl));
+        pump(300);
+        assert!(shows_label(
+            &toasts(),
+            "The copied objects could not be pasted"
+        ));
+        assert_eq!(b.canvas.with_document(|d| d.object_count()), Some(3));
+
+        // ---- Scenario "Plain image still opens as a new document" ----
+        let shot = share::texture(&Bitmap::filled(64, 48, palette::CORAL).unwrap()).unwrap();
+        clipboard.set_texture(&shot);
+        pump(100);
+        assert!(!offers(clipboard::MIME_TYPE));
+        let before = editor.sessions().len();
+        assert!(editor.key_pressed(gdk::Key::v, ctrl));
+        pump(500);
+        assert_eq!(editor.sessions().len(), before + 1, "a new document");
+        let new = editor.current().unwrap();
+        assert_ne!(new.uid, second);
+        let size = new
+            .canvas
+            .with_document(|d| (d.image().bitmap.width(), d.image().bitmap.height()))
+            .unwrap();
+        assert_eq!(size, (64, 48));
+        assert_eq!(b.canvas.with_document(|d| d.object_count()), Some(3));
+        // Shift+Ctrl+V is not the window's: `app.paste-image` keeps its accelerator.
+        assert!(!editor.key_pressed(gdk::Key::V, ctrl | gdk::ModifierType::SHIFT_MASK));
         window_done(&w.window);
     }
 

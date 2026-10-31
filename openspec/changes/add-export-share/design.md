@@ -387,7 +387,8 @@ mockup 07 draws). Copying is not saving: status and autosave unchanged.
   context menu has a "Copy" entry wired to the same placeholder action, and Annota has no object
   paste). Until it exists, `Ctrl+C`, the context menu's Copy and the header's Copy all copy the
   flattened image, whatever is selected; the toast says "Image copied" so it is never ambiguous.
-  Open question below.
+  Open question below. *(Superseded: built as task 2.4a, see "Decided during apply (2026-10-31:
+  task 2.4a object copy/paste)" below.)*
 
 **Drag-out** (task 2.3, spec "Drag and drop", decision D1, mockups 08/09).
 - *Source*: a `GtkDragSource` (action COPY) on the header's `AdwWindowTitle`; tooltip "Drag image
@@ -515,3 +516,108 @@ file chooser is never opened (Copy to Folder's chooser only behind a cancelled w
 - **Hand-off retention stays 24h pruning, not deleted on Annota quit** — as built. Deleting on
   quit risks breaking a mail client that reads the attachment lazily at send time; 24h is
   generous for normal use, and `$XDG_RUNTIME_DIR` is cleared on logout/reboot regardless.
+
+### Decided during apply (2026-10-31: task 2.4a object copy/paste)
+
+**Copy with a selection** (`win.copy`: `Ctrl+C`, the header's Copy, the narrow main menu's "Copy
+to Clipboard", the context menu's Copy — one action, as before). With a selection, the selected
+top-level objects (a group counts as one, its members travel inside it) go on the clipboard
+under **`application/x-annota-objects`** — Annota-private (`x-`), and the *only* type offered:
+it is not an image for other apps; Copy without a selection still gives the flattened image.
+No redaction warning: the objects stay Annota objects (a copied blur redaction pastes as a blur
+redaction), nothing leaves Annota as pixels. Toast "Object copied to clipboard" / "<n> objects
+copied to clipboard" (not drawn; 3 s, default priority, worded like mockup 07 so it is never
+unclear which of the two was copied). Held like the image copy
+(`delivery::copy_content_to_clipboard`, the same Wayland app hold).
+
+**Payload shape** (`annota::document::clipboard`, library, no GTK) — a cut-down `.annota`, not a
+new format: a ZIP with `objects.json` = `{"format", "requires", "generator", "objects": [...]}`
+(document.json's versioning keys and its `objects` list, each node written by the same
+`registry::node_to_json` a save uses — ids, type tag, fields, unknown data merged back) and the
+used embedded images as `images/<n>.png` under the source document's ids, PNG-encoded and
+stored as in `.annota`. No `original.png`, canvas or metadata. Reading uses
+`registry::node_from_json` and `archive`'s own `read_entry`/size limits/version check
+(`archive::check_format`, factored out of `read_document_json`), so a copied object round-trips
+exactly like a saved-and-reopened one (unit test: the payload's nodes give the same JSON as
+`document_json` of the source). The payload's format is the source document's
+(`archive::written_format`: its file's newer minor version, if any). The bytes are the content
+provider's own: nothing in a paste refers back to the source document, which may be closed (or,
+across processes, its Annota gone).
+
+**Paste** (`win.paste`, **`Ctrl+V`**; `editing::ops::paste`). A window key like `Ctrl+C` — not an
+application accelerator, because text fields and text being edited on the canvas paste text
+with it (the canvas's text editing takes it first, as before); `Shift+Ctrl+V` stays
+`app.paste-image`'s accelerator, unchanged, and never reaches the window's key controller. In
+the `document` action group (enabled with a document). Without a document, `Ctrl+V` does
+nothing; `Shift+Ctrl+V` still pastes an image.
+- *Which*: `share::paste_kind` — Annota's type anywhere in the clipboard's formats wins; otherwise
+  `capture::import::paste(app)` is called, the very function `app.paste-image` runs (so an image
+  opens as a new document with its own toast, no image gives "The clipboard does not contain an
+  image") — no duplicated logic.
+- *Into*: the document `Ctrl+V` was pressed in (by session uid; if it closed while the clipboard
+  answered, nothing happens). One undo step **"Paste <object>"** ("Paste Arrow", "Paste 2
+  Objects"), the same shape as Duplicate: one `Command::Insert` on top, in the copied stacking
+  order, every node (and group member) with a fresh id of the target, offset by
+  `DUPLICATE_OFFSET` (10 px) — always, also into another document — and **the pasted objects
+  become the selection**, as Duplicate's copies do. The same clipboard pasted again lands at the
+  same +10 px spot (it does not cascade like repeated Duplicate does, since the clipboard keeps the
+  original position); not changed unless asked.
+- *Embedded images*: resource ids belong to one document, so every pasted image gets a fresh
+  `images/<n>.png` of the target — unless the target already has the very picture (same size and
+  PNG encoding; e.g. pasting back into the source document), which is then shared, as
+  Duplicate shares it. New `Annotation::rename_resources` (default no-op; `Image`, `Group`
+  recursively, `UnknownObject` rewriting its resource strings) points the objects at them.
+- *Failure*: a payload that does not read (damaged, or a newer *major* format) → high-priority
+  toast "The copied objects could not be pasted" / "These objects were copied from a newer
+  Annota and cannot be pasted here" (neither drawn); nothing changes.
+
+**Forward compatibility — kept, same rule as `.annota`.** Not overkill, because it costs nothing
+extra (the payload is read by the same `node_from_json` that reads files) and because the case is
+real without two Annota versions running: a document opened from a newer-minor file carries
+residual keys on its objects, and copying such an object into another document must not strip
+them (it would, if the clipboard had its own lossy shape). For payloads from a genuinely newer
+Annota (two versions sharing one session clipboard, e.g. a Flatpak and the .deb): newer major →
+refused before anything else is read; newer minor → unknown keys at any depth stay on each node
+as its residual, unknown types and unreadable known types become `UnknownObject`s (with the
+images they appear to use; `UnknownObject::renumber_nested` gives node-shaped children inside new
+ids so pasting one twice cannot repeat them). Pasting such a payload into a document of an
+older minor also sets the document's minor version (new **`Command::SetFormatMinor`**, batched
+with the Insert, undone with it): an unreadable known-type object is only legal in a file that
+says it is of the newer minor version — saved as "1.0" it would make the file fail to reopen.
+Unknown keys at the payload's top level (beside `objects`) have no counterpart in a document
+and are dropped (documented in the module).
+
+**Deviations / not drawn.** No mockup draws object copy or paste: the two toasts, the two failure
+toasts and the "Paste <object>" undo label are decided here. Shortcuts window: new row
+**"Paste" `Ctrl+V`** after "Copy image" in "Document" (bootstrap-app-shell mockup 07 has no
+paste row; "Copy image" is kept as drawn although `Ctrl+C` now copies objects when there is a
+selection — maintainer question). The context menu gets no "Paste" entry (none drawn).
+
+**Spec deltas.** export-share "Clipboard": the header's Copy is the same action, so "with no
+object selected" applies to both; "Object copy and paste": `Ctrl+C` *or the header's Copy*, no
+redaction warning, the toast.
+
+**Tests.** Unit (lib): `document::clipboard` — round trip equals the saved document's object JSON,
+images included once; stacking order and selection subset, no payload for nothing; groups with
+members; newer-minor payload keeps unknown keys, unknown types and unreadable known types (and
+the same payload as "1.0" fails); newer major refused; damaged payloads fail; a payload outlives
+its document. `editing::ops` `paste_tests` — scenario "same document" (offset 10 px, one undo step,
+selection, pastes again); same command, selection and offset as Duplicate; scenario "different
+document after the source closed" (source dropped, target's own `images/1.png` untouched, pasted
+pictures under `images/2.png` equal to the source's, the target saves and reopens, one undo
+removes both); pasting where the picture is shares it; pasted groups get unique member ids;
+newer-minor objects paste, the document's format becomes 1.3 and reopens, undo restores 1.0;
+unknown objects get new nested ids and image names; empty clip. Bin: `share` — `paste_kind`
+(Annota's type wins, images/text/nothing fall back, look-alikes do not count; scenario "Plain
+image"), toast texts; `labels` — "Paste Arrow", "Paste 2 Objects". Live (`#[ignore]`,
+`object_copy_and_paste_on_a_live_display`, Xvfb's clipboard, no portal, isolated bus): no
+document → `paste` disabled; Ctrl+C on a selected arrow in a document with a pixelate redaction
+→ no warning, only `application/x-annota-objects` offered (no `image/png`), toast; Ctrl+V → a
+4th object, selected, offset 10 px, original unchanged, "Paste Arrow", undo; header Copy of the
+picture → second document with its own `images/1.png` → Ctrl+V → `images/2.png` with equal
+pixels, saves and reopens; the first document closed → Ctrl+V still pastes ("Paste Image"); a
+damaged payload → toast, nothing pasted; a texture on the clipboard → Ctrl+V opens a new 64 × 48
+document, the other unchanged; Shift+Ctrl+V is not taken by the window. All 14 live tests pass
+(each in its own process, `isolated-session.conf` without service directories). Cross-process
+paste (two Annota processes, or after Annota quit on Wayland) is a maintainer check:
+`manual-checks.md` rows 9-10.

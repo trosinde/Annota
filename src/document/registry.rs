@@ -147,6 +147,55 @@ impl Annotation for UnknownObject {
     fn resources(&self) -> Vec<&str> {
         self.resources.iter().map(String::as_str).collect()
     }
+    /// Rewrites the strings in its fields that name one of its embedded images (the same
+    /// strings [`UnknownObject::resource_candidates`] found when it was read).
+    fn rename_resources(&mut self, rename: &dyn Fn(&str) -> Option<String>) {
+        fn walk(v: &mut Value, renamed: &[(String, String)]) {
+            match v {
+                Value::String(s) => {
+                    if let Some((_, new)) = renamed.iter().find(|(old, _)| old == s) {
+                        *s = new.clone();
+                    }
+                }
+                Value::Array(items) => items.iter_mut().for_each(|i| walk(i, renamed)),
+                Value::Object(map) => map.values_mut().for_each(|i| walk(i, renamed)),
+                _ => {}
+            }
+        }
+        let renamed: Vec<(String, String)> = self
+            .resources
+            .iter()
+            .filter_map(|old| rename(old).map(|new| (old.clone(), new)))
+            .collect();
+        if renamed.is_empty() {
+            return;
+        }
+        self.fields.values_mut().for_each(|v| walk(v, &renamed));
+        for id in &mut self.resources {
+            if let Some((_, new)) = renamed.iter().find(|(old, _)| old == id) {
+                *id = new.clone();
+            }
+        }
+    }
+    /// New ids for everything inside that [`Annotation::nested_ids`] reports (a newer
+    /// version's container pasted twice must not repeat its children's ids).
+    fn renumber_nested(&mut self, next: &mut dyn FnMut() -> ObjectId) {
+        fn walk(v: &mut Value, next: &mut dyn FnMut() -> ObjectId) {
+            match v {
+                Value::Object(map) => {
+                    let is_node = map.get("id").and_then(Value::as_u64).is_some()
+                        && matches!(map.get("type"), Some(Value::String(_)));
+                    if is_node {
+                        map.insert("id".into(), Value::from(next().0));
+                    }
+                    map.values_mut().for_each(|i| walk(i, next));
+                }
+                Value::Array(items) => items.iter_mut().for_each(|i| walk(i, next)),
+                _ => {}
+            }
+        }
+        self.fields.values_mut().for_each(|v| walk(v, next));
+    }
     /// Anything inside that looks like a scene node (`"id"` and `"type"`): a newer version's
     /// container type may hold children, whose ids must stay unique.
     fn nested_ids(&self) -> Vec<ObjectId> {

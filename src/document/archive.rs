@@ -44,10 +44,10 @@ pub const THUMBNAIL_PNG: &str = "thumbnail.png";
 /// Longer side of `thumbnail.png` (large library tiles are 230 px wide at 2× scale).
 pub const THUMBNAIL_SIZE: i32 = 512;
 
-/// Refuse `document.json` above this size.
-const MAX_JSON: u64 = 64 << 20;
+/// Refuse `document.json` (and a clipboard payload's `objects.json`) above this size.
+pub(crate) const MAX_JSON: u64 = 64 << 20;
 /// Refuse a single PNG entry above this size.
-const MAX_PNG: u64 = 512 << 20;
+pub(crate) const MAX_PNG: u64 = 512 << 20;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FormatVersion {
@@ -178,15 +178,8 @@ fn sections_json(doc: &Document) -> Result<Map<String, Value>, ArchiveError> {
     let canvas = doc.canvas();
     let image = doc.image();
     let metadata = doc.metadata();
-    let format = FormatVersion {
-        major: FORMAT.major,
-        // Keep a newer minor version: the file still carries that version's data.
-        minor: if doc.format_minor > FORMAT.minor {
-            doc.format_minor
-        } else {
-            FORMAT.minor
-        },
-    };
+    // Keep a newer minor version: the file still carries that version's data.
+    let format = written_format(doc);
     let json = FileJson {
         format: format.to_string(),
         requires: Some(REQUIRES.to_string()),
@@ -327,7 +320,7 @@ pub fn write_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     written
 }
 
-fn read_entry<R: Read + Seek>(
+pub(crate) fn read_entry<R: Read + Seek>(
     zip: &mut zip::ZipArchive<R>,
     name: &str,
     limit: u64,
@@ -357,6 +350,14 @@ fn read_document_json<R: Read + Seek>(
 ) -> Result<(FileJson, FormatVersion, Value), ArchiveError> {
     let bytes = read_entry(zip, DOCUMENT_JSON, MAX_JSON)?;
     let value: Value = serde_json::from_slice(&bytes)?;
+    let format = check_format(&value)?;
+    Ok((serde_json::from_value(value.clone())?, format, value))
+}
+
+/// The `"format"` of a versioned Annota JSON root (`document.json`, a clipboard payload's
+/// `objects.json`): a newer major version is refused with [`ArchiveError::NewerFormat`], before
+/// anything else is interpreted; an older one is unknown.
+pub(crate) fn check_format(value: &Value) -> Result<FormatVersion, ArchiveError> {
     let format = value
         .get("format")
         .and_then(Value::as_str)
@@ -374,7 +375,20 @@ fn read_document_json<R: Read + Seek>(
     if format.major < FORMAT.major {
         return Err(ArchiveError::Invalid(format!("unknown format {format}")));
     }
-    Ok((serde_json::from_value(value.clone())?, format, value))
+    Ok(format)
+}
+
+/// The format version written for data of `doc` (its file's newer minor version, if any:
+/// whatever it carries of that version is written back).
+pub(crate) fn written_format(doc: &Document) -> FormatVersion {
+    FormatVersion {
+        major: FORMAT.major,
+        minor: if doc.format_minor > FORMAT.minor {
+            doc.format_minor
+        } else {
+            FORMAT.minor
+        },
+    }
 }
 
 /// A document read from a file, plus what an autosave copy remembers.

@@ -288,6 +288,12 @@ impl Annotation for Image {
         vec![self.source.as_str()]
     }
 
+    fn rename_resources(&mut self, rename: &dyn Fn(&str) -> Option<String>) {
+        if let Some(source) = rename(&self.source) {
+            self.source = source;
+        }
+    }
+
     /// The box follows the image (default); with "Scale annotations" the border, the rounding
     /// and the shadow scale too. Unlike the default (which keeps content readable for text and
     /// stamps), a flip mirrors the picture as well, like the base image: mirroring the

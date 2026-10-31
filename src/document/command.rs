@@ -49,6 +49,12 @@ pub enum Command {
     SetCanvas(Canvas),
     SetImage(BaseImage),
     SetMetadata(Metadata),
+    /// The minor format version the document is written with (`archive::written_format`).
+    /// Objects pasted from a newer Annota may carry that version's data (unknown keys, objects
+    /// this version cannot read); the document then says so in its file, exactly as if it had
+    /// been opened from a file of that version — otherwise a saved file with such an object
+    /// would not reopen (a current-version file must read completely).
+    SetFormatMinor(u32),
     /// Several commands as one undo step, applied in order, all or nothing.
     Batch(Vec<Command>),
 }
@@ -200,6 +206,10 @@ impl Command {
             Command::SetMetadata(metadata) => {
                 Ok(Command::SetMetadata(doc.replace_metadata(metadata)))
             }
+            Command::SetFormatMinor(minor) => Ok(Command::SetFormatMinor(std::mem::replace(
+                &mut doc.format_minor,
+                minor,
+            ))),
             Command::Batch(commands) => {
                 let resources_before: BTreeSet<String> =
                     doc.resources().ids().map(str::to_string).collect();
@@ -304,6 +314,7 @@ impl Command {
                     Err(CommandError::Value("scale factor must be positive"))
                 }
             }
+            Command::SetFormatMinor(_) => Ok(()),
             // Sub-commands are validated as they are applied; failures roll back.
             Command::Batch(_) => Ok(()),
         }

@@ -8,6 +8,7 @@ pub mod annotation;
 pub mod archive;
 pub mod autosave;
 pub mod bitmap;
+pub mod clipboard;
 pub mod color;
 pub mod command;
 pub mod geometry;

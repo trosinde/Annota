@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 13:03+0100\n"
+"POT-Creation-Date: 2026-10-31 18:56+0100\n"
 "PO-Revision-Date: 2026-10-30 15:01+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -20,7 +20,7 @@ msgstr ""
 #: data/io.github.trosinde.Annota.desktop.in:2
 #: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:42
 #: data/ui/editor-window.blp:268 data/ui/editor-window.blp:317
-#: src/ui/editor/mod.rs:858 src/ui/editor/mod.rs:860
+#: src/ui/editor/mod.rs:869 src/ui/editor/mod.rs:871
 msgid "Annota"
 msgstr "Annota"
 
@@ -481,7 +481,7 @@ msgid "Open in Editor"
 msgstr "Im Editor öffnen"
 
 #: data/ui/preferences.blp:188 data/ui/editor-window.blp:345
-#: src/ui/editor/mod.rs:2665
+#: src/ui/editor/mod.rs:2786
 msgid "Copy to Clipboard"
 msgstr "In die Zwischenablage kopieren"
 
@@ -589,125 +589,130 @@ msgstr "Bild kopieren"
 
 #: data/ui/help-overlay.blp:97
 msgctxt "shortcut window"
+msgid "Paste"
+msgstr "Einfügen"
+
+#: data/ui/help-overlay.blp:102
+msgctxt "shortcut window"
 msgid "Undo"
 msgstr "Rückgängig"
 
-#: data/ui/help-overlay.blp:102
+#: data/ui/help-overlay.blp:107
 msgctxt "shortcut window"
 msgid "Redo"
 msgstr "Wiederholen"
 
-#: data/ui/help-overlay.blp:107
+#: data/ui/help-overlay.blp:112
 msgctxt "shortcut window"
 msgid "Zoom"
 msgstr "Zoom"
 
-#: data/ui/help-overlay.blp:112
+#: data/ui/help-overlay.blp:117
 msgctxt "shortcut window"
 msgid "Best fit"
 msgstr "Einpassen"
 
-#: data/ui/help-overlay.blp:118
+#: data/ui/help-overlay.blp:123
 msgctxt "shortcut window"
 msgid "Tools"
 msgstr "Werkzeuge"
 
-#: data/ui/help-overlay.blp:121
+#: data/ui/help-overlay.blp:126
 msgctxt "shortcut window"
 msgid "Select"
 msgstr "Auswählen"
 
-#: data/ui/help-overlay.blp:126
+#: data/ui/help-overlay.blp:131
 msgctxt "shortcut window"
 msgid "Arrow"
 msgstr "Pfeil"
 
-#: data/ui/help-overlay.blp:131
+#: data/ui/help-overlay.blp:136
 msgctxt "shortcut window"
 msgid "Line"
 msgstr "Linie"
 
-#: data/ui/help-overlay.blp:136
+#: data/ui/help-overlay.blp:141
 msgctxt "shortcut window"
 msgid "Pen"
 msgstr "Stift"
 
-#: data/ui/help-overlay.blp:141
+#: data/ui/help-overlay.blp:146
 msgctxt "shortcut window"
 msgid "Shape"
 msgstr "Form"
 
-#: data/ui/help-overlay.blp:146
+#: data/ui/help-overlay.blp:151
 msgctxt "shortcut window"
 msgid "Text"
 msgstr "Text"
 
-#: data/ui/help-overlay.blp:151
+#: data/ui/help-overlay.blp:156
 msgctxt "shortcut window"
 msgid "Callout"
 msgstr "Sprechblase"
 
-#: data/ui/help-overlay.blp:156
+#: data/ui/help-overlay.blp:161
 msgctxt "shortcut window"
 msgid "Step"
 msgstr "Schritt"
 
-#: data/ui/help-overlay.blp:161
+#: data/ui/help-overlay.blp:166
 msgctxt "shortcut window"
 msgid "Highlighter"
 msgstr "Textmarker"
 
-#: data/ui/help-overlay.blp:166
+#: data/ui/help-overlay.blp:171
 msgctxt "shortcut window"
 msgid "Redact"
 msgstr "Schwärzen"
 
-#: data/ui/help-overlay.blp:172
+#: data/ui/help-overlay.blp:177
 msgctxt "shortcut window"
 msgid "More Tools"
 msgstr "Weitere Werkzeuge"
 
-#: data/ui/help-overlay.blp:175
+#: data/ui/help-overlay.blp:180
 msgctxt "shortcut window"
 msgid "Crop"
 msgstr "Zuschneiden"
 
-#: data/ui/help-overlay.blp:180
+#: data/ui/help-overlay.blp:185
 msgctxt "shortcut window"
 msgid "Magnify"
 msgstr "Lupe"
 
-#: data/ui/help-overlay.blp:185
+#: data/ui/help-overlay.blp:190
 msgctxt "shortcut window"
 msgid "Spotlight"
 msgstr "Spotlight"
 
-#: data/ui/help-overlay.blp:190
+#: data/ui/help-overlay.blp:195
 msgctxt "shortcut window"
 msgid "Stamp"
 msgstr "Stempel"
 
-#: data/ui/help-overlay.blp:195
+#: data/ui/help-overlay.blp:200
 msgctxt "shortcut window"
 msgid "Cut-out"
 msgstr "Ausschnitt"
 
-#: data/ui/help-overlay.blp:200
+#: data/ui/help-overlay.blp:205
 msgctxt "shortcut window"
 msgid "Fill"
 msgstr "Füllen"
 
-#: data/ui/help-overlay.blp:205
+#: data/ui/help-overlay.blp:210
 msgctxt "shortcut window"
 msgid "Eraser"
 msgstr "Radierer"
 
-#: data/ui/help-overlay.blp:210
+#: data/ui/help-overlay.blp:215
 msgctxt "shortcut window"
 msgid "Magic wand"
 msgstr "Zauberstab"
 
-#: data/ui/help-overlay.blp:215
+#: data/ui/help-overlay.blp:220
 msgctxt "shortcut window"
 msgid "Selection"
 msgstr "Auswahl"
@@ -890,7 +895,7 @@ msgstr "Bibliothek öffnen"
 msgid "Save"
 msgstr "Speichern"
 
-#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1679
+#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1703
 msgid "Save As…"
 msgstr "Speichern unter …"
 
@@ -902,26 +907,26 @@ msgstr "Exportieren …"
 msgid "Resize Image…"
 msgstr "Bildgröße ändern …"
 
-#: data/ui/editor-window.blp:56 src/ui/labels.rs:74
+#: data/ui/editor-window.blp:56 src/ui/labels.rs:75
 msgid "Rotate Right"
 msgstr "Nach rechts drehen"
 
-#: data/ui/editor-window.blp:61 src/ui/labels.rs:73
+#: data/ui/editor-window.blp:61 src/ui/labels.rs:74
 msgid "Rotate Left"
 msgstr "Nach links drehen"
 
 #: data/ui/editor-window.blp:66 data/ui/editor-window.blp:924
-#: src/ui/labels.rs:75
+#: src/ui/labels.rs:76
 msgid "Flip Horizontally"
 msgstr "Horizontal spiegeln"
 
 #: data/ui/editor-window.blp:71 data/ui/editor-window.blp:930
-#: src/ui/labels.rs:76
+#: src/ui/labels.rs:77
 msgid "Flip Vertically"
 msgstr "Vertikal spiegeln"
 
 #: data/ui/editor-window.blp:76 data/ui/editor-window.blp:190
-#: data/ui/editor-window.blp:1161 src/ui/labels.rs:81
+#: data/ui/editor-window.blp:1161 src/ui/labels.rs:82
 msgid "Flatten All"
 msgstr "Alle einbrennen"
 
@@ -937,8 +942,8 @@ msgstr "Öffnen mit …"
 msgid "Copy to Folder…"
 msgstr "In Ordner kopieren …"
 
-#: data/ui/editor-window.blp:125 src/capture/delivery.rs:296
-#: src/ui/editor/mod.rs:638
+#: data/ui/editor-window.blp:125 src/capture/delivery.rs:315
+#: src/ui/editor/mod.rs:649
 msgid "Copy"
 msgstr "Kopieren"
 
@@ -952,28 +957,28 @@ msgstr "Duplizieren"
 msgid "Delete"
 msgstr "Löschen"
 
-#: data/ui/editor-window.blp:145 src/ui/labels.rs:61
+#: data/ui/editor-window.blp:145 src/ui/labels.rs:62
 msgid "Bring to Front"
 msgstr "In den Vordergrund"
 
-#: data/ui/editor-window.blp:151 src/ui/labels.rs:62
+#: data/ui/editor-window.blp:151 src/ui/labels.rs:63
 msgid "Bring Forward"
 msgstr "Eine Ebene nach vorne"
 
-#: data/ui/editor-window.blp:157 src/ui/labels.rs:63
+#: data/ui/editor-window.blp:157 src/ui/labels.rs:64
 msgid "Send Backward"
 msgstr "Eine Ebene nach hinten"
 
-#: data/ui/editor-window.blp:163 src/ui/labels.rs:64
+#: data/ui/editor-window.blp:163 src/ui/labels.rs:65
 msgid "Send to Back"
 msgstr "In den Hintergrund"
 
-#: data/ui/editor-window.blp:171 src/ui/labels.rs:65
+#: data/ui/editor-window.blp:171 src/ui/labels.rs:66
 msgid "Group"
 msgstr "Gruppieren"
 
 #: data/ui/editor-window.blp:177 data/ui/editor-window.blp:1554
-#: src/ui/labels.rs:66
+#: src/ui/labels.rs:67
 msgid "Ungroup"
 msgstr "Gruppierung aufheben"
 
@@ -997,9 +1002,9 @@ msgstr "Vergrößern"
 msgid "Zoom Out"
 msgstr "Verkleinern"
 
-#: data/ui/editor-window.blp:299 src/capture/delivery.rs:281
-#: src/ui/editor/mod.rs:651 src/ui/editor/mod.rs:1316 src/ui/editor/mod.rs:1453
-#: src/ui/editor/mod.rs:2264 src/ui/editor/mod.rs:2543
+#: data/ui/editor-window.blp:299 src/capture/delivery.rs:300
+#: src/ui/editor/mod.rs:662 src/ui/editor/mod.rs:1329 src/ui/editor/mod.rs:1466
+#: src/ui/editor/mod.rs:2385 src/ui/editor/mod.rs:2664
 #: src/ui/editor/text.rs:101
 msgid "Undo"
 msgstr "Rückgängig"
@@ -1033,7 +1038,7 @@ msgid "Select (V)"
 msgstr "Auswählen (V)"
 
 #: data/ui/editor-window.blp:388 src/ui/editor/sidebar.rs:812
-#: src/ui/labels.rs:197
+#: src/ui/labels.rs:198
 msgid "Select"
 msgstr "Auswählen"
 
@@ -1041,7 +1046,7 @@ msgstr "Auswählen"
 msgid "Arrow (A)"
 msgstr "Pfeil (A)"
 
-#: data/ui/editor-window.blp:407 src/ui/labels.rs:198
+#: data/ui/editor-window.blp:407 src/ui/labels.rs:199
 msgid "Arrow"
 msgstr "Pfeil"
 
@@ -1049,7 +1054,7 @@ msgstr "Pfeil"
 msgid "Line (L)"
 msgstr "Linie (L)"
 
-#: data/ui/editor-window.blp:419 src/ui/labels.rs:199
+#: data/ui/editor-window.blp:419 src/ui/labels.rs:200
 msgid "Line"
 msgstr "Linie"
 
@@ -1057,7 +1062,7 @@ msgstr "Linie"
 msgid "Pen (P)"
 msgstr "Stift (P)"
 
-#: data/ui/editor-window.blp:431 src/ui/labels.rs:200
+#: data/ui/editor-window.blp:431 src/ui/labels.rs:201
 msgid "Pen"
 msgstr "Stift"
 
@@ -1066,7 +1071,7 @@ msgid "Shape (U)"
 msgstr "Form (U)"
 
 #: data/ui/editor-window.blp:443 data/ui/editor-window.blp:1721
-#: data/ui/editor-window.blp:2883 src/ui/labels.rs:201
+#: data/ui/editor-window.blp:2883 src/ui/labels.rs:202
 msgid "Shape"
 msgstr "Form"
 
@@ -1074,7 +1079,7 @@ msgstr "Form"
 msgid "Text (T)"
 msgstr "Text (T)"
 
-#: data/ui/editor-window.blp:455 src/ui/labels.rs:202
+#: data/ui/editor-window.blp:455 src/ui/labels.rs:203
 msgid "Text"
 msgstr "Text"
 
@@ -1082,7 +1087,7 @@ msgstr "Text"
 msgid "Callout (K)"
 msgstr "Sprechblase (K)"
 
-#: data/ui/editor-window.blp:467 src/ui/labels.rs:203
+#: data/ui/editor-window.blp:467 src/ui/labels.rs:204
 msgid "Callout"
 msgstr "Sprechblase"
 
@@ -1090,7 +1095,7 @@ msgstr "Sprechblase"
 msgid "Step (S)"
 msgstr "Schritt (S)"
 
-#: data/ui/editor-window.blp:479 src/ui/labels.rs:204
+#: data/ui/editor-window.blp:479 src/ui/labels.rs:205
 msgid "Step"
 msgstr "Schritt"
 
@@ -1098,7 +1103,7 @@ msgstr "Schritt"
 msgid "Highlighter (H)"
 msgstr "Textmarker (H)"
 
-#: data/ui/editor-window.blp:498 src/ui/labels.rs:205
+#: data/ui/editor-window.blp:498 src/ui/labels.rs:206
 msgid "Highlighter"
 msgstr "Textmarker"
 
@@ -1106,16 +1111,16 @@ msgstr "Textmarker"
 msgid "Redact (B)"
 msgstr "Schwärzen (B)"
 
-#: data/ui/editor-window.blp:510 src/ui/labels.rs:206
+#: data/ui/editor-window.blp:510 src/ui/labels.rs:207
 msgid "Redact"
 msgstr "Schwärzen"
 
-#: data/ui/editor-window.blp:526 src/ui/editor/mod.rs:943
+#: data/ui/editor-window.blp:526 src/ui/editor/mod.rs:954
 msgid "Crop (C)"
 msgstr "Zuschneiden (C)"
 
 #: data/ui/editor-window.blp:530 data/ui/editor-window.blp:1179
-#: data/ui/editor-window.blp:1364 src/ui/labels.rs:71
+#: data/ui/editor-window.blp:1364 src/ui/labels.rs:72
 msgid "Crop"
 msgstr "Zuschneiden"
 
@@ -1905,7 +1910,7 @@ msgstr "Wiederherstellen"
 msgid "Newer Annota Version Needed"
 msgstr "Neuere Annota-Version erforderlich"
 
-#: data/ui/newer-version-dialog.blp:39 src/ui/editor/mod.rs:1696
+#: data/ui/newer-version-dialog.blp:39 src/ui/editor/mod.rs:1720
 msgid "Show in Files"
 msgstr "In Dateien anzeigen"
 
@@ -1913,7 +1918,7 @@ msgstr "In Dateien anzeigen"
 msgid "OK"
 msgstr "OK"
 
-#: data/ui/resize-dialog.blp:11 src/ui/labels.rs:72
+#: data/ui/resize-dialog.blp:11 src/ui/labels.rs:73
 msgid "Resize Image"
 msgstr "Bildgröße ändern"
 
@@ -2213,15 +2218,15 @@ msgstr "Neue Aufnahme aus Datei"
 msgid "Pasted Image"
 msgstr "Eingefügtes Bild"
 
-#: src/capture/delivery.rs:213 src/capture/delivery.rs:230
+#: src/capture/delivery.rs:232 src/capture/delivery.rs:249
 msgid "Copied to clipboard"
 msgstr "In die Zwischenablage kopiert"
 
-#: src/capture/delivery.rs:274
+#: src/capture/delivery.rs:293
 msgid "Saved as {name}"
 msgstr "Gespeichert als {name}"
 
-#: src/capture/delivery.rs:309
+#: src/capture/delivery.rs:328
 msgid "Could not save the capture: {error}"
 msgstr "Die Aufnahme konnte nicht gespeichert werden: {error}"
 
@@ -2361,59 +2366,59 @@ msgstr "{width} × {height} px · {format}"
 msgid "Custom Width…"
 msgstr "Eigene Breite …"
 
-#: src/ui/editor/mod.rs:624
+#: src/ui/editor/mod.rs:635
 msgid "Could not open “{name}”: {error}"
 msgstr "„{name}“ konnte nicht geöffnet werden: {error}"
 
-#: src/ui/editor/mod.rs:880
+#: src/ui/editor/mod.rs:891
 msgid "Pick a colour anywhere on the screen"
 msgstr "Eine Farbe irgendwo auf dem Bildschirm aufnehmen"
 
-#: src/ui/editor/mod.rs:1617
+#: src/ui/editor/mod.rs:1641
 msgid "Annota Documents"
 msgstr "Annota-Dokumente"
 
-#: src/ui/editor/mod.rs:1622
+#: src/ui/editor/mod.rs:1646
 msgid "Save As"
 msgstr "Speichern unter"
 
-#: src/ui/editor/mod.rs:1914
+#: src/ui/editor/mod.rs:2029
 msgid "PNG Images"
 msgstr "PNG-Bilder"
 
-#: src/ui/editor/mod.rs:1919
+#: src/ui/editor/mod.rs:2034
 msgid "Copy to Folder"
 msgstr "In Ordner kopieren"
 
-#: src/ui/editor/mod.rs:1920
+#: src/ui/editor/mod.rs:2035
 msgid "_Copy"
 msgstr "_Kopieren"
 
-#: src/ui/editor/mod.rs:2367
+#: src/ui/editor/mod.rs:2488
 msgid "Picking a colour from the screen needs xdg-desktop-portal"
 msgstr "Farben vom Bildschirm aufnehmen braucht xdg-desktop-portal"
 
-#: src/ui/editor/mod.rs:2370
+#: src/ui/editor/mod.rs:2491
 msgid "Annota may not read colours from the screen"
 msgstr "Annota darf keine Farben vom Bildschirm lesen"
 
-#: src/ui/editor/mod.rs:2374 src/ui/editor/theme_editor.rs:764
+#: src/ui/editor/mod.rs:2495 src/ui/editor/theme_editor.rs:764
 msgid "The colour could not be picked"
 msgstr "Die Farbe konnte nicht aufgenommen werden"
 
-#: src/ui/editor/mod.rs:2400
+#: src/ui/editor/mod.rs:2521
 msgid "Canvas Colour"
 msgstr "Leinwandfarbe"
 
-#: src/ui/editor/mod.rs:2531
+#: src/ui/editor/mod.rs:2652
 msgid "Could not insert the image"
 msgstr "Das Bild konnte nicht eingefügt werden"
 
-#: src/ui/editor/mod.rs:2542
+#: src/ui/editor/mod.rs:2663
 msgid "Image inserted"
 msgstr "Bild eingefügt"
 
-#: src/ui/editor/mod.rs:2625
+#: src/ui/editor/mod.rs:2746
 msgid "Could not restore “{name}”: {error}"
 msgstr "„{name}“ konnte nicht wiederhergestellt werden: {error}"
 
@@ -2576,39 +2581,59 @@ msgstr "Exportiert als „{name}“"
 msgid "{folder} · Saved"
 msgstr "{folder} · Gespeichert"
 
-#: src/ui/editor/share.rs:178
+#: src/ui/editor/share.rs:283
 msgid "Image copied to clipboard"
 msgstr "Bild in die Zwischenablage kopiert"
 
-#: src/ui/editor/share.rs:183
+#: src/ui/editor/share.rs:288
 msgid "Opening your mail app with “{name}” attached…"
 msgstr "Ihre E-Mail-App wird mit „{name}“ im Anhang geöffnet …"
 
-#: src/ui/editor/share.rs:188
+#: src/ui/editor/share.rs:293
 msgid "Copied as “{name}”"
 msgstr "Kopiert als „{name}“"
 
-#: src/ui/editor/share.rs:193
+#: src/ui/editor/share.rs:298
 msgid "Drag image to another app"
 msgstr "Bild in eine andere App ziehen"
 
-#: src/ui/editor/share.rs:199
+#: src/ui/editor/share.rs:304
 msgid "You can drag the image out now"
 msgstr "Sie können das Bild jetzt herausziehen"
 
-#: src/ui/editor/share.rs:204
+#: src/ui/editor/share.rs:312
+msgid "Object copied to clipboard"
+msgid_plural "{n} objects copied to clipboard"
+msgstr[0] "Objekt in die Zwischenablage kopiert"
+msgstr[1] "{n} Objekte in die Zwischenablage kopiert"
+
+#: src/ui/editor/share.rs:324
+msgid "These objects were copied from a newer Annota and cannot be pasted here"
+msgstr ""
+"Diese Objekte stammen aus einem neueren Annota und können hier nicht "
+"eingefügt werden"
+
+#: src/ui/editor/share.rs:326
+msgid "The copied objects could not be pasted"
+msgstr "Die kopierten Objekte konnten nicht eingefügt werden"
+
+#: src/ui/editor/share.rs:333
+msgid "The objects could not be copied"
+msgstr "Die Objekte konnten nicht kopiert werden"
+
+#: src/ui/editor/share.rs:338
 msgid "The image could not be copied"
 msgstr "Das Bild konnte nicht kopiert werden"
 
-#: src/ui/editor/share.rs:209
+#: src/ui/editor/share.rs:343
 msgid "The image could not be prepared for sharing"
 msgstr "Das Bild konnte nicht zum Teilen vorbereitet werden"
 
-#: src/ui/editor/share.rs:215
+#: src/ui/editor/share.rs:349
 msgid "Could not open your mail app"
 msgstr "Ihre E-Mail-App konnte nicht geöffnet werden"
 
-#: src/ui/editor/share.rs:216
+#: src/ui/editor/share.rs:350
 msgid "Could not open the image in another app"
 msgstr "Das Bild konnte nicht in einer anderen App geöffnet werden"
 
@@ -2623,7 +2648,7 @@ msgid "Enter"
 msgstr "Eingabe"
 
 #: src/ui/editor/sidebar.rs:509 src/ui/editor/styles.rs:257
-#: src/ui/labels.rs:177
+#: src/ui/labels.rs:178
 msgid "{n} px"
 msgstr "{n} px"
 
@@ -2816,7 +2841,7 @@ msgstr "„{file}“ konnte nicht importiert werden. {reason}"
 msgid "“{file}” is not a valid Annota theme. {reason}"
 msgstr "„{file}“ ist kein gültiges Annota-Design. {reason}"
 
-#: src/ui/editor/text.rs:48 src/ui/labels.rs:156
+#: src/ui/editor/text.rs:48 src/ui/labels.rs:157
 msgid "{width} × {height}"
 msgstr "{width} × {height}"
 
@@ -3267,113 +3292,117 @@ msgstr "{object} löschen"
 msgid "Duplicate {object}"
 msgstr "{object} duplizieren"
 
-#: src/ui/labels.rs:67
-msgid "Insert {object}"
+#: src/ui/labels.rs:61
+msgid "Paste {object}"
 msgstr "{object} einfügen"
 
 #: src/ui/labels.rs:68
+msgid "Insert {object}"
+msgstr "{object} einfügen"
+
+#: src/ui/labels.rs:69
 msgid "Add {object}"
 msgstr "{object} hinzufügen"
 
-#: src/ui/labels.rs:69
+#: src/ui/labels.rs:70
 msgid "Change {object}"
 msgstr "{object} ändern"
 
-#: src/ui/labels.rs:70
+#: src/ui/labels.rs:71
 msgid "Apply Style to {object}"
 msgstr "Stil auf {object} anwenden"
 
-#: src/ui/labels.rs:77
+#: src/ui/labels.rs:78
 msgid "Extend Canvas"
 msgstr "Leinwand erweitern"
 
-#: src/ui/labels.rs:78
+#: src/ui/labels.rs:79
 msgid "Canvas Background"
 msgstr "Leinwandhintergrund"
 
-#: src/ui/labels.rs:79
+#: src/ui/labels.rs:80
 msgid "Corner Radius"
 msgstr "Eckenradius"
 
-#: src/ui/labels.rs:80
+#: src/ui/labels.rs:81
 msgid "Flatten {object}"
 msgstr "{object} einbrennen"
 
-#: src/ui/labels.rs:88
+#: src/ui/labels.rs:89
 msgid "Convert Redaction to Solid"
 msgid_plural "Convert Redactions to Solid"
 msgstr[0] "Schwärzung deckend machen"
 msgstr[1] "Schwärzungen deckend machen"
 
-#: src/ui/labels.rs:99
+#: src/ui/labels.rs:100
 msgid "Canvas centre"
 msgstr "Leinwandmitte"
 
-#: src/ui/labels.rs:100
+#: src/ui/labels.rs:101
 msgid "Canvas edge"
 msgstr "Leinwandrand"
 
-#: src/ui/labels.rs:101
+#: src/ui/labels.rs:102
 msgid "Object centre"
 msgstr "Objektmitte"
 
-#: src/ui/labels.rs:102
+#: src/ui/labels.rs:103
 msgid "Object edge"
 msgstr "Objektkante"
 
-#: src/ui/labels.rs:146
+#: src/ui/labels.rs:147
 msgid "X {x} · Y {y}"
 msgstr "X {x} · Y {y}"
 
-#: src/ui/labels.rs:151
+#: src/ui/labels.rs:152
 msgid "Δ X {dx} · Y {dy}"
 msgstr "Δ X {dx} · Y {dy}"
 
-#: src/ui/labels.rs:162
+#: src/ui/labels.rs:163
 msgid "{angle}° · Shift: 15° steps"
 msgstr "{angle}° · Umschalt: 15°-Schritte"
 
-#: src/ui/labels.rs:164
+#: src/ui/labels.rs:165
 msgid "{angle}°"
 msgstr "{angle}°"
 
-#: src/ui/labels.rs:180
+#: src/ui/labels.rs:181
 msgid "Corner radius {n} px"
 msgstr "Eckenradius {n} px"
 
-#: src/ui/labels.rs:188
+#: src/ui/labels.rs:189
 msgid "{width} × {height} px"
 msgstr "{width} × {height} px"
 
-#: src/ui/labels.rs:212
+#: src/ui/labels.rs:213
 msgid "Esc or click outside to finish"
 msgstr "Esc oder Klick daneben beendet"
 
-#: src/ui/labels.rs:219
+#: src/ui/labels.rs:220
 msgid "{n} point · Enter or double-click to finish"
 msgid_plural "{n} points · Enter or double-click to finish"
 msgstr[0] "{n} Punkt · Eingabe oder Doppelklick beendet"
 msgstr[1] "{n} Punkte · Eingabe oder Doppelklick beendet"
 
-#: src/ui/labels.rs:228
+#: src/ui/labels.rs:229
 msgid "{angle}° · Shift: 0/45/90°"
 msgstr "{angle}° · Umschalt: 0/45/90°"
 
-#: src/ui/labels.rs:233
+#: src/ui/labels.rs:234
 msgid "Click to place {label}"
 msgstr "Klicken, um {label} zu setzen"
 
-#: src/ui/labels.rs:240
+#: src/ui/labels.rs:241
 msgid "{n} step renumbered"
 msgid_plural "{n} steps renumbered"
 msgstr[0] "{n} Schritt neu nummeriert"
 msgstr[1] "{n} Schritte neu nummeriert"
 
-#: src/ui/labels.rs:243
+#: src/ui/labels.rs:244
 msgid "Step {label} deleted · {renumbered}"
 msgstr "Schritt {label} gelöscht · {renumbered}"
 
-#: src/ui/labels.rs:254
+#: src/ui/labels.rs:255
 msgid "{n} object flattened into the image"
 msgid_plural "{n} objects flattened into the image"
 msgstr[0] "{n} Objekt in das Bild eingebrannt"
