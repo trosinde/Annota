@@ -103,6 +103,11 @@ pub struct Preview<'a> {
     pub canvas: Option<IRect>,
     /// The image's corner radius while its handle is dragged (mockup 09).
     pub corner_radius: Option<f64>,
+    /// A new object not in the document yet, drawn on top of everything (a draw in progress,
+    /// a new text being typed).
+    pub added: Option<&'a dyn Annotation>,
+    /// A faded object on top (the step tool's placement preview, mockup 11), and its opacity.
+    pub ghost_object: Option<(&'a dyn Annotation, f64)>,
 }
 
 impl<'a> Preview<'a> {
@@ -113,6 +118,8 @@ impl<'a> Preview<'a> {
             ghost,
             canvas: None,
             corner_radius: None,
+            added: None,
+            ghost_object: None,
         }
     }
 }
@@ -242,6 +249,20 @@ fn render_inner(
         }
         if copy.bounds().intersects(&visible) {
             draw_object(cr, *copy, &ctx)?;
+        }
+    }
+    if let Some(added) = preview.and_then(|p| p.added) {
+        if added.bounds().intersects(&visible) {
+            draw_object(cr, added, &ctx)?;
+        }
+    }
+    if let Some((object, opacity)) = preview.and_then(|p| p.ghost_object) {
+        if object.bounds().intersects(&visible) {
+            cr.push_group();
+            let drawn = draw_object(cr, object, &ctx);
+            cr.pop_group_to_source()?;
+            drawn?;
+            cr.paint_with_alpha(opacity)?;
         }
     }
     Ok(())

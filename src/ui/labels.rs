@@ -9,14 +9,31 @@ use annota::editing::canvas_edit::Feedback as CanvasFeedback;
 use annota::editing::drag::Feedback;
 use annota::editing::ops::{Action, Edit, Subject};
 use annota::editing::snap::Target;
+use annota::tools::arrow::Arrow;
+use annota::tools::callout::Callout;
 use annota::tools::group::Group;
+use annota::tools::highlighter::Highlighter;
 use annota::tools::image::Image;
+use annota::tools::pen::Pen;
+use annota::tools::redaction::Redaction;
+use annota::tools::shape::Shape;
+use annota::tools::step::Step;
+use annota::tools::text::Text;
 
-/// Name of an object type as the user sees it ("Image", "Group").
+/// Name of an object type as the user sees it ("Image", "Group", "Arrow").
 pub fn object_name(type_name: &str) -> String {
     match type_name {
         Image::TYPE => pgettext("object type", "Image"),
         Group::TYPE => pgettext("object type", "Group"),
+        Arrow::TYPE => pgettext("object type", "Arrow"),
+        Arrow::LINE_TYPE => pgettext("object type", "Line"),
+        Pen::TYPE => pgettext("object type", "Pen Stroke"),
+        Shape::TYPE => pgettext("object type", "Shape"),
+        Text::TYPE => pgettext("object type", "Text"),
+        Callout::TYPE => pgettext("object type", "Callout"),
+        Step::TYPE => pgettext("object type", "Step"),
+        Highlighter::TYPE => pgettext("object type", "Highlight"),
+        Redaction::TYPE => pgettext("object type", "Redaction"),
         _ => pgettext("object type", "Object"),
     }
 }
@@ -48,6 +65,7 @@ pub fn undo_label(edit: &Edit) -> String {
         Action::Group => gettext("Group"),
         Action::Ungroup => gettext("Ungroup"),
         Action::Insert => with_object(gettext("Insert {object}")),
+        Action::Add => with_object(gettext("Add {object}")),
         Action::Crop => gettext("Crop"),
         Action::ResizeImage => gettext("Resize Image"),
         Action::RotateLeft => gettext("Rotate Left"),
@@ -159,6 +177,63 @@ pub fn crop_chip(width: i32, height: i32) -> String {
         .replace("{height}", &height.to_string())
 }
 
+/// A tool's name as its button's tooltip shows it (mockup 01: "Arrow").
+pub fn tool_name(tool: annota::editing::tool::Tool) -> String {
+    use annota::editing::tool::Tool;
+    match tool {
+        Tool::Select => gettext("Select"),
+        Tool::Arrow => gettext("Arrow"),
+        Tool::Line => gettext("Line"),
+        Tool::Pen => gettext("Pen"),
+        Tool::Shape => gettext("Shape"),
+        Tool::Text => gettext("Text"),
+        Tool::Callout => gettext("Callout"),
+        Tool::Step => gettext("Step"),
+        Tool::Highlighter => gettext("Highlighter"),
+        Tool::Redact => gettext("Redact"),
+    }
+}
+
+/// While text is edited in place (mockup 08).
+pub fn text_edit_chip() -> String {
+    gettext("Esc or click outside to finish")
+}
+
+/// While a polygon is drawn (mockup 07): "4 points · Enter or double-click to finish".
+pub fn polygon_chip(points: usize) -> String {
+    let count = u32::try_from(points).unwrap_or(u32::MAX);
+    ngettext(
+        "{n} point · Enter or double-click to finish",
+        "{n} points · Enter or double-click to finish",
+        count,
+    )
+    .replace("{n}", &points.to_string())
+}
+
+/// While an arrow or line is drawn with Shift (redline): "0° · Shift: 0/45/90°".
+pub fn angle_chip(degrees: f64) -> String {
+    gettext("{angle}° · Shift: 0/45/90°").replace("{angle}", &number(degrees))
+}
+
+/// Under the step tool's placement preview (mockup 11): "Click to place 5".
+pub fn step_chip(label: &str) -> String {
+    gettext("Click to place {label}").replace("{label}", label)
+}
+
+/// The toast when deleting step markers renumbers others (mockup 13): "Step 2 deleted · 2
+/// steps renumbered"; without the first part when several objects were deleted.
+pub fn steps_renumbered(deleted: Option<&str>, renumbered: usize) -> String {
+    let count = u32::try_from(renumbered).unwrap_or(u32::MAX);
+    let renumbered = ngettext("{n} step renumbered", "{n} steps renumbered", count)
+        .replace("{n}", &renumbered.to_string());
+    match deleted {
+        Some(label) => gettext("Step {label} deleted · {renumbered}")
+            .replace("{label}", label)
+            .replace("{renumbered}", &renumbered),
+        None => renumbered,
+    }
+}
+
 /// The toast after flattening (mockup 18): "7 objects flattened into the image".
 pub fn flattened(n: usize) -> String {
     let count = u32::try_from(n).unwrap_or(u32::MAX);
@@ -202,6 +277,18 @@ mod tests {
         );
         assert_eq!(
             undo_label(&edit(Action::Delete, Subject::One("arrow"))),
+            "Delete Arrow"
+        );
+        assert_eq!(
+            undo_label(&edit(Action::Add, Subject::One("step"))),
+            "Add Step"
+        );
+        assert_eq!(
+            undo_label(&edit(Action::Reshape, Subject::One("text"))),
+            "Edit Text"
+        );
+        assert_eq!(
+            undo_label(&edit(Action::Delete, Subject::One("newer-thing"))),
             "Delete Object"
         );
         assert_eq!(
@@ -245,6 +332,26 @@ mod tests {
         // Mockup 18.
         assert_eq!(flattened(7), "7 objects flattened into the image");
         assert_eq!(flattened(1), "1 object flattened into the image");
+    }
+
+    #[test]
+    fn drawing_texts_match_the_mockups() {
+        assert_eq!(text_edit_chip(), "Esc or click outside to finish");
+        assert_eq!(
+            polygon_chip(4),
+            "4 points · Enter or double-click to finish"
+        );
+        assert_eq!(polygon_chip(1), "1 point · Enter or double-click to finish");
+        assert_eq!(angle_chip(0.0), "0° · Shift: 0/45/90°");
+        assert_eq!(angle_chip(45.0), "45° · Shift: 0/45/90°");
+        assert_eq!(step_chip("5"), "Click to place 5");
+        assert_eq!(
+            steps_renumbered(Some("2"), 2),
+            "Step 2 deleted · 2 steps renumbered"
+        );
+        assert_eq!(steps_renumbered(None, 1), "1 step renumbered");
+        assert_eq!(object_name("redaction"), "Redaction");
+        assert_eq!(object_name("pen"), "Pen Stroke");
     }
 
     #[test]

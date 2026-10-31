@@ -25,6 +25,7 @@ use annota::editing::canvas_edit::{self, Side};
 use annota::editing::crop::Aspect;
 use annota::editing::image_ops;
 use annota::editing::selection::is_selectable;
+use annota::editing::tool::Tool;
 use annota::tools::group::Group;
 use annota::tools::image::Image;
 
@@ -323,7 +324,13 @@ fn type_icon(type_name: &str) -> &'static str {
     match type_name {
         Image::TYPE => "image-x-generic-symbolic",
         Group::TYPE => "edit-select-all-symbolic",
-        _ => "image-missing-symbolic",
+        _ => match Tool::ALL
+            .into_iter()
+            .find(|t| t.object_type() == Some(type_name))
+        {
+            Some(tool) => crate::ui::editor::tool_icon(tool),
+            None => "image-missing-symbolic",
+        },
     }
 }
 

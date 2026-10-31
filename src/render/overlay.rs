@@ -448,6 +448,121 @@ pub fn draw_handles(
     result
 }
 
+/// A polygon being drawn (mockup 07): the vertices so far as an open outline in the shape
+/// tool's style (with its fill), a 3 px dashed rubber segment from the last vertex to the
+/// pointer, a dotted 2 px closing preview back to the first vertex at 60 %, and the vertices
+/// as handles (10 px; the first, which closes the shape, 12 px).
+pub fn draw_polygon_draft(
+    cr: &cairo::Context,
+    viewport: &Viewport,
+    vertices: &[Point],
+    pointer: Point,
+    outline: (Rgba, f64),
+    fill: Option<Rgba>,
+) -> Result<(), cairo::Error> {
+    if vertices.is_empty() {
+        return Ok(());
+    }
+    cr.save()?;
+    let result = (|| {
+        let view: Vec<Point> = vertices.iter().map(|p| viewport.to_device(*p)).collect();
+        let pointer = viewport.to_device(pointer);
+        let (color, width) = outline;
+        if let Some(fill) = fill.filter(|f| f.a > 0) {
+            cr.move_to(view[0].x, view[0].y);
+            for p in view.iter().skip(1).chain(std::iter::once(&pointer)) {
+                cr.line_to(p.x, p.y);
+            }
+            cr.close_path();
+            fill.set_source(cr);
+            cr.fill()?;
+        }
+        if view.len() > 1 {
+            cr.move_to(view[0].x, view[0].y);
+            for p in &view[1..] {
+                cr.line_to(p.x, p.y);
+            }
+            color.set_source(cr);
+            cr.set_line_width((width * viewport.zoom).max(1.0));
+            cr.set_line_join(cairo::LineJoin::Round);
+            cr.set_line_cap(cairo::LineCap::Round);
+            cr.stroke()?;
+        }
+        let last = view.last().copied().unwrap_or(pointer);
+        color.set_source(cr);
+        cr.set_line_width(3.0);
+        cr.set_line_cap(cairo::LineCap::Butt);
+        cr.set_dash(&[6.0, 5.0], 0.0);
+        cr.move_to(last.x, last.y);
+        cr.line_to(pointer.x, pointer.y);
+        cr.stroke()?;
+        let (r, g, b, _) = color.to_f64();
+        cr.set_source_rgba(r, g, b, 0.6);
+        cr.set_line_width(2.0);
+        cr.set_dash(&[2.0, 4.0], 0.0);
+        cr.move_to(pointer.x, pointer.y);
+        cr.line_to(view[0].x, view[0].y);
+        cr.stroke()?;
+        cr.set_dash(&[], 0.0);
+        for (i, v) in vertices.iter().enumerate() {
+            let kind = if i == 0 {
+                HandleKind::End
+            } else {
+                HandleKind::Point
+            };
+            let handle = Handle::new(crate::document::annotation::HandleId::Custom(0), kind, *v);
+            draw_handle(cr, viewport, &handle, 0.0)?;
+        }
+        Ok(())
+    })();
+    cr.restore()?;
+    result
+}
+
+/// Editing text in place (mockup 08): a dashed 1 px accent frame 6 px outside the text's box
+/// (`frame`, document space), the selection in accent at 50 % and a 2 px accent caret from
+/// `caret.0` to `caret.1` (document space).
+pub fn draw_text_edit(
+    cr: &cairo::Context,
+    viewport: &Viewport,
+    frame: &Arrange,
+    caret: (Point, Point),
+    selection: &[[Point; 4]],
+) -> Result<(), cairo::Error> {
+    cr.save()?;
+    let result = (|| {
+        for quad in selection {
+            let q = quad.map(|p| viewport.to_device(p));
+            cr.move_to(q[0].x, q[0].y);
+            for p in &q[1..] {
+                cr.line_to(p.x, p.y);
+            }
+            cr.close_path();
+        }
+        ACCENT_HALF.set_source(cr);
+        cr.fill()?;
+        // The frame, 6 screen px outside the box in the box's own axes.
+        let offset = TEXT_FRAME_OFFSET / viewport.zoom;
+        let outer = Arrange::new(frame.rect.inflate(offset), frame.rotation);
+        box_path(cr, viewport, &outer);
+        ACCENT.set_source(cr);
+        cr.set_line_width(1.0);
+        cr.set_dash(&DASH, 0.0);
+        cr.stroke()?;
+        cr.set_dash(&[], 0.0);
+        let (a, b) = (viewport.to_device(caret.0), viewport.to_device(caret.1));
+        cr.move_to(a.x, a.y);
+        cr.line_to(b.x, b.y);
+        cr.set_line_width(2.0);
+        cr.stroke()
+    })();
+    cr.restore()?;
+    result
+}
+
+/// Distance of the text-editing frame outside the text, in screen pixels (redline).
+pub const TEXT_FRAME_OFFSET: f64 = 6.0;
+
 /// Rubber band `rect` (document space).
 pub fn draw_band(cr: &cairo::Context, viewport: &Viewport, rect: Rect) -> Result<(), cairo::Error> {
     cr.save()?;
@@ -603,6 +718,64 @@ mod tests {
             .map(|y| out.pixel(110, y) == Some(ACCENT))
             .collect();
         assert!(column.iter().any(|on| *on) && column.iter().any(|on| !*on));
+    }
+
+    #[test]
+    fn polygon_draft_and_text_editing_aids() {
+        let vp = Viewport::new(1.0, Point::default());
+        let vertices = [
+            Point::new(20.0, 20.0),
+            Point::new(120.0, 20.0),
+            Point::new(120.0, 100.0),
+        ];
+        let coral = Rgba::opaque(0xFF, 0x5A, 0x4E);
+        let out = draw(|cr| {
+            draw_polygon_draft(
+                cr,
+                &vp,
+                &vertices,
+                Point::new(40.0, 110.0),
+                (coral, 6.0),
+                None,
+            )
+        });
+        // The outline between the first two vertices, the 12 px first-vertex handle.
+        assert_eq!(out.pixel(70, 20), Some(coral));
+        assert_eq!(out.pixel(20, 20), Some(Rgba::WHITE));
+        assert_eq!(
+            out.pixel(26, 20).map(|p| p.b > 200),
+            Some(true),
+            "first handle ring"
+        );
+        // No outline between the last vertex and the first (it is not closed yet).
+        assert_eq!(out.pixel(70, 60), Some(CANVAS));
+
+        let frame = Arrange::new(Rect::new(50.0, 40.0, 60.0, 30.0), 0.0);
+        let out = draw(|cr| {
+            draw_text_edit(
+                cr,
+                &vp,
+                &frame,
+                (Point::new(80.0, 42.0), Point::new(80.0, 68.0)),
+                &[[
+                    Point::new(55.0, 42.0),
+                    Point::new(75.0, 42.0),
+                    Point::new(75.0, 68.0),
+                    Point::new(55.0, 68.0),
+                ]],
+            )
+        });
+        // Caret: 2 px accent; selection tinted; dashed frame 6 px outside the box.
+        assert_eq!(out.pixel(80, 55), Some(ACCENT));
+        let sel = out.pixel(65, 55).unwrap();
+        assert!(sel != CANVAS && sel != ACCENT, "{sel:?}");
+        let row: Vec<bool> = (50..110)
+            .map(|x| out.pixel(x, 34) == Some(ACCENT))
+            .collect();
+        assert!(
+            row.iter().any(|on| *on) && row.iter().any(|on| !*on),
+            "dashed"
+        );
     }
 
     #[test]

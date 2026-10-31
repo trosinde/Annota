@@ -22,15 +22,16 @@
 //! 1600 % a 25 000 px wide surface — and kept the window from shrinking the canvas.)
 
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gtk::{gdk, glib, graphene};
 
-use annota::document::annotation::{HandleId, Modifiers};
+use annota::document::annotation::{Annotation, HandleId, Modifiers};
 use annota::document::bitmap::Bitmap;
 use annota::document::color::Rgba;
-use annota::document::command::History;
+use annota::document::command::{Command, History};
 use annota::document::geometry::{Arrange, IRect, Point};
 use annota::document::scene::ObjectId;
 use annota::document::Document;
@@ -41,7 +42,11 @@ use annota::editing::image_ops;
 use annota::editing::ops::{self, Action, Edit, Stacking, Subject};
 use annota::editing::selection::{selection_frame, Selection};
 use annota::editing::snap::{Axis, Snap};
+use annota::editing::steps;
+use annota::editing::text_edit::{Motion, TextEdit};
+use annota::editing::tool::{Draw, DrawFeedback, Drawn, PolygonDraft, StepPlace, Tool, Toolbox};
 use annota::render::{self, overlay, view, Options, Preview, Viewport};
+use annota::tools::text::editable;
 
 use super::labels;
 
@@ -74,6 +79,28 @@ struct State {
     hover: Option<CanvasTarget>,
     /// Crop mode (tool C), if active.
     crop: Option<Crop>,
+    /// The tool the window's tool strip has selected (Select or a drawing tool).
+    tool: Tool,
+    /// The tools' defaults, shared by the window's documents.
+    toolbox: Rc<RefCell<Toolbox>>,
+    /// A drawing tool's gesture in progress.
+    draw: Option<Draw>,
+    /// A polygon being drawn with the shape tool, vertex by vertex.
+    polygon: Option<PolygonDraft>,
+    /// Text being edited in place.
+    text: Option<TextEdit>,
+    /// The pointer is selecting text in the text being edited.
+    text_drag: bool,
+    /// The sequence the next step marker joins (Restart Sequence); `None`: the newest.
+    step_sequence: Option<u32>,
+    /// The number the next step marker gets ("Next value"); `None`: after the highest.
+    step_next: Option<u32>,
+    /// Presses of the current click (2 for a double-click).
+    presses: i32,
+    /// The pointer is over the canvas (the step tool shows where a marker would go).
+    hovering: bool,
+    /// An edit made inside a state borrow, executed right after it.
+    pending: Option<Edit>,
     /// Snap to guides (sidebar switch, `Ctrl+;`); Alt suspends it while held.
     snapping: bool,
     zoom: f64,
@@ -95,6 +122,20 @@ type ChangeListener = Box<dyn Fn()>;
 type MenuListener = Box<dyn Fn(f64, f64)>;
 /// Called once with the colour the eyedropper picked, or `None` if it was cancelled.
 type Picker = Box<dyn FnOnce(Option<Rgba>)>;
+/// Called with things the window announces in a toast.
+type NoticeListener = Box<dyn Fn(Notice)>;
+
+/// Something the window announces (a toast).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Notice {
+    /// Step markers were deleted and others renumbered (mockup 13: "Step 2 deleted · 2 steps
+    /// renumbered"): the deleted marker's label if it was one marker, how many were renumbered.
+    StepsRenumbered {
+        deleted: Option<String>,
+        renumbered: usize,
+        done: Done,
+    },
+}
 
 /// What an executed edit did, for toasts that offer Undo.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,6 +167,12 @@ mod imp {
         pub(super) menus: RefCell<Vec<MenuListener>>,
         /// The eyedropper: called with the colour under the next click (`None`: cancelled).
         pub(super) picker: RefCell<Option<Picker>>,
+        pub(super) notices: RefCell<Vec<NoticeListener>>,
+        /// Input method for typing text in place (dead keys, compose, CJK) and the key
+        /// controller it is attached to while text is edited.
+        pub(super) im: RefCell<Option<(gtk::IMMulticontext, gtk::EventControllerKey)>>,
+        /// Time and place of the last primary press, for double-clicks.
+        pub(super) last_press: Cell<Option<(u32, Point)>>,
         hadjustment: RefCell<Option<(gtk::Adjustment, glib::SignalHandlerId)>>,
         vadjustment: RefCell<Option<(gtk::Adjustment, glib::SignalHandlerId)>>,
         hscroll_policy: Cell<gtk::ScrollablePolicy>,
@@ -140,6 +187,9 @@ mod imp {
                 changes: RefCell::new(Vec::new()),
                 menus: RefCell::new(Vec::new()),
                 picker: RefCell::new(None),
+                notices: RefCell::new(Vec::new()),
+                im: RefCell::new(None),
+                last_press: Cell::new(None),
                 hadjustment: RefCell::new(None),
                 vadjustment: RefCell::new(None),
                 hscroll_policy: Cell::new(gtk::ScrollablePolicy::Minimum),
@@ -419,6 +469,17 @@ impl Canvas {
             canvas_drag: None,
             hover: None,
             crop: None,
+            tool: Tool::Select,
+            toolbox: Rc::new(RefCell::new(Toolbox::default())),
+            draw: None,
+            polygon: None,
+            text: None,
+            text_drag: false,
+            step_sequence: None,
+            step_next: None,
+            presses: 1,
+            hovering: false,
+            pending: None,
             snapping: true,
             zoom: 1.0,
             fitted: true,
@@ -507,6 +568,8 @@ impl Canvas {
             return;
         }
         self.cancel_drag();
+        self.finish_text();
+        self.with_state(|s| s.polygon = None);
         if let Some(viewport) = self.viewport() {
             let changed = self
                 .with_state(|s| {
@@ -586,7 +649,7 @@ impl Canvas {
         let weak = self.downgrade();
         motion.connect_motion(move |_, x, y| {
             if let Some(canvas) = weak.upgrade() {
-                canvas.with_state(|s| s.pointer = (x, y));
+                canvas.pointer_hovered(Point::new(x, y));
                 canvas.update_hover();
                 canvas.update_cursor();
             }
@@ -595,10 +658,15 @@ impl Canvas {
         motion.connect_leave(move |_| {
             if let Some(canvas) = weak.upgrade() {
                 let changed = canvas
-                    .with_state(|s| s.canvas_drag.is_none() && s.hover.take().is_some())
+                    .with_state(|s| {
+                        let ghost = s.hovering && s.tool == Tool::Step;
+                        s.hovering = false;
+                        (s.canvas_drag.is_none() && s.hover.take().is_some()) || ghost
+                    })
                     .unwrap_or(false);
                 if changed {
                     canvas.view.queue_draw();
+                    canvas.update_chips();
                 }
             }
         });
@@ -633,6 +701,7 @@ impl Canvas {
             }
             gesture.set_state(gtk::EventSequenceState::Claimed);
             canvas.view.grab_focus();
+            canvas.count_press(gesture.current_event_time(), Point::new(x, y));
             canvas.pointer_pressed(Point::new(x, y), modifiers(gesture.current_event_state()));
         });
         let weak = self.downgrade();
@@ -658,6 +727,20 @@ impl Canvas {
             }
         });
         self.view.add_controller(select);
+
+        // Typing text in place goes through an input method (dead keys, compose sequences):
+        // a key controller on the canvas that holds it while text is edited.
+        let im = gtk::IMMulticontext::new();
+        im.set_client_widget(Some(&self.view));
+        let weak = self.downgrade();
+        im.connect_commit(move |_, text| {
+            if let Some(canvas) = weak.upgrade() {
+                canvas.insert_text(text);
+            }
+        });
+        let typing = gtk::EventControllerKey::new();
+        self.view.add_controller(typing.clone());
+        self.view.imp().im.replace(Some((im, typing)));
 
         // Ctrl+scroll zooms at the pointer; plain scrolling scrolls (the scrolled window).
         let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
@@ -753,7 +836,74 @@ impl Canvas {
         })
     }
 
-    // ---- Select tool and crop mode ----
+    // ---- Select tool, drawing tools and crop mode ----
+
+    /// Counts presses for double-clicks, by GTK's double-click time and distance.
+    fn count_press(&self, time: u32, at: Point) {
+        let (max_time, max_distance) = gtk::Settings::default().map_or((400, 5), |s| {
+            (s.gtk_double_click_time(), s.gtk_double_click_distance())
+        });
+        let imp = self.view.imp();
+        let double = imp.last_press.get().is_some_and(|(t, p)| {
+            time.wrapping_sub(t) <= u32::try_from(max_time).unwrap_or(400)
+                && p.distance(at) <= f64::from(max_distance)
+        });
+        self.with_state(|s| s.presses = if double { s.presses + 1 } else { 1 });
+        imp.last_press.set(Some((time, at)));
+    }
+
+    /// The pointer moved over the canvas without a button: the polygon's rubber segment and
+    /// the step tool's placement preview follow it.
+    fn pointer_hovered(&self, at: Point) {
+        let Some(viewport) = self.viewport() else {
+            return;
+        };
+        let redraw = self
+            .with_state(|s| {
+                s.pointer = (at.x, at.y);
+                s.hovering = true;
+                if let Some(polygon) = s.polygon.as_mut() {
+                    polygon.set_pointer(viewport.to_document(at));
+                    return true;
+                }
+                s.tool == Tool::Step && s.text.is_none()
+            })
+            .unwrap_or(false);
+        if redraw {
+            self.view.queue_draw();
+            self.update_chips();
+        }
+    }
+
+    /// Where the next step marker goes: its sequence, number and counting.
+    fn step_place(s: &State) -> StepPlace {
+        let scene = s.doc.scene();
+        let sequence = steps::current_sequence(scene, s.step_sequence);
+        StepPlace {
+            sequence,
+            number: s
+                .step_next
+                .unwrap_or_else(|| steps::next_number(scene, sequence)),
+            counting: steps::counting(scene, sequence),
+        }
+    }
+
+    /// Starts editing the text of object `id` (a text or callout), the caret at `at` (document
+    /// space) or at the end; a double-click (`word`) selects the word there.
+    fn start_text_edit(s: &mut State, id: ObjectId, at: Option<Point>, word: bool) -> bool {
+        let Some(mut edit) = TextEdit::existing(&s.doc, id) else {
+            return false;
+        };
+        if let Some(at) = at {
+            edit.click(at, false);
+            if word {
+                edit.select_word(edit.caret());
+            }
+        }
+        s.selection.set(s.doc.scene(), [id]);
+        s.text = Some(edit);
+        true
+    }
 
     /// Primary button pressed at `at` (view coordinates).
     pub fn pointer_pressed(&self, at: Point, modifiers: Modifiers) {
@@ -765,27 +915,130 @@ impl Canvas {
             self.finish_picking(colour);
             return;
         }
-        self.with_state(|s| {
-            s.pointer = (at.x, at.y);
-            if let Some(crop) = s.crop.as_mut() {
-                crop.press(&viewport, at);
+        // Text being edited: a press inside it places the caret or selects; a press outside
+        // finishes editing and then does what it would have done.
+        let doc_at = viewport.to_document(at);
+        let tolerance = drag::HIT_TOLERANCE / viewport.zoom;
+        let inside_text = self
+            .with_state(|s| {
+                s.pointer = (at.x, at.y);
+                let presses = s.presses;
+                let edit = s.text.as_mut()?;
+                if !edit.object().hit_test(doc_at, tolerance) {
+                    return Some(false);
+                }
+                if presses >= 2 {
+                    edit.click(doc_at, false);
+                    edit.select_word(edit.caret());
+                } else {
+                    edit.click(doc_at, modifiers.shift);
+                    s.text_drag = true;
+                }
+                Some(true)
+            })
+            .flatten();
+        match inside_text {
+            Some(true) => {
+                self.view.queue_draw();
+                self.update_chips();
                 return;
             }
-            // A handle of the selection first, then a canvas edge or the corner-radius handle,
-            // then objects and the rubber band.
-            let on_handle = matches!(
-                drag::hover(&s.doc, &s.selection, &viewport, at),
-                Hover::Handle { .. }
-            );
-            if !on_handle {
-                s.canvas_drag = CanvasDrag::press(&s.doc, &viewport, at, s.selection.is_empty());
-                if s.canvas_drag.is_some() {
-                    return;
-                }
+            Some(false) => {
+                self.finish_text();
             }
-            s.drag = Drag::press(&s.doc, &mut s.selection, &viewport, at, modifiers);
-        });
+            None => {}
+        }
+        let begin_text = self
+            .with_state(|s| {
+                if let Some(crop) = s.crop.as_mut() {
+                    crop.press(&viewport, at);
+                    return false;
+                }
+                // A polygon in progress: a vertex per click; a double-click or a click on the
+                // first vertex finishes it.
+                if let Some(mut polygon) = s.polygon.take() {
+                    if s.presses >= 2 || polygon.closes(&viewport, at) {
+                        let toolbox = s.toolbox.borrow().clone();
+                        if let Some(edit) = polygon.finish(&s.doc, &toolbox) {
+                            s.pending = Some(edit);
+                        }
+                    } else {
+                        polygon.click(&viewport, at);
+                        s.polygon = Some(polygon);
+                    }
+                    return false;
+                }
+                let hit = drag::hit(&s.doc, &viewport, at);
+                let on_handle = matches!(
+                    drag::hover(&s.doc, &s.selection, &viewport, at),
+                    Hover::Handle { .. }
+                );
+                let editable_hit = hit.filter(|id| {
+                    s.doc
+                        .scene()
+                        .get(*id)
+                        .is_some_and(|n| editable(n.object.as_ref()).is_some())
+                });
+                match s.tool {
+                    Tool::Select => {
+                        // A double-click on a text or callout edits its text in place.
+                        if s.presses >= 2 && !on_handle {
+                            if let Some(id) = editable_hit {
+                                return Self::start_text_edit(s, id, Some(doc_at), true);
+                            }
+                        }
+                        // A handle of the selection first, then a canvas edge or the
+                        // corner-radius handle, then objects and the rubber band.
+                        if !on_handle {
+                            s.canvas_drag =
+                                CanvasDrag::press(&s.doc, &viewport, at, s.selection.is_empty());
+                            if s.canvas_drag.is_some() {
+                                return false;
+                            }
+                        }
+                        s.drag = Drag::press(&s.doc, &mut s.selection, &viewport, at, modifiers);
+                        false
+                    }
+                    tool => {
+                        // The selection can still be adjusted: its handles, or dragging it.
+                        let on_selected = hit.is_some_and(|id| s.selection.contains(id));
+                        if on_handle || on_selected {
+                            s.drag =
+                                Drag::press(&s.doc, &mut s.selection, &viewport, at, modifiers);
+                            return false;
+                        }
+                        // The text and callout tools edit the text of one of their objects.
+                        if matches!(tool, Tool::Text | Tool::Callout) {
+                            let own = editable_hit.filter(|id| {
+                                s.doc.scene().get(*id).map(|n| n.object.type_name())
+                                    == tool.object_type()
+                            });
+                            if let Some(id) = own {
+                                return Self::start_text_edit(s, id, Some(doc_at), false);
+                            }
+                        }
+                        // Anything else draws a new object, which becomes the selection.
+                        s.selection.clear();
+                        let toolbox = s.toolbox.borrow().clone();
+                        if tool == Tool::Shape && toolbox.draws_polygons() {
+                            s.polygon = Some(PolygonDraft::new(doc_at));
+                            return false;
+                        }
+                        let place = Self::step_place(s);
+                        s.draw = Draw::press(&toolbox, tool, place, &viewport, at);
+                        false
+                    }
+                }
+            })
+            .unwrap_or(false);
+        if let Some(edit) = self.with_state(|s| s.pending.take()).flatten() {
+            self.execute(edit);
+        }
+        if begin_text {
+            self.text_started();
+        }
         self.update_cursor();
+        self.update_chips();
         self.view.queue_draw();
         self.notify_changed();
     }
@@ -801,6 +1054,16 @@ impl Canvas {
                 if let Some(crop) = s.crop.as_mut() {
                     crop.motion(&viewport, at);
                     return true;
+                }
+                if s.text_drag {
+                    if let Some(edit) = s.text.as_mut() {
+                        edit.drag_to(viewport.to_document(at));
+                    }
+                    return false;
+                }
+                if let Some(draw) = s.draw.as_mut() {
+                    draw.motion(&viewport, at, modifiers);
+                    return false;
                 }
                 if let Some(canvas_drag) = s.canvas_drag.as_mut() {
                     canvas_drag.motion(&viewport, at);
@@ -830,21 +1093,58 @@ impl Canvas {
 
     /// Button released: the gesture's change becomes one undo step.
     pub fn pointer_released(&self) {
-        let edit = self
+        enum Outcome {
+            Edit(Edit),
+            Text(TextEdit),
+            Nothing,
+        }
+        let outcome = self
             .with_state(|s| {
                 if let Some(crop) = s.crop.as_mut() {
                     crop.release();
-                    return None;
+                    return Outcome::Nothing;
+                }
+                if std::mem::take(&mut s.text_drag) {
+                    return Outcome::Nothing;
+                }
+                if let Some(draw) = s.draw.take() {
+                    let step = draw.tool() == Tool::Step;
+                    return match draw.release(&s.doc) {
+                        Some(Drawn::Edit(edit)) => {
+                            if step {
+                                // "Next value" applies to one marker; then numbering goes on.
+                                s.step_next = None;
+                            }
+                            Outcome::Edit(edit)
+                        }
+                        Some(Drawn::Text(text)) => Outcome::Text(text),
+                        None => Outcome::Nothing,
+                    };
                 }
                 if let Some(canvas_drag) = s.canvas_drag.take() {
-                    return canvas_drag.release(&s.doc);
+                    return canvas_drag
+                        .release(&s.doc)
+                        .map_or(Outcome::Nothing, Outcome::Edit);
                 }
-                let drag = s.drag.take()?;
+                let Some(drag) = s.drag.take() else {
+                    return Outcome::Nothing;
+                };
                 drag.release(&s.doc, &mut s.selection)
+                    .map_or(Outcome::Nothing, Outcome::Edit)
             })
-            .flatten();
-        if let Some(edit) = edit {
-            self.execute(edit);
+            .unwrap_or(Outcome::Nothing);
+        match outcome {
+            Outcome::Edit(edit) => {
+                self.execute(edit);
+            }
+            Outcome::Text(text) => {
+                self.with_state(|s| {
+                    s.selection.clear();
+                    s.text = Some(text);
+                });
+                self.text_started();
+            }
+            Outcome::Nothing => {}
         }
         self.update_hover();
         self.update_chips();
@@ -862,6 +1162,10 @@ impl Canvas {
                     crop.release();
                     return dragging;
                 }
+                s.text_drag = false;
+                if s.draw.take().is_some() {
+                    return true;
+                }
                 if s.canvas_drag.take().is_some() {
                     return true;
                 }
@@ -877,6 +1181,228 @@ impl Canvas {
         self.update_chips();
         self.view.queue_draw();
         cancelled
+    }
+
+    // ---- tools ----
+
+    /// The tool the canvas draws with.
+    pub fn tool(&self) -> Tool {
+        self.with_state(|s| s.tool).unwrap_or_default()
+    }
+
+    /// Switches the tool (the tool strip, the tools' keys, Esc). Anything in progress ends:
+    /// text being edited is kept, a polygon or a draw is dropped, crop mode ends.
+    pub fn set_tool(&self, tool: Tool) {
+        if self.tool() == tool && !self.cropping() {
+            return;
+        }
+        self.cancel_drag();
+        self.finish_text();
+        self.with_state(|s| s.polygon = None);
+        self.end_crop();
+        self.with_state(|s| s.tool = tool);
+        self.update_cursor();
+        self.update_chips();
+        self.view.queue_draw();
+        self.notify_changed();
+    }
+
+    /// The tools' defaults; the window shares one set between its documents.
+    pub fn set_toolbox(&self, toolbox: Rc<RefCell<Toolbox>>) {
+        self.with_state(|s| s.toolbox = toolbox);
+    }
+
+    /// Restart Sequence: the next step marker starts a new sequence at 1 (or A). The step
+    /// properties (add-core-annotation-tools task 3.1) will call this and `set_next_step`.
+    #[allow(dead_code)]
+    pub fn restart_sequence(&self) {
+        self.with_state(|s| {
+            s.step_sequence = Some(steps::fresh_sequence(s.doc.scene()));
+            s.step_next = None;
+        });
+        self.view.queue_draw();
+        self.update_chips();
+    }
+
+    /// "Next value": the number the next step marker gets (`None`: after the highest).
+    #[allow(dead_code)]
+    pub fn set_next_step(&self, number: Option<u32>) {
+        self.with_state(|s| s.step_next = number.filter(|n| *n > 0));
+        self.view.queue_draw();
+        self.update_chips();
+    }
+
+    /// Whether a polygon is being drawn (header subtitle "Drawing", mockup 07).
+    pub fn drawing_polygon(&self) -> bool {
+        self.with_state(|s| s.polygon.is_some()).unwrap_or(false)
+    }
+
+    /// Whether text is being edited in place (the tools' keys type instead).
+    pub fn editing_text(&self) -> bool {
+        self.with_state(|s| s.text.is_some()).unwrap_or(false)
+    }
+
+    /// The text being edited.
+    #[cfg(test)]
+    pub fn edited_text(&self) -> Option<String> {
+        self.with_state(|s| s.text.as_ref().map(|t| t.text().to_string()))
+            .flatten()
+    }
+
+    /// Starts editing the text of the selected text or callout (Enter).
+    fn edit_selected_text(&self) -> bool {
+        let started = self
+            .with_state(|s| match s.selection.ids() {
+                [id] => {
+                    let id = *id;
+                    Self::start_text_edit(s, id, None, false)
+                }
+                _ => false,
+            })
+            .unwrap_or(false);
+        if started {
+            self.text_started();
+        }
+        started
+    }
+
+    /// The input method takes the keys while text is edited.
+    fn text_started(&self) {
+        if let Some((im, typing)) = self.view.imp().im.borrow().as_ref() {
+            typing.set_im_context(Some(im));
+            im.focus_in();
+        }
+        self.view.grab_focus();
+        self.update_cursor();
+        self.update_chips();
+        self.view.queue_draw();
+        self.notify_changed();
+    }
+
+    /// Typed text (the input method's commit) goes into the text being edited.
+    pub fn insert_text(&self, text: &str) {
+        let typed = self
+            .with_state(|s| s.text.as_mut().map(|t| t.insert(text)).is_some())
+            .unwrap_or(false);
+        if typed {
+            self.view.queue_draw();
+            self.update_chips();
+        }
+    }
+
+    /// Ends editing text in place (Esc, a click outside, another tool, undo …): the change is
+    /// one undo step. Returns whether text was being edited.
+    pub fn finish_text(&self) -> bool {
+        let Some(edit) = self
+            .with_state(|s| {
+                s.text_drag = false;
+                s.text.take()
+            })
+            .flatten()
+        else {
+            return false;
+        };
+        if let Some((im, typing)) = self.view.imp().im.borrow().as_ref() {
+            im.focus_out();
+            im.reset();
+            typing.set_im_context(None::<&gtk::IMContext>);
+        }
+        let change = self.with_state(|s| edit.finish(&s.doc)).flatten();
+        match change {
+            Some(change) => {
+                self.execute(change);
+            }
+            None => self.notify_changed(),
+        }
+        self.update_cursor();
+        self.update_chips();
+        self.view.queue_draw();
+        true
+    }
+
+    /// Edits the text being edited and redraws.
+    fn edit_text(&self, f: impl FnOnce(&mut TextEdit)) -> bool {
+        self.with_state(|s| s.text.as_mut().map(f));
+        self.view.queue_draw();
+        self.update_chips();
+        true
+    }
+
+    /// Keys while text is edited in place (mockup 08). Printable keys are not handled here:
+    /// they go to the input method.
+    fn text_key(&self, key: gdk::Key, modifiers: gdk::ModifierType) -> bool {
+        let ctrl = modifiers.contains(gdk::ModifierType::CONTROL_MASK);
+        let shift = modifiers.contains(gdk::ModifierType::SHIFT_MASK);
+        let step = |word: Motion, plain: Motion| if ctrl { word } else { plain };
+        match key {
+            gdk::Key::Escape => {
+                self.finish_text();
+                true
+            }
+            gdk::Key::BackSpace => self.edit_text(|t| t.backspace(ctrl)),
+            gdk::Key::Delete | gdk::Key::KP_Delete => self.edit_text(|t| t.delete(ctrl)),
+            gdk::Key::Left | gdk::Key::KP_Left => {
+                self.edit_text(|t| t.move_caret(step(Motion::WordLeft, Motion::Left), shift))
+            }
+            gdk::Key::Right | gdk::Key::KP_Right => {
+                self.edit_text(|t| t.move_caret(step(Motion::WordRight, Motion::Right), shift))
+            }
+            gdk::Key::Up | gdk::Key::KP_Up => self.edit_text(|t| t.move_caret(Motion::Up, shift)),
+            gdk::Key::Down | gdk::Key::KP_Down => {
+                self.edit_text(|t| t.move_caret(Motion::Down, shift))
+            }
+            gdk::Key::Home | gdk::Key::KP_Home => {
+                self.edit_text(|t| t.move_caret(step(Motion::Start, Motion::LineStart), shift))
+            }
+            gdk::Key::End | gdk::Key::KP_End => {
+                self.edit_text(|t| t.move_caret(step(Motion::End, Motion::LineEnd), shift))
+            }
+            gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::ISO_Enter => {
+                self.edit_text(|t| t.insert("\n"))
+            }
+            _ if ctrl => match key.to_lower() {
+                gdk::Key::a => self.edit_text(TextEdit::select_all),
+                gdk::Key::c | gdk::Key::x => {
+                    let cut = key.to_lower() == gdk::Key::x;
+                    let selected = self
+                        .with_state(|s| s.text.as_ref().map(|t| t.selected_text().to_string()))
+                        .flatten()
+                        .filter(|t| !t.is_empty());
+                    if let Some(selected) = selected {
+                        self.view.clipboard().set_text(&selected);
+                        if cut {
+                            self.edit_text(|t| t.insert(""));
+                        }
+                    }
+                    true
+                }
+                gdk::Key::v => {
+                    let weak = self.downgrade();
+                    self.view.clipboard().read_text_async(
+                        None::<&gtk::gio::Cancellable>,
+                        move |result| {
+                            if let (Some(canvas), Ok(Some(text))) = (weak.upgrade(), result) {
+                                canvas.insert_text(&text);
+                            }
+                        },
+                    );
+                    true
+                }
+                gdk::Key::b => self.edit_text(|t| {
+                    t.toggle("bold");
+                }),
+                gdk::Key::i => self.edit_text(|t| {
+                    t.toggle("italic");
+                }),
+                gdk::Key::u => self.edit_text(|t| {
+                    t.toggle("underline");
+                }),
+                // Undo and redo wait until editing ends (it is one step then).
+                gdk::Key::z => true,
+                _ => false,
+            },
+            _ => false,
+        }
     }
 
     fn canvas_rect(&self) -> Option<IRect> {
@@ -906,11 +1432,25 @@ impl Canvas {
         }
     }
 
+    /// Called with things the window announces in a toast (steps renumbered).
+    pub fn connect_notice(&self, f: impl Fn(Notice) + 'static) {
+        self.view.imp().notices.borrow_mut().push(Box::new(f));
+    }
+
     /// Executes `edit` as one undo step and updates the selection.
     fn execute(&self, edit: Edit) -> Option<Done> {
         let before = self.canvas_rect();
         let label = labels::undo_label(&edit);
         let (action, subject) = (edit.action, edit.subject);
+        // Deleting step markers renumbers others (mockup 13 announces it).
+        let removed = removed_ids(&edit.command);
+        let renumbering = self
+            .with_state(|s| {
+                (action == Action::Delete && !removed.is_empty())
+                    .then(|| steps::deletion_summary(s.doc.scene(), &removed))
+            })
+            .flatten()
+            .filter(|(_, n)| *n > 0);
         let done = self
             .with_state(
                 |s| match s.history.execute(&mut s.doc, label, edit.command) {
@@ -935,14 +1475,31 @@ impl Canvas {
         self.canvas_changed(before);
         self.view.queue_draw();
         self.notify_changed();
+        if let (Some(done), Some((deleted, renumbered))) = (done, renumbering) {
+            for listener in self.view.imp().notices.borrow().iter() {
+                listener(Notice::StepsRenumbered {
+                    deleted: deleted.clone(),
+                    renumbered,
+                    done,
+                });
+            }
+        }
         done
+    }
+
+    /// Ends whatever is in progress before an operation on the whole document: a gesture,
+    /// text editing (kept), a polygon (dropped), crop mode.
+    fn end_modes(&self) {
+        self.cancel_drag();
+        self.finish_text();
+        self.with_state(|s| s.polygon = None);
+        self.end_crop();
     }
 
     /// Runs a one-shot operation on the document and the selection as one undo step (ends crop
     /// mode and any gesture first). Returns what was done, or `None` if nothing changed.
     pub fn run(&self, op: impl FnOnce(&Document, &Selection) -> Option<Edit>) -> Option<Done> {
-        self.cancel_drag();
-        self.end_crop();
+        self.end_modes();
         let edit = self.with_state(|s| op(&s.doc, &s.selection)).flatten()?;
         self.execute(edit)
     }
@@ -956,8 +1513,7 @@ impl Canvas {
     }
 
     pub fn undo(&self) {
-        self.cancel_drag();
-        self.end_crop();
+        self.end_modes();
         let before = self.canvas_rect();
         self.with_state(|s| {
             if let Err(err) = s.history.undo(&mut s.doc) {
@@ -971,8 +1527,7 @@ impl Canvas {
     }
 
     pub fn redo(&self) {
-        self.cancel_drag();
-        self.end_crop();
+        self.end_modes();
         let before = self.canvas_rect();
         self.with_state(|s| {
             if let Err(err) = s.history.redo(&mut s.doc) {
@@ -997,8 +1552,7 @@ impl Canvas {
     /// The eyedropper (sidebar: Canvas › Pick Colour From Image): the next click on the canvas
     /// picks the colour shown there and hands it to `f`; Escape hands `None`.
     pub fn pick_colour(&self, f: impl FnOnce(Option<Rgba>) + 'static) {
-        self.cancel_drag();
-        self.end_crop();
+        self.end_modes();
         if let Some(previous) = self.view.imp().picker.replace(Some(Box::new(f))) {
             previous(None);
         }
@@ -1059,6 +1613,8 @@ impl Canvas {
             return;
         }
         self.cancel_drag();
+        self.finish_text();
+        self.with_state(|s| s.polygon = None);
         self.with_state(|s| {
             if s.crop.is_none() {
                 s.crop = Some(Crop::new(&s.doc));
@@ -1158,7 +1714,7 @@ impl Canvas {
 
     /// "Select All <Type>" (sidebar) and the per-type "Select" buttons (mockup 16).
     pub fn select_type(&self, type_name: &str) {
-        self.cancel_drag();
+        self.end_modes();
         self.with_state(|s| s.selection.select_type(s.doc.scene(), type_name));
         self.view.queue_draw();
         self.notify_changed();
@@ -1177,7 +1733,7 @@ impl Canvas {
     /// Inserts `bitmap` as an image object centred on `centre` (document space); returns the
     /// revision after the insertion, for the toast's Undo.
     pub fn insert_image(&self, bitmap: Bitmap, centre: Point) -> Option<u64> {
-        self.cancel_drag();
+        self.end_modes();
         let inserted = self.edit(|doc, _| ops::insert_image(doc, bitmap, centre));
         inserted.then(|| self.history_info().revision)
     }
@@ -1262,6 +1818,17 @@ impl Canvas {
                         None => None,
                     };
                 }
+                // Typing in place: an I-beam over the text, elsewhere a click finishes.
+                if let Some(text) = &s.text {
+                    let at = viewport.to_document(pointer);
+                    let over = text
+                        .object()
+                        .hit_test(at, drag::HIT_TOLERANCE / viewport.zoom);
+                    return over.then_some("text");
+                }
+                if s.polygon.is_some() || s.draw.is_some() {
+                    return Some("crosshair");
+                }
                 match s.hover {
                     Some(CanvasTarget::Edge(side)) if side.horizontal() => {
                         return Some("ew-resize")
@@ -1280,6 +1847,19 @@ impl Canvas {
                     },
                     _ => drag::hover(&s.doc, &s.selection, &viewport, pointer),
                 };
+                // Drawing tools draw wherever they do not grab the selection (mockup 03).
+                let grabs_selection = match hover {
+                    Hover::Handle { .. } => true,
+                    Hover::Object => drag::hit(&s.doc, &viewport, pointer)
+                        .is_some_and(|id| s.selection.contains(id)),
+                    Hover::Nothing => false,
+                };
+                match s.tool {
+                    Tool::Select => {}
+                    _ if grabs_selection => {}
+                    Tool::Text => return Some("text"),
+                    _ => return Some("crosshair"),
+                }
                 match hover {
                     Hover::Handle {
                         handle: HandleId::Resize(compass),
@@ -1383,11 +1963,83 @@ impl Canvas {
     }
 
     /// Shows, fills and places the measurement and snap chips for the gesture in progress.
+    /// The chip of a drawing tool, if one shows (redline "On-canvas handles"): typing in place,
+    /// drawing a polygon, Shift while drawing an arrow or line, placing a step marker. Returns
+    /// whether one is shown.
+    fn update_drawing_chip(&self, viewport: &Viewport) -> bool {
+        enum Place {
+            /// Right of the text's editing frame, level with its top (mockup 08).
+            RightOf(Point),
+            /// Right of and below the pointer (mockup 07).
+            Pointer,
+            /// Centred below a point (mockup 03).
+            Below(Point),
+            /// Right of the placement preview (mockup 11).
+            Beside(Point, f64),
+        }
+        let chip = self
+            .with_state(|s| {
+                let pointer = Point::new(s.pointer.0, s.pointer.1);
+                if let Some(text) = &s.text {
+                    let frame = text.block()?.bounds();
+                    let corners = frame
+                        .rect
+                        .corners()
+                        .map(|p| viewport.to_device(frame.to_document(p)));
+                    let right = corners.iter().map(|p| p.x).fold(f64::MIN, f64::max);
+                    let top = corners.iter().map(|p| p.y).fold(f64::MAX, f64::min);
+                    let gap = overlay::TEXT_FRAME_OFFSET + 6.0;
+                    return Some((
+                        labels::text_edit_chip(),
+                        Place::RightOf(Point::new(right + gap, top - 3.0)),
+                    ));
+                }
+                if let Some(polygon) = &s.polygon {
+                    return Some((
+                        labels::polygon_chip(polygon.vertices().len()),
+                        Place::Pointer,
+                    ));
+                }
+                if let Some(draw) = &s.draw {
+                    let DrawFeedback::Angle { degrees } = draw.feedback() else {
+                        return None;
+                    };
+                    let line = draw.preview()?.arrange().rect;
+                    let mid = viewport.to_device(Point::new(line.centre().x, line.bottom()));
+                    return Some((labels::angle_chip(degrees), Place::Below(mid)));
+                }
+                let ghost = step_ghost(s, viewport)?;
+                Some((
+                    labels::step_chip(&ghost.label()),
+                    Place::Beside(pointer, ghost.radius * viewport.zoom),
+                ))
+            })
+            .flatten();
+        let Some((text, place)) = chip else {
+            return false;
+        };
+        let pointer = self
+            .with_state(|s| Point::new(s.pointer.0, s.pointer.1))
+            .unwrap_or_default();
+        let label = &self.measure_chip;
+        label.set_label(&text);
+        label.set_visible(true);
+        let (w, h) = Self::chip_size(label);
+        let (x, y) = match place {
+            Place::RightOf(p) => (p.x, p.y),
+            Place::Pointer => (pointer.x + 16.0, pointer.y + 11.0),
+            Place::Below(p) => (p.x - w / 2.0, p.y + 18.0),
+            Place::Beside(p, r) => (p.x + r + 12.0, p.y - h / 2.0),
+        };
+        self.place_chip(label, x, y);
+        true
+    }
+
     fn update_chips(&self) {
         let Some(viewport) = self.viewport() else {
             return;
         };
-        if self.update_canvas_chips(&viewport) {
+        if self.update_canvas_chips(&viewport) || self.update_drawing_chip(&viewport) {
             self.snap_chip.set_visible(false);
             return;
         }
@@ -1533,13 +2185,55 @@ impl Canvas {
         if key == gdk::Key::Escape && self.finish_picking(None) {
             return true;
         }
+        if self.editing_text() {
+            return self.text_key(key, modifiers);
+        }
         let dragging = self
             .with_state(|s| {
                 s.drag.as_ref().is_some_and(Drag::is_dragging)
+                    || s.draw.as_ref().is_some_and(Draw::is_dragging)
                     || s.canvas_drag.as_ref().is_some_and(CanvasDrag::is_dragging)
                     || s.crop.as_ref().is_some_and(Crop::is_dragging)
             })
             .unwrap_or(false);
+        // A polygon in progress (mockup 07): Enter finishes, Backspace removes the last point,
+        // Esc cancels.
+        if self.drawing_polygon() {
+            let handled = match key {
+                gdk::Key::Escape => {
+                    self.with_state(|s| s.polygon = None);
+                    true
+                }
+                gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::ISO_Enter => {
+                    let edit = self
+                        .with_state(|s| {
+                            let polygon = s.polygon.take()?;
+                            let toolbox = s.toolbox.borrow().clone();
+                            polygon.finish(&s.doc, &toolbox)
+                        })
+                        .flatten();
+                    if let Some(edit) = edit {
+                        self.execute(edit);
+                    }
+                    true
+                }
+                gdk::Key::BackSpace => {
+                    self.with_state(|s| {
+                        if !s.polygon.as_mut().is_some_and(PolygonDraft::remove_last) {
+                            s.polygon = None;
+                        }
+                    });
+                    true
+                }
+                _ => false,
+            };
+            if handled {
+                self.update_chips();
+                self.view.queue_draw();
+                self.notify_changed();
+                return true;
+            }
+        }
         // Crop mode (mockup 08): Esc cancels, Enter crops; the editing keys rest.
         if self.cropping() {
             match key {
@@ -1563,6 +2257,11 @@ impl Canvas {
         }
         if key == gdk::Key::Escape {
             if self.cancel_drag() {
+                return true;
+            }
+            // After drawing, the tool stays until Esc (spec "Tool switching").
+            if self.tool() != Tool::Select {
+                self.set_tool(Tool::Select);
                 return true;
             }
             let had = self
@@ -1596,6 +2295,9 @@ impl Canvas {
                 true
             }
             _ if cropping => false,
+            gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::ISO_Enter if !ctrl && !alt => {
+                self.edit_selected_text()
+            }
             gdk::Key::Left | gdk::Key::KP_Left if !ctrl && !alt => nudge(-step, 0.0),
             gdk::Key::Right | gdk::Key::KP_Right if !ctrl && !alt => nudge(step, 0.0),
             gdk::Key::Up | gdk::Key::KP_Up if !ctrl && !alt => nudge(0.0, -step),
@@ -1667,6 +2369,15 @@ impl Canvas {
     }
 }
 
+/// The objects a command removes (a `Remove`, or the first step of a `Batch`).
+fn removed_ids(command: &Command) -> Vec<ObjectId> {
+    match command {
+        Command::Remove { ids } => ids.clone(),
+        Command::Batch(steps) => steps.first().map(removed_ids).unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
 /// Event handlers hold the canvas weakly; the widgets own the handlers.
 struct WeakCanvas {
     overlay: glib::WeakRef<gtk::Overlay>,
@@ -1718,11 +2429,29 @@ fn draw(state: &State, cr: &gtk::cairo::Context, size: (f64, f64), scroll: (f64,
     if let Err(err) = draw_canvas_shadow(cr, corner, w, h) {
         eprintln!("annota: canvas: {err}");
     }
-    let mut preview = state
-        .drag
+    // Text being edited is drawn as edited so far: in place of its object, or on top if it is
+    // new; a draw in progress on top; the step tool's placement preview faded (mockup 11).
+    let edited: Vec<(ObjectId, Box<dyn Annotation>)> = state
+        .text
         .as_ref()
-        .map(|d| Preview::objects(d.preview(), d.shows_ghost()))
-        .unwrap_or_else(|| Preview::objects(&[], false));
+        .and_then(|t| Some((t.id()?, t.object().clone_box())))
+        .into_iter()
+        .collect();
+    let ghost = step_ghost(state, &viewport);
+    let mut preview = match &state.drag {
+        Some(d) => Preview::objects(d.preview(), d.shows_ghost()),
+        None => Preview::objects(&edited, false),
+    };
+    preview.added = state.draw.as_ref().and_then(Draw::preview).or_else(|| {
+        state
+            .text
+            .as_ref()
+            .filter(|t| t.id().is_none())
+            .map(TextEdit::object)
+    });
+    preview.ghost_object = ghost
+        .as_ref()
+        .map(|g| (g as &dyn Annotation, STEP_GHOST_OPACITY));
     preview.canvas = canvas_drag.and_then(CanvasDrag::preview_canvas);
     preview.corner_radius = canvas_drag.and_then(CanvasDrag::preview_radius);
     if let Err(err) = render::render_preview(cr, &state.doc, &viewport, &options, Some(&preview)) {
@@ -1733,8 +2462,30 @@ fn draw(state: &State, cr: &gtk::cairo::Context, size: (f64, f64), scroll: (f64,
     }
 }
 
+/// Opacity of the step tool's placement preview (redline: 60 %).
+const STEP_GHOST_OPACITY: f64 = 0.6;
+
+/// The marker a click with the step tool would place under the pointer, while nothing else is
+/// going on (mockup 11).
+fn step_ghost(state: &State, viewport: &Viewport) -> Option<annota::tools::step::Step> {
+    let idle = state.tool == Tool::Step
+        && state.hovering
+        && state.text.is_none()
+        && state.draw.is_none()
+        && state.drag.is_none()
+        && state.crop.is_none()
+        && state.canvas_drag.is_none();
+    if !idle {
+        return None;
+    }
+    let at = viewport.to_document(Point::new(state.pointer.0, state.pointer.1));
+    let place = Canvas::step_place(state);
+    Some(state.toolbox.borrow().step(at, place))
+}
+
 /// Selection, guides and rubber band over the document; in crop mode the crop frame; the
-/// grabber of the canvas edge under the pointer and the corner-radius handle.
+/// grabber of the canvas edge under the pointer and the corner-radius handle; the editing
+/// frame, caret and selection of text being edited; a polygon being drawn.
 fn draw_editing_aids(
     state: &State,
     cr: &gtk::cairo::Context,
@@ -1743,6 +2494,40 @@ fn draw_editing_aids(
 ) -> Result<(), gtk::cairo::Error> {
     if let Some(crop) = &state.crop {
         return overlay::draw_crop(cr, viewport, state.doc.canvas().rect, crop.frame());
+    }
+    if let Some(text) = &state.text {
+        if let Some(block) = text.block() {
+            let (start, end) = text.selection();
+            let selection = if start < end {
+                block.selection(start, end)
+            } else {
+                Vec::new()
+            };
+            let caret = block.caret(text.caret());
+            overlay::draw_text_edit(cr, viewport, &block.bounds(), caret, &selection)?;
+        }
+        return Ok(());
+    }
+    if let Some(polygon) = &state.polygon {
+        let toolbox = state.toolbox.borrow();
+        let style = toolbox.shape_style();
+        let fill = style.fill;
+        let alpha = (f64::from(fill.a) * style.fill_opacity.clamp(0.0, 1.0)).round() as u8;
+        overlay::draw_polygon_draft(
+            cr,
+            viewport,
+            polygon.vertices(),
+            polygon.pointer(),
+            (style.outline_color, style.outline_width),
+            Some(Rgba::new(fill.r, fill.g, fill.b, alpha)),
+        )?;
+        return Ok(());
+    }
+    // An arrow or line being drawn shows its ends and curve handle (mockup 03).
+    if let Some(object) = state.draw.as_ref().and_then(Draw::preview) {
+        if matches!(object.type_name(), "arrow" | "line") {
+            overlay::draw_handles(cr, viewport, &object.handles())?;
+        }
     }
     let frame = match &state.drag {
         Some(drag) => drag.selection_frame(&state.doc, &state.selection),
@@ -2173,6 +2958,332 @@ mod tests {
         canvas.pick_colour(move |c| into.set(c));
         assert!(canvas.key_pressed(gdk::Key::Escape, gdk::ModifierType::empty()));
         assert_eq!(picked.get(), None);
+        window.destroy();
+    }
+
+    /// A press and release at the same place (a click), `presses` 2 for a double-click.
+    fn click(canvas: &Canvas, at: Point, presses: i32) {
+        canvas.with_state(|s| s.presses = presses);
+        canvas.pointer_pressed(at, Modifiers::default());
+        canvas.pointer_released();
+    }
+
+    /// Press at `from`, move to `to` (view points), release.
+    fn drag(canvas: &Canvas, from: Point, to: Point, modifiers: Modifiers) {
+        canvas.with_state(|s| s.presses = 1);
+        canvas.pointer_pressed(from, modifiers);
+        canvas.pointer_moved(
+            Point::new((from.x + to.x) / 2.0, (from.y + to.y) / 2.0),
+            modifiers,
+        );
+        canvas.pointer_moved(to, modifiers);
+        canvas.pointer_released();
+    }
+
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn drawing_tools_on_a_live_canvas() {
+        use annota::document::color::palette;
+        use annota::tools::arrow::{Arrow, EndStyle};
+        use annota::tools::callout::{Callout, ADD_TAIL};
+        use annota::tools::shape::{Shape, ShapeKind};
+        use annota::tools::step::Step;
+
+        init();
+        let doc = Document::new(Bitmap::filled(1600, 1000, palette::PAPER).unwrap());
+        let window = gtk::Window::new();
+        window.set_default_size(1280, 800);
+        let canvas = Canvas::new(doc);
+        window.set_child(Some(canvas.widget()));
+        window.present();
+        pump(300);
+        let vp = canvas.viewport().unwrap();
+        let at = |x: f64, y: f64| vp.to_device(Point::new(x, y));
+        let none = Modifiers::default();
+        let shift = Modifiers {
+            shift: true,
+            ..none
+        };
+        let count = |c: &Canvas, t: &str| c.with_document(|d| d.scene().of_type(t).len()).unwrap();
+        let undo_label = |c: &Canvas| c.history_info().undo_label;
+
+        // Arrow (A): drawn end to end, selected, one "Add Arrow" step; the tool stays.
+        canvas.set_tool(Tool::Arrow);
+        drag(&canvas, at(100.0, 100.0), at(500.0, 300.0), none);
+        assert_eq!(count(&canvas, "arrow"), 1);
+        assert_eq!(undo_label(&canvas).as_deref(), Some("Add Arrow"));
+        assert_eq!(canvas.selection().len(), 1);
+        assert_eq!(canvas.tool(), Tool::Arrow, "the tool stays active");
+        // While drawing with Shift: constrained, with the chip (redline).
+        canvas.with_state(|s| s.presses = 1);
+        canvas.pointer_pressed(at(100.0, 600.0), shift);
+        canvas.pointer_moved(at(300.0, 610.0), shift);
+        canvas.pointer_moved(at(600.0, 612.0), shift);
+        pump(50);
+        assert!(canvas.measure_chip.is_visible());
+        assert_eq!(canvas.measure_chip.label(), "0° · Shift: 0/45/90°");
+        canvas.pointer_released();
+        assert_eq!(
+            count(&canvas, "arrow"),
+            2,
+            "a second arrow without picking the tool again"
+        );
+        let second = canvas
+            .with_document(|d| {
+                let id = *d.scene().of_type("arrow").last().unwrap();
+                d.scene()
+                    .get(id)
+                    .unwrap()
+                    .object
+                    .as_any()
+                    .downcast_ref::<Arrow>()
+                    .unwrap()
+                    .clone()
+            })
+            .unwrap();
+        assert_eq!(second.end.y, 600.0);
+        // Esc goes back to Select (spec "Tool switching").
+        assert!(canvas.key_pressed(gdk::Key::Escape, gdk::ModifierType::empty()));
+        assert_eq!(canvas.tool(), Tool::Select);
+
+        // Line (L): no heads (spec "Plain line").
+        canvas.set_tool(Tool::Line);
+        drag(&canvas, at(700.0, 100.0), at(1000.0, 100.0), none);
+        let line = canvas
+            .with_document(|d| {
+                let id = d.scene().of_type("line")[0];
+                d.scene()
+                    .get(id)
+                    .unwrap()
+                    .object
+                    .as_any()
+                    .downcast_ref::<Arrow>()
+                    .unwrap()
+                    .clone()
+            })
+            .unwrap();
+        assert_eq!(
+            (line.start_style, line.end_style),
+            (EndStyle::None, EndStyle::None)
+        );
+
+        // Pen (P), shape (U), highlighter (H), redaction (B).
+        for (tool, type_name, from, to) in [
+            (Tool::Pen, "pen", (100.0, 700.0), (300.0, 760.0)),
+            (Tool::Shape, "shape", (400.0, 700.0), (600.0, 800.0)),
+            (
+                Tool::Highlighter,
+                "highlighter",
+                (700.0, 700.0),
+                (900.0, 740.0),
+            ),
+            (Tool::Redact, "redaction", (1000.0, 700.0), (1200.0, 740.0)),
+        ] {
+            canvas.set_tool(tool);
+            drag(&canvas, at(from.0, from.1), at(to.0, to.1), none);
+            assert_eq!(count(&canvas, type_name), 1, "{type_name}");
+        }
+
+        // Polygon: a vertex per click, the chip counts them, Enter finishes.
+        canvas
+            .with_state(|s| {
+                s.toolbox.borrow_mut().set_property(
+                    Tool::Shape,
+                    "shape",
+                    &annota::document::annotation::PropertyValue::Choice("polygon".into()),
+                )
+            })
+            .unwrap()
+            .unwrap();
+        canvas.set_tool(Tool::Shape);
+        for p in [(1300.0, 100.0), (1500.0, 120.0), (1450.0, 300.0)] {
+            click(&canvas, at(p.0, p.1), 1);
+        }
+        canvas.pointer_hovered(at(1350.0, 280.0));
+        pump(50);
+        assert!(canvas.drawing_polygon());
+        assert_eq!(
+            canvas.measure_chip.label(),
+            "3 points · Enter or double-click to finish"
+        );
+        assert!(canvas.key_pressed(gdk::Key::Return, gdk::ModifierType::empty()));
+        assert!(!canvas.drawing_polygon());
+        let polygon = canvas
+            .with_document(|d| {
+                d.scene()
+                    .nodes()
+                    .iter()
+                    .rev()
+                    .find_map(|n| n.object.as_any().downcast_ref::<Shape>().cloned())
+            })
+            .flatten()
+            .unwrap();
+        assert_eq!(
+            (polygon.kind, polygon.points.len()),
+            (ShapeKind::Polygon, 3)
+        );
+        // A double-click finishes too; Esc cancels.
+        for p in [(1300.0, 400.0), (1500.0, 420.0), (1450.0, 600.0)] {
+            click(&canvas, at(p.0, p.1), 1);
+        }
+        click(&canvas, at(1450.0, 600.0), 2);
+        assert!(!canvas.drawing_polygon());
+        assert_eq!(count(&canvas, "shape"), 3);
+        click(&canvas, at(1300.0, 700.0), 1);
+        assert!(canvas.key_pressed(gdk::Key::Escape, gdk::ModifierType::empty()));
+        assert!(!canvas.drawing_polygon());
+        assert_eq!(count(&canvas, "shape"), 3);
+
+        // Text (T): a click starts typing in place; letters go to the text; Esc adds it.
+        canvas.set_tool(Tool::Text);
+        click(&canvas, at(200.0, 900.0), 1);
+        assert!(canvas.editing_text());
+        pump(50);
+        assert_eq!(
+            canvas.measure_chip.label(),
+            "Esc or click outside to finish"
+        );
+        canvas.insert_text("Runs nightly");
+        assert!(canvas.key_pressed(gdk::Key::Return, gdk::ModifierType::empty()));
+        canvas.insert_text("on mains");
+        assert!(
+            !canvas.key_pressed(gdk::Key::a, gdk::ModifierType::empty()),
+            "letters are typed"
+        );
+        assert!(canvas.key_pressed(gdk::Key::Escape, gdk::ModifierType::empty()));
+        assert!(!canvas.editing_text());
+        assert_eq!(count(&canvas, "text"), 1);
+        assert_eq!(undo_label(&canvas).as_deref(), Some("Add Text"));
+        // Spec "Edit in place": with Select, a double-click edits the text on the canvas.
+        canvas.set_tool(Tool::Select);
+        let text_box = canvas
+            .with_document(|d| {
+                let id = d.scene().of_type("text")[0];
+                d.scene().get(id).unwrap().object.arrange().rect
+            })
+            .unwrap();
+        let inside = vp.to_device(text_box.centre());
+        click(&canvas, inside, 1);
+        click(&canvas, inside, 2);
+        assert!(canvas.editing_text());
+        assert!(canvas.key_pressed(gdk::Key::End, gdk::ModifierType::CONTROL_MASK));
+        canvas.insert_text(" only");
+        assert_eq!(
+            canvas.edited_text().as_deref(),
+            Some("Runs nightly\non mains only")
+        );
+        // A click outside finishes: one "Edit Text" step.
+        click(&canvas, at(1500.0, 950.0), 1);
+        assert!(!canvas.editing_text());
+        assert_eq!(undo_label(&canvas).as_deref(), Some("Edit Text"));
+
+        // Callout (K): a drag makes the body, typing follows; the add-tail handle adds a tail.
+        canvas.set_tool(Tool::Callout);
+        drag(&canvas, at(800.0, 400.0), at(1100.0, 480.0), none);
+        assert!(canvas.editing_text());
+        canvas.insert_text("Both paths");
+        assert!(canvas.key_pressed(gdk::Key::Escape, gdk::ModifierType::empty()));
+        assert_eq!(count(&canvas, "callout"), 1);
+        canvas.set_tool(Tool::Select);
+        let (id, add) = canvas
+            .with_document(|d| {
+                let id = d.scene().of_type("callout")[0];
+                let add = d
+                    .scene()
+                    .get(id)
+                    .unwrap()
+                    .object
+                    .handles()
+                    .into_iter()
+                    .find(|h| h.id == ADD_TAIL)
+                    .unwrap();
+                (id, add)
+            })
+            .unwrap();
+        canvas.with_state(|s| s.selection.set(s.doc.scene(), [id]));
+        let grab = add.screen_position(vp.zoom, vp.origin);
+        drag(
+            &canvas,
+            grab,
+            at(1300.0, 650.0),
+            Modifiers { alt: true, ..none },
+        );
+        let tails = canvas
+            .with_document(|d| {
+                d.scene()
+                    .get(id)
+                    .unwrap()
+                    .object
+                    .as_any()
+                    .downcast_ref::<Callout>()
+                    .unwrap()
+                    .tails
+                    .len()
+            })
+            .unwrap();
+        assert_eq!(tails, 2, "spec \"Two tails\"");
+
+        // Step (S): the placement preview's chip, three clicks give 1, 2, 3.
+        canvas.set_tool(Tool::Step);
+        canvas.pointer_hovered(at(300.0, 200.0));
+        pump(50);
+        assert_eq!(canvas.measure_chip.label(), "Click to place 1");
+        let spots = [
+            (300.0, 200.0),
+            (300.0, 300.0),
+            (300.0, 400.0),
+            (300.0, 500.0),
+        ];
+        for p in spots {
+            click(&canvas, at(p.0, p.1), 1);
+        }
+        let labels = |c: &Canvas| {
+            c.with_document(|d| {
+                annota::editing::steps::markers(d.scene())
+                    .iter()
+                    .map(|s| s.label())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap()
+        };
+        assert_eq!(labels(&canvas), ["1", "2", "3", "4"]);
+        // Delete marker 2: 1, 2, 3, with the toast's notice.
+        let notices = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let into = notices.clone();
+        canvas.connect_notice(move |n| into.borrow_mut().push(n));
+        canvas.set_tool(Tool::Select);
+        click(&canvas, at(300.0, 300.0), 1);
+        assert!(canvas.key_pressed(gdk::Key::Delete, gdk::ModifierType::empty()));
+        assert_eq!(labels(&canvas), ["1", "2", "3"]);
+        assert!(matches!(
+            notices.borrow().first(),
+            Some(Notice::StepsRenumbered { deleted: Some(label), renumbered: 2, .. }) if label == "2"
+        ));
+        // Restart Sequence: the next marker is 1 again; the others keep their numbers.
+        canvas.set_tool(Tool::Step);
+        canvas.restart_sequence();
+        click(&canvas, at(500.0, 200.0), 1);
+        assert_eq!(labels(&canvas), ["1", "2", "3", "1"]);
+        canvas.set_next_step(Some(7));
+        click(&canvas, at(500.0, 300.0), 1);
+        assert_eq!(labels(&canvas), ["1", "2", "3", "1", "7"]);
+        let last = canvas
+            .with_document(|d| {
+                let id = *d.scene().of_type("step").last().unwrap();
+                d.scene()
+                    .get(id)
+                    .unwrap()
+                    .object
+                    .as_any()
+                    .downcast_ref::<Step>()
+                    .unwrap()
+                    .sequence
+            })
+            .unwrap();
+        assert_eq!(last, 2);
+        // Undo takes back one marker at a time.
+        canvas.undo();
+        assert_eq!(labels(&canvas).len(), 4);
         window.destroy();
     }
 }

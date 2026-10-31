@@ -51,6 +51,7 @@ use annota::editing::canvas_edit;
 use annota::editing::image_ops::{self, Turn};
 use annota::editing::ops::{self, Stacking, Subject};
 use annota::editing::selection::Selection;
+use annota::editing::tool::{Tool, Toolbox};
 use annota::render::{self, view};
 use annota::tools::group::Group;
 
@@ -59,10 +60,43 @@ use self::sidebar::{CropInfo, Event, Sidebar};
 use self::tray::{OpenTile, Tray, TrayKey};
 use crate::cli::CaptureMode;
 use crate::config;
-use crate::ui::canvas::{Canvas, Done};
+use crate::ui::canvas::{Canvas, Done, Notice};
 use crate::ui::labels;
 
 const UI_EDITOR: &str = "/io/github/trosinde/Annota/ui/editor-window.ui";
+
+/// The Blueprint id of a drawing tool's button.
+fn tool_button_id(tool: Tool) -> String {
+    let name = match tool {
+        Tool::Select => "select",
+        Tool::Arrow => "arrow",
+        Tool::Line => "line",
+        Tool::Pen => "pen",
+        Tool::Shape => "shape",
+        Tool::Text => "text",
+        Tool::Callout => "callout",
+        Tool::Step => "step",
+        Tool::Highlighter => "highlighter",
+        Tool::Redact => "redact",
+    };
+    format!("{name}_tool_button")
+}
+
+/// The tool strip's icon of `tool` (kit icons, `data/icons/scalable/actions/`).
+pub fn tool_icon(tool: Tool) -> &'static str {
+    match tool {
+        Tool::Select => "annota-select-symbolic",
+        Tool::Arrow => "annota-arrow-symbolic",
+        Tool::Line => "annota-line-symbolic",
+        Tool::Pen => "annota-pen-symbolic",
+        Tool::Shape => "annota-shape-symbolic",
+        Tool::Text => "annota-text-symbolic",
+        Tool::Callout => "annota-callout-symbolic",
+        Tool::Step => "annota-step-symbolic",
+        Tool::Highlighter => "annota-highlighter-symbolic",
+        Tool::Redact => "annota-redact-symbolic",
+    }
+}
 /// Redline: below 900 px the sidebar becomes a bottom sheet and the tray and Copy go.
 const NARROW: &str = "max-width: 899px";
 /// After a change, the document's tray thumbnail is rendered again this much later.
@@ -208,6 +242,8 @@ struct Widgets {
     drop_chip: gtk::Label,
     select_tool_button: gtk::ToggleButton,
     crop_tool_button: gtk::ToggleButton,
+    /// The drawing tools' buttons (add-core-annotation-tools), in strip order.
+    tool_buttons: Vec<(Tool, gtk::ToggleButton)>,
     canvas_empty: gtk::DrawingArea,
     main_menu: gio::MenuModel,
     context_menu: gtk::PopoverMenu,
@@ -248,6 +284,14 @@ impl Widgets {
             drop_chip: obj!("drop_chip"),
             select_tool_button: obj!("select_tool_button"),
             crop_tool_button: obj!("crop_tool_button"),
+            tool_buttons: {
+                let mut buttons = Vec::new();
+                for tool in Tool::ALL.into_iter().filter(|t| *t != Tool::Select) {
+                    let button: gtk::ToggleButton = obj!(&tool_button_id(tool));
+                    buttons.push((tool, button));
+                }
+                buttons
+            },
             canvas_empty: obj!("canvas_empty"),
             main_menu: obj!("main_menu"),
             context_menu: {
@@ -295,6 +339,10 @@ struct Inner {
     narrow: Cell<bool>,
     /// Set while the tool buttons follow the canvas, so that is not a click.
     syncing_tool: Cell<bool>,
+    /// The tool of the tool strip; every document draws with it.
+    tool: Cell<Tool>,
+    /// The tools' defaults, shared by the window's documents.
+    toolbox: Rc<RefCell<Toolbox>>,
 }
 
 /// The editor window; cheap to clone.
@@ -335,6 +383,8 @@ impl Editor {
             settings,
             narrow: Cell::new(false),
             syncing_tool: Cell::new(false),
+            tool: Cell::new(Tool::Select),
+            toolbox: Rc::new(RefCell::new(Toolbox::default())),
         });
         let editor = Self { inner };
         editor.setup();
@@ -554,6 +604,13 @@ impl Editor {
         self.inner.next_uid.set(uid + 1);
         let canvas = Canvas::new(loaded.document);
         canvas.set_snapping(self.inner.settings.boolean("snap-to-guides"));
+        canvas.set_toolbox(self.inner.toolbox.clone());
+        let weak = self.downgrade();
+        canvas.connect_notice(move |notice| {
+            if let Some(editor) = weak.upgrade() {
+                editor.notice(notice);
+            }
+        });
         // A file's own state is saved; an opened image's pixels are on disk too, so it is
         // only autosaved once it changes (session::Origin).
         if matches!(origin, Origin::File | Origin::Image) {
@@ -624,8 +681,10 @@ impl Editor {
             return;
         };
         if let Some(previous) = self.current().filter(|p| p.uid != uid) {
+            previous.canvas.finish_text();
             previous.canvas.end_crop();
         }
+        session.canvas.set_tool(self.inner.tool.get());
         self.inner.current.set(Some(uid));
         self.inner
             .w
@@ -639,6 +698,10 @@ impl Editor {
     /// one last time and its autosave kept for the next start (spec document-format: Autosave
     /// and recovery — until Save exists).
     fn close_all(&self) {
+        // Text being typed belongs to the document: it is kept.
+        for session in self.inner.sessions.borrow().iter() {
+            session.canvas.finish_text();
+        }
         let sessions = self.inner.sessions.take();
         for session in &sessions {
             session.close(&self.inner.store);
@@ -683,6 +746,9 @@ impl Editor {
         }
         w.zoom_osd.set_visible(has_doc);
         w.select_tool_button.set_sensitive(has_doc);
+        for (_, button) in &w.tool_buttons {
+            button.set_sensitive(has_doc);
+        }
         self.refresh_action_states();
         let Some(session) = current else {
             w.title.set_title(&gettext("Annota"));
@@ -703,12 +769,18 @@ impl Editor {
         w.title.set_title(&session.name);
         w.window.set_title(Some(&session.name));
         let crop = canvas.crop_frame().map(|f| (f.width, f.height));
-        w.title.set_subtitle(&text::subtitle(
-            size,
-            session::status(session.origin, &info),
-            (!fitted).then_some(zoom),
-            crop,
-        ));
+        // Mockup 07: "1600 × 1000 · Drawing" while a polygon is drawn.
+        let subtitle = if canvas.drawing_polygon() {
+            text::drawing_subtitle(size)
+        } else {
+            text::subtitle(
+                size,
+                session::status(session.origin, &info),
+                (!fitted).then_some(zoom),
+                crop,
+            )
+        };
+        w.title.set_subtitle(&subtitle);
         w.zoom_level_label.set_text(&text::zoom_label(zoom, fitted));
         let preset = view::preset(zoom)
             .filter(|_| !fitted)
@@ -1165,9 +1237,32 @@ impl Editor {
         w.context_menu.popup();
     }
 
-    /// The tool strip: Select (V) and Crop (C, mockup 08).
+    /// The tool strip: Select (V), the drawing tools (A, L, P, U, T, K, S, H, B) and Crop (C,
+    /// mockup 08).
     fn setup_tools(&self) {
         let w = &self.inner.w;
+        let all = std::iter::once((Tool::Select, w.select_tool_button.clone()))
+            .chain(w.tool_buttons.iter().cloned());
+        for (tool, button) in all {
+            let weak = self.downgrade();
+            button.connect_toggled(move |button| {
+                if let Some(editor) = weak.upgrade() {
+                    if button.is_active() && !editor.inner.syncing_tool.get() {
+                        editor.select_tool(tool);
+                    }
+                }
+            });
+            // Mockup 01: "Arrow  A" — the name and the key as a keycap.
+            if tool != Tool::Select {
+                button.connect_query_tooltip(move |_, _, _, _, tooltip| {
+                    let content = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+                    content.append(&gtk::Label::new(Some(&labels::tool_name(tool))));
+                    content.append(&gtk::ShortcutLabel::new(&tool.shortcut().to_string()));
+                    tooltip.set_custom(Some(&content));
+                    true
+                });
+            }
+        }
         let weak = self.downgrade();
         w.crop_tool_button.connect_toggled(move |button| {
             let Some(editor) = weak.upgrade() else {
@@ -1186,18 +1281,62 @@ impl Editor {
         });
     }
 
-    /// The tool buttons follow the canvas (crop mode ends with Crop, Cancel, Esc, undo …).
+    /// The tool of the strip, for every document (a button, a key, Esc on the canvas).
+    fn select_tool(&self, tool: Tool) {
+        self.inner.tool.set(tool);
+        if let Some(canvas) = self.current_canvas() {
+            canvas.set_tool(tool);
+        }
+        self.sync_tool();
+    }
+
+    /// The tool buttons follow the canvas (crop mode ends with Crop, Cancel, Esc, undo …; Esc
+    /// goes back to Select after drawing).
     fn sync_tool(&self) {
         let w = &self.inner.w;
-        let cropping = self.current_canvas().is_some_and(|c| c.cropping());
-        if w.crop_tool_button.is_active() != cropping {
-            self.inner.syncing_tool.set(true);
-            if cropping {
-                w.crop_tool_button.set_active(true);
-            } else {
-                w.select_tool_button.set_active(true);
+        let canvas = self.current_canvas();
+        let cropping = canvas.as_ref().is_some_and(|c| c.cropping());
+        if let Some(canvas) = &canvas {
+            self.inner.tool.set(canvas.tool());
+        }
+        let tool = self.inner.tool.get();
+        let button = if cropping {
+            &w.crop_tool_button
+        } else if tool == Tool::Select {
+            &w.select_tool_button
+        } else {
+            match w.tool_buttons.iter().find(|(t, _)| *t == tool) {
+                Some((_, button)) => button,
+                None => &w.select_tool_button,
             }
+        };
+        if !button.is_active() {
+            self.inner.syncing_tool.set(true);
+            button.set_active(true);
             self.inner.syncing_tool.set(false);
+        }
+    }
+
+    /// Announces what the canvas reports (mockup 13's toast with Undo).
+    fn notice(&self, notice: Notice) {
+        match notice {
+            Notice::StepsRenumbered {
+                deleted,
+                renumbered,
+                done,
+            } => {
+                let toast =
+                    adw::Toast::new(&labels::steps_renumbered(deleted.as_deref(), renumbered));
+                toast.set_use_markup(false);
+                toast.set_button_label(Some(&gettext("Undo")));
+                let weak = self.downgrade();
+                toast.connect_button_clicked(move |_| {
+                    if let Some(canvas) = weak.upgrade().and_then(|e| e.current_canvas()) {
+                        canvas.undo_if_last(&done);
+                    }
+                });
+                self.inner.w.toast_overlay.add_toast(toast);
+            }
         }
     }
 
@@ -1272,6 +1411,10 @@ impl Editor {
         if canvas.key_pressed(key, modifiers) {
             return true;
         }
+        // Typing in place: letters are text, not tool keys (they go on to the input method).
+        if canvas.editing_text() {
+            return false;
+        }
         let ctrl = modifiers.contains(gdk::ModifierType::CONTROL_MASK);
         let plain = !modifiers.intersects(
             gdk::ModifierType::CONTROL_MASK
@@ -1284,16 +1427,19 @@ impl Editor {
                 let _ = WidgetExt::activate_action(&self.inner.w.window, "win.copy", None);
                 true
             }
-            // Select tool (V) and Crop (C); the annotation tools arrive with
-            // add-core-annotation-tools.
-            gdk::Key::v if plain => {
-                self.inner.w.select_tool_button.set_active(true);
-                true
-            }
+            // Crop (C) is a mode of the canvas.
             gdk::Key::c if plain => {
                 self.inner.w.crop_tool_button.set_active(true);
                 true
             }
+            // The tools' single keys (spec "Tool switching"): V, A, L, P, U, T, K, S, H, B.
+            k if plain => match k.to_unicode().and_then(Tool::from_shortcut) {
+                Some(tool) => {
+                    self.select_tool(tool);
+                    true
+                }
+                None => false,
+            },
             _ => false,
         }
     }
@@ -2657,5 +2803,137 @@ mod tests {
         let bytes = out.finish().unwrap().into_inner();
         std::fs::write(path, &bytes).unwrap();
         bytes
+    }
+
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn tool_strip_and_tool_keys_on_a_live_display() {
+        use annota::document::annotation::PropertyValue;
+        use annota::document::geometry::Point;
+
+        let tmp =
+            TempDir(std::env::temp_dir().join(format!("annota-tools-test-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(tmp.0.join("captures")).unwrap();
+        let app = environment(&tmp.0);
+        let editor = Editor::build(&app, Store::new(tmp.0.join("autosave"))).unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let first = tmp.0.join("captures/Checkout flow.annota");
+        sample(&first);
+        let second = tmp.0.join("captures/Second.annota");
+        sample(&second);
+        editor.open_file(&first);
+        editor.open_file(&second);
+        pump(300);
+        let canvas = editor.current_canvas().unwrap();
+        canvas.grab_focus();
+        let none = gdk::ModifierType::empty();
+
+        // D2's order, each tool with its key in the tooltip and its icon in the theme.
+        let tools: Vec<Tool> = w.tool_buttons.iter().map(|(t, _)| *t).collect();
+        assert_eq!(&tools, &Tool::ALL[1..]);
+        let theme = gtk::IconTheme::for_display(&WidgetExt::display(&w.window));
+        for (tool, button) in &w.tool_buttons {
+            let tip = button.tooltip_text().unwrap_or_default();
+            let key = tool.shortcut().to_ascii_uppercase();
+            assert!(tip.ends_with(&format!("({key})")), "{tip}");
+            assert!(button.is_visible() && button.is_sensitive());
+            assert!(theme.has_icon(tool_icon(*tool)), "{}", tool_icon(*tool));
+            assert_eq!(button.icon_name().as_deref(), Some(tool_icon(*tool)));
+        }
+
+        // Spec "Key switches tool": with the canvas focused, A makes the arrow tool active;
+        // every tool's key likewise, and the strip follows.
+        assert!(editor.key_pressed(gdk::Key::a, none));
+        assert_eq!(canvas.tool(), Tool::Arrow);
+        assert!(w.tool_buttons[0].1.is_active());
+        for (tool, button) in &w.tool_buttons {
+            let key = gdk::Key::from_name(tool.shortcut().to_string()).unwrap();
+            assert!(editor.key_pressed(key, none), "{tool:?}");
+            assert_eq!(canvas.tool(), *tool);
+            assert!(button.is_active(), "{tool:?}");
+        }
+        assert!(editor.key_pressed(gdk::Key::v, none));
+        assert!(w.select_tool_button.is_active());
+        // Buttons switch too; Esc on the canvas goes back to Select.
+        w.tool_buttons[1].1.set_active(true);
+        assert_eq!(canvas.tool(), Tool::Line);
+        assert!(editor.key_pressed(gdk::Key::Escape, none));
+        assert_eq!(canvas.tool(), Tool::Select);
+        assert!(w.select_tool_button.is_active());
+
+        // The tool belongs to the window: another document draws with it too.
+        assert!(editor.key_pressed(gdk::Key::p, none));
+        let sessions = editor.sessions();
+        editor.switch_to(sessions[0].uid);
+        assert_eq!(editor.current_canvas().unwrap().tool(), Tool::Pen);
+        editor.switch_to(sessions[1].uid);
+        let canvas = editor.current_canvas().unwrap();
+
+        // While typing in place, the tools' keys are letters.
+        assert!(editor.key_pressed(gdk::Key::t, none));
+        let at = canvas.view_point(Point::new(300.0, 300.0)).unwrap();
+        canvas.pointer_pressed(at, Default::default());
+        canvas.pointer_released();
+        assert!(canvas.editing_text());
+        assert!(
+            !editor.key_pressed(gdk::Key::a, none),
+            "goes on to the input method"
+        );
+        assert_eq!(canvas.tool(), Tool::Text);
+        canvas.insert_text("a");
+        assert!(editor.key_pressed(gdk::Key::Escape, none));
+        assert!(!canvas.editing_text());
+        assert!(w
+            .tool_buttons
+            .iter()
+            .any(|(t, b)| *t == Tool::Text && b.is_active()));
+
+        // Mockup 07: the subtitle says "Drawing" while a polygon is drawn.
+        editor
+            .inner
+            .toolbox
+            .borrow_mut()
+            .set_property(
+                Tool::Shape,
+                "shape",
+                &PropertyValue::Choice("polygon".into()),
+            )
+            .unwrap();
+        assert!(editor.key_pressed(gdk::Key::u, none));
+        let at = canvas.view_point(Point::new(500.0, 500.0)).unwrap();
+        canvas.pointer_pressed(at, Default::default());
+        canvas.pointer_released();
+        pump(50);
+        assert!(
+            w.title.subtitle().ends_with("· Drawing"),
+            "{}",
+            w.title.subtitle()
+        );
+        assert!(editor.key_pressed(gdk::Key::Escape, none));
+        pump(50);
+        assert!(!w.title.subtitle().ends_with("· Drawing"));
+
+        // Closing keeps text being typed (it is the document's).
+        assert!(editor.key_pressed(gdk::Key::t, none));
+        let at = canvas.view_point(Point::new(300.0, 600.0)).unwrap();
+        canvas.pointer_pressed(at, Default::default());
+        canvas.pointer_released();
+        canvas.insert_text("kept");
+        let texts = canvas
+            .with_document(|d| d.scene().of_type("text").len())
+            .unwrap();
+        editor.close_all();
+        assert_eq!(
+            canvas
+                .with_document(|d| d.scene().of_type("text").len())
+                .unwrap(),
+            texts + 1
+        );
+        w.window.destroy();
     }
 }

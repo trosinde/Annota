@@ -1,4 +1,5 @@
-//! Editing on the canvas with the Select tool (add-annotation-editor tasks 3.2–3.4): the
+//! Editing on the canvas with the Select tool and the drawing tools (`tool`, `steps`,
+//! `text_edit`; add-core-annotation-tools) (add-annotation-editor tasks 3.2–3.4): the
 //! selection, pointer gestures (move, resize, rotate, rubber band), snapping, and the one-shot
 //! operations (nudge, delete, duplicate, stacking order, group/ungroup), and the operations on
 //! the whole document (task 4.3): crop mode, canvas edges and the image's corner radius on the
@@ -17,3 +18,6 @@ pub mod image_ops;
 pub mod ops;
 pub mod selection;
 pub mod snap;
+pub mod steps;
+pub mod text_edit;
+pub mod tool;

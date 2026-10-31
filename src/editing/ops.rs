@@ -40,6 +40,8 @@ pub enum Action {
     Ungroup,
     /// A new object (an image dropped from the tray).
     Insert,
+    /// A new object drawn with a tool (add-core-annotation-tools).
+    Add,
     // Operations on the whole document (`super::image_ops`).
     Crop,
     ResizeImage,
@@ -99,18 +101,46 @@ pub fn nudge(doc: &Document, selection: &Selection, dx: f64, dy: f64) -> Option<
     })
 }
 
-/// Delete (Del).
+/// Delete (Del). Step markers that follow a deleted one in its sequence are renumbered in the
+/// same undo step (spec annotation-tools: "Renumber on delete"; `super::steps`).
 pub fn delete(doc: &Document, selection: &Selection) -> Option<Edit> {
     if selection.is_empty() {
         return None;
     }
+    let remove = Command::Remove {
+        ids: selection.ids().to_vec(),
+    };
+    let renumbered = super::steps::renumbered(doc.scene(), selection.ids());
+    let command = if renumbered.is_empty() {
+        remove
+    } else {
+        Command::Batch(vec![
+            remove,
+            Command::Replace {
+                objects: renumbered,
+            },
+        ])
+    };
     Some(Edit {
         action: Action::Delete,
         subject: Subject::of(doc.scene(), selection.ids()),
-        command: Command::Remove {
-            ids: selection.ids().to_vec(),
-        },
+        command,
         select: Some(Vec::new()),
+    })
+}
+
+/// A new object, drawn with a tool, on top of everything; it becomes the selection.
+pub fn add(doc: &Document, object: Box<dyn Annotation>) -> Option<Edit> {
+    let id = *doc.scene().fresh_ids(1).first()?;
+    let subject = Subject::One(object.type_name());
+    Some(Edit {
+        action: Action::Add,
+        subject,
+        command: Command::Insert {
+            nodes: vec![(doc.scene().len(), Node::new(id, object))],
+            resources: Vec::new(),
+        },
+        select: Some(vec![id]),
     })
 }
 

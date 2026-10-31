@@ -8,8 +8,16 @@ use gtk::glib;
 
 use annota::document::archive::{FormatVersion, FORMAT};
 use annota::render::view;
+use annota::tools::arrow::Arrow;
+use annota::tools::callout::Callout;
 use annota::tools::group::Group;
+use annota::tools::highlighter::Highlighter;
 use annota::tools::image::Image;
+use annota::tools::pen::Pen;
+use annota::tools::redaction::Redaction;
+use annota::tools::shape::Shape;
+use annota::tools::step::Step;
+use annota::tools::text::Text;
 
 use crate::ui::labels::object_name;
 
@@ -66,6 +74,11 @@ pub fn subtitle(
     }
 }
 
+/// The subtitle while a polygon is drawn (mockup 07): "1600 × 1000 · Drawing".
+pub fn drawing_subtitle(canvas: (i32, i32)) -> String {
+    format!("{} · {}", size(canvas.0, canvas.1), gettext("Drawing"))
+}
+
 /// "200 %".
 pub fn percent(zoom: f64) -> String {
     gettext("{percent} %").replace("{percent}", &view::percent(zoom).to_string())
@@ -101,6 +114,15 @@ fn objects_of_type(type_name: Option<&str>, n: usize) -> String {
     let text = match type_name {
         Some(Image::TYPE) => ngettext("{n} Image", "{n} Images", count(n)),
         Some(Group::TYPE) => ngettext("{n} Group", "{n} Groups", count(n)),
+        Some(Arrow::TYPE) => ngettext("{n} Arrow", "{n} Arrows", count(n)),
+        Some(Arrow::LINE_TYPE) => ngettext("{n} Line", "{n} Lines", count(n)),
+        Some(Pen::TYPE) => ngettext("{n} Pen Stroke", "{n} Pen Strokes", count(n)),
+        Some(Shape::TYPE) => ngettext("{n} Shape", "{n} Shapes", count(n)),
+        Some(Text::TYPE) => ngettext("{n} Text", "{n} Texts", count(n)),
+        Some(Callout::TYPE) => ngettext("{n} Callout", "{n} Callouts", count(n)),
+        Some(Step::TYPE) => ngettext("{n} Step", "{n} Steps", count(n)),
+        Some(Highlighter::TYPE) => ngettext("{n} Highlight", "{n} Highlights", count(n)),
+        Some(Redaction::TYPE) => ngettext("{n} Redaction", "{n} Redactions", count(n)),
         _ => ngettext("{n} Object", "{n} Objects", count(n)),
     };
     text.replace("{n}", &n.to_string())
@@ -127,6 +149,15 @@ pub fn select_all_label(type_name: &str) -> Option<String> {
     match type_name {
         Image::TYPE => Some(gettext("Select All Images")),
         Group::TYPE => Some(gettext("Select All Groups")),
+        Arrow::TYPE => Some(gettext("Select All Arrows")),
+        Arrow::LINE_TYPE => Some(gettext("Select All Lines")),
+        Pen::TYPE => Some(gettext("Select All Pen Strokes")),
+        Shape::TYPE => Some(gettext("Select All Shapes")),
+        Text::TYPE => Some(gettext("Select All Texts")),
+        Callout::TYPE => Some(gettext("Select All Callouts")),
+        Step::TYPE => Some(gettext("Select All Steps")),
+        Highlighter::TYPE => Some(gettext("Select All Highlights")),
+        Redaction::TYPE => Some(gettext("Select All Redactions")),
         _ => None,
     }
 }
@@ -136,6 +167,15 @@ pub fn type_plural(type_name: &str) -> String {
     match type_name {
         Image::TYPE => pgettext("object types", "Images"),
         Group::TYPE => pgettext("object types", "Groups"),
+        Arrow::TYPE => pgettext("object types", "Arrows"),
+        Arrow::LINE_TYPE => pgettext("object types", "Lines"),
+        Pen::TYPE => pgettext("object types", "Pen Strokes"),
+        Shape::TYPE => pgettext("object types", "Shapes"),
+        Text::TYPE => pgettext("object types", "Texts"),
+        Callout::TYPE => pgettext("object types", "Callouts"),
+        Step::TYPE => pgettext("object types", "Steps"),
+        Highlighter::TYPE => pgettext("object types", "Highlights"),
+        Redaction::TYPE => pgettext("object types", "Redactions"),
         _ => pgettext("object types", "Other"),
     }
 }
@@ -303,7 +343,23 @@ mod tests {
             select_all_label(Image::TYPE).as_deref(),
             Some("Select All Images")
         );
-        assert_eq!(select_all_label("arrow"), None);
+        // Mockup 01: "Select All Arrows"; mockup 05 "Select All Pen Strokes".
+        assert_eq!(
+            select_all_label("arrow").as_deref(),
+            Some("Select All Arrows")
+        );
+        assert_eq!(
+            select_all_label("pen").as_deref(),
+            Some("Select All Pen Strokes")
+        );
+        assert_eq!(select_all_label("hologram"), None);
+        assert_eq!(
+            selection_heading(Some("arrow"), 5, 0).0,
+            "5 Arrows",
+            "mockup 04"
+        );
+        assert_eq!(type_plural("redaction"), "Redactions");
+        assert_eq!(drawing_subtitle((1600, 1000)), "1600 × 1000 · Drawing");
         assert_eq!(editable_objects(7), "7 editable objects");
         assert_eq!(editable_objects(1), "1 editable object");
     }

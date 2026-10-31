@@ -364,8 +364,11 @@ Adw.ApplicationWindow editor_window {
         sidebar-width-fraction: 0.3;
 
         content: Box {
-          // Tool strip (redline "Window and shell"). Decision D2: tools of a later phase are
-          // hidden until their change ships, so only Select and Crop are here for now.
+          // Tool strip (redline "Window and shell"). Decision D2: Select · Arrow, Line, Pen,
+          // Shape, Text, Callout, Step · Highlighter, Redact (Magnify, Spotlight, Stamp later)
+          // · Crop (More Tools later). Tools of a later phase are hidden until their change
+          // ships. The tooltips show the name and the key as a keycap (add-core-annotation-tools
+          // mockup 01); `tooltip-text` is the plain fallback.
           Box {
             orientation: vertical;
             spacing: 4;
@@ -381,6 +384,128 @@ Adw.ApplicationWindow editor_window {
 
               accessibility {
                 label: _("Select");
+              }
+            }
+
+            Separator {
+              halign: center;
+              width-request: 28;
+              margin-top: 2;
+              margin-bottom: 2;
+            }
+
+            ToggleButton arrow_tool_button {
+              group: select_tool_button;
+              halign: center;
+              icon-name: "annota-arrow-symbolic";
+              tooltip-text: _("Arrow (A)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Arrow");
+              }
+            }
+
+            ToggleButton line_tool_button {
+              group: select_tool_button;
+              halign: center;
+              icon-name: "annota-line-symbolic";
+              tooltip-text: _("Line (L)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Line");
+              }
+            }
+
+            ToggleButton pen_tool_button {
+              group: select_tool_button;
+              halign: center;
+              icon-name: "annota-pen-symbolic";
+              tooltip-text: _("Pen (P)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Pen");
+              }
+            }
+
+            ToggleButton shape_tool_button {
+              group: select_tool_button;
+              halign: center;
+              icon-name: "annota-shape-symbolic";
+              tooltip-text: _("Shape (U)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Shape");
+              }
+            }
+
+            ToggleButton text_tool_button {
+              group: select_tool_button;
+              halign: center;
+              icon-name: "annota-text-symbolic";
+              tooltip-text: _("Text (T)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Text");
+              }
+            }
+
+            ToggleButton callout_tool_button {
+              group: select_tool_button;
+              halign: center;
+              icon-name: "annota-callout-symbolic";
+              tooltip-text: _("Callout (K)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Callout");
+              }
+            }
+
+            ToggleButton step_tool_button {
+              group: select_tool_button;
+              halign: center;
+              icon-name: "annota-step-symbolic";
+              tooltip-text: _("Step (S)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Step");
+              }
+            }
+
+            Separator {
+              halign: center;
+              width-request: 28;
+              margin-top: 2;
+              margin-bottom: 2;
+            }
+
+            ToggleButton highlighter_tool_button {
+              group: select_tool_button;
+              halign: center;
+              icon-name: "annota-highlighter-symbolic";
+              tooltip-text: _("Highlighter (H)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Highlighter");
+              }
+            }
+
+            ToggleButton redact_tool_button {
+              group: select_tool_button;
+              halign: center;
+              icon-name: "annota-redact-symbolic";
+              tooltip-text: _("Redact (B)");
+              styles ["flat", "annota-tool-button"]
+
+              accessibility {
+                label: _("Redact");
               }
             }
 
