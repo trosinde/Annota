@@ -18,6 +18,19 @@ Before a document that contains blur or pixelate redactions is exported, copied,
 - **WHEN** the user chooses Cancel in that alert
 - **THEN** nothing is exported and the document is unchanged
 
+#### Scenario: Warning before copy
+- **WHEN** a document with a blur redaction is copied with Ctrl+C
+- **THEN** "Make Redactions Solid?" offers Cancel, Copy Anyway and Convert to Solid before anything is put on the clipboard
+
+#### Scenario: Warning before a drag
+- **WHEN** the user starts dragging the title area of a document with a pixelate redaction
+- **THEN** no drag starts and "Make Redactions Solid?" offers Cancel, Drag Anyway and Convert to Solid
+- **AND** after Drag Anyway or Convert to Solid, the next drag of the unchanged document hands the image over without asking again
+
+#### Scenario: Warning before share
+- **WHEN** a document with a blur redaction is shared with Email…, Open With… or Copy to Folder…
+- **THEN** "Make Redactions Solid?" offers Cancel, Share Anyway and Convert to Solid, and Cancel shares nothing
+
 #### Scenario: No warning before a save
 - **WHEN** a document with a blur redaction is saved with Ctrl+S or Ctrl+Shift+S
 - **THEN** no alert is shown and the document is saved as it is, redactions unconverted

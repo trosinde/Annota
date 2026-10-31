@@ -31,6 +31,7 @@ src/ui/editor/panel.rs
 src/ui/editor/quick_styles.rs
 src/ui/editor/redaction_warning.rs
 src/ui/editor/saving.rs
+src/ui/editor/share.rs
 src/ui/editor/sidebar.rs
 src/ui/editor/styles.rs
 src/ui/editor/text.rs

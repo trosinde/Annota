@@ -424,6 +424,44 @@ banner.annota-error-banner.annota-banner-destructive button {
   border-radius: 6px;
 }
 
+/* --- Drag-out (add-export-share 08, 09; decision D1) ----------------------------------- */
+
+/* The header's title area is the drag source: 34 px high, radius 6, the flat-button hover
+ * fill (kit --fill-flat-hover, 7 %) and the pressed fill while dragging (--fill-flat-active,
+ * 16 %). The 12 px side padding is libadwaita's own (on the title labels). */
+.annota-editor headerbar windowtitle.annota-drag-source {
+  min-height: 34px;
+  margin-top: 0;
+  margin-bottom: 0;
+  border-radius: 6px;
+}
+
+.annota-editor headerbar windowtitle.annota-drag-source:hover {
+  background-color: alpha(currentColor, 0.07);
+}
+
+.annota-editor headerbar windowtitle.annota-drag-source.annota-dragging {
+  background-color: alpha(currentColor, 0.16);
+}
+
+/* Drag image: 160 × 100 thumbnail, radius 6, a 1 px edge (the drag surface clips shadows)
+ * and the kit's accent badge "PNG" 6 px from the bottom-right corner. */
+.annota-drag-ghost {
+  border-radius: 6px;
+  border: 1px solid alpha(black, 0.15);
+}
+
+.annota-drag-badge {
+  margin: 6px;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+  font-size: 11px;
+  font-weight: bold;
+}
+
 /* "Restore Unsaved Captures?" (mockup 14). */
 .annota-row-thumb {
   border-radius: 4px;

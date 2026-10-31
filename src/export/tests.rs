@@ -774,3 +774,90 @@ fn formats_name_their_files() {
     );
     assert_eq!((DEFAULT_JPEG_QUALITY, DEFAULT_WEBP_QUALITY), (85, 80));
 }
+
+// ---- hand-off files (drag-out, Email…, Open With…) ----
+
+#[test]
+fn handoff_is_the_flattened_png_named_after_the_document() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = temp_dir("handoff").join("handoff");
+    let doc = rich_document();
+    let bitmap = render::flatten(&doc, 1.0).unwrap();
+    let first = handoff::write(&bitmap, &root, "Checkout flow").unwrap();
+    // Mockup 09: the drop creates "Checkout flow.png"; mockup 14 attaches the same name.
+    assert_eq!(first.path.file_name().unwrap(), "Checkout flow.png");
+    assert!(first.path.starts_with(&root));
+    // The PNG of an export at 100 % (pixel-identical to the canvas), in the file and in memory.
+    assert_eq!(first.png, encode(&doc, &Format::Png, 1.0).unwrap());
+    assert_eq!(std::fs::read(&first.path).unwrap(), first.png);
+    assert_eq!(
+        png_size(&first.png),
+        Some((bitmap.width(), bitmap.height()))
+    );
+    // Private to the user.
+    for dir in [root.as_path(), first.path.parent().unwrap()] {
+        let mode = std::fs::metadata(dir).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700, "{}", dir.display());
+    }
+    // A second hand-off of the same document does not replace the first (its reader may not
+    // have read it yet): same name, its own folder.
+    let second = handoff::write(&bitmap, &root, "Checkout flow").unwrap();
+    assert_eq!(second.path.file_name(), first.path.file_name());
+    assert_ne!(second.path, first.path);
+    assert!(first.path.exists());
+    // Only the PNG in each folder: no temporary files left.
+    for handoff in [&first, &second] {
+        let names: Vec<_> = std::fs::read_dir(handoff.path.parent().unwrap())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, vec![std::ffi::OsString::from("Checkout flow.png")]);
+    }
+    std::fs::remove_dir_all(root.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn handoff_names_are_valid_file_names() {
+    assert_eq!(handoff::file_name("Checkout flow"), "Checkout flow.png");
+    assert_eq!(handoff::file_name(" a/b "), "a-b.png");
+    assert_eq!(handoff::file_name(""), "Annota.png");
+    assert_eq!(handoff::file_name(".."), "Annota.png");
+}
+
+#[test]
+fn old_handoffs_are_removed_by_a_later_one() {
+    use std::time::{Duration, SystemTime};
+    let root = temp_dir("handoff-prune").join("handoff");
+    let bitmap = Bitmap::filled(8, 6, palette::LIME).unwrap();
+    let kept = handoff::write(&bitmap, &root, "Kept").unwrap();
+    // A stray file in the root is not a hand-off folder and is left alone.
+    std::fs::write(root.join("stray"), b"").unwrap();
+    // Within MAX_AGE nothing goes.
+    handoff::prune(&root, SystemTime::now(), handoff::MAX_AGE);
+    assert!(kept.path.exists());
+    // A day later it does.
+    let later = SystemTime::now() + handoff::MAX_AGE + Duration::from_secs(60);
+    handoff::prune(&root, later, handoff::MAX_AGE);
+    assert!(!kept.path.exists());
+    assert!(!kept.path.parent().unwrap().exists());
+    assert!(root.join("stray").exists());
+    // A missing root is fine.
+    handoff::prune(&root.join("missing"), later, handoff::MAX_AGE);
+    std::fs::remove_dir_all(root.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn handoff_reports_an_unwritable_root() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = temp_dir("handoff-ro");
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let root_user = std::fs::write(dir.join("probe"), b"").is_ok();
+    let bitmap = Bitmap::filled(8, 6, palette::LIME).unwrap();
+    let result = handoff::write(&bitmap, &dir.join("handoff"), "X");
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+    if !root_user {
+        let err = result.unwrap_err();
+        assert_eq!(err.io_kind(), Some(std::io::ErrorKind::PermissionDenied));
+    }
+    std::fs::remove_dir_all(&dir).unwrap();
+}

@@ -2,7 +2,8 @@
 //! PDF, and as an editable `.annota` file.
 //!
 //! Free of GTK like the rest of the library: the export dialog, quick save, batch export,
-//! clipboard and drag-and-drop (later phases of add-export-share) all call into here.
+//! clipboard, drag-and-drop and Share all call into here. [`handoff`] writes the temporary PNG
+//! that drag-and-drop, Email… and Open With… hand to another application.
 //!
 //! * Raster formats ([`raster`]) re-encode the bitmap of [`crate::render::flatten`] (the canvas
 //!   renderer at the export scale), so at 100 % they are pixel-identical to the canvas
@@ -12,6 +13,7 @@
 //!   text and shapes stay vectors; what must not stay a vector (redacted content) is burnt into
 //!   the page's one bitmap.
 
+pub mod handoff;
 pub mod pdf;
 pub mod raster;
 

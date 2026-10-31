@@ -23,8 +23,14 @@
 - [x] 2.2 Quick save + Save As (`Ctrl+S` writes `.annota` — own file, or the filename pattern in
       the save folder; `Ctrl+Shift+S` GTK's file chooser; title becomes the file's name, autosave
       removed, mockup 06 toast; failures as a toast with Save As…; see design.md, task 2.2)
-- [ ] 2.3 Clipboard, DnD source
-- [ ] 2.4 Share menu via portals
+- [x] 2.3 Clipboard, DnD source (`Ctrl+C`/header Copy → flattened image on the clipboard,
+      mockup 07 toast; dragging the window title area → temporary PNG named after the
+      document as `text/uri-list` + `image/png`, mockups 08/09; `src/ui/editor/share.rs`,
+      `src/export/handoff.rs`; see design.md, tasks 2.3/2.4)
+- [x] 2.4 Share menu via portals (Email… → `Email` portal with the PNG attached, mockup 14
+      toast; Open With… → `OpenURI` with the app chooser; Copy to Folder… → GTK's file
+      chooser, no Email/OpenURI portal; real portal round-trips are maintainer checks,
+      `manual-checks.md`)
 - [ ] 2.5 Batch export dialog
 - [ ] 2.6 "Save changes before closing?" — add-annotation-editor keeps every unsaved document's
       autosave when the editor window closes or Annota quits, because there was no Save yet
@@ -55,8 +61,10 @@
       `Editor::guard_redactions`. **Deliberately not wired in front of quick save or Save As**
       (maintainer decision, 2026-10-31, see design.md): `.annota` keeps the original image
       under every redaction regardless of the choice made here, so the warning does not apply
-      to a save — `Purpose::Save` was removed. Still to call `guard_redactions` from Copy and
-      drag-out (2.3), Share (2.4) and batch export (2.5) — then tick this.
+      to a save — `Purpose::Save` was removed. **Copy, drag-out and Share wired too
+      (2026-10-31, tasks 2.3/2.4):** `Purpose::Copy` ("Copy Anyway"), `Purpose::Drag` ("Drag
+      Anyway"), `Purpose::Share` ("Share Anyway"). Still to call `guard_redactions` from batch
+      export (2.5) — then tick this.
 
 ## 3. Verify
 - [ ] 3.1 Tests for every scenario (unit, golden-image or documented manual check)

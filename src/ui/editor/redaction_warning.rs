@@ -16,13 +16,23 @@ use annota::editing::redactions::Reversible;
 
 const UI_WARNING: &str = "/io/github/trosinde/Annota/ui/redaction-warning.ui";
 
-/// The way out of Annota the warning stands in front of; it names the middle button. Quick
-/// save and Save As don't go through this warning at all (`.annota` keeps the original image
-/// regardless of the choice here, so it wouldn't apply) — see `Editor::guard_redactions`.
+/// The way out of Annota the warning stands in front of; it names the middle button (spec
+/// annotation-tools: "named after the way out"). Quick save and Save As don't go through this
+/// warning at all (`.annota` keeps the original image regardless of the choice here, so it
+/// wouldn't apply) — see `Editor::guard_redactions`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Purpose {
     /// The export dialog (Ctrl+E): "Export Anyway" (mockup 10).
     Export,
+    /// Copy to the clipboard (Ctrl+C, the header's Copy): "Copy Anyway" (tasks.md 2.7).
+    Copy,
+    /// Dragging the window title out: "Drag Anyway". Not drawn. A drag cannot wait for an
+    /// alert, so the drag that hit the warning does not start; after either button the next
+    /// drag goes through (see `Editor::drag_prepare`).
+    Drag,
+    /// The Share menu (Email…, Open With…, Copy to Folder…): "Share Anyway". Not drawn; named
+    /// after the menu (the split button's dropdown tooltip "Share"), the same for all three.
+    Share,
 }
 
 /// What the user chose.
@@ -30,7 +40,7 @@ pub enum Purpose {
 pub enum Response {
     /// Cancel or Escape: nothing leaves Annota.
     Cancel,
-    /// Export (or save) as it is.
+    /// Go on as it is (export, copy, drag or share the redactions unconverted).
     Anyway,
     /// Convert to Solid (one undo step), then go on.
     Convert,
@@ -68,10 +78,13 @@ pub fn body(found: Reversible) -> String {
     text.replace("{n}", &n.to_string())
 }
 
-/// The middle button: "Export Anyway" (mockup 10).
+/// The middle button: "Export Anyway" (mockup 10), "Copy Anyway", "Drag Anyway", "Share Anyway".
 pub fn anyway_label(purpose: Purpose) -> String {
     match purpose {
         Purpose::Export => gettext("Export Anyway"),
+        Purpose::Copy => gettext("Copy Anyway"),
+        Purpose::Drag => gettext("Drag Anyway"),
+        Purpose::Share => gettext("Share Anyway"),
     }
 }
 
@@ -178,5 +191,8 @@ mod tests {
     #[test]
     fn the_middle_button_names_the_way_out() {
         assert_eq!(anyway_label(Purpose::Export), "Export Anyway");
+        assert_eq!(anyway_label(Purpose::Copy), "Copy Anyway");
+        assert_eq!(anyway_label(Purpose::Drag), "Drag Anyway");
+        assert_eq!(anyway_label(Purpose::Share), "Share Anyway");
     }
 }

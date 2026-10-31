@@ -358,3 +358,148 @@ regardless.
   next saved or explicitly renamed, an autosave taken meanwhile, or any export, still uses the
   pre-save title, even though the window and the file just written both already show the new
   one.
+
+### Decided during apply (2026-10-31: task 2.3 clipboard + drag-out, task 2.4 Share)
+
+**Redaction warning, extended** (task 2.7 continued). `redaction_warning::Purpose` gained three
+variants, one per way out, each naming the middle button: `Copy` → **"Copy Anyway"** (the wording
+tasks.md 2.7 already named), `Drag` → **"Drag Anyway"**, `Share` → **"Share Anyway"** (none of
+the three is drawn; mockup 10 only shows "Export Anyway"). Share is one label for all three Share
+items — the way out is the Share menu (the split button's dropdown tooltip is "Share"); per-item
+labels ("Email Anyway", "Open Anyway", "Copy Anyway" for Copy to Folder) were considered and not
+chosen, the last would also collide with the clipboard's. `Editor::guard_redactions` itself is
+unchanged; every entry point calls it before doing anything else — Copy before rendering, Email/
+Open With before the temporary PNG is written, Copy to Folder before its file chooser opens
+(as Export's comes before its dialog). Batch export (2.5) is the last caller to add.
+
+**Clipboard** (task 2.3, spec "Clipboard", mockup 07). `Ctrl+C` (window key controller, not an
+application accelerator — text fields need it; text being edited on the canvas still copies its
+selected text), the header's Copy and the narrow layout's main-menu "Copy to Clipboard" are one
+action, `win.copy`: redaction warning, then the document flattened at 100 % as a premultiplied
+`GdkMemoryTexture` (the tray's conversion) put on the clipboard through the existing
+`capture::delivery::copy_to_clipboard` (holds the application on Wayland until another app owns
+the clipboard). GTK offers a texture as `image/png` (plus other image types) to whoever pastes —
+the "GdkClipboard texture + PNG mime" decision above, without encoding a PNG up front. Toast
+"Image copied to clipboard", 3 s, default priority, no buttons (AdwToast's close button stays, as
+mockup 07 draws). Copying is not saving: status and autosave unchanged.
+- *With objects selected* — **not built anywhere**: index.md's Scenario table says that copies
+  "the object (editor change)", but no change has an object clipboard (add-annotation-editor's
+  context menu has a "Copy" entry wired to the same placeholder action, and Annota has no object
+  paste). Until it exists, `Ctrl+C`, the context menu's Copy and the header's Copy all copy the
+  flattened image, whatever is selected; the toast says "Image copied" so it is never ambiguous.
+  Open question below.
+
+**Drag-out** (task 2.3, spec "Drag and drop", decision D1, mockups 08/09).
+- *Source*: a `GtkDragSource` (action COPY) on the header's `AdwWindowTitle`; tooltip "Drag image
+  to another app" and the CSS class `annota-drag-source` only while a document is open. Hover:
+  `alpha(currentColor, .07)` behind title + subtitle, radius 6, 34 px high (libadwaita's 12 px
+  side padding is on the labels, so the fill covers it); during the drag `alpha(currentColor,
+  .16)` (`annota-dragging`) — the kit's `--fill-flat-hover`/`--fill-flat-active`. The pointer
+  stays the arrow. The title area no longer moves the window (the drag source claims the gesture
+  first); the rest of the header bar still does, as the redline says.
+- *Payload* (`share::drag_content`): one `GdkContentProvider` union of a `GdkFileList` with the
+  temporary PNG — GTK serialises it as `text/uri-list` (and the portal file-transfer types for
+  sandboxed targets) — and the same PNG bytes as `image/png`. Built in the drag source's
+  `prepare`, synchronously: the document is flattened and encoded once at drag start (both
+  formats share the bytes). A lazy provider would need a `GdkContentProvider` subclass; not done
+  unless a large capture makes the start of a drag noticeably slow.
+- *Drag image* (`share::ghost`): the flattened image as a 160 × 100 thumbnail (rendered at 2×,
+  capped by two `AdwClamp`s, cropped to fill like the tray's drag image), radius 6, a 1 px edge
+  instead of mockup 09's shadow (drag surfaces clip shadows — same choice as the tray's drag
+  icon), 92 % opacity, the kit's accent badge "PNG" 6 px from the bottom-right. Hotspot (−6, −8):
+  the thumbnail sits just below and right of the pointer, as drawn.
+- *Redactions*: a drag cannot wait for an alert (the button is held; once it is released there
+  is nothing to drop), so with blur/pixelate redactions `prepare` refuses this drag and — on the
+  next idle, outside the gesture — shows the warning with **Drag Anyway**. Convert to Solid leaves
+  nothing reversible; Drag Anyway records a per-document consent (`Inner::drag_consent`) that the
+  next change to that document (any `Canvas::connect_changed`) takes back. Both end with the
+  toast **"You can drag the image out now"** (not drawn; high priority, it answers what the user
+  just did) and the next drag goes through.
+
+**Hand-off files** (`src/export/handoff.rs`, library, no GTK). Drag-out, Email… and Open With…
+need a real file another app reads *after* Annota handed it over. Each hand-off is
+`$XDG_RUNTIME_DIR/annota/handoff/<unique>/<name>.png` (folders mode 0700; the runtime dir is
+per-user, in memory and emptied at logout — the closest to "not persisted" (CLAUDE.md §7) that
+another app can still read; GLib falls back to the cache dir without one). `<name>` is the
+document name the header shows (`saving::file_stem`, "Untitled Capture" if empty), so the drop
+creates "Checkout flow.png" (mockup 09) and the mail attachment has that name (mockup 14); the
+unique folder keeps two hand-offs of one document apart. Not removed right after the hand-off: a
+mail client may attach at send time (the Email portal passes an fd, but the document portal
+behind it refers to the file) and a dropped file may be copied late. Every new hand-off removes
+those older than 24 h (`handoff::MAX_AGE`).
+
+**Share** (task 2.4, spec "Share", decision D1, mockups 01/14). The three items were disabled
+stubs; their actions now belong to `Actions::document` (enabled with a document).
+- *Email… / Open With…* go through the portals (`share::portal_sharer`, the only portal code of
+  this phase): `ashpd` 0.11 `EmailRequest::attach(fd)` and `OpenFileRequest::ask(true)
+  .send_file(fd)` (the system's app chooser), `identifier(None)` and `ensure_registered()` like
+  the screenshot and colour-picker calls. No subject or body is set (nothing specified; only the
+  attachment goes to the mail app). The editor reaches the portals through a `Sharer` (`Rc<dyn
+  Fn(Target, PathBuf) -> future>`, like the eyedropper's `ScreenPicker`), so the live test runs
+  everything around it with a stand-in. Errors → `share::ShareError` (sorted by
+  `capture::portal::map_portal_error`): Cancelled is silent (the user closed the chooser);
+  anything else → a high-priority toast "Could not open your mail app" / "Could not open the
+  image in another app" (not drawn). Email shows mockup 14's toast "Opening your mail app with
+  “Checkout flow.png” attached…" (high priority, no timeout) and dismisses it when the portal
+  call returns, either way. Open With shows no toast of its own (the chooser is the feedback).
+- *Copy to Folder…* is **not** a portal item of Annota's: the redaction warning, then GTK's
+  `gtk::FileDialog::save` (title "Copy to Folder", button "_Copy", filter "PNG Images", name
+  "<name>.png", starting in the `export-folder` preference) — GTK decides whether that is the
+  FileChooser portal, exactly like Save As — then `export::export(doc, path, Png, 100 %)`
+  (atomic write; no hand-off file). `.png` is appended if missing (like Save As's `.annota`).
+  Toast "Copied as “Checkout flow.png”" with Show in Files (not drawn; worded like mockup 06's
+  "Saved as" and the export dialog's "Exported as"); a failure shows the export banner's words
+  (`saving::problem`) in a high-priority toast. Copying is not saving.
+
+**Deviations from the mockups**: mockup 14's toast has no close button, libadwaita 1.5's
+`AdwToast` always shows one; the drag image has a 1 px edge instead of a shadow (above). Not
+drawn and decided here: "Copy Anyway"/"Drag Anyway"/"Share Anyway", "You can drag the image out
+now", "Copied as …", the share failure toasts, the Copy to Folder chooser's labels.
+`docs/design/add-export-share/index.md`'s Scenario table still lists "Quick save" among the
+redaction warning's ways out (stale since the maintainer's 2026-10-31 decision above) — a
+designer fix, not touched here.
+
+**Spec deltas.** export-share: "Clipboard" (header Copy, mockup 07's toast, not a save), "Drag
+and drop" (the title area instead of the pre-D1 drag handle; file name, `text/uri-list` +
+`image/png`, tooltip, drag image), "Share" (+ Copy to Folder…, the hand-off toast, cancelling is
+not an error; new scenarios "Open with" and "Copy to folder"). annotation-tools "Redaction export
+warning": scenarios "Warning before copy", "Warning before a drag" (incl. the next drag going
+through), "Warning before share".
+
+**Tests.** Unit (no display): `export::tests` — the hand-off PNG equals a 100 % PNG export, is
+named after the document, private (0700), never replaced by a second hand-off, no temporary
+files, stale ones pruned and fresh ones kept, unwritable root → `PermissionDenied`, file names
+cleaned; `ui::editor::share` — toast/tooltip texts of mockups 07/08/14, names and `.png`,
+portal errors sorted (cancelled is not told), the runtime-dir root; `redaction_warning` — the
+four middle-button labels. Live (`#[ignore]`, `copy_drag_and_share_on_a_live_display`): no
+document → Copy/Share disabled, no drag; Ctrl+C on the canvas with nothing selected → warning
+"Copy Anyway" → Cancel (clipboard empty, toast absent) → header Copy → Copy Anyway → clipboard
+offers `image/png`, the pasted texture is 400 × 250 with the flattened pixels, document unchanged,
+toast; drag → refused + warning → Drag Anyway → toast → payload: one file "Chat with Jonas.png"
+under the hand-off root equal to the PNG export, `text/uri-list` and `image/png` (bytes equal),
+ghost 160 × 100 with "PNG"; an edit revokes the consent → warning again → Convert to Solid →
+drags go through; Email (stand-in portal) → hand-off toast while pending, gone after the answer,
+attachment is the PNG; Open With cancelled → no toast, failing → toast; Copy to Folder's write
+→ file equals the PNG export, toast with Show in Files, status unchanged, unwritable → false;
+each Share item on a blurred document → "Share Anyway" warning → Cancel → no portal call. The
+file chooser is never opened (Copy to Folder's chooser only behind a cancelled warning).
+- *Running live tests without any portal*: plain `dbus-run-session` uses the session bus
+  config, whose service directories let GTK's own settings lookup **activate the real
+  `xdg-desktop-portal` binary on the private bus** (isolated from the maintainer's session, but
+  still a portal process). This phase's live runs used `dbus-run-session --config-file=` a session
+  config **without service directories** instead, so nothing can be activated — see
+  `manual-checks.md`. Every other live test passes that way too, except
+  `quick_styles_on_a_live_display`'s known theme issue (above).
+- Real portal round-trips, real drops and real pastes are maintainer checks:
+  `manual-checks.md` (new).
+
+**Open questions for the maintainer** (do not block the next phases):
+- *Ctrl+C with a selection*: copy the selected objects (needs an object clipboard + paste,
+  an add-annotation-editor-scope follow-up) — or keep copying the whole image, as now? Until
+  decided, the context menu's "Copy" on a selection copies the whole image too.
+- *Drag with reversible redactions*: the drag that hits the warning is dropped and the user drags
+  again after answering (no way around that in GTK). Acceptable, or should drags skip the alert
+  and instead always convert/refuse?
+- *Hand-off retention*: temporary PNGs stay up to 24 h in the runtime dir (until the next
+  hand-off after that, or logout). Shorter (e.g. removed when Annota quits) risks a mail client
+  that attaches at send time losing the file.

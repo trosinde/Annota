@@ -26,9 +26,14 @@
 //! redaction regardless (that is what makes a redaction editable there), so the warning would
 //! be misleading on that path and does not apply to it.
 //!
-//! **Placeholders.** Copy and Share (Email…, Open With…, Copy to Folder…) belong to later
-//! phases of add-export-share, Open Library to add-capture-library: Copy shows a "… arrives in
-//! milestone 0.1" toast; the Share entries (D1) are present but insensitive.
+//! **Copy, drag-out and Share** (add-export-share tasks 2.3, 2.4; [`share`]). `Ctrl+C` and the
+//! header's Copy put the flattened image on the clipboard (mockup 07); dragging the window
+//! title (decision D1, mockups 08/09) hands it to another app as a temporary PNG; the Export
+//! split button's arrow opens Share: Email… and Open With… through xdg-desktop-portal (mockup
+//! 14), Copy to Folder… through GTK's file chooser. Each goes through the redaction warning
+//! first, like Export.
+//!
+//! **Placeholders.** Open Library belongs to add-capture-library.
 //!
 //! **Closing keeps autosaves.** Until "Save changes before closing?" exists (add-export-share
 //! task 2.6), closing the window — or quitting — writes a last autosave of every document with
@@ -47,6 +52,7 @@ mod redaction_warning;
 mod resize;
 mod saving;
 mod session;
+mod share;
 mod sidebar;
 mod styles;
 mod text;
@@ -389,6 +395,16 @@ struct Inner {
     styles: Rc<Styles>,
     /// The theme the tool defaults and the palette swatches were last set from.
     applied_theme: RefCell<Option<Theme>>,
+    /// Email… and Open With… (xdg-desktop-portal; a stand-in in tests).
+    sharer: RefCell<share::Sharer>,
+    /// Where drag-out, Email… and Open With… write their temporary PNG.
+    handoff_root: RefCell<PathBuf>,
+    /// The document whose next drag-out may go ahead despite blur or pixelate redactions: the
+    /// user answered the redaction warning a drag raised ("Drag Anyway"). Any change to that
+    /// document takes it back.
+    drag_consent: Cell<Option<u64>>,
+    /// The thumbnail of the drag in progress (mockup 09's drag image).
+    drag_ghost: RefCell<Option<gdk::Texture>>,
 }
 
 /// Picks a colour anywhere on the screen.
@@ -455,6 +471,10 @@ impl Editor {
             picking: Cell::new(None),
             styles,
             applied_theme: RefCell::new(None),
+            sharer: RefCell::new(share::portal_sharer()),
+            handoff_root: RefCell::new(share::handoff_root()),
+            drag_consent: Cell::new(None),
+            drag_ghost: RefCell::new(None),
         });
         let editor = Self { inner };
         editor.setup();
@@ -502,6 +522,7 @@ impl Editor {
         self.setup_keys();
         self.setup_tooltips();
         self.setup_drop();
+        self.setup_drag_out();
         self.setup_tray();
         self.setup_sidebar();
         self.setup_autosave();
@@ -781,6 +802,10 @@ impl Editor {
     }
 
     fn document_changed(&self, uid: u64) {
+        // "Drag Anyway" was the answer for the document as it was then.
+        if self.inner.drag_consent.get() == Some(uid) {
+            self.inner.drag_consent.set(None);
+        }
         if self.inner.current.get() == Some(uid) {
             self.sync_tool();
             self.refresh_header();
@@ -821,6 +846,14 @@ impl Editor {
             button.set_sensitive(has_doc);
         }
         self.refresh_action_states();
+        // The title area is the drag source of a document (decision D1, mockup 08).
+        if has_doc {
+            w.title.add_css_class("annota-drag-source");
+            w.title.set_tooltip_text(Some(&share::drag_tooltip()));
+        } else {
+            w.title.remove_css_class("annota-drag-source");
+            w.title.set_tooltip_text(None);
+        }
         let Some(session) = current else {
             w.title.set_title(&gettext("Annota"));
             w.title.set_subtitle("");
@@ -1229,13 +1262,16 @@ impl Editor {
                 });
             }
         }
-        // Placeholder until add-export-share task 2.3.
-        entry("copy", |e| {
-            e.toast(&gettext("Copying the image arrives in milestone 0.1"))
-        });
-        // add-export-share: the export dialog (mockups 02–05), quick save and Save As (task
-        // 2.2, mockup 06), each behind the redaction warning (task 2.7, mockup 10).
+        // add-export-share task 2.3: the flattened image to the clipboard (mockup 07), behind
+        // the redaction warning (task 2.7, mockup 10).
+        entry("copy", |e| e.copy_image());
+        // add-export-share: the export dialog (mockups 02–05) behind the redaction warning,
+        // quick save and Save As (task 2.2, mockup 06) without it.
         entry("export", |e| e.export());
+        // Task 2.4: Share (decision D1, mockups 01, 14), behind the redaction warning.
+        entry("share-email", |e| e.share(share::Target::Email));
+        entry("share-open-with", |e| e.share(share::Target::OpenWith));
+        entry("share-copy-to-folder", |e| e.copy_to_folder());
         entry("save", |e| e.quick_save());
         entry("save-as", |e| e.save_as());
 
@@ -1432,6 +1468,17 @@ impl Editor {
         self.inner.w.toast_overlay.add_toast(toast);
     }
 
+    /// A toast that answers what the user is doing right now: shown at once, ahead of any
+    /// toast still waiting (which comes back afterwards).
+    fn toast_now(&self, text: &str) {
+        let toast = adw::Toast::builder()
+            .title(text)
+            .priority(adw::ToastPriority::High)
+            .build();
+        toast.set_use_markup(false);
+        self.inner.w.toast_overlay.add_toast(toast);
+    }
+
     // ---- export and save (add-export-share) ----
 
     /// The check every way a document's flattened image leaves Annota goes through first
@@ -1445,8 +1492,9 @@ impl Editor {
     /// redaction regardless of this choice, so the warning does not apply there (maintainer
     /// decision, 2026-10-31 — see design.md).
     ///
-    /// Used by Export (`Ctrl+E`) so far; Copy, drag-out, Share and batch export (tasks 2.3–2.5)
-    /// are to call it too.
+    /// Used by Export (`Ctrl+E`), Copy (`Ctrl+C`, [`Purpose::Copy`]), drag-out
+    /// ([`Purpose::Drag`]; see [`Editor::drag_prepare`] for why a drag cannot simply wait) and
+    /// the three Share items ([`Purpose::Share`]); batch export (task 2.5) is to call it too.
     fn guard_redactions(&self, purpose: Purpose, proceed: impl FnOnce(&Editor) + 'static) {
         let Some(canvas) = self.current_canvas() else {
             return;
@@ -1676,6 +1724,258 @@ impl Editor {
         self.inner.w.toast_overlay.add_toast(toast);
     }
 
+    // ---- copy, drag-out and Share (add-export-share tasks 2.3, 2.4) ----
+
+    /// `Ctrl+C` and the header's Copy (spec export-share "Clipboard", mockup 07): the redaction
+    /// warning ("Copy Anyway"), then the flattened image on the clipboard and "Image copied to
+    /// clipboard" for 3 s. Objects cannot be copied as objects yet (no editor change builds
+    /// that), so with a selection it copies the image too — see design.md.
+    fn copy_image(&self) {
+        let Some(session) = self.current_without_dialog() else {
+            return;
+        };
+        session.canvas.finish_text();
+        let uid = session.uid;
+        self.guard_redactions(Purpose::Copy, move |editor| editor.copy_now(uid));
+    }
+
+    fn copy_now(&self, uid: u64) {
+        let Some(session) = self.session(uid) else {
+            return;
+        };
+        let texture = match session.canvas.with_document(share::flatten) {
+            Some(Ok(bitmap)) => share::texture(&bitmap),
+            Some(Err(err)) => {
+                eprintln!("annota: copying the image failed: {err}");
+                None
+            }
+            None => return,
+        };
+        let app = self
+            .inner
+            .w
+            .window
+            .application()
+            .and_then(|a| a.downcast::<adw::Application>().ok());
+        let (Some(texture), Some(app)) = (texture, app) else {
+            self.toast(&share::copy_failed_toast());
+            return;
+        };
+        crate::capture::delivery::copy_to_clipboard(&app, &texture);
+        let toast = adw::Toast::builder()
+            .title(share::copied_toast())
+            .timeout(share::COPIED_TOAST_SECONDS)
+            .build();
+        toast.set_use_markup(false);
+        self.inner.w.toast_overlay.add_toast(toast);
+    }
+
+    /// Decision D1, mockups 08/09: dragging the header's title area (title and subtitle) hands
+    /// the flattened image to another app. The rest of the header bar still moves the window.
+    fn setup_drag_out(&self) {
+        let title = &self.inner.w.title;
+        let source = gtk::DragSource::new();
+        source.set_actions(gdk::DragAction::COPY);
+        let weak = self.downgrade();
+        source.connect_prepare(move |_, _, _| weak.upgrade().and_then(|e| e.drag_prepare()));
+        let weak = self.downgrade();
+        source.connect_drag_begin(move |_, drag| {
+            let Some(editor) = weak.upgrade() else {
+                return;
+            };
+            // Mockup 09: the thumbnail with its "PNG" badge just below and right of the pointer.
+            let ghost = editor.inner.drag_ghost.borrow().clone();
+            gtk::DragIcon::for_drag(drag).set_child(Some(&share::ghost(ghost.as_ref())));
+            drag.set_hotspot(-6, -8);
+            editor.inner.w.title.add_css_class("annota-dragging");
+        });
+        let weak = self.downgrade();
+        source.connect_drag_end(move |_, _, _| {
+            if let Some(editor) = weak.upgrade() {
+                editor.inner.w.title.remove_css_class("annota-dragging");
+                editor.inner.drag_ghost.replace(None);
+            }
+        });
+        title.add_controller(source);
+    }
+
+    /// What a drag of the title area carries ([`share::drag_content`]: the temporary PNG as
+    /// `text/uri-list` and its bytes as `image/png`), or `None` — no drag — without a document,
+    /// while a dialog is open, or when the redaction warning must ask first.
+    ///
+    /// A drag cannot wait for an alert (the pointer button is held; once released there is
+    /// nothing to drop), so a document with blur or pixelate redactions gets the warning
+    /// ("Drag Anyway") *instead of* this drag. After Convert to Solid nothing reversible is left;
+    /// after Drag Anyway the next drag of the unchanged document goes ahead
+    /// (`Inner::drag_consent`); either way a toast says the image can be dragged now.
+    fn drag_prepare(&self) -> Option<gdk::ContentProvider> {
+        let session = self.current_without_dialog()?;
+        session.canvas.finish_text();
+        let uid = session.uid;
+        let reversible = session
+            .canvas
+            .with_document(redactions::reversible)
+            .unwrap_or_default();
+        if !reversible.is_empty() && self.inner.drag_consent.get() != Some(uid) {
+            // Asked once the drag gesture has been refused, not inside it.
+            let weak = self.downgrade();
+            glib::idle_add_local_once(move || {
+                if let Some(editor) = weak.upgrade() {
+                    editor.guard_redactions(Purpose::Drag, move |editor| {
+                        editor.inner.drag_consent.set(Some(uid));
+                        editor.toast_now(&share::drag_ready_toast());
+                    });
+                }
+            });
+            return None;
+        }
+        let (handoff, bitmap) = self.write_handoff(&session)?;
+        self.inner.drag_ghost.replace(share::ghost_texture(&bitmap));
+        Some(share::drag_content(&handoff))
+    }
+
+    /// The flattened image of `session` as a temporary PNG named after it (drag-out, Email…,
+    /// Open With…), with the bitmap it was encoded from; on failure a toast says so.
+    fn write_handoff(&self, session: &Session) -> Option<(export::handoff::Handoff, Bitmap)> {
+        let root = self.inner.handoff_root.borrow().clone();
+        let stem = share::stem(&session.name());
+        let written = session.canvas.with_document(|doc| {
+            let bitmap = share::flatten(doc)?;
+            export::handoff::write(&bitmap, &root, &stem).map(|handoff| (handoff, bitmap))
+        })?;
+        match written {
+            Ok(written) => Some(written),
+            Err(err) => {
+                eprintln!("annota: preparing the image for another app failed: {err}");
+                self.toast(&share::prepare_failed_toast());
+                None
+            }
+        }
+    }
+
+    /// Share → Email… or Open With… (decision D1, mockups 01 and 14): the redaction warning
+    /// ("Share Anyway"), then the temporary PNG to the portal.
+    fn share(&self, target: share::Target) {
+        let Some(session) = self.current_without_dialog() else {
+            return;
+        };
+        session.canvas.finish_text();
+        let uid = session.uid;
+        self.guard_redactions(Purpose::Share, move |editor| editor.share_now(uid, target));
+    }
+
+    fn share_now(&self, uid: u64, target: share::Target) {
+        let Some(session) = self.session(uid) else {
+            return;
+        };
+        let Some((handoff, _)) = self.write_handoff(&session) else {
+            return;
+        };
+        // Mockup 14: shown while the mail app is asked, no buttons, gone when the portal
+        // answers. (Open With… shows the system's app chooser instead.)
+        let pending = (target == share::Target::Email).then(|| {
+            let toast = adw::Toast::builder()
+                .title(share::email_toast(&handoff.path))
+                .timeout(0)
+                .priority(adw::ToastPriority::High)
+                .build();
+            toast.set_use_markup(false);
+            self.inner.w.toast_overlay.add_toast(toast.clone());
+            toast
+        });
+        let sharer = self.inner.sharer.borrow().clone();
+        let call = sharer(target, handoff.path);
+        let weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let result = call.await;
+            if let Some(toast) = pending {
+                toast.dismiss();
+            }
+            if let Err(err) = result {
+                eprintln!("annota: sharing the image failed: {err}");
+                if let (true, Some(editor)) = (share::tells(&err), weak.upgrade()) {
+                    editor.toast_now(&share::failed_toast(target));
+                }
+            }
+        });
+    }
+
+    /// Share → Copy to Folder…: the redaction warning ("Share Anyway"), then GTK's file chooser
+    /// — no Email/OpenURI portal: this is a plain file save — and the flattened PNG there.
+    fn copy_to_folder(&self) {
+        let Some(session) = self.current_without_dialog() else {
+            return;
+        };
+        session.canvas.finish_text();
+        let uid = session.uid;
+        self.guard_redactions(Purpose::Share, move |editor| editor.choose_copy_path(uid));
+    }
+
+    fn choose_copy_path(&self, uid: u64) {
+        let Some(session) = self.session(uid) else {
+            return;
+        };
+        let folder = crate::preferences::resolved_export_folder(
+            &self.inner.settings.string("export-folder"),
+        );
+        let filter = gtk::FileFilter::new();
+        filter.set_name(Some(&gettext("PNG Images")));
+        filter.add_suffix("png");
+        let filters = gio::ListStore::new::<gtk::FileFilter>();
+        filters.append(&filter);
+        let mut builder = gtk::FileDialog::builder()
+            .title(gettext("Copy to Folder"))
+            .accept_label(gettext("_Copy"))
+            .modal(true)
+            .filters(&filters)
+            .default_filter(&filter)
+            .initial_name(share::copy_to_folder_name(&session.name()));
+        if folder.is_dir() {
+            builder = builder.initial_folder(&gio::File::for_path(&folder));
+        }
+        let chooser = builder.build();
+        let window = self.inner.w.window.clone();
+        let weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let Ok(file) = chooser.save_future(Some(&window)).await else {
+                return;
+            };
+            if let (Some(editor), Some(path)) = (weak.upgrade(), file.path()) {
+                editor.copy_to_folder_now(uid, &share::with_png_extension(&path));
+            }
+        });
+    }
+
+    /// Writes document `uid`'s flattened image as a PNG to `path` (chosen in Copy to Folder…)
+    /// and says so with Show in Files; on failure a toast with the export dialog's words.
+    /// Copying is not saving: the document's status and autosave stay. Returns whether it was
+    /// written.
+    fn copy_to_folder_now(&self, uid: u64, path: &Path) -> bool {
+        let Some(session) = self.session(uid) else {
+            return false;
+        };
+        let written = session
+            .canvas
+            .with_document(|doc| export::export(doc, path, &export::Format::Png, 1.0));
+        match written {
+            Some(Ok(())) => {
+                self.toast_with_files(&share::copied_to_folder_toast(path), path.to_path_buf());
+                true
+            }
+            Some(Err(err)) => {
+                eprintln!("annota: copying to {} failed: {err}", path.display());
+                let toast = adw::Toast::builder()
+                    .title(saving::problem(&err).message())
+                    .priority(adw::ToastPriority::High)
+                    .build();
+                toast.set_use_markup(false);
+                self.inner.w.toast_overlay.add_toast(toast);
+                false
+            }
+            None => false,
+        }
+    }
+
     // ---- keys ----
 
     fn setup_keys(&self) {
@@ -1767,7 +2067,8 @@ impl Editor {
                 | gdk::ModifierType::SUPER_MASK,
         );
         match key.to_lower() {
-            // Copy image (Ctrl+C) — not an application accelerator, text fields need it.
+            // Copy image (Ctrl+C, mockup 07) — not an application accelerator, text fields
+            // need it. Text being edited on the canvas took Ctrl+C above (copies the text).
             gdk::Key::c if ctrl => {
                 let _ = WidgetExt::activate_action(&self.inner.w.window, "win.copy", None);
                 true
@@ -2389,19 +2690,14 @@ fn load_flattened(path: &Path) -> Option<annota::document::bitmap::Bitmap> {
     }
 }
 
-/// Creates the window actions. Share (add-export-share task 2.4) exists but stays disabled; the others
-/// get their handlers in [`Editor::setup_actions`] and their state in
-/// [`Editor::refresh_action_states`].
+/// Creates the window actions; they get their handlers in [`Editor::setup_actions`] and their
+/// state in [`Editor::refresh_header`] and [`Editor::refresh_action_states`].
 fn install_actions(window: &adw::ApplicationWindow, settings: &gio::Settings) -> Actions {
     let simple = |name: &str| {
         let action = gio::SimpleAction::new(name, None);
         window.add_action(&action);
         action
     };
-    // Decision D1's Share menu (add-export-share).
-    for name in ["share-email", "share-open-with", "share-copy-to-folder"] {
-        simple(name).set_enabled(false);
-    }
     window.add_action(&settings.create_action("show-properties"));
     window.add_action(&settings.create_action("show-tray"));
     let zoom_preset = gio::SimpleAction::new_stateful(
@@ -2414,6 +2710,10 @@ fn install_actions(window: &adw::ApplicationWindow, settings: &gio::Settings) ->
     let document = [
         "copy",
         "export",
+        // Decision D1's Share menu (add-export-share task 2.4).
+        "share-email",
+        "share-open-with",
+        "share-copy-to-folder",
         "save",
         "save-as",
         "zoom-fit",
@@ -4804,5 +5104,388 @@ mod tests {
         }
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
         window_done(&w.window);
+    }
+
+    /// add-export-share tasks 2.3 and 2.4: Copy (`Ctrl+C`, mockup 07), drag-out (mockups
+    /// 08/09) and Share (mockups 01, 14), each behind the redaction warning ("Copy Anyway",
+    /// "Drag Anyway", "Share Anyway"). The portals are a stand-in (`Inner::sharer`) — no
+    /// Email/OpenURI call reaches D-Bus — and Copy to Folder…'s file chooser is never opened:
+    /// its write is called directly, the chooser only behind a cancelled warning. Hand-off files
+    /// go to a temporary folder. Run on its own like the tests above.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn copy_drag_and_share_on_a_live_display() {
+        use annota::document::annotation::Annotation;
+        use annota::document::geometry::Rect;
+        use annota::tools::redaction::{Redaction, RedactionKind};
+        use share::ShareError;
+
+        let tmp =
+            TempDir(std::env::temp_dir().join(format!("annota-share-test-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(&tmp.0).unwrap();
+        let app = environment(&tmp.0);
+        let editor = Editor::build(
+            &app,
+            Store::new(tmp.0.join("autosave")),
+            style_paths(&tmp.0),
+        )
+        .unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let handoffs = tmp.0.join("handoff");
+        editor.inner.handoff_root.replace(handoffs.clone());
+        // The portals' stand-in: records each call and answers when the test says so.
+        type Answer = futures_channel::oneshot::Sender<Result<(), ShareError>>;
+        let calls: Rc<RefCell<Vec<(share::Target, PathBuf)>>> = Rc::default();
+        let answer: Rc<RefCell<Option<Answer>>> = Rc::default();
+        editor.inner.sharer.replace({
+            let calls = calls.clone();
+            let answer = answer.clone();
+            Rc::new(move |target, path| {
+                calls.borrow_mut().push((target, path));
+                let (tx, rx) = futures_channel::oneshot::channel();
+                answer.replace(Some(tx));
+                Box::pin(async move { rx.await.unwrap_or(Err(ShareError::Cancelled)) })
+            })
+        });
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let dialog = || w.window.visible_dialog();
+        let toasts = || w.toast_overlay.clone().upcast::<gtk::Widget>();
+        let enabled = |name: &str| w.window.lookup_action(name).unwrap().is_enabled();
+
+        // No document: nothing to copy, drag or share.
+        for name in [
+            "copy",
+            "share-email",
+            "share-open-with",
+            "share-copy-to-folder",
+        ] {
+            assert!(!enabled(name), "{name}");
+        }
+        assert!(editor.drag_prepare().is_none());
+        assert!(!w.title.has_css_class("annota-drag-source"));
+
+        let redaction = |x: f64, kind: RedactionKind| -> Box<dyn Annotation> {
+            let mut r = Redaction::new(Rect::new(x, 10.0, 40.0, 20.0));
+            r.kind = kind;
+            Box::new(r)
+        };
+        let uid = editor.add_session(
+            Loaded {
+                document: Document::with_title(
+                    Bitmap::filled(400, 250, palette::PAPER).unwrap(),
+                    "Chat with Jonas",
+                ),
+                source: None,
+                path: None,
+                name: "Chat with Jonas".into(),
+            },
+            Origin::New,
+            AutosaveId::generate(),
+        );
+        let session = editor.session(uid).unwrap();
+        session
+            .canvas
+            .run(|doc, _| ops::add(doc, redaction(10.0, RedactionKind::Pixelate)));
+        let edited = session.canvas.history_info().undo_label;
+        // Share menu (mockup 01): the split button's three items, now enabled.
+        for name in [
+            "copy",
+            "share-email",
+            "share-open-with",
+            "share-copy-to-folder",
+        ] {
+            assert!(enabled(name), "{name}");
+        }
+        // Mockup 08: the title area is the drag source, with its tooltip.
+        assert!(w.title.has_css_class("annota-drag-source"));
+        assert_eq!(
+            w.title.tooltip_text().as_deref(),
+            Some("Drag image to another app")
+        );
+
+        // ---- Copy (scenario "Paste elsewhere") ----
+        let clipboard = gdk::Display::default().unwrap().clipboard();
+        // Ctrl+C on the canvas (Select tool, nothing selected): the warning first, "Copy
+        // Anyway"; Cancel copies nothing and changes nothing.
+        session.canvas.deselect();
+        assert!(session.canvas.selection().is_empty());
+        session.canvas.grab_focus();
+        assert!(editor.key_pressed(gdk::Key::c, gdk::ModifierType::CONTROL_MASK));
+        pump(150);
+        let alert = dialog().expect("the redaction warning before Copy");
+        assert!(shows_label(
+            alert.upcast_ref(),
+            "1 redaction uses pixelate. Pixelated text can sometimes be reconstructed. Solid boxes hide it for good."
+        ));
+        assert!(find_button(alert.upcast_ref(), "Copy Anyway").is_some());
+        assert!(click_button(alert.upcast_ref(), "Cancel"));
+        pump(300);
+        assert!(
+            clipboard.formats().mime_types().is_empty(),
+            "nothing copied"
+        );
+        assert!(!shows_label(&toasts(), "Image copied to clipboard"));
+        // Again (the header's Copy, same action): Copy Anyway puts the flattened image there,
+        // unconverted, as PNG; mockup 07's toast.
+        WidgetExt::activate_action(&w.window, "win.copy", None).unwrap();
+        pump(150);
+        let alert = dialog().unwrap();
+        assert!(click_button(alert.upcast_ref(), "Copy Anyway"));
+        pump(300);
+        assert_eq!(
+            session.canvas.history_info().undo_label,
+            edited,
+            "unchanged"
+        );
+        assert!(clipboard
+            .formats()
+            .union_serialize_mime_types()
+            .contain_mime_type("image/png"));
+        let pasted = glib::MainContext::default()
+            .block_on(clipboard.read_texture_future())
+            .unwrap()
+            .expect("an image on the clipboard");
+        assert_eq!((pasted.width(), pasted.height()), (400, 250));
+        // The pixels are the flattened document's (the pixelated block included).
+        let flat = session
+            .canvas
+            .with_document(|doc| render::flatten(doc, 1.0).unwrap())
+            .unwrap();
+        let mut downloader = gdk::TextureDownloader::new(&pasted);
+        downloader.set_format(gdk::MemoryFormat::R8g8b8a8);
+        let (bytes, stride) = downloader.download_bytes();
+        for (x, y) in [(5, 5), (20, 15), (45, 25), (200, 200)] {
+            let i = y * stride + x * 4;
+            let p = flat.pixel(x as i32, y as i32).unwrap();
+            assert_eq!(bytes[i..i + 4], [p.r, p.g, p.b, p.a], "pixel {x},{y}");
+        }
+        assert!(shows_label(&toasts(), "Image copied to clipboard"));
+        assert!(
+            find_button(&toasts(), "Show in Files").is_none(),
+            "no buttons"
+        );
+        shot(&w.window, "es07-copied");
+
+        // ---- Drag-out (scenario "Drop into file manager") ----
+        // The drag that meets the warning does not start; Drag Anyway lets the next one go.
+        assert!(editor.drag_prepare().is_none());
+        pump(150);
+        let alert = dialog().expect("the redaction warning before a drag");
+        assert!(click_button(alert.upcast_ref(), "Drag Anyway"));
+        pump(300);
+        assert!(shows_label(&toasts(), "You can drag the image out now"));
+        let provider = editor.drag_prepare().expect("the drag's content");
+        assert!(dialog().is_none());
+        let formats = provider.formats();
+        assert!(formats.contain_mime_type("image/png"));
+        assert!(formats
+            .union_serialize_mime_types()
+            .contain_mime_type("text/uri-list"));
+        let files = provider
+            .value(gdk::FileList::static_type())
+            .unwrap()
+            .get::<gdk::FileList>()
+            .unwrap()
+            .files();
+        assert_eq!(files.len(), 1);
+        let dragged = files[0].path().unwrap();
+        // Redline "Drag": file name = document title + .png, a temporary file.
+        assert_eq!(dragged.file_name().unwrap(), "Chat with Jonas.png");
+        assert!(dragged.starts_with(&handoffs));
+        let png = std::fs::read(&dragged).unwrap();
+        assert_eq!(
+            png,
+            session
+                .canvas
+                .with_document(|doc| export::encode(doc, &export::Format::Png, 1.0).unwrap())
+                .unwrap()
+        );
+        let sink = gio::MemoryOutputStream::new_resizable();
+        glib::MainContext::default()
+            .block_on(provider.write_mime_type_future("image/png", &sink, glib::Priority::DEFAULT))
+            .unwrap();
+        sink.close(gio::Cancellable::NONE).unwrap();
+        assert_eq!(sink.steal_as_bytes().as_ref(), png.as_slice(), "image/png");
+        // Mockup 09's drag image: 160 × 100 thumbnail + "PNG" badge.
+        let ghost = share::ghost(editor.inner.drag_ghost.borrow().as_ref());
+        assert!(editor.inner.drag_ghost.borrow().is_some());
+        let shown = gtk::Window::builder().child(&ghost).build();
+        shown.present();
+        pump(100);
+        assert!(shows_label(ghost.upcast_ref(), "PNG"));
+        assert_eq!((ghost.width(), ghost.height()), (160, 100));
+        shot(&ghost, "es09-ghost");
+        shown.destroy();
+        // An edit takes "Drag Anyway" back; Convert to Solid instead lets drags through.
+        session
+            .canvas
+            .run(|doc, _| ops::add(doc, redaction(100.0, RedactionKind::Blur)));
+        assert!(editor.drag_prepare().is_none());
+        pump(150);
+        let alert = dialog().expect("asked again after an edit");
+        assert!(click_button(alert.upcast_ref(), "Convert to Solid"));
+        pump(300);
+        assert!(session
+            .canvas
+            .with_document(redactions::reversible)
+            .unwrap()
+            .is_empty());
+        assert!(editor.drag_prepare().is_some());
+        assert!(dialog().is_none());
+        // Mockup 08/09's fills (for the shots): hover, then pressed while dragging.
+        w.title.set_state_flags(gtk::StateFlags::PRELIGHT, false);
+        shot(&w.window, "es08-title-hover");
+        w.title.add_css_class("annota-dragging");
+        shot(&w.window, "es09-title-dragging");
+        w.title.remove_css_class("annota-dragging");
+        w.title.unset_state_flags(gtk::StateFlags::PRELIGHT);
+
+        // ---- Share (scenario "Email", mockup 14) ----
+        // Nothing reversible is left: no warning. Mockup 14's toast while the portal is asked,
+        // gone once it answered.
+        WidgetExt::activate_action(&w.window, "win.share-email", None).unwrap();
+        pump(150);
+        assert!(dialog().is_none());
+        let (target, attached) = calls.borrow().last().cloned().unwrap();
+        assert_eq!(target, share::Target::Email);
+        assert_eq!(attached.file_name().unwrap(), "Chat with Jonas.png");
+        assert!(attached.is_file());
+        assert_eq!(png_size_of(&attached), (400, 250));
+        let handing = "Opening your mail app with “Chat with Jonas.png” attached…";
+        assert!(shows_label(&toasts(), handing));
+        shot(&w.window, "es14-email");
+        answer.take().unwrap().send(Ok(())).unwrap();
+        pump(600);
+        assert!(
+            !shows_label(&toasts(), handing),
+            "dismissed when the portal returns"
+        );
+        // Open With…: the system's app chooser (OpenURI). Cancelled there: no toast; a failing
+        // portal: a toast.
+        WidgetExt::activate_action(&w.window, "win.share-open-with", None).unwrap();
+        pump(100);
+        assert_eq!(calls.borrow().last().unwrap().0, share::Target::OpenWith);
+        assert!(
+            !shows_label(&toasts(), handing),
+            "no hand-off toast for Open With"
+        );
+        answer
+            .take()
+            .unwrap()
+            .send(Err(ShareError::Cancelled))
+            .unwrap();
+        pump(300);
+        assert!(!shows_label(
+            &toasts(),
+            "Could not open the image in another app"
+        ));
+        WidgetExt::activate_action(&w.window, "win.share-open-with", None).unwrap();
+        pump(100);
+        answer
+            .take()
+            .unwrap()
+            .send(Err(ShareError::Unavailable))
+            .unwrap();
+        pump(300);
+        assert!(shows_label(
+            &toasts(),
+            "Could not open the image in another app"
+        ));
+        assert_eq!(calls.borrow().len(), 3);
+
+        // Copy to Folder…: no portal of its own — the chosen path gets the PNG, with mockup 06's
+        // kind of toast. (The file chooser itself is not opened here.)
+        dismiss_toasts(&w.toast_overlay);
+        let folder = tmp.0.join("Tickets");
+        std::fs::create_dir_all(&folder).unwrap();
+        let copy = folder.join("Chat with Jonas.png");
+        let status = session.status();
+        assert!(status.unsaved());
+        assert!(editor.copy_to_folder_now(uid, &copy));
+        assert_eq!(std::fs::read(&copy).unwrap(), png_after_convert(&session));
+        assert!(shows_label(&toasts(), "Copied as “Chat with Jonas.png”"));
+        assert!(find_button(&toasts(), "Show in Files").is_some());
+        // Copying is not saving.
+        assert_eq!(session.status(), status);
+        // A folder that cannot be written: the export dialog's words.
+        assert!(!editor.copy_to_folder_now(uid, &tmp.0.join("missing").join("x.png")));
+
+        // ---- the warning before each Share item ----
+        let blurred = editor.add_session(
+            Loaded {
+                document: Document::with_title(
+                    Bitmap::filled(300, 200, palette::PAPER).unwrap(),
+                    "Backup settings",
+                ),
+                source: None,
+                path: None,
+                name: "Backup settings".into(),
+            },
+            Origin::New,
+            AutosaveId::generate(),
+        );
+        editor
+            .session(blurred)
+            .unwrap()
+            .canvas
+            .run(|doc, _| ops::add(doc, redaction(10.0, RedactionKind::Blur)));
+        for name in ["share-email", "share-open-with", "share-copy-to-folder"] {
+            WidgetExt::activate_action(&w.window, &format!("win.{name}"), None).unwrap();
+            pump(150);
+            let alert = dialog().unwrap_or_else(|| panic!("the warning before {name}"));
+            assert!(find_button(alert.upcast_ref(), "Share Anyway").is_some());
+            assert!(shows_label(
+                alert.upcast_ref(),
+                "1 redaction uses blur. Blurred text can sometimes be reconstructed. Solid boxes hide it for good."
+            ));
+            assert!(click_button(alert.upcast_ref(), "Cancel"));
+            pump(300);
+            assert!(dialog().is_none(), "{name}: Cancel shares nothing");
+        }
+        assert_eq!(calls.borrow().len(), 3, "no portal call after Cancel");
+        window_done(&w.window);
+    }
+
+    /// Closes every toast shown or waiting under `overlay` (one is shown at a time).
+    fn dismiss_toasts(overlay: &adw::ToastOverlay) {
+        fn close_button(root: &gtk::Widget) -> Option<gtk::Button> {
+            if let Some(button) = root.downcast_ref::<gtk::Button>() {
+                if button.icon_name().as_deref() == Some("window-close-symbolic")
+                    && button.is_mapped()
+                {
+                    return Some(button.clone());
+                }
+            }
+            let mut child = root.first_child();
+            while let Some(c) = child {
+                if let Some(found) = close_button(&c) {
+                    return Some(found);
+                }
+                child = c.next_sibling();
+            }
+            None
+        }
+        for _ in 0..20 {
+            match close_button(overlay.upcast_ref()) {
+                Some(button) => button.emit_clicked(),
+                None => return,
+            }
+            pump(400);
+        }
+    }
+
+    fn png_size_of(path: &Path) -> (i32, i32) {
+        annota::document::bitmap::png_size(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    fn png_after_convert(session: &Session) -> Vec<u8> {
+        session
+            .canvas
+            .with_document(|doc| export::encode(doc, &export::Format::Png, 1.0).unwrap())
+            .unwrap()
     }
 }

@@ -46,25 +46,34 @@ A saved document SHALL take its file's name as title, lose its autosave and anno
 - **THEN** a toast says "No permission to write to this folder", the document stays "Not saved" and keeps its autosave
 
 ### Requirement: Clipboard
-`Ctrl+C` with no object selected SHALL copy the flattened image to the clipboard as PNG.
+`Ctrl+C` with no object selected, and the header's Copy, SHALL copy the flattened image to the clipboard as PNG and confirm with the toast "Image copied to clipboard" (mockup 07, 3 s). Copying SHALL not count as saving the document.
 
 #### Scenario: Paste elsewhere
 - **WHEN** the user presses Ctrl+C and pastes into another app
 - **THEN** the annotated image is pasted
 
 ### Requirement: Drag and drop
-Dragging the drag handle in the header bar SHALL provide the flattened image as a file to other applications.
+Dragging the window title area (the header bar's title and subtitle, decision D1) SHALL provide the flattened image to other applications as a PNG file named after the document (`text/uri-list`) and as `image/png` data. Hovering the title area SHALL show the tooltip "Drag image to another app" (mockup 08); the drag image is a thumbnail with a "PNG" badge (mockup 09).
 
 #### Scenario: Drop into file manager
-- **WHEN** the user drags the handle into a Files window
-- **THEN** a PNG file is created there
+- **WHEN** the user drags the title area of "Checkout flow" into a Files window
+- **THEN** a PNG file "Checkout flow.png" with the flattened image is created there
 
 ### Requirement: Share
-A Share menu SHALL offer `Email…` (portal Email with attachment) and `Open with…` (portal OpenURI).
+The dropdown of the Export split button (Share, decision D1) SHALL offer `Email…` (portal Email, the flattened PNG attached), `Open With…` (portal OpenURI with the system's app chooser) and `Copy to Folder…` (a file chooser, then the flattened PNG written there). The PNG is named after the document. Cancelling a portal's own dialog SHALL not be reported as an error.
 
 #### Scenario: Email
 - **WHEN** the user chooses Share → Email
 - **THEN** the default mail client opens with the PNG attached
+- **AND** while the mail app is being asked, the toast "Opening your mail app with “<name>.png” attached…" is shown (mockup 14)
+
+#### Scenario: Open with
+- **WHEN** the user chooses Share → Open With… and picks an app in the system's app chooser
+- **THEN** that app opens the PNG
+
+#### Scenario: Copy to folder
+- **WHEN** the user chooses Share → Copy to Folder… and confirms a folder and name in the file chooser
+- **THEN** the flattened image is written there as PNG, a toast "Copied as “<name>.png”" offers Show in Files, and the document stays unsaved
 
 ### Requirement: Batch export
 Users SHALL select multiple documents in the tray and export them with the same format, size and filename pattern.

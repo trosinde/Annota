@@ -36,6 +36,9 @@ Annotated images must reach documents, chats and tickets in one step.
 - New module `src/export/` (encoders, `.annota` save); new crates `jpeg-encoder`, `libwebp-sys`
   (bundled libwebp, statically linked)
 - `src/editing/redactions.rs`: finding and converting blur/pixelate redactions
-- Editor UI: `src/ui/editor/{export_dialog,saving,redaction_warning}.rs`,
-  `data/ui/{export-dialog,redaction-warning}.blp`; the editor's Export, Save and Save As actions
-  (placeholders until now) and `Session` (a saved document's file, name and autosave)
+- Editor UI: `src/ui/editor/{export_dialog,saving,redaction_warning,share}.rs`,
+  `data/ui/{export-dialog,redaction-warning}.blp`; the editor's Export, Save, Save As, Copy and
+  Share actions (placeholders until now), the window title as drag source, and `Session` (a
+  saved document's file, name and autosave)
+- `src/export/handoff.rs`: the temporary PNG handed to other apps (drag-out, Email, Open With),
+  in `$XDG_RUNTIME_DIR/annota/handoff`
