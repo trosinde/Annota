@@ -290,6 +290,22 @@ fn same_shown(a: f64, b: f64) -> bool {
     format_number(a) == format_number(b)
 }
 
+/// Whether `commit` should treat `value` as a no-op given what the panel currently shows for
+/// that property and the selection `mode`.
+///
+/// Always `false` (never suppressed) for a multi-object selection: `PanelInfo::values` only
+/// reflects the *first* selected object (there is no "mixed" representation), so comparing
+/// against it would silently drop a real edit on every other selected object that already
+/// happened to share the first one's value — e.g. clicking the colour the first of several
+/// differently-coloured selected arrows already has would otherwise look like "no change" and
+/// never reach the others. `ops::set_property` already no-ops per object when nothing about
+/// *that* object actually changes, so this guard is only ever redundant there, never
+/// load-bearing.
+fn unchanged(mode: Mode, shown: Option<&PropertyValue>, value: &PropertyValue) -> bool {
+    let multi_selection = matches!(mode, Mode::Selected(n) if n > 1);
+    !multi_selection && shown == Some(value)
+}
+
 /// A spin button's value as text: "8 px", "100 %", "45°".
 fn spin_text(value: f64, unit: &str) -> String {
     match unit {
@@ -531,12 +547,11 @@ impl TypePanel {
         if self.updating.get() {
             return;
         }
-        let shown = self
-            .info
-            .borrow()
-            .as_ref()
-            .and_then(|i| i.value(key).cloned());
-        if shown.as_ref() == Some(&value) {
+        let info = self.info.borrow();
+        let mode = info.as_ref().map(|i| i.mode).unwrap_or(Mode::ToolDefaults);
+        let shown = info.as_ref().and_then(|i| i.value(key).cloned());
+        drop(info);
+        if unchanged(mode, shown.as_ref(), &value) {
             // A preview may still be up (a slider let go where it started).
             self.emit(PanelEvent::EndPreview);
             return;
@@ -1786,6 +1801,21 @@ mod tests {
         // A spin re-reading "8 px" for a stored 8.04 is not an edit.
         assert!(same_shown(8.04, 8.0));
         assert!(!same_shown(8.5, 8.0));
+    }
+
+    #[test]
+    fn multi_selection_edits_are_never_suppressed() {
+        let coral = PropertyValue::Color(palette::CORAL);
+        let teal = PropertyValue::Color(palette::TEAL);
+        // A single selected object: clicking its own colour is a no-op, a different one is not.
+        assert!(unchanged(Mode::Selected(1), Some(&coral), &coral));
+        assert!(!unchanged(Mode::Selected(1), Some(&coral), &teal));
+        // Two selected objects, shown reflects only the first (Coral): clicking Coral must still
+        // reach the others, which may be Teal — never suppress for a multi-selection.
+        assert!(!unchanged(Mode::Selected(2), Some(&coral), &coral));
+        assert!(!unchanged(Mode::Selected(3), Some(&coral), &teal));
+        // Tool defaults and a single-object edit keep the guard.
+        assert!(unchanged(Mode::ToolDefaults, Some(&coral), &coral));
     }
 
     #[test]

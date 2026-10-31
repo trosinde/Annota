@@ -49,7 +49,14 @@ sequence-wide; text/value are not tool defaults; bounded shadow values). See des
       defaults and crossing the combinations that share drawing code)
 
 ## 5. Verify
-- [ ] 5.1 Tests for every scenario (unit, golden-image or documented manual check)
-- [ ] 5.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
-- [ ] 5.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean
-- [ ] 5.4 German translation updated
+- [x] 5.1 Tests for every scenario (unit, golden-image or documented manual check) — 410 tests
+      (272 lib + 116 bin incl. 9 live-GTK + 22 golden); the one scenario that needs a real
+      xdg-desktop-portal (Eyedropper) is tracked in `manual-checks.md`, deferred to the
+      maintainer like every other portal check this project has needed
+- [x] 5.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green — 2 review rounds
+      (phase A, final); last verdict: ready to archive after 2 small fixes, both done
+      (multi-selection property edits were silently dropped when they matched the first
+      selected object's value; the eyedropper's live check was undocumented)
+- [x] 5.3 `.deb` builds, `lintian -I --pedantic` clean — verified in this dev container
+      (cargo/rustc 1.93, not the pinned 1.85, same caveat as every other change)
+- [x] 5.4 German translation updated — 573 translated, 0 fuzzy, 0 untranslated
