@@ -11,7 +11,9 @@
 - [x] 2.4 Import/export + system theme dir
 
 ## 3. Verify
-- [ ] 3.1 Tests for every scenario (unit, golden-image or documented manual check)
-- [ ] 3.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
+- [x] 3.1 Tests for every scenario (unit, golden-image or documented manual check) — see
+      `manual-checks.md` for the one row needing a real display/window manager
+- [x] 3.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green — findings B1/N1
+      fixed, see design.md "Fixed during review"
 - [ ] 3.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean
 - [ ] 3.4 German translation updated

@@ -201,6 +201,29 @@ impl QuickStyles {
             new_style: RefCell::new(None),
             handler: RefCell::new(None),
         });
+        // The style menu closes on Escape, a click outside, or most menu items (rename and
+        // delete place focus themselves — rename on its own entry, delete on the neighbour
+        // tile — everything else, including Escape, left focus wherever GTK defaults it: the
+        // canvas, so the next Delete/Menu press hit the selected canvas object instead of the
+        // tile (reviewer finding B1). Put it back on the tile whenever nothing else already
+        // claimed it.
+        {
+            let weak = Rc::downgrade(&quick);
+            quick.menu.connect_closed(move |_| {
+                let Some(q) = weak.upgrade() else {
+                    return;
+                };
+                if q.rename_popover.is_visible() {
+                    return;
+                }
+                let Some((style, place)) = q.menu_target.borrow().clone() else {
+                    return;
+                };
+                if let Some(t) = q.find_tile(&style, place) {
+                    t.child.grab_focus();
+                }
+            });
+        }
         let save_cancel: gtk::Button = obj!("save_style_cancel");
         let rename_cancel: gtk::Button = obj!("style_rename_cancel");
         let rename_confirm: gtk::Button = obj!("style_rename_confirm");

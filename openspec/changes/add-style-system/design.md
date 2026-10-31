@@ -188,3 +188,17 @@ are separate surfaces the widget snapshot does not capture and were checked stru
 
 ## Risks / open questions
 - To be completed during `/opsx:propose` refinement.
+
+### Fixed during review (2026-10-31)
+- **B1 (blocking):** closing a style tile's context menu (Escape, Apply, star/unstar,
+  move-left/right, update) left keyboard focus on the canvas instead of the tile, so a
+  `Delete` right after could delete the selected canvas object instead of acting on the
+  tile — breaking "Delete on a tile never deletes the selection." Fixed with a
+  `connect_closed` handler on the style menu's `PopoverMenu` that re-focuses the tile
+  `menu_target` pointed at, unless the rename popover is placing its own focus. See
+  `manual-checks.md` — this needs a real window manager to verify, not bare `xvfb-run`.
+- **N1 (non-blocking):** `Library::fresh_id` only checked known styles' ids, not
+  `unknown_styles` (styles a newer Annota wrote that this version can't read, kept verbatim
+  for forward compatibility), so a newly saved style could collide with one of those on the
+  next write. Fixed by also checking `unknown_styles`' `id` fields; regression test
+  `fresh_ids_skip_collisions_with_unknown_styles` in `src/styles/library.rs`.

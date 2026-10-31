@@ -134,7 +134,12 @@ impl Library {
         loop {
             let id = format!("s{}", self.next_id);
             self.next_id += 1;
-            if self.get(&id).is_none() {
+            let taken = self.get(&id).is_some()
+                || self
+                    .unknown_styles
+                    .iter()
+                    .any(|raw| raw.get("id").and_then(Value::as_str) == Some(id.as_str()));
+            if !taken {
                 return id;
             }
         }
@@ -561,6 +566,24 @@ mod tests {
         assert_eq!(written["styles"][0]["properties"]["glow"], 3);
         assert_eq!(written["styles"][1]["tool"], "magnifier");
         assert_eq!(written["favourites"][2]["template"], "t1");
+    }
+
+    #[test]
+    fn fresh_ids_skip_collisions_with_unknown_styles() {
+        // Reviewer finding N1: a style this version can't read (e.g. an unknown tool) is kept
+        // verbatim in `unknown_styles` and written back out unchanged, so a freshly assigned id
+        // must avoid those too, not just known styles'. `next_id` is at 2 right after the first
+        // `add`, so without the fix the next one would reuse "s2" below instead of skipping it.
+        let mut lib = Library::default();
+        lib.add(Tool::Arrow, "Coral", teal_bold());
+        lib.unknown_styles.push(
+            serde_json::json!({"id": "s2", "tool": "magnifier", "name": "Loupe", "properties": {}}),
+        );
+        let id = lib.add(Tool::Pen, "Pen", Toolbox::default().properties(Tool::Pen));
+        assert_ne!(
+            id, "s2",
+            "must not collide with the preserved unknown style"
+        );
     }
 
     #[test]
