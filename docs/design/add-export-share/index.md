@@ -5,14 +5,14 @@ Source HTML: `src/`, renders: `png/<name>-{light,dark}@{1,2}x.png`. Render with
 
 | # | Screen | Light 1× |
 |---|---|---|
-| 01 | Header bar with drag handle + Share; Share menu open | [png](png/01-share-menu-light@1x.png) |
+| 01 | Header bar (decision D1); Share menu open from the Export split button's arrow | [png](png/01-share-menu-light@1x.png) |
 | 02 | Export dialog — PNG (default) | [png](png/02-export-dialog-png-light@1x.png) |
 | 03 | Export dialog — JPG with quality, size dropdown open | [png](png/03-export-dialog-jpg-size-light@1x.png) |
 | 04 | Export dialog — WebP lossy, error: folder not writable | [png](png/04-export-dialog-webp-error-light@1x.png) |
 | 05 | Export dialog — PDF (vector annotations) | [png](png/05-export-dialog-pdf-light@1x.png) |
 | 06 | Ctrl+S quick save toast with file name | [png](png/06-quick-save-toast-light@1x.png) |
 | 07 | Ctrl+C clipboard toast | [png](png/07-clipboard-toast-light@1x.png) |
-| 08 | Drag handle hover tooltip | [png](png/08-drag-handle-hover-light@1x.png) |
+| 08 | Hover over the title area (the drag source) with tooltip | [png](png/08-drag-handle-hover-light@1x.png) |
 | 09 | Dragging the image into a Files window | [png](png/09-drag-into-files-light@1x.png) |
 | 10 | Pixelated-redaction warning before export/share | [png](png/10-pixelate-warning-light@1x.png) |
 | 11 | Batch: tray in selection mode, 3 selected | [png](png/11-batch-select-tray-light@1x.png) |
@@ -30,8 +30,8 @@ All screens exist as `-dark@1x/2x`.
 | WYSIWYG | 02–05 | Preview line "Pixel-identical to the canvas at 100 %". Pixel equality itself is verified by golden-image test. |
 | Pattern | 06 | `Ctrl+S` on a new capture: no dialog, file written to the default save folder, title becomes the file name, subtitle "<folder> · Saved", toast. `Ctrl+Shift+S` opens the portal Save dialog (system UI, not drawn). |
 | Paste elsewhere | 07 | `Ctrl+C` with no object selected (Select tool, no selection) copies the flattened PNG. With an object selected, `Ctrl+C` copies the object (editor change). |
-| Drop into file manager | 08, 09 | Drag starts from the handle in the header bar; ghost = 160×100 thumbnail + "PNG" badge; drop creates `Checkout flow.png`. |
-| Email | 01, 14 | Share → Email… exports a temporary PNG and calls the Email portal; toast while handing over. Open With… calls OpenURI (system app chooser, not drawn). |
+| Drop into file manager | 08, 09 | Drag starts from the header bar's title area (title + subtitle, decision D1); ghost = 160×100 thumbnail + "PNG" badge; drop creates `Checkout flow.png`. |
+| Email | 01, 14 | Export split button arrow (Share) → Email… exports a temporary PNG and calls the Email portal; toast while handing over. Open With… calls OpenURI (system app chooser, not drawn). |
 | Batch | 11, 12, 13 | Three tray items selected → Export 3… → JPG → three files, toast. |
 | (Redaction warning, from annotation-tools spec) | 10 | Shown on Export, Copy, Drag, Share and Quick save when the document contains blur or pixelate redactions. |
 | (Save changes before closing, task 2.6 — document-format "Autosave and recovery" / "Closing keeps autosaves" MODIFIED) | 15 | Editor window closed (`Ctrl+W`, close button) or Annota quit (`Ctrl+Q`) while a document has unsaved changes → alert with Save / Discard / Cancel. Drawn after `Ctrl+W`, so the default response shows its focus ring. |
@@ -39,10 +39,25 @@ All screens exist as `-dark@1x/2x`.
 ## Redlines
 
 ### Header bar (all editor screens)
-Start: New Capture · linked Undo/Redo. End (left→right): **drag handle** (`drag-handle`, flat, tooltip "Drag image to another app") · **Share** (`share`, menu button) · Copy (`copy`, tooltip "Copy to Clipboard (Ctrl+C)") · **Export** (suggested, `Ctrl+E`) · main menu · close. This adds two buttons to the kit editor shell; everything else is unchanged.
+Decision D1, as built in `data/ui/editor-window.blp` (redrawn 2026-10-31, task 1.3; screens 01-14
+used to show this change's pre-D1 proposal with a drag-handle button and a separate Share button).
+Start: New Capture · linked Undo/Redo. Title: `AdwWindowTitle` (document name / `W × H · Edited`),
+also the drag source (see "Drag"). End (left→right), 6 px gaps:
+- **Show Properties** — toggle, `sidebar-show-right-symbolic`, 34×34, tooltip "Show Properties (F9)"; pressed while the sidebar is shown (all screens here).
+- **Copy** — `edit-copy-symbolic`, 34×34, tooltip "Copy to Clipboard (Ctrl+C)"; pressed state in 07.
+- **Export** — `AdwSplitButton`, `.suggested-action`: main part label "Export" (tooltip "Export (Ctrl+E)", opens the Export dialog, pressed state in 02) + 26 px dropdown part with `pan-down-symbolic` (dropdown tooltip "Share", opens the Share menu, pressed in 01). The 1 px divider between the halves is the kit's `rgb(0 0 6 / 20%)` linked-suggested separator. Pressed halves use `--accent-bg-active`.
+- **Main menu** — flat `open-menu-symbolic`, tooltip "Main Menu" (add-annotation-editor 17; it has no Share entries).
+- Close.
+
+No drag-handle button and no Share button in the header.
 
 ### Share menu (01)
-Popover 240 px: Email… · Open With… · — · Copy Image `Ctrl+C` · Save As… `Shift+Ctrl+S`. No other targets (no cloud, no upload).
+The dropdown half of the Export split button opens a `GtkPopoverMenu` (menu model `share_menu`),
+200 px, arrow centred on the dropdown half, shifted left to stay 6 px inside the window's right
+edge. Items, one section, no accelerators: **Email…** (`win.share-email`) · **Open With…**
+(`win.share-open-with`) · **Copy to Folder…** (`win.share-copy-to-folder`). No other targets (no
+cloud, no upload). Copy Image and Save As… are no longer in this menu (Copy has its own header
+button and `Ctrl+C`; Save As… is in the main menu, `Ctrl+Shift+S`). Drawn with Email… hovered.
 
 ### Export dialog (02–05)
 - `AdwDialog` 560 px wide, header: Cancel | "Export Image" | **Export** (suggested). `Ctrl+E` opens it; `Enter` exports.
@@ -64,7 +79,15 @@ Centred over the canvas column (between tool strip and sidebar), 24 px above the
 - Email: "Opening your mail app with “<name>.png” attached…" (no buttons, dismissed when the portal returns).
 
 ### Drag (08, 09)
-Handle 34×34 flat button; hover state = flat-hover fill + tooltip. During drag the handle stays pressed; content type `text/uri-list` (temporary PNG) + `image/png`. File name = document title + `.png`.
+Decision D1: the drag source is the header bar's **title area** (`AdwWindowTitle`, title +
+subtitle, 34 px high, its natural width incl. its 12 px side padding — 140 px for "Checkout flow"
+/ "1600 × 1000 · Edited"), not a separate button. The rest of the header bar's empty space still
+moves the window as usual.
+- Hover (08): `--fill-flat-hover` fill behind the title area, radius 6 (`--radius-s`); tooltip
+  "Drag image to another app", centred below the title area. Pointer stays the default arrow.
+- During the drag (09): the title area keeps the pressed fill `--fill-flat-active`.
+- Ghost = 160×100 thumbnail of the flattened image (radius 6) + "PNG" badge bottom-right.
+- Content: `text/uri-list` (temporary PNG) + `image/png`. File name = document title + `.png`.
 
 ### Pixelate warning (10)
 Alert 460 px: `warning` icon 32 px in `--warning`, heading "Make Redactions Solid?", body "<n> redactions use pixelate. Pixelated text can sometimes be reconstructed. Solid boxes hide it for good." (for blur: "use blur" / "Blurred text…"). Buttons: Cancel · Export Anyway · **Convert to Solid** (suggested). Convert is an undoable command, then the export continues.

@@ -59,11 +59,19 @@
   .scene .window { position: absolute; }
   .mini-editor .tool-strip { width: 44px; }
   .mini-editor .tool-strip .btn { width: 34px; min-height: 34px; }
+
+  /* Editor header end, decision D1 (as built in data/ui/editor-window.blp) */
+  .split-button { display: inline-flex; }
+  .split-button > .btn.split-arrow { width: 26px; min-width: 26px; padding: 0; }
+  .split-button > .btn.suggested-action.active { background: var(--accent-bg-active); }
+  .headerbar .title-widget.drag-title { min-height: 34px; border-radius: var(--radius-s); }
+  .headerbar .title-widget.drag-title.hover { background: var(--fill-flat-hover); }
+  .headerbar .title-widget.drag-title.pressed { background: var(--fill-flat-active); }
 </style>
 </head>
 <body class="mock-frame">
 <div class="scene"><div class="window mini-editor" style="left:30px;top:30px;width:1000px;height:640px">
-<div class="headerbar"><div class="start"><button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button><div class="linked"><button class="btn image-button"><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button"><svg class="icon"><use href="#i-redo"/></svg></button></div></div><div class="title-widget"><span class="title">Checkout flow</span><span class="subtitle">1600 × 1000 · Edited</span></div><div class="end"><button class="btn flat image-button active" title="Drag to Another App"><svg class="icon"><use href="#i-drag-handle"/></svg></button><button class="btn image-button " title="Share"><svg class="icon"><use href="#i-share"/></svg></button><button class="btn image-button " title="Copy to Clipboard (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button><button class="btn text-button suggested-action ">Export</button><button class="btn flat image-button "><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+<div class="headerbar"><div class="start"><button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button><div class="linked"><button class="btn image-button"><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button"><svg class="icon"><use href="#i-redo"/></svg></button></div></div><div class="title-widget drag-title pressed" title="Drag image to another app"><span class="title">Checkout flow</span><span class="subtitle">1600 × 1000 · Edited</span></div><div class="end"><button class="btn flat image-button active" title="Show Properties (F9)"><svg class="icon"><use href="#i-sidebar-show-right"/></svg></button><button class="btn image-button " title="Copy to Clipboard (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button><div class="linked split-button"><button class="btn text-button suggested-action " title="Export (Ctrl+E)">Export</button><button class="btn suggested-action split-arrow " title="Share"><svg class="icon"><use href="#i-pan-down"/></svg></button></div><button class="btn flat image-button" title="Main Menu"><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
 <div class="editor-col">
 <div class="split-view">
 <div class="tool-strip">
