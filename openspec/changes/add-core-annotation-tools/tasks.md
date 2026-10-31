@@ -27,16 +27,26 @@ contract task 3.1 builds the sidebar on). See design.md, "Decided during apply �
       none of which exist yet: it moved to add-export-share task 2.7, which builds those paths.
 
 ## 3. Properties
-- [ ] 3.1 Property sidebar per tool
-- [ ] 3.2 Colour picker with eyedropper (portal PickColor)
-- [ ] 3.3 Shadow editor
+Phase B (2026-10-31), with the maintainer's decisions from the phase-A review (callouts may lose
+their last tail; drawing tools always draw except on the selection's handles; Sequence is
+sequence-wide; text/value are not tool defaults; bounded shadow values). See design.md,
+"Decided during apply — phase B".
+- [x] 3.1 Property sidebar per tool (`src/ui/editor/properties.rs` state and rows,
+      `src/ui/editor/panel.rs` widgets, rows in `data/ui/editor-window.blp`; tool defaults,
+      editing text, drawing a polygon; the shape type makes polygons reachable; Restart Sequence,
+      Next value, a marker's Value)
+- [x] 3.2 Colour picker with eyedropper (portal PickColor) — the popover is real GTK UI; the
+      `PickColor` call (`capture::portal::pick_colour`) is written against `ashpd` 0.11.1 but
+      **not run against a live portal** (tested with a stand-in; manual check with the other
+      portal checks)
+- [x] 3.3 Shadow editor
 
 ## 4. Tests
-- [ ] 4.1 Golden images for every tool and property combination (phase A added one golden per
-      type with its defaults and key variants — `tests/render/main.rs`: arrow-objects,
-      pen-objects, shape-objects, text-objects, callout-objects, step-objects,
-      highlighter-objects, redaction-objects — as CLAUDE.md §7 asks of every new type; the full
-      property matrix comes with phase B)
+- [x] 4.1 Golden images for every tool and property combination (phase A: one golden per type
+      with its defaults and key variants; phase B: ten matrix goldens — arrow-matrix,
+      arrow-variants, pen-variants, shape-matrix, text-matrix, callout-matrix, step-matrix,
+      redaction-matrix, highlighter-matrix, shadow-matrix — varying each property against the
+      defaults and crossing the combinations that share drawing code)
 
 ## 5. Verify
 - [ ] 5.1 Tests for every scenario (unit, golden-image or documented manual check)

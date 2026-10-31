@@ -3275,6 +3275,14 @@ mod tests {
             Some(PropertyValue::Number(0.5))
         );
         assert!(canvas.previewing().is_none());
+        // Spec "One undo step per change": one undo brings back 100 %.
+        canvas.undo();
+        assert_eq!(
+            value(first_object("arrow").as_ref(), "opacity"),
+            Some(PropertyValue::Number(1.0))
+        );
+        canvas.redo();
+        pump(30);
         // Let go where it started: nothing.
         panel.slide("opacity", &[60.0, 50.0]);
         assert_eq!(revision(), before + 1);

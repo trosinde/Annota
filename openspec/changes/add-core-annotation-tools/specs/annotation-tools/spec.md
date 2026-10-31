@@ -16,6 +16,36 @@ Each tool SHALL have a single-key shortcut: Select `V`, Arrow `A`, Line `L`, Pen
 - **WHEN** the user draws an arrow with the arrow tool
 - **THEN** the arrow tool is still active, a second arrow can be drawn right away, and `Esc` returns to Select
 
+### Requirement: Drawing over existing objects
+A drawing tool SHALL draw a new object wherever the user presses on the canvas, also on top of existing objects and on the body of the selected object. Only a press on a handle of the current selection SHALL adjust that object instead (for example bending the arrow just drawn), and the Text and Callout tools SHALL edit the text of the selected text or callout they are pressed on.
+
+#### Scenario: Second arrow from an existing arrow
+- **WHEN** the arrow tool is active and the user drags from the middle of an existing arrow that is not selected
+- **THEN** a new arrow is drawn and the existing arrow is unchanged
+
+#### Scenario: Second highlight inside the selected one
+- **WHEN** a highlight was just drawn (and is selected) and the user drags inside it with the highlighter
+- **THEN** a second highlight is drawn and the first one does not move
+
+#### Scenario: Adjust what was just drawn
+- **WHEN** an arrow was just drawn and the user drags its curve handle with the arrow tool still active
+- **THEN** the arrow bends and no new arrow is drawn
+
+### Requirement: Properties sidebar
+The sidebar SHALL show the properties of the selected objects of one type, of the text being edited, of the polygon being drawn, or — nothing selected and a drawing tool active — the tool's defaults for new objects. Each committed change SHALL be one undo step, and a control left without a change SHALL add no undo step. A tool's defaults SHALL NOT include what belongs to one object (a text's text, a marker's own value).
+
+#### Scenario: Tool defaults
+- **WHEN** nothing is selected, the arrow tool is active and the user sets the width to 12 px
+- **THEN** the document is unchanged and the next arrow drawn is 12 px wide
+
+#### Scenario: One undo step per change
+- **WHEN** an arrow is selected and the user drags the opacity slider from 100 % to 50 %
+- **THEN** the canvas shows the change while dragging and one undo step restores 100 %
+
+#### Scenario: Polygon reachable
+- **WHEN** the user chooses Polygon in the shape tool's shape type
+- **THEN** the shape tool draws polygons vertex by vertex
+
 ### Requirement: Common style properties
 Every drawable object SHALL support colour (palette, hex/RGB entry, screen eyedropper), opacity 0–100 %, and a drop shadow with on/off, colour, angle, distance (0–30 px), blur (0–30 px) and opacity, except where "Style exceptions" says otherwise.
 
@@ -92,7 +122,7 @@ Callouts SHALL be a text box with shape (rectangle, rounded, ellipse, cloud), fi
 - **THEN** the callout has no tail, stays a filled text box and still offers the add-tail handle
 
 ### Requirement: Step
-Clicking SHALL place sequential markers. Sequence types: 1,2,3 / A,B,C / a,b,c / I,II,III. Users SHALL restart the sequence, edit a single marker's value, and choose shape (circle, square, rounded square, pin). Deleting a marker renumbers following markers of the same sequence.
+Clicking SHALL place sequential markers. Sequence types: 1,2,3 / A,B,C / a,b,c / I,II,III. Users SHALL restart the sequence, edit a single marker's value, and choose shape (circle, square, rounded square, pin). Deleting a marker renumbers following markers of the same sequence. Changing the sequence type SHALL change it for every marker of that sequence at once (one undo step), so a sequence never mixes counting styles.
 
 #### Scenario: Auto-increment
 - **WHEN** the user clicks three times with the step tool
@@ -101,6 +131,10 @@ Clicking SHALL place sequential markers. Sequence types: 1,2,3 / A,B,C / a,b,c /
 #### Scenario: Renumber on delete
 - **WHEN** markers 1–4 exist and the user deletes marker 2
 - **THEN** the remaining markers read 1, 2, 3
+
+#### Scenario: Sequence type for the whole sequence
+- **WHEN** markers 1, 2, 3 exist, marker 1 is selected and the user sets the sequence type to A, B, C
+- **THEN** the markers read A, B, C, and one undo brings back 1, 2, 3
 
 ### Requirement: Highlighter
 The highlighter SHALL draw a semi-transparent rectangle (default 45 % yellow) using multiply blending so underlying text stays readable.
