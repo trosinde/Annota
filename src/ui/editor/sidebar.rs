@@ -4,8 +4,9 @@
 //! and crop mode's frame, aspect ratio, Cancel and Crop.
 //!
 //! What it shows is computed by [`state`] from the document and the selection, without
-//! widgets. Type-specific property panels (colour, width, line style …) belong to
-//! add-core-annotation-tools and slot in between the heading and Arrange.
+//! widgets. The type properties of add-core-annotation-tools (colour, width, line style …;
+//! `super::properties`, `super::panel`) slot in between the heading and Arrange; with nothing
+//! selected and a drawing tool active they show the tool's defaults ([`State::Tool`]).
 //!
 //! Number entries show values rounded to 0.1 px. Leaving or confirming an entry whose text is
 //! still what it showed keeps the exact value, so walking through the fields with Tab never
@@ -29,6 +30,8 @@ use annota::editing::tool::Tool;
 use annota::tools::group::Group;
 use annota::tools::image::Image;
 
+use super::panel::{self, TypePanel};
+use super::properties::{self, PanelInfo};
 use super::text;
 use crate::application::accel_label;
 use crate::ui::labels::object_name;
@@ -151,6 +154,8 @@ pub struct SelectionInfo {
     pub members: Vec<&'static str>,
     /// The box the Arrange entries show: the object's own for one, the union for several.
     pub frame: Arrange,
+    /// The type properties, for a selection of one of the annotation types.
+    pub panel: Option<PanelInfo>,
 }
 
 /// Crop mode.
@@ -165,6 +170,9 @@ pub enum State {
     Empty,
     Document(DocumentInfo),
     Selection(SelectionInfo),
+    /// No selection: the defaults of the drawing tool, the text being typed or the polygon
+    /// being drawn (mockups 01, 07, 08, 11).
+    Tool(PanelInfo),
     Crop(CropInfo),
 }
 
@@ -230,6 +238,7 @@ pub fn state(doc: &Document, selection: &[ObjectId]) -> State {
         common,
         members,
         frame,
+        panel: None,
     })
 }
 
@@ -378,6 +387,9 @@ pub struct Sidebar {
     pub(super) rotation: gtk::SpinButton,
     pub(super) select_all_type_button: gtk::Button,
     pub(super) group_note: gtk::Label,
+    pub(super) arrange_box: gtk::Box,
+    /// The type properties.
+    pub panel: std::rc::Rc<TypePanel>,
     pub(super) crop_entries: [gtk::Entry; 4],
     pub(super) crop_aspect: gtk::DropDown,
     /// Space around the image: Left, Top, Right, Bottom (pixels beyond each image edge).
@@ -462,6 +474,8 @@ impl Sidebar {
             rotation: obj!("arrange_rotation"),
             select_all_type_button: obj!("select_all_type_button"),
             group_note: obj!("group_note"),
+            arrange_box: obj!("arrange_box"),
+            panel: TypePanel::new(builder)?,
             crop_entries: [
                 obj!("crop_x"),
                 obj!("crop_y"),
@@ -689,6 +703,11 @@ impl Sidebar {
                 self.show_selection(info);
                 self.stack.set_visible_child_name("selection");
             }
+            State::Tool(info) => {
+                self.frame.set(None);
+                self.show_tool(info);
+                self.stack.set_visible_child_name("selection");
+            }
             State::Crop(info) => {
                 self.frame.set(None);
                 self.show_crop_frame(info.frame);
@@ -791,11 +810,45 @@ impl Sidebar {
         }
     }
 
-    fn show_selection(&self, info: &SelectionInfo) {
-        let (heading, caption) =
-            text::selection_heading(info.common, info.count, info.members.len());
+    /// The type properties without a selection: the heading, the rows, "Select All <Type>".
+    fn show_tool(&self, info: &PanelInfo) {
+        let (heading, caption) = panel::heading(info);
         self.selection_heading.set_text(&heading);
         self.selection_caption.set_text(&caption);
+        for widget in [
+            self.members_list.upcast_ref::<gtk::Widget>(),
+            self.ungroup_button.upcast_ref(),
+            self.group_note.upcast_ref(),
+            self.arrange_box.upcast_ref(),
+        ] {
+            widget.set_visible(false);
+        }
+        self.panel.show(Some(info));
+        self.show_select_all(properties::select_all(info).then_some(info.type_name));
+    }
+
+    fn show_select_all(&self, type_name: Option<&'static str>) {
+        let select_all = type_name.and_then(text::select_all_label);
+        self.select_all_type_button
+            .set_visible(select_all.is_some());
+        if let (Some(label), Some(type_name)) = (select_all, type_name) {
+            self.select_all_type_button.set_label(&label);
+            self.select_all_type_button
+                .set_action_target_value(Some(&type_name.to_variant()));
+            self.select_all_type_button
+                .set_action_name(Some("win.select-type"));
+        }
+    }
+
+    fn show_selection(&self, info: &SelectionInfo) {
+        let (heading, caption) = match &info.panel {
+            Some(panel) => panel::heading(panel),
+            None => text::selection_heading(info.common, info.count, info.members.len()),
+        };
+        self.selection_heading.set_text(&heading);
+        self.selection_caption.set_text(&caption);
+        self.arrange_box.set_visible(true);
+        self.panel.show(info.panel.as_ref());
 
         let group = info.count == 1 && info.common == Some(Group::TYPE);
         self.members_list.set_visible(group);
@@ -829,16 +882,7 @@ impl Sidebar {
         self.shown_rotation.set(self.rotation.value());
         self.rotation.set_sensitive(!multi);
 
-        let select_all = info.common.and_then(text::select_all_label);
-        self.select_all_type_button
-            .set_visible(select_all.is_some());
-        if let (Some(label), Some(type_name)) = (select_all, info.common) {
-            self.select_all_type_button.set_label(&label);
-            self.select_all_type_button
-                .set_action_target_value(Some(&type_name.to_variant()));
-            self.select_all_type_button
-                .set_action_name(Some("win.select-type"));
-        }
+        self.show_select_all(info.common);
     }
 }
 

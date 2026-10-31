@@ -23,6 +23,7 @@ src/capture/shortcuts.rs
 src/preferences.rs
 src/ui/editor/dialogs.rs
 src/ui/editor/mod.rs
+src/ui/editor/panel.rs
 src/ui/editor/sidebar.rs
 src/ui/editor/text.rs
 src/ui/labels.rs

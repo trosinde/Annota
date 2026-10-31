@@ -146,6 +146,26 @@ pub async fn grab(options: GrabOptions) -> Result<Frame, CaptureError> {
         .ok_or_else(|| CaptureError::Unreadable(String::from("empty image")))
 }
 
+/// Asks the Screenshot portal for the colour of one pixel anywhere on the screen (`PickColor`,
+/// add-core-annotation-tools redline "Eyedropper"): the desktop shows its own pointer — and a
+/// loupe if it has one — and answers with the colour as three doubles 0–1 (r, g, b).
+///
+/// This is the whole portal boundary of the eyedropper; everything around it (what is picked
+/// for, the chip, the colour's use, errors) is in `ui::editor` and tested with a stand-in.
+/// Written against `ashpd` 0.11's `desktop::Color::pick()`; like the screenshot calls above it
+/// is **not exercised against a live portal** in the development environment (the
+/// maintainer's real desktop).
+pub async fn pick_colour() -> Result<(f64, f64, f64), CaptureError> {
+    ensure_registered().await;
+    let request = ashpd::desktop::Color::pick()
+        .identifier(None::<WindowIdentifier>)
+        .send()
+        .await
+        .map_err(|err| map_portal_error(&err))?;
+    let colour = request.response().map_err(|err| map_portal_error(&err))?;
+    Ok((colour.red(), colour.green(), colour.blue()))
+}
+
 /// The portal writes its image to a file of its own choosing. Annota keeps captures only
 /// where the user asked (CLAUDE.md §7), so that intermediate file is removed once loaded.
 fn discard_portal_file(file: &gio::File) {

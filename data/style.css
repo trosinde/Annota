@@ -463,3 +463,73 @@ banner.annota-warning-banner > revealer > widget {
   font-weight: normal;
   opacity: 0.8;
 }
+
+/* --- Type properties (add-core-annotation-tools redline "Sidebar building blocks") ------- */
+
+/* Swatches drawn in code (any colour, the current one's check mark): the disc is the
+ * drawing, the button only carries the ring. 24 px in the small rows (text outline, shadow). */
+.annota-swatch.annota-swatch-drawn {
+  background: none;
+  box-shadow: none;
+}
+
+.annota-swatch.annota-swatch-drawn.annota-swatch-current {
+  box-shadow: 0 0 0 2px @window_bg_color, 0 0 0 4px @accent_bg_color;
+}
+
+.annota-swatch.annota-swatch-small {
+  min-width: 24px;
+  min-height: 24px;
+}
+
+/* The eyedropper while the portal picks (mockup 17): filled with the accent colour. */
+.annota-swatch.annota-swatch-picking {
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+}
+
+/* Toggle groups (shape type, line style, redaction type …): a trough with the selected
+ * segment raised, like the capture launcher's modes. */
+.annota-segmented {
+  background-color: alpha(currentColor, 0.08);
+  border-radius: 9px;
+  padding: 2px;
+}
+
+.annota-segmented > button {
+  background: none;
+  box-shadow: none;
+  border-radius: 7px;
+  min-height: 30px;
+}
+
+.annota-segmented > button:hover {
+  background-color: alpha(currentColor, 0.06);
+}
+
+.annota-segmented > button:checked {
+  background-color: @view_bg_color;
+  box-shadow: 0 0 0 1px alpha(currentColor, 0.12), 0 1px 3px alpha(black, 0.1);
+}
+
+/* End-style tiles (mockup 02): 44 px glyphs with captions; the selected tile accent 25 %
+ * with a 2 px accent ring. */
+.annota-end-tile {
+  padding: 6px 4px;
+  border-radius: 8px;
+}
+
+.annota-end-tile:checked {
+  background-color: alpha(@accent_bg_color, 0.25);
+  box-shadow: inset 0 0 0 2px @accent_bg_color;
+}
+
+/* The redaction warning card (mockup 15): warning colour at 18 %. */
+.annota-note.annota-warning-note {
+  background-color: alpha(@warning_bg_color, 0.18);
+}
+
+/* The colour picker popover (mockup 16): 300 px including its padding. */
+popover.annota-colour-popover > contents {
+  padding: 12px;
+}

@@ -612,6 +612,19 @@ Adw.ApplicationWindow editor_window {
                 }
               }
 
+              // The screen eyedropper is waiting for the portal (redline "Eyedropper", mockup
+              // 17): the desktop shows the pointer and any loupe; this chip stays.
+              [overlay]
+              Label pick_chip {
+                visible: false;
+                can-target: false;
+                halign: center;
+                valign: end;
+                margin-bottom: 24;
+                label: _("Click to pick · Esc cancels");
+                styles ["annota-chip", "annota-canvas-chip"]
+              }
+
               // Drop target highlight while a tray thumbnail is dragged in (mockup 11).
               [overlay]
               Box drop_ring {
@@ -1344,7 +1357,1773 @@ Box properties_box {
           };
         }
 
-        Box {
+        // Type properties (add-core-annotation-tools task 3.1; redline "Sidebar building
+        // blocks"). `properties::rows` decides which rows a type shows and in which order.
+        Box type_panel {
+          visible: false;
+          orientation: vertical;
+          spacing: 18;
+
+          Box row_sequence {
+            orientation: vertical;
+            spacing: 8;
+
+            Label {
+              label: _("Sequence");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            DropDown step_sequence {
+              model: StringList {
+                strings [
+                  C_("step sequence", "1, 2, 3"),
+                  C_("step sequence", "A, B, C"),
+                  C_("step sequence", "a, b, c"),
+                  C_("step sequence", "I, II, III"),
+                ]
+              };
+
+              accessibility {
+                label: _("Sequence");
+              }
+            }
+          }
+
+          Box row_shape_kind {
+            homogeneous: true;
+            styles ["annota-segmented"]
+
+            ToggleButton shape_rectangle {
+              tooltip-text: _("Rectangle");
+              child: DrawingArea {
+                content-width: 16;
+                content-height: 16;
+                can-target: false;
+              };
+
+              accessibility {
+                label: _("Rectangle");
+              }
+            }
+
+            ToggleButton shape_rounded_rectangle {
+              group: shape_rectangle;
+              tooltip-text: _("Rounded Rectangle");
+              child: DrawingArea {
+                content-width: 16;
+                content-height: 16;
+                can-target: false;
+              };
+
+              accessibility {
+                label: _("Rounded Rectangle");
+              }
+            }
+
+            ToggleButton shape_ellipse {
+              group: shape_rectangle;
+              tooltip-text: _("Ellipse");
+              child: DrawingArea {
+                content-width: 16;
+                content-height: 16;
+                can-target: false;
+              };
+
+              accessibility {
+                label: _("Ellipse");
+              }
+            }
+
+            ToggleButton shape_polygon {
+              group: shape_rectangle;
+              tooltip-text: _("Polygon");
+              child: DrawingArea {
+                content-width: 16;
+                content-height: 16;
+                can-target: false;
+              };
+
+              accessibility {
+                label: _("Polygon");
+              }
+            }
+          }
+
+          Box row_callout_shape {
+            homogeneous: true;
+            styles ["annota-segmented"]
+
+            ToggleButton callout_rectangle {
+              tooltip-text: _("Rectangle");
+              child: DrawingArea {
+                content-width: 16;
+                content-height: 16;
+                can-target: false;
+              };
+
+              accessibility {
+                label: _("Rectangle");
+              }
+            }
+
+            ToggleButton callout_rounded_rectangle {
+              group: callout_rectangle;
+              tooltip-text: _("Rounded");
+              child: DrawingArea {
+                content-width: 16;
+                content-height: 16;
+                can-target: false;
+              };
+
+              accessibility {
+                label: _("Rounded");
+              }
+            }
+
+            ToggleButton callout_ellipse {
+              group: callout_rectangle;
+              tooltip-text: _("Ellipse");
+              child: DrawingArea {
+                content-width: 16;
+                content-height: 16;
+                can-target: false;
+              };
+
+              accessibility {
+                label: _("Ellipse");
+              }
+            }
+
+            ToggleButton callout_cloud {
+              group: callout_rectangle;
+              tooltip-text: _("Cloud");
+              child: DrawingArea {
+                content-width: 16;
+                content-height: 16;
+                can-target: false;
+              };
+
+              accessibility {
+                label: _("Cloud");
+              }
+            }
+          }
+
+          Box row_step_shape {
+            orientation: vertical;
+            spacing: 8;
+
+            Label {
+              label: _("Shape");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box {
+              homogeneous: true;
+              styles ["annota-segmented"]
+
+              ToggleButton step_circle {
+                tooltip-text: _("Circle");
+                child: DrawingArea {
+                  content-width: 16;
+                  content-height: 16;
+                  can-target: false;
+                };
+
+                accessibility {
+                  label: _("Circle");
+                }
+              }
+
+              ToggleButton step_square {
+                group: step_circle;
+                tooltip-text: _("Square");
+                child: DrawingArea {
+                  content-width: 16;
+                  content-height: 16;
+                  can-target: false;
+                };
+
+                accessibility {
+                  label: _("Square");
+                }
+              }
+
+              ToggleButton step_rounded_square {
+                group: step_circle;
+                tooltip-text: _("Rounded Square");
+                child: DrawingArea {
+                  content-width: 16;
+                  content-height: 16;
+                  can-target: false;
+                };
+
+                accessibility {
+                  label: _("Rounded Square");
+                }
+              }
+
+              ToggleButton step_pin {
+                group: step_circle;
+                tooltip-text: _("Pin");
+                child: DrawingArea {
+                  content-width: 16;
+                  content-height: 16;
+                  can-target: false;
+                };
+
+                accessibility {
+                  label: _("Pin");
+                }
+              }
+            }
+          }
+
+          Box row_redact_type {
+            orientation: vertical;
+            spacing: 8;
+
+            Label {
+              label: _("Type");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box {
+              homogeneous: true;
+              styles ["annota-segmented"]
+
+              ToggleButton redact_blur {
+                tooltip-text: C_("redaction", "Blur");
+                label: C_("redaction", "Blur");
+
+                accessibility {
+                  label: C_("redaction", "Blur");
+                }
+              }
+
+              ToggleButton redact_pixelate {
+                group: redact_blur;
+                tooltip-text: C_("redaction", "Pixelate");
+                label: C_("redaction", "Pixelate");
+
+                accessibility {
+                  label: C_("redaction", "Pixelate");
+                }
+              }
+
+              ToggleButton redact_solid {
+                group: redact_blur;
+                tooltip-text: C_("redaction", "Solid");
+                label: C_("redaction", "Solid");
+
+                accessibility {
+                  label: C_("redaction", "Solid");
+                }
+              }
+            }
+          }
+
+          Box row_font {
+            spacing: 6;
+
+            DropDown font_family {
+              hexpand: true;
+              enable-search: true;
+              tooltip-text: _("Font");
+
+              expression: expr item as <StringObject>.string;
+
+              accessibility {
+                label: _("Font");
+              }
+            }
+
+            SpinButton font_size {
+              valign: center;
+              width-request: 100;
+
+              adjustment: Adjustment {
+                lower: 4;
+                upper: 1000;
+                step-increment: 1;
+                page-increment: 10;
+              };
+
+              accessibility {
+                label: _("Font size");
+              }
+            }
+          }
+
+          Box row_text_style {
+            spacing: 12;
+
+            Box {
+              hexpand: true;
+              styles ["linked"]
+
+              ToggleButton text_bold {
+                icon-name: "format-text-bold-symbolic";
+                tooltip-text: _("Bold (Ctrl+B)");
+
+                accessibility {
+                  label: _("Bold");
+                }
+              }
+
+              ToggleButton text_italic {
+                icon-name: "format-text-italic-symbolic";
+                tooltip-text: _("Italic (Ctrl+I)");
+
+                accessibility {
+                  label: _("Italic");
+                }
+              }
+
+              ToggleButton text_underline {
+                icon-name: "format-text-underline-symbolic";
+                tooltip-text: _("Underline (Ctrl+U)");
+
+                accessibility {
+                  label: _("Underline");
+                }
+              }
+
+              ToggleButton text_strikethrough {
+                icon-name: "format-text-strikethrough-symbolic";
+                tooltip-text: _("Strikethrough");
+
+                accessibility {
+                  label: _("Strikethrough");
+                }
+              }
+            }
+
+            Box {
+              styles ["linked"]
+
+              ToggleButton align_left {
+                icon-name: "format-justify-left-symbolic";
+                tooltip-text: _("Align Left");
+
+                accessibility {
+                  label: _("Align Left");
+                }
+              }
+
+              ToggleButton align_center {
+                group: align_left;
+                icon-name: "format-justify-center-symbolic";
+                tooltip-text: _("Centre");
+
+                accessibility {
+                  label: _("Centre");
+                }
+              }
+
+              ToggleButton align_right {
+                group: align_left;
+                icon-name: "format-justify-right-symbolic";
+                tooltip-text: _("Align Right");
+
+                accessibility {
+                  label: _("Align Right");
+                }
+              }
+            }
+          }
+
+          Box row_color {
+            orientation: vertical;
+            spacing: 8;
+
+            Label color_caption {
+              label: _("Colour");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box color_swatches {
+              orientation: vertical;
+              spacing: 6;
+            }
+          }
+
+          Box row_fill {
+            orientation: vertical;
+            spacing: 8;
+
+            Label fill_caption {
+              label: _("Fill");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box fill_swatches {
+              orientation: vertical;
+              spacing: 6;
+            }
+          }
+
+          Box row_outline {
+            orientation: vertical;
+            spacing: 8;
+
+            Label outline_caption {
+              label: _("Outline");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box outline_swatches {
+              orientation: vertical;
+              spacing: 6;
+            }
+          }
+
+          Box row_fill_opacity {
+            orientation: vertical;
+            spacing: 8;
+
+            Label {
+              label: _("Fill opacity");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box {
+              spacing: 12;
+
+              Scale fill_opacity_scale {
+                hexpand: true;
+                draw-value: false;
+
+                adjustment: Adjustment {
+                  lower: 0;
+                  upper: 100;
+                  step-increment: 1;
+                  page-increment: 10;
+                };
+
+                accessibility {
+                  label: _("Fill opacity");
+                }
+              }
+
+              Label fill_opacity_value {
+                width-chars: 5;
+                xalign: 1;
+                styles ["numeric"]
+              }
+            }
+          }
+
+          Box row_width {
+            spacing: 12;
+
+            Label {
+              label: _("Width");
+              hexpand: true;
+              xalign: 0;
+            }
+
+            SpinButton width_spin {
+              valign: center;
+              width-request: 120;
+
+              adjustment: Adjustment {
+                lower: 1;
+                upper: 40;
+                step-increment: 1;
+                page-increment: 10;
+              };
+
+              accessibility {
+                label: _("Width");
+              }
+            }
+          }
+
+          Box row_outline_width {
+            spacing: 12;
+
+            Label {
+              label: _("Outline width");
+              hexpand: true;
+              xalign: 0;
+            }
+
+            SpinButton outline_width_spin {
+              valign: center;
+              width-request: 120;
+
+              adjustment: Adjustment {
+                lower: 0;
+                upper: 40;
+                step-increment: 1;
+                page-increment: 10;
+              };
+
+              accessibility {
+                label: _("Outline width");
+              }
+            }
+          }
+
+          Grid row_outline_radius {
+            column-spacing: 12;
+            row-spacing: 8;
+            column-homogeneous: true;
+
+            Label {
+              label: _("Outline width");
+              xalign: 0;
+              styles ["dim-label"]
+
+              layout {
+                column: 0;
+                row: 0;
+              }
+            }
+
+            Label {
+              label: _("Corner radius");
+              xalign: 0;
+              styles ["dim-label"]
+
+              layout {
+                column: 1;
+                row: 0;
+              }
+            }
+
+            SpinButton radius_outline_spin {
+              layout {
+                column: 0;
+                row: 1;
+              }
+
+              valign: center;
+              hexpand: true;
+
+              adjustment: Adjustment {
+                lower: 0;
+                upper: 40;
+                step-increment: 1;
+                page-increment: 10;
+              };
+
+              accessibility {
+                label: _("Outline width");
+              }
+            }
+
+            SpinButton corner_radius_spin {
+              layout {
+                column: 1;
+                row: 1;
+              }
+
+              valign: center;
+              hexpand: true;
+
+              adjustment: Adjustment {
+                lower: 0;
+                upper: 1000;
+                step-increment: 1;
+                page-increment: 10;
+              };
+
+              accessibility {
+                label: _("Corner radius");
+              }
+            }
+          }
+
+          Grid row_outline_padding {
+            column-spacing: 12;
+            row-spacing: 8;
+            column-homogeneous: true;
+
+            Label {
+              label: _("Outline width");
+              xalign: 0;
+              styles ["dim-label"]
+
+              layout {
+                column: 0;
+                row: 0;
+              }
+            }
+
+            Label {
+              label: _("Padding");
+              xalign: 0;
+              styles ["dim-label"]
+
+              layout {
+                column: 1;
+                row: 0;
+              }
+            }
+
+            SpinButton padding_outline_spin {
+              layout {
+                column: 0;
+                row: 1;
+              }
+
+              valign: center;
+              hexpand: true;
+
+              adjustment: Adjustment {
+                lower: 0;
+                upper: 40;
+                step-increment: 1;
+                page-increment: 10;
+              };
+
+              accessibility {
+                label: _("Outline width");
+              }
+            }
+
+            SpinButton padding_spin {
+              layout {
+                column: 1;
+                row: 1;
+              }
+
+              valign: center;
+              hexpand: true;
+
+              adjustment: Adjustment {
+                lower: 0;
+                upper: 200;
+                step-increment: 1;
+                page-increment: 10;
+              };
+
+              accessibility {
+                label: _("Padding");
+              }
+            }
+          }
+
+          Grid row_ends {
+            column-spacing: 12;
+            row-spacing: 8;
+            column-homogeneous: true;
+
+            Label {
+              label: _("Ends");
+              xalign: 0;
+              styles ["dim-label"]
+
+              layout {
+                column: 0;
+                row: 0;
+                column-span: 2;
+              }
+            }
+
+            Label {
+              label: C_("arrow end", "Start");
+              xalign: 0;
+              styles ["dim-label"]
+
+              layout {
+                column: 0;
+                row: 1;
+              }
+            }
+
+            Label {
+              label: C_("arrow end", "End");
+              xalign: 0;
+              styles ["dim-label"]
+
+              layout {
+                column: 1;
+                row: 1;
+              }
+            }
+
+            MenuButton start_style_button {
+              hexpand: true;
+              tooltip-text: _("Start Style");
+
+              layout {
+                column: 0;
+                row: 2;
+              }
+
+              accessibility {
+                label: _("Start Style");
+              }
+
+              child: Box {
+                spacing: 6;
+                halign: center;
+
+                DrawingArea start_style_glyph {
+                  content-width: 44;
+                  content-height: 16;
+                  can-target: false;
+                }
+
+                Image {
+                  icon-name: "pan-down-symbolic";
+                }
+              };
+
+              popover: Popover start_style_popover {
+                child: Grid {
+                  width-request: 228;
+                  column-spacing: 6;
+                  row-spacing: 6;
+                  column-homogeneous: true;
+
+                  ToggleButton start_none {
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 0;
+                      row: 0;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "None");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "None");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+
+                  ToggleButton start_triangle {
+                    group: start_none;
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 1;
+                      row: 0;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "Triangle");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "Triangle");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+
+                  ToggleButton start_open {
+                    group: start_none;
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 2;
+                      row: 0;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "Open");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "Open");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+
+                  ToggleButton start_circle {
+                    group: start_none;
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 0;
+                      row: 1;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "Circle");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "Circle");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+
+                  ToggleButton start_square {
+                    group: start_none;
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 1;
+                      row: 1;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "Square");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "Square");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+
+                  ToggleButton start_bar {
+                    group: start_none;
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 2;
+                      row: 1;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "Bar");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "Bar");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+                };
+              };
+            }
+
+            MenuButton end_style_button {
+              hexpand: true;
+              tooltip-text: _("End Style");
+
+              layout {
+                column: 1;
+                row: 2;
+              }
+
+              accessibility {
+                label: _("End Style");
+              }
+
+              child: Box {
+                spacing: 6;
+                halign: center;
+
+                DrawingArea end_style_glyph {
+                  content-width: 44;
+                  content-height: 16;
+                  can-target: false;
+                }
+
+                Image {
+                  icon-name: "pan-down-symbolic";
+                }
+              };
+
+              popover: Popover end_style_popover {
+                child: Grid {
+                  width-request: 228;
+                  column-spacing: 6;
+                  row-spacing: 6;
+                  column-homogeneous: true;
+
+                  ToggleButton end_none {
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 0;
+                      row: 0;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "None");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "None");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+
+                  ToggleButton end_triangle {
+                    group: end_none;
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 1;
+                      row: 0;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "Triangle");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "Triangle");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+
+                  ToggleButton end_open {
+                    group: end_none;
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 2;
+                      row: 0;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "Open");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "Open");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+
+                  ToggleButton end_circle {
+                    group: end_none;
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 0;
+                      row: 1;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "Circle");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "Circle");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+
+                  ToggleButton end_square {
+                    group: end_none;
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 1;
+                      row: 1;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "Square");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "Square");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+
+                  ToggleButton end_bar {
+                    group: end_none;
+                    styles ["flat", "annota-end-tile"]
+
+                    layout {
+                      column: 2;
+                      row: 1;
+                    }
+
+                    accessibility {
+                      label: C_("end style", "Bar");
+                    }
+
+                    child: Box {
+                      orientation: vertical;
+                      spacing: 4;
+
+                      DrawingArea {
+                        content-width: 44;
+                        content-height: 16;
+                        halign: center;
+                        can-target: false;
+                      }
+
+                      Label {
+                        label: C_("end style", "Bar");
+                        styles ["caption", "dim-label"]
+                      }
+                    };
+                  }
+                };
+              };
+            }
+
+            SpinButton start_size_spin {
+              layout {
+                column: 0;
+                row: 3;
+              }
+
+              valign: center;
+              hexpand: true;
+
+              adjustment: Adjustment {
+                lower: 25;
+                upper: 400;
+                step-increment: 5;
+                page-increment: 25;
+              };
+
+              accessibility {
+                label: _("Start size");
+              }
+            }
+
+            SpinButton end_size_spin {
+              layout {
+                column: 1;
+                row: 3;
+              }
+
+              valign: center;
+              hexpand: true;
+
+              adjustment: Adjustment {
+                lower: 25;
+                upper: 400;
+                step-increment: 5;
+                page-increment: 25;
+              };
+
+              accessibility {
+                label: _("End size");
+              }
+            }
+          }
+
+          Box row_line_style {
+            orientation: vertical;
+            spacing: 8;
+
+            Label {
+              label: _("Line style");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box {
+              homogeneous: true;
+              styles ["annota-segmented"]
+
+              ToggleButton line_solid {
+                tooltip-text: _("Solid");
+                child: DrawingArea {
+                  content-width: 16;
+                  content-height: 16;
+                  can-target: false;
+                };
+
+                accessibility {
+                  label: _("Solid");
+                }
+              }
+
+              ToggleButton line_dashed {
+                group: line_solid;
+                tooltip-text: _("Dashed");
+                child: DrawingArea {
+                  content-width: 16;
+                  content-height: 16;
+                  can-target: false;
+                };
+
+                accessibility {
+                  label: _("Dashed");
+                }
+              }
+
+              ToggleButton line_dotted {
+                group: line_solid;
+                tooltip-text: _("Dotted");
+                child: DrawingArea {
+                  content-width: 16;
+                  content-height: 16;
+                  can-target: false;
+                };
+
+                accessibility {
+                  label: _("Dotted");
+                }
+              }
+            }
+          }
+
+          Box row_smoothing {
+            orientation: vertical;
+            spacing: 8;
+
+            Label {
+              label: _("Smoothing");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box {
+              spacing: 12;
+
+              Scale smoothing_scale {
+                hexpand: true;
+                draw-value: false;
+
+                adjustment: Adjustment {
+                  lower: 0;
+                  upper: 100;
+                  step-increment: 1;
+                  page-increment: 10;
+                };
+
+                accessibility {
+                  label: _("Smoothing");
+                }
+              }
+
+              Label smoothing_value {
+                width-chars: 5;
+                xalign: 1;
+                styles ["numeric"]
+              }
+            }
+          }
+
+          Box row_intensity {
+            orientation: vertical;
+            spacing: 8;
+
+            Label {
+              label: _("Intensity");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box {
+              spacing: 12;
+
+              Scale intensity_scale {
+                hexpand: true;
+                draw-value: false;
+
+                adjustment: Adjustment {
+                  lower: 0;
+                  upper: 100;
+                  step-increment: 1;
+                  page-increment: 10;
+                };
+
+                accessibility {
+                  label: _("Intensity");
+                }
+              }
+
+              Label intensity_value {
+                width-chars: 5;
+                xalign: 1;
+                styles ["numeric"]
+              }
+            }
+          }
+
+          Box row_redact_shape {
+            orientation: vertical;
+            spacing: 8;
+
+            Label {
+              label: _("Shape");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box {
+              homogeneous: true;
+              styles ["annota-segmented"]
+
+              ToggleButton redact_rectangle {
+                tooltip-text: _("Rectangle");
+                child: DrawingArea {
+                  content-width: 16;
+                  content-height: 16;
+                  can-target: false;
+                };
+
+                accessibility {
+                  label: _("Rectangle");
+                }
+              }
+
+              ToggleButton redact_ellipse {
+                group: redact_rectangle;
+                tooltip-text: _("Ellipse");
+                child: DrawingArea {
+                  content-width: 16;
+                  content-height: 16;
+                  can-target: false;
+                };
+
+                accessibility {
+                  label: _("Ellipse");
+                }
+              }
+            }
+          }
+
+          Box row_size {
+            spacing: 12;
+
+            Label {
+              label: _("Size");
+              hexpand: true;
+              xalign: 0;
+            }
+
+            SpinButton size_spin {
+              valign: center;
+              width-request: 120;
+
+              adjustment: Adjustment {
+                lower: 6;
+                upper: 200;
+                step-increment: 1;
+                page-increment: 10;
+              };
+
+              accessibility {
+                label: _("Size");
+              }
+            }
+          }
+
+          Box row_value {
+            spacing: 12;
+
+            Box {
+              orientation: vertical;
+              hexpand: true;
+              valign: center;
+
+              Label {
+                label: _("Value");
+                xalign: 0;
+              }
+
+              Label {
+                label: _("This marker only");
+                xalign: 0;
+                styles ["dim-label", "caption"]
+              }
+            }
+
+            Entry value_entry {
+              valign: center;
+              width-request: 120;
+
+              accessibility {
+                label: _("Value of this marker");
+              }
+            }
+          }
+
+          Box row_next_value {
+            spacing: 12;
+
+            Label {
+              label: _("Next value");
+              hexpand: true;
+              xalign: 0;
+            }
+
+            SpinButton next_value_spin {
+              valign: center;
+              width-request: 120;
+
+              adjustment: Adjustment {
+                lower: 1;
+                upper: 9999;
+                step-increment: 1;
+                page-increment: 10;
+              };
+
+              accessibility {
+                label: _("Next value");
+              }
+            }
+          }
+
+          Button row_restart {
+            label: _("Restart Sequence");
+          }
+
+          Box row_opacity {
+            orientation: vertical;
+            spacing: 8;
+
+            Label {
+              label: _("Opacity");
+              xalign: 0;
+              styles ["dim-label"]
+            }
+
+            Box {
+              spacing: 12;
+
+              Scale opacity_scale {
+                hexpand: true;
+                draw-value: false;
+
+                adjustment: Adjustment {
+                  lower: 0;
+                  upper: 100;
+                  step-increment: 1;
+                  page-increment: 10;
+                };
+
+                accessibility {
+                  label: _("Opacity");
+                }
+              }
+
+              Label opacity_value {
+                width-chars: 5;
+                xalign: 1;
+                styles ["numeric"]
+              }
+            }
+          }
+
+          Box row_shadow {
+            orientation: vertical;
+            spacing: 12;
+
+            ListBox {
+              selection-mode: none;
+              styles ["boxed-list"]
+
+              Adw.ExpanderRow shadow_row {
+                title: _("Shadow");
+                show-enable-switch: true;
+
+                ListBoxRow {
+                  activatable: false;
+                  selectable: false;
+
+                  child: Box {
+                    orientation: vertical;
+                    spacing: 12;
+                    margin-top: 12;
+                    margin-bottom: 12;
+                    margin-start: 12;
+                    margin-end: 12;
+
+                    Box {
+                      orientation: vertical;
+                      spacing: 8;
+
+                      Label {
+                        label: _("Colour");
+                        xalign: 0;
+                        styles ["dim-label"]
+                      }
+
+                      Box shadow_swatches {
+                        orientation: vertical;
+                        spacing: 6;
+                      }
+                    }
+
+                    Box {
+                      spacing: 12;
+
+                      DrawingArea shadow_dial {
+                        content-width: 56;
+                        content-height: 56;
+                        valign: center;
+                        styles ["accent"]
+
+                        accessibility {
+                          label: _("Shadow angle");
+                        }
+                      }
+
+                      Box {
+                        orientation: vertical;
+                        spacing: 6;
+                        valign: center;
+
+                        Label {
+                          label: _("Angle");
+                          xalign: 0;
+                          styles ["dim-label"]
+                        }
+
+                        SpinButton shadow_angle {
+                          valign: center;
+                          width-request: 150;
+                          wrap: true;
+
+                          adjustment: Adjustment {
+                            lower: 0;
+                            upper: 359;
+                            step-increment: 1;
+                            page-increment: 15;
+                          };
+
+                          accessibility {
+                            label: _("Shadow angle");
+                          }
+                        }
+                      }
+                    }
+
+                    Box shadow_distance_row {
+                      orientation: vertical;
+                      spacing: 8;
+
+                      Label {
+                        label: _("Distance");
+                        xalign: 0;
+                        styles ["dim-label"]
+                      }
+
+                      Box {
+                        spacing: 12;
+
+                        Scale shadow_distance {
+                          hexpand: true;
+                          draw-value: false;
+
+                          adjustment: Adjustment {
+                            lower: 0;
+                            upper: 30;
+                            step-increment: 1;
+                            page-increment: 10;
+                          };
+
+                          accessibility {
+                            label: _("Shadow distance");
+                          }
+                        }
+
+                        Label shadow_distance_value {
+                          width-chars: 5;
+                          xalign: 1;
+                          styles ["numeric"]
+                        }
+                      }
+                    }
+
+                    Box shadow_blur_row {
+                      orientation: vertical;
+                      spacing: 8;
+
+                      Label {
+                        label: _("Blur");
+                        xalign: 0;
+                        styles ["dim-label"]
+                      }
+
+                      Box {
+                        spacing: 12;
+
+                        Scale shadow_blur {
+                          hexpand: true;
+                          draw-value: false;
+
+                          adjustment: Adjustment {
+                            lower: 0;
+                            upper: 30;
+                            step-increment: 1;
+                            page-increment: 10;
+                          };
+
+                          accessibility {
+                            label: _("Shadow blur");
+                          }
+                        }
+
+                        Label shadow_blur_value {
+                          width-chars: 5;
+                          xalign: 1;
+                          styles ["numeric"]
+                        }
+                      }
+                    }
+
+                    Box shadow_opacity_row {
+                      orientation: vertical;
+                      spacing: 8;
+
+                      Label {
+                        label: _("Opacity");
+                        xalign: 0;
+                        styles ["dim-label"]
+                      }
+
+                      Box {
+                        spacing: 12;
+
+                        Scale shadow_opacity {
+                          hexpand: true;
+                          draw-value: false;
+
+                          adjustment: Adjustment {
+                            lower: 0;
+                            upper: 100;
+                            step-increment: 1;
+                            page-increment: 10;
+                          };
+
+                          accessibility {
+                            label: _("Shadow opacity");
+                          }
+                        }
+
+                        Label shadow_opacity_value {
+                          width-chars: 5;
+                          xalign: 1;
+                          styles ["numeric"]
+                        }
+                      }
+                    }
+                  };
+                }
+              }
+            }
+
+            Button shadow_reset {
+              visible: false;
+              label: _("Reset Shadow");
+            }
+          }
+
+          Box help_pen {
+            spacing: 10;
+            styles ["annota-note"]
+
+            Image {
+              icon-name: "dialog-information-symbolic";
+              valign: start;
+            }
+
+            Label {
+              label: _("Strokes stay editable vector paths. Hold <b>Shift</b> while drawing for a straight segment.");
+              use-markup: true;
+              wrap: true;
+              xalign: 0;
+              hexpand: true;
+            }
+          }
+
+          Box help_polygon {
+            spacing: 10;
+            styles ["annota-note"]
+
+            Image {
+              icon-name: "dialog-information-symbolic";
+              valign: start;
+            }
+
+            Label {
+              label: _("Click to add a point. <b>Enter</b> or double-click finishes, clicking the first point closes the shape, <b>Backspace</b> removes the last point, <b>Esc</b> cancels.");
+              use-markup: true;
+              wrap: true;
+              xalign: 0;
+              hexpand: true;
+            }
+          }
+
+          Box help_highlighter {
+            spacing: 10;
+            styles ["annota-note"]
+
+            Image {
+              icon-name: "dialog-information-symbolic";
+              valign: start;
+            }
+
+            Label {
+              label: _("Multiply keeps text under the highlight readable. Drag to mark a rectangle.");
+              use-markup: true;
+              wrap: true;
+              xalign: 0;
+              hexpand: true;
+            }
+          }
+
+          Label help_callout {
+            label: _("Drag + to add a tail. Drag a tail tip onto the body to remove it. The body grows with the text.");
+            wrap: true;
+            xalign: 0;
+            styles ["dim-label"]
+          }
+
+          Box warning_redact {
+            spacing: 10;
+            styles ["annota-note", "annota-warning-note"]
+
+            Image {
+              icon-name: "dialog-warning-symbolic";
+              valign: start;
+            }
+
+            Label {
+              label: _("Blur and pixelate can sometimes be reversed. For passwords and personal data use <b>Solid</b>. Annota asks again before export.");
+              use-markup: true;
+              wrap: true;
+              xalign: 0;
+              hexpand: true;
+            }
+          }
+        }
+
+        Box arrange_box {
           orientation: vertical;
           spacing: 12;
 
@@ -1501,4 +3280,173 @@ Box properties_box {
       };
     }
   }
+}
+
+// The colour picker popover (redline "Colour picker popover", mockup 16): 300 px.
+Popover colour_popover {
+  styles ["annota-colour-popover"]
+
+  child: Box {
+    orientation: vertical;
+    spacing: 12;
+    width-request: 276;
+
+    DrawingArea colour_area {
+      content-height: 150;
+      hexpand: true;
+
+      accessibility {
+        label: _("Saturation and brightness");
+      }
+    }
+
+    DrawingArea colour_hue {
+      content-height: 18;
+      hexpand: true;
+
+      accessibility {
+        label: _("Hue");
+      }
+    }
+
+    DrawingArea colour_alpha {
+      content-height: 18;
+      hexpand: true;
+
+      accessibility {
+        label: _("Opacity");
+      }
+    }
+
+    Grid {
+      column-spacing: 6;
+      row-spacing: 4;
+
+      Entry colour_hex {
+        width-chars: 9;
+        max-width-chars: 9;
+        hexpand: true;
+
+        layout {
+          column: 0;
+          row: 0;
+        }
+
+        accessibility {
+          label: _("Hex colour");
+        }
+      }
+
+      Entry colour_r {
+        width-chars: 3;
+        max-width-chars: 3;
+        input-purpose: digits;
+
+        layout {
+          column: 1;
+          row: 0;
+        }
+
+        accessibility {
+          label: _("Red");
+        }
+      }
+
+      Entry colour_g {
+        width-chars: 3;
+        max-width-chars: 3;
+        input-purpose: digits;
+
+        layout {
+          column: 2;
+          row: 0;
+        }
+
+        accessibility {
+          label: _("Green");
+        }
+      }
+
+      Entry colour_b {
+        width-chars: 3;
+        max-width-chars: 3;
+        input-purpose: digits;
+
+        layout {
+          column: 3;
+          row: 0;
+        }
+
+        accessibility {
+          label: _("Blue");
+        }
+      }
+
+      Label {
+        label: C_("colour", "Hex");
+        styles ["caption", "dim-label"]
+
+        layout {
+          column: 0;
+          row: 1;
+        }
+      }
+
+      Label {
+        label: C_("colour", "R");
+        styles ["caption", "dim-label"]
+
+        layout {
+          column: 1;
+          row: 1;
+        }
+      }
+
+      Label {
+        label: C_("colour", "G");
+        styles ["caption", "dim-label"]
+
+        layout {
+          column: 2;
+          row: 1;
+        }
+      }
+
+      Label {
+        label: C_("colour", "B");
+        styles ["caption", "dim-label"]
+
+        layout {
+          column: 3;
+          row: 1;
+        }
+      }
+    }
+
+    Box {
+      spacing: 8;
+
+      Button colour_pick_screen {
+        hexpand: true;
+        halign: start;
+
+        child: Box {
+          spacing: 6;
+
+          Image {
+            icon-name: "color-select-symbolic";
+          }
+
+          Label {
+            label: _("Pick From Screen");
+          }
+        };
+      }
+
+      Box colour_recent {
+        spacing: 6;
+        valign: center;
+      }
+    }
+  };
 }

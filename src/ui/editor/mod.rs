@@ -26,7 +26,11 @@
 //! nothing is lost; "Restore Unsaved Captures?" offers them at the next start, and only its
 //! Discard removes them. See design.md ("Decided during apply — phase 2b-ii").
 
+mod colour;
 mod dialogs;
+mod glyphs;
+mod panel;
+pub(crate) mod properties;
 mod resize;
 mod session;
 mod sidebar;
@@ -42,9 +46,11 @@ use adw::prelude::*;
 use gettextrs::gettext;
 use gtk::{gdk, gio, glib};
 
+use annota::document::annotation::PropertyValue;
 use annota::document::archive::ArchiveError;
 use annota::document::autosave::{self, AutosaveId, RecoveryEntry, Schedule, Store};
 use annota::document::bitmap::Bitmap;
+use annota::document::color::Rgba;
 use annota::document::geometry::Mirror;
 use annota::document::{Background, Document};
 use annota::editing::canvas_edit;
@@ -55,6 +61,7 @@ use annota::editing::tool::{Tool, Toolbox};
 use annota::render::{self, view};
 use annota::tools::group::Group;
 
+use self::panel::PanelEvent;
 use self::session::{LoadError, Loaded, Origin, Session};
 use self::sidebar::{CropInfo, Event, Sidebar};
 use self::tray::{OpenTile, Tray, TrayKey};
@@ -240,6 +247,7 @@ struct Widgets {
     show_tray_button: gtk::Button,
     drop_ring: gtk::Box,
     drop_chip: gtk::Label,
+    pick_chip: gtk::Label,
     select_tool_button: gtk::ToggleButton,
     crop_tool_button: gtk::ToggleButton,
     /// The drawing tools' buttons (add-core-annotation-tools), in strip order.
@@ -282,6 +290,7 @@ impl Widgets {
             show_tray_button: obj!("show_tray_button"),
             drop_ring: obj!("drop_ring"),
             drop_chip: obj!("drop_chip"),
+            pick_chip: obj!("pick_chip"),
             select_tool_button: obj!("select_tool_button"),
             crop_tool_button: obj!("crop_tool_button"),
             tool_buttons: {
@@ -343,6 +352,29 @@ struct Inner {
     tool: Cell<Tool>,
     /// The tools' defaults, shared by the window's documents.
     toolbox: Rc<RefCell<Toolbox>>,
+    /// The screen eyedropper (xdg-desktop-portal `PickColor`; a stand-in in tests).
+    screen_picker: RefCell<ScreenPicker>,
+    /// The property whose colour the screen eyedropper is picking.
+    picking: Cell<Option<&'static str>>,
+}
+
+/// Picks a colour anywhere on the screen.
+type ScreenPicker = Rc<
+    dyn Fn() -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Rgba, crate::capture::portal::CaptureError>>>,
+    >,
+>;
+
+/// The real eyedropper: the Screenshot portal's `PickColor` (`capture::portal::pick_colour`,
+/// the thin boundary that is not exercised against a live portal in development).
+fn portal_picker() -> ScreenPicker {
+    Rc::new(|| {
+        Box::pin(async {
+            crate::capture::portal::pick_colour()
+                .await
+                .map(|(r, g, b)| colour::from_portal(r, g, b))
+        })
+    })
 }
 
 /// The editor window; cheap to clone.
@@ -385,6 +417,8 @@ impl Editor {
             syncing_tool: Cell::new(false),
             tool: Cell::new(Tool::Select),
             toolbox: Rc::new(RefCell::new(Toolbox::default())),
+            screen_picker: RefCell::new(portal_picker()),
+            picking: Cell::new(None),
         });
         let editor = Self { inner };
         editor.setup();
@@ -769,8 +803,11 @@ impl Editor {
         w.title.set_title(&session.name);
         w.window.set_title(Some(&session.name));
         let crop = canvas.crop_frame().map(|f| (f.width, f.height));
-        // Mockup 07: "1600 × 1000 · Drawing" while a polygon is drawn.
-        let subtitle = if canvas.drawing_polygon() {
+        // Mockup 17: the eyedropper's instruction; mockup 07: "1600 × 1000 · Drawing" while a
+        // polygon is drawn.
+        let subtitle = if self.inner.picking.get().is_some() {
+            gettext("Pick a colour anywhere on the screen")
+        } else if canvas.drawing_polygon() {
             text::drawing_subtitle(size)
         } else {
             text::subtitle(
@@ -859,10 +896,21 @@ impl Editor {
                 }),
                 None => {
                     let selection = session.canvas.selection();
-                    session
+                    let state = session
                         .canvas
                         .with_document(|doc| sidebar::state(doc, &selection))
-                        .unwrap_or(sidebar::State::Empty)
+                        .unwrap_or(sidebar::State::Empty);
+                    // The type properties (add-core-annotation-tools): of the selection, or —
+                    // nothing selected — of the text being typed, the polygon being drawn or
+                    // the drawing tool's defaults.
+                    match (state, session.canvas.panel_info()) {
+                        (sidebar::State::Selection(mut info), panel) => {
+                            info.panel = panel;
+                            sidebar::State::Selection(info)
+                        }
+                        (sidebar::State::Document(_), Some(panel)) => sidebar::State::Tool(panel),
+                        (state, _) => state,
+                    }
                 }
             },
             None => sidebar::State::Empty,
@@ -1489,6 +1537,12 @@ impl Editor {
             }
         });
         let weak = self.downgrade();
+        self.inner.sidebar.panel.connect_event(move |event| {
+            if let Some(editor) = weak.upgrade() {
+                editor.panel_event(event);
+            }
+        });
+        let weak = self.downgrade();
         self.inner
             .settings
             .connect_changed(Some("snap-to-guides"), move |settings, key| {
@@ -1555,6 +1609,92 @@ impl Editor {
                 }
             }
         }
+    }
+
+    /// The type properties (task 3.1): one undo step per committed change, previews while a
+    /// slider, the dial or the colour picker is dragged.
+    fn panel_event(&self, event: PanelEvent) {
+        let Some(canvas) = self.current_canvas() else {
+            return;
+        };
+        match event {
+            PanelEvent::Property(key, value) => {
+                if !canvas.set_property(key, value) {
+                    // Refused or unchanged: show the real values again.
+                    self.refresh_sidebar();
+                }
+            }
+            PanelEvent::Preview(key, value) => canvas.preview_property(key, value),
+            PanelEvent::EndPreview => canvas.end_preview(),
+            PanelEvent::PickScreen(key) => self.pick_screen_colour(key),
+            PanelEvent::RestartSequence => {
+                canvas.restart_sequence();
+                self.refresh_sidebar();
+            }
+            PanelEvent::NextStep(n) => canvas.set_next_step(Some(n)),
+        }
+    }
+
+    /// The eyedropper (redline "Eyedropper", mockup 17): xdg-desktop-portal picks a colour
+    /// anywhere on the screen; meanwhile the eyedropper swatch is accent-filled, the subtitle
+    /// says what to do and the canvas chip stays. The colour goes to `key` of whatever the
+    /// properties edit when it arrives (selection, text being typed or tool defaults).
+    fn pick_screen_colour(&self, key: &'static str) {
+        if self.inner.picking.get().is_some() {
+            return;
+        }
+        let Some(canvas) = self.current_canvas() else {
+            return;
+        };
+        self.inner.picking.set(Some(key));
+        self.inner.sidebar.panel.set_picking(Some(key));
+        self.inner.w.pick_chip.set_visible(true);
+        self.refresh_header();
+        let pick = (self.inner.screen_picker.borrow())();
+        let weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let result = pick.await;
+            if let Some(editor) = weak.upgrade() {
+                editor.screen_colour_picked(&canvas, key, result);
+            }
+        });
+    }
+
+    fn screen_colour_picked(
+        &self,
+        canvas: &Canvas,
+        key: &'static str,
+        result: Result<Rgba, crate::capture::portal::CaptureError>,
+    ) {
+        use crate::capture::portal::CaptureError;
+        self.inner.picking.set(None);
+        self.inner.sidebar.panel.set_picking(None);
+        self.inner.w.pick_chip.set_visible(false);
+        match result {
+            Ok(colour) => {
+                self.inner.sidebar.panel.remember(colour);
+                canvas.set_property(key, PropertyValue::Color(colour));
+            }
+            Err(CaptureError::Cancelled) => {}
+            Err(CaptureError::PortalUnavailable) => self.toast(&gettext(
+                "Picking a colour from the screen needs xdg-desktop-portal",
+            )),
+            Err(CaptureError::PermissionDenied) => {
+                self.toast(&gettext("Annota may not read colours from the screen"))
+            }
+            Err(err) => {
+                eprintln!("annota: eyedropper: {err}");
+                self.toast(&gettext("The colour could not be picked"));
+            }
+        }
+        self.refresh_header();
+        self.refresh_sidebar();
+    }
+
+    /// Replaces the screen eyedropper (tests: no portal on the developer's desktop).
+    #[cfg(test)]
+    fn set_screen_picker(&self, picker: ScreenPicker) {
+        self.inner.screen_picker.replace(picker);
     }
 
     /// The Custom swatch: GTK's colour chooser (portal-free, part of GTK).
@@ -2935,5 +3075,473 @@ mod tests {
             texts + 1
         );
         w.window.destroy();
+    }
+
+    /// Saves `widget` as `<name>.png` into `$ANNOTA_SHOTS` (if set), for comparing with the
+    /// mockups by eye.
+    fn shot(widget: &impl IsA<gtk::Widget>, name: &str) {
+        let Some(dir) = std::env::var_os("ANNOTA_SHOTS") else {
+            return;
+        };
+        pump(150);
+        let widget = widget.as_ref();
+        let paintable = gtk::WidgetPaintable::new(Some(widget));
+        let snapshot = gtk::Snapshot::new();
+        paintable.snapshot(
+            &snapshot,
+            f64::from(widget.width()),
+            f64::from(widget.height()),
+        );
+        let (Some(node), Some(native)) = (snapshot.to_node(), widget.native()) else {
+            return;
+        };
+        if let Some(renderer) = native.renderer() {
+            let texture = renderer.render_texture(&node, None);
+            let _ = texture.save_to_png(Path::new(&dir).join(format!("{name}.png")));
+        }
+    }
+
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn type_properties_on_a_live_display() {
+        use annota::document::color::palette;
+        use annota::document::geometry::Point;
+        use annota::document::style::Shadow;
+        use annota::editing::steps;
+        use annota::tools::arrow::Arrow;
+        use colour::Swatch;
+
+        let tmp =
+            TempDir(std::env::temp_dir().join(format!("annota-props-test-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(tmp.0.join("captures")).unwrap();
+        let app = environment(&tmp.0);
+        let editor = Editor::build(&app, Store::new(tmp.0.join("autosave"))).unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let file = tmp.0.join("captures/Backup settings.annota");
+        sample(&file);
+        editor.open_file(&file);
+        pump(300);
+        let canvas = editor.current_canvas().unwrap();
+        canvas.grab_focus();
+        let none = gdk::ModifierType::empty();
+        let sidebar = &editor.inner.sidebar;
+        let panel = &sidebar.panel;
+        let at = |x: f64, y: f64| canvas.view_point(Point::new(x, y)).unwrap();
+        let draw = |from: (f64, f64), to: (f64, f64)| {
+            canvas.pointer_pressed(at(from.0, from.1), Default::default());
+            canvas.pointer_moved(
+                at((from.0 + to.0) / 2.0, (from.1 + to.1) / 2.0),
+                Default::default(),
+            );
+            canvas.pointer_moved(at(to.0, to.1), Default::default());
+            canvas.pointer_released();
+            pump(30);
+        };
+        let click = |p: (f64, f64)| {
+            canvas.pointer_pressed(at(p.0, p.1), Default::default());
+            canvas.pointer_released();
+            pump(30);
+        };
+        let revision = || canvas.history_info().revision;
+        let undo_label = || canvas.history_info().undo_label;
+        let first_object = |type_name: &str| {
+            canvas
+                .with_document(|d| {
+                    let id = *d.scene().of_type(type_name).last().unwrap();
+                    d.scene().get(id).unwrap().object.clone()
+                })
+                .unwrap()
+        };
+        let value = |object: &dyn annota::document::annotation::Annotation, key: &str| {
+            ops::property(object, key)
+        };
+        let swatch = |key: &str, which: Swatch| {
+            panel
+                .colour_rows
+                .iter()
+                .find(|r| r.key == key)
+                .and_then(|r| {
+                    r.buttons
+                        .borrow()
+                        .iter()
+                        .find(|(s, _)| *s == which)
+                        .map(|(_, b)| b.clone())
+                })
+                .unwrap()
+        };
+        let spin = |key: &str| -> gtk::SpinButton {
+            panel
+                .spins
+                .iter()
+                .find(|(k, _, _)| *k == key)
+                .map(|(_, s, _)| s.clone())
+                .unwrap()
+        };
+
+        // Mockup 01: the arrow tool with nothing selected shows its defaults.
+        assert!(editor.key_pressed(gdk::Key::a, none));
+        pump(30);
+        assert_eq!(
+            sidebar.stack.visible_child_name().as_deref(),
+            Some("selection")
+        );
+        assert_eq!(sidebar.selection_heading.text(), "Arrow");
+        assert_eq!(sidebar.selection_caption.text(), "Tool defaults");
+        assert!(!sidebar.arrange_box.is_visible());
+        assert_eq!(
+            panel.shown_rows(),
+            [
+                "row_color",
+                "row_width",
+                "row_ends",
+                "row_line_style",
+                "row_opacity",
+                "row_shadow"
+            ]
+        );
+        assert!(sidebar.select_all_type_button.is_visible());
+        assert_eq!(
+            sidebar.select_all_type_button.label().as_deref(),
+            Some("Select All Arrows")
+        );
+        shot(&w.window, "01-tool-defaults");
+        // A default changes no document.
+        let before = revision();
+        spin("width").set_value(12.0);
+        assert_eq!(revision(), before);
+        assert_eq!(
+            editor
+                .inner
+                .toolbox
+                .borrow()
+                .properties(Tool::Arrow)
+                .into_iter()
+                .find(|p| p.key == "width")
+                .map(|p| p.value),
+            Some(PropertyValue::Number(12.0))
+        );
+
+        // Mockup 02: a drawn arrow has it, and is "1 selected".
+        draw((400.0, 300.0), (900.0, 500.0));
+        assert_eq!(sidebar.selection_caption.text(), "1 selected");
+        assert!(sidebar.arrange_box.is_visible());
+        assert_eq!(spin("width").value(), 12.0);
+        assert_eq!(
+            value(first_object("arrow").as_ref(), "width"),
+            Some(PropertyValue::Number(12.0))
+        );
+        shot(&w.window, "02-arrow-selected");
+        // A swatch: one "Change Arrow" step; the same swatch again: none.
+        let before = revision();
+        swatch("color", Swatch::Colour(palette::AZURE)).emit_clicked();
+        pump(30);
+        assert_eq!(revision(), before + 1);
+        assert_eq!(undo_label().as_deref(), Some("Change Arrow"));
+        assert_eq!(
+            value(first_object("arrow").as_ref(), "color"),
+            Some(PropertyValue::Color(palette::AZURE))
+        );
+        assert!(
+            swatch("color", Swatch::Colour(palette::AZURE)).has_css_class("annota-swatch-current")
+        );
+        swatch("color", Swatch::Colour(palette::AZURE)).emit_clicked();
+        pump(30);
+        assert_eq!(revision(), before + 1, "no phantom step");
+        // Leaving a spin re-reads its text: no step either.
+        spin("width").update();
+        sidebar.panel.end_tiles[1].1.set_active(true); // already Triangle
+        pump(30);
+        assert_eq!(revision(), before + 1);
+        // Double-ended (spec scenario): start Triangle.
+        panel.start_tiles[1].1.set_active(true);
+        pump(30);
+        assert_eq!(
+            value(first_object("arrow").as_ref(), "start_style"),
+            Some(PropertyValue::Choice("triangle".into()))
+        );
+        assert_eq!(revision(), before + 2);
+        // A slider dragged: previewed on the canvas, one step when let go.
+        let before = revision();
+        panel.slide("opacity", &[90.0, 70.0, 50.0]);
+        pump(30);
+        assert_eq!(revision(), before + 1);
+        assert_eq!(
+            value(first_object("arrow").as_ref(), "opacity"),
+            Some(PropertyValue::Number(0.5))
+        );
+        assert!(canvas.previewing().is_none());
+        // Let go where it started: nothing.
+        panel.slide("opacity", &[60.0, 50.0]);
+        assert_eq!(revision(), before + 1);
+        // Mid-drag the canvas previews and the document is unchanged.
+        panel.opacity.sliding.set(true);
+        panel.opacity.scale.set_value(30.0);
+        assert!(canvas.previewing().is_some());
+        assert_eq!(revision(), before + 1);
+        panel.slide("opacity", &[50.0]);
+        assert!(canvas.previewing().is_none());
+        assert_eq!(revision(), before + 1);
+
+        // Shadow editor (mockup 18).
+        let before = revision();
+        panel.shadow.row.set_expanded(true);
+        pump(30);
+        assert!(panel.shadow.reset.is_visible());
+        shot(&w.window, "18-shadow-editor");
+        assert_eq!(panel.shadow.blur.scale.value(), 12.0, "blur 12 px shown");
+        panel.slide("shadow_distance", &[20.0]);
+        pump(30);
+        let shadow = |o: &dyn annota::document::annotation::Annotation| match value(o, "shadow") {
+            Some(PropertyValue::Shadow(s)) => s,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(shadow(first_object("arrow").as_ref()).distance, 20.0);
+        panel.shadow.angle.set_value(90.0);
+        pump(30);
+        assert_eq!(shadow(first_object("arrow").as_ref()).angle, 90.0);
+        panel.shadow.reset.emit_clicked();
+        pump(30);
+        assert_eq!(shadow(first_object("arrow").as_ref()), Shadow::DEFAULT);
+        panel.shadow.row.set_enable_expansion(false);
+        pump(30);
+        assert!(!shadow(first_object("arrow").as_ref()).enabled);
+        assert_eq!(revision(), before + 4);
+        // The slider cannot reach an out-of-range blur (B3).
+        assert_eq!(panel.shadow.blur.scale.adjustment().upper(), 30.0);
+
+        // The colour picker (mockup 16): a typed hex value previews, closing commits it and
+        // remembers it as a recent colour.
+        let before = revision();
+        swatch("color", Swatch::Custom).emit_clicked();
+        pump(50);
+        assert!(panel.picker.popover.is_visible());
+        panel.picker.hex.set_text("#2F6FD0");
+        pump(30);
+        assert!(canvas.previewing().is_some());
+        assert_eq!(panel.picker.channels[2].text(), "208");
+        shot(&panel.picker.popover, "16-colour-picker");
+        panel.picker.popover.popdown();
+        pump(50);
+        let blue = Rgba::opaque(0x2F, 0x6F, 0xD0);
+        assert_eq!(revision(), before + 1);
+        assert_eq!(
+            value(first_object("arrow").as_ref(), "color"),
+            Some(PropertyValue::Color(blue))
+        );
+        assert_eq!(panel.recent(), vec![blue]);
+        assert!(swatch("color", Swatch::Colour(blue)).has_css_class("annota-swatch-current"));
+
+        // The eyedropper (mockup 17), with a stand-in for the portal: while it waits the
+        // swatch is filled and the subtitle and chip say what to do; then the colour is used.
+        let (send, receive) = futures_channel::oneshot::channel::<
+            Result<Rgba, crate::capture::portal::CaptureError>,
+        >();
+        let receive = std::cell::RefCell::new(Some(receive));
+        editor.set_screen_picker(Rc::new(move || {
+            let receive = receive.borrow_mut().take();
+            Box::pin(async move {
+                match receive {
+                    Some(r) => r
+                        .await
+                        .unwrap_or(Err(crate::capture::portal::CaptureError::Cancelled)),
+                    None => Err(crate::capture::portal::CaptureError::Cancelled),
+                }
+            })
+        }));
+        let before = revision();
+        swatch("color", Swatch::Eyedropper).emit_clicked();
+        pump(50);
+        assert!(w.pick_chip.is_visible());
+        assert_eq!(w.title.subtitle(), "Pick a colour anywhere on the screen");
+        assert!(swatch("color", Swatch::Eyedropper).has_css_class("annota-swatch-picking"));
+        shot(&w.window, "17-eyedropper");
+        let picked = Rgba::opaque(0x35, 0x84, 0xE4);
+        send.send(Ok(picked)).unwrap();
+        pump(100);
+        assert!(!w.pick_chip.is_visible());
+        assert_ne!(w.title.subtitle(), "Pick a colour anywhere on the screen");
+        assert_eq!(revision(), before + 1);
+        assert_eq!(
+            value(first_object("arrow").as_ref(), "color"),
+            Some(PropertyValue::Color(picked))
+        );
+        assert_eq!(panel.recent(), vec![picked, blue]);
+        // Cancelled: nothing changes.
+        editor.set_screen_picker(Rc::new(|| {
+            Box::pin(async { Err(crate::capture::portal::CaptureError::Cancelled) })
+        }));
+        swatch("color", Swatch::Eyedropper).emit_clicked();
+        pump(100);
+        assert_eq!(revision(), before + 1);
+        assert!(!w.pick_chip.is_visible());
+
+        // Spec "Style exceptions": highlights have no shadow row, redactions neither opacity
+        // nor shadow.
+        assert!(editor.key_pressed(gdk::Key::h, none));
+        draw((100.0, 700.0), (500.0, 760.0));
+        assert!(!panel.shadow.row.is_visible() || !panel.shown_rows().contains(&"row_shadow"));
+        assert_eq!(
+            panel.shown_rows(),
+            ["row_color", "row_opacity", "help_highlighter"]
+        );
+        assert!(editor.key_pressed(gdk::Key::b, none));
+        draw((600.0, 700.0), (900.0, 760.0));
+        assert_eq!(
+            panel.shown_rows(),
+            [
+                "row_redact_type",
+                "row_intensity",
+                "row_redact_shape",
+                "row_color",
+                "warning_redact"
+            ]
+        );
+        shot(&w.window, "15-redact");
+        panel.redact_type[2].1.set_active(true);
+        pump(30);
+        assert!(!panel.shown_rows().contains(&"warning_redact"));
+        assert!(!panel.rows["row_intensity"].is_sensitive());
+
+        // The shape type reaches polygons (closing phase A's gap): Polygon in the tool defaults
+        // makes the shape tool draw vertex by vertex.
+        assert!(editor.key_pressed(gdk::Key::u, none));
+        // A click (no drag) makes no shape and leaves nothing selected.
+        click((1500.0, 950.0));
+        assert_eq!(sidebar.selection_caption.text(), "Tool defaults");
+        panel.shape_kind[3].1.set_active(true);
+        pump(30);
+        assert!(editor.inner.toolbox.borrow().draws_polygons());
+        click((1100.0, 100.0));
+        click((1400.0, 120.0));
+        click((1300.0, 400.0));
+        assert!(canvas.drawing_polygon());
+        assert_eq!(sidebar.selection_caption.text(), "Drawing polygon");
+        assert_eq!(panel.shown_rows().last(), Some(&"help_polygon"));
+        shot(&w.window, "07-polygon");
+        assert!(editor.key_pressed(gdk::Key::Return, none));
+        assert_eq!(sidebar.selection_caption.text(), "1 selected");
+
+        // B1: the Sequence of a selected marker recounts its whole sequence, one step.
+        assert!(editor.key_pressed(gdk::Key::s, none));
+        for x in [200.0, 300.0, 400.0] {
+            click((x, 900.0));
+        }
+        pump(30);
+        assert_eq!(panel.shown_rows()[..2], ["row_sequence", "row_step_shape"]);
+        assert!(
+            panel.shown_rows().contains(&"row_value"),
+            "one marker selected"
+        );
+        shot(&w.window, "12-step-selected");
+        let before = revision();
+        panel.sequence.set_selected(1);
+        pump(30);
+        assert_eq!(revision(), before + 1);
+        let labels = canvas
+            .with_document(|d| {
+                steps::markers(d.scene())
+                    .iter()
+                    .map(|s| s.label())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+        assert_eq!(labels, ["A", "B", "C"]);
+        // The one marker's own value.
+        panel.value_entry.set_text("7");
+        panel.value_entry.emit_activate();
+        pump(30);
+        let labels = canvas
+            .with_document(|d| {
+                steps::markers(d.scene())
+                    .iter()
+                    .map(|s| s.label())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+        assert_eq!(labels, ["A", "B", "7"]);
+        // Restart Sequence and Next value in the tool defaults (mockup 11). (Esc: back to
+        // Select, then nothing selected.)
+        assert!(editor.key_pressed(gdk::Key::Escape, none));
+        assert!(editor.key_pressed(gdk::Key::Escape, none));
+        assert!(editor.key_pressed(gdk::Key::s, none));
+        pump(30);
+        assert_eq!(sidebar.selection_caption.text(), "Tool defaults");
+        assert_eq!(
+            panel.sequence.selected(),
+            1,
+            "the current sequence counts A, B, C"
+        );
+        assert_eq!(panel.next_value.value(), 4.0);
+        shot(&w.window, "11-step-defaults");
+        panel.restart.emit_clicked();
+        pump(30);
+        assert_eq!(panel.next_value.value(), 1.0);
+        click((600.0, 900.0));
+        let labels = canvas
+            .with_document(|d| {
+                steps::markers(d.scene())
+                    .iter()
+                    .map(|s| s.label())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+        assert_eq!(labels, ["A", "B", "7", "1"]);
+        // The tool defaults' Sequence is the current (restarted) sequence's: it recounts it as
+        // one step and new markers follow; the first sequence keeps A, B.
+        assert!(editor.key_pressed(gdk::Key::Escape, none));
+        assert!(editor.key_pressed(gdk::Key::Escape, none));
+        assert!(editor.key_pressed(gdk::Key::s, none));
+        pump(30);
+        assert_eq!(sidebar.selection_caption.text(), "Tool defaults");
+        assert_eq!(panel.sequence.selected(), 0);
+        let before = revision();
+        panel.sequence.set_selected(3);
+        pump(30);
+        assert_eq!(revision(), before + 1);
+        click((700.0, 900.0));
+        let labels = canvas
+            .with_document(|d| {
+                steps::markers(d.scene())
+                    .iter()
+                    .map(|s| s.label())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+        assert_eq!(labels, ["A", "B", "7", "I", "II"]);
+
+        // Text being typed (mockup 08): "Editing"; the sidebar's Bold is part of the one step.
+        assert!(editor.key_pressed(gdk::Key::t, none));
+        click((300.0, 600.0));
+        assert!(canvas.editing_text());
+        canvas.insert_text("Runs nightly");
+        pump(30);
+        assert_eq!(sidebar.selection_caption.text(), "Editing");
+        assert_eq!(panel.shown_rows()[..2], ["row_font", "row_text_style"]);
+        shot(&w.window, "08-text-editing");
+        let before = revision();
+        let bold = &panel.flags[0].1;
+        assert!(bold.is_active(), "Text defaults to bold");
+        bold.set_active(false);
+        pump(30);
+        assert_eq!(revision(), before, "no step while typing");
+        assert!(editor.key_pressed(gdk::Key::Escape, none));
+        assert_eq!(revision(), before + 1);
+        assert_eq!(undo_label().as_deref(), Some("Add Text"));
+        assert_eq!(
+            value(first_object("text").as_ref(), "bold"),
+            Some(PropertyValue::Bool(false))
+        );
+        let _ = Arrow::TYPE;
+        window_done(&w.window);
+    }
+
+    fn window_done(window: &adw::ApplicationWindow) {
+        window.destroy();
+        pump(50);
     }
 }

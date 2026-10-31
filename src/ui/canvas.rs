@@ -28,7 +28,7 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gtk::{gdk, glib, graphene};
 
-use annota::document::annotation::{Annotation, HandleId, Modifiers};
+use annota::document::annotation::{Annotation, HandleId, Modifiers, PropertyValue};
 use annota::document::bitmap::Bitmap;
 use annota::document::color::Rgba;
 use annota::document::command::{Command, History};
@@ -50,6 +50,7 @@ use annota::editing::tool::{
 use annota::render::{self, overlay, view, Options, Preview, Viewport};
 use annota::tools::text::editable;
 
+use super::editor::properties::{self, CanvasFacts, PanelInfo};
 use super::labels;
 
 /// Kit `--canvas-bg`, light and dark.
@@ -103,6 +104,9 @@ struct State {
     hovering: bool,
     /// An edit made inside a state borrow, executed right after it.
     pending: Option<Edit>,
+    /// A property shown on the selection or the text being edited while a sidebar slider,
+    /// the shadow dial or the colour picker is dragged (committed or dropped afterwards).
+    property_preview: Option<(&'static str, PropertyValue)>,
     /// Snap to guides (sidebar switch, `Ctrl+;`); Alt suspends it while held.
     snapping: bool,
     zoom: f64,
@@ -482,6 +486,7 @@ impl Canvas {
             presses: 1,
             hovering: false,
             pending: None,
+            property_preview: None,
             snapping: true,
             zoom: 1.0,
             fitted: true,
@@ -1211,9 +1216,8 @@ impl Canvas {
         self.with_state(|s| s.toolbox = toolbox);
     }
 
-    /// Restart Sequence: the next step marker starts a new sequence at 1 (or A). The step
-    /// properties (add-core-annotation-tools task 3.1) will call this and `set_next_step`.
-    #[allow(dead_code)]
+    /// Restart Sequence: the next step marker starts a new sequence at 1 (or A); the earlier
+    /// markers keep theirs (step properties, mockup 11).
     pub fn restart_sequence(&self) {
         self.with_state(|s| {
             s.step_sequence = Some(steps::fresh_sequence(s.doc.scene()));
@@ -1224,11 +1228,135 @@ impl Canvas {
     }
 
     /// "Next value": the number the next step marker gets (`None`: after the highest).
-    #[allow(dead_code)]
     pub fn set_next_step(&self, number: Option<u32>) {
         self.with_state(|s| s.step_next = number.filter(|n| *n > 0));
         self.view.queue_draw();
         self.update_chips();
+        self.notify_changed();
+    }
+
+    // ---- type properties (add-core-annotation-tools task 3.1) ----
+
+    /// What the sidebar's type properties show: the text being edited, the polygon being
+    /// drawn, the selection, or the drawing tool's defaults.
+    pub fn panel_info(&self) -> Option<PanelInfo> {
+        self.with_state(|s| {
+            let toolbox = s.toolbox.borrow();
+            let place = Self::step_place(s);
+            let facts = CanvasFacts {
+                selection: s.selection.ids(),
+                tool: s.tool,
+                toolbox: &toolbox,
+                editing: s.text.as_ref().map(TextEdit::object),
+                drawing_polygon: s.polygon.is_some(),
+                next_step: (place.sequence, place.number),
+            };
+            properties::panel_info(&s.doc, &facts)
+        })
+        .flatten()
+    }
+
+    /// Sets a property from the sidebar: on the text being edited (part of its one undo
+    /// step), else on the selection (one undo step), else as a default of the drawing tool.
+    /// Returns whether anything changed; nothing is done for a value already set.
+    pub fn set_property(&self, key: &'static str, value: PropertyValue) -> bool {
+        self.with_state(|s| s.property_preview = None);
+        let typed = self
+            .with_state(|s| s.text.as_mut().map(|t| t.set_property(key, &value)))
+            .flatten();
+        if let Some(changed) = typed {
+            self.view.queue_draw();
+            self.update_chips();
+            self.notify_changed();
+            return changed;
+        }
+        let selected = !self.selection().is_empty();
+        if selected {
+            let edit = self
+                .with_state(|s| ops::set_property(&s.doc, s.selection.ids(), key, &value))
+                .flatten();
+            let done = edit.is_some_and(|edit| self.execute(edit).is_some());
+            if !done {
+                self.view.queue_draw();
+                self.notify_changed();
+            }
+            return done;
+        }
+        let changed = self
+            .with_state(|s| {
+                let tool = s.tool;
+                let before = s.toolbox.borrow().properties(tool);
+                let set = s
+                    .toolbox
+                    .borrow_mut()
+                    .set_property(tool, key, &value)
+                    .is_ok();
+                let changed = set && s.toolbox.borrow().properties(tool) != before;
+                // A polygon in progress ends when the shape tool stops drawing polygons.
+                if key == "shape" && !s.toolbox.borrow().draws_polygons() {
+                    s.polygon = None;
+                }
+                // The Sequence of the step tool is the current sequence's (B1): its markers
+                // count the new way too, as one undo step.
+                if key == "counting" && tool == Tool::Step {
+                    if let PropertyValue::Choice(k) = &value {
+                        if let Some(counting) = annota::tools::step::Counting::from_key(k) {
+                            let place = Self::step_place(s);
+                            let objects =
+                                steps::recounted(s.doc.scene(), &[place.sequence], counting);
+                            if !objects.is_empty() {
+                                s.pending = Some(Edit {
+                                    action: Action::Style,
+                                    subject: Subject::of(
+                                        s.doc.scene(),
+                                        &objects.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+                                    ),
+                                    command: Command::Replace { objects },
+                                    select: None,
+                                });
+                            }
+                        }
+                    }
+                }
+                changed
+            })
+            .unwrap_or(false);
+        let recounted = self
+            .with_state(|s| s.pending.take())
+            .flatten()
+            .is_some_and(|edit| self.execute(edit).is_some());
+        self.update_cursor();
+        self.update_chips();
+        self.view.queue_draw();
+        self.notify_changed();
+        changed || recounted
+    }
+
+    /// Shows `value` for `key` on the selection or the text being edited without changing the
+    /// document (a sidebar slider being dragged); tool defaults have nothing to preview.
+    pub fn preview_property(&self, key: &'static str, value: PropertyValue) {
+        self.with_state(|s| {
+            if s.text.is_some() || !s.selection.is_empty() {
+                s.property_preview = Some((key, value));
+            }
+        });
+        self.view.queue_draw();
+    }
+
+    /// Drops the preview of [`Canvas::preview_property`].
+    pub fn end_preview(&self) {
+        if self
+            .with_state(|s| s.property_preview.take().is_some())
+            .unwrap_or(false)
+        {
+            self.view.queue_draw();
+        }
+    }
+
+    /// The property preview, for tests.
+    #[cfg(test)]
+    pub fn previewing(&self) -> Option<(&'static str, PropertyValue)> {
+        self.with_state(|s| s.property_preview.clone()).flatten()
     }
 
     /// Whether a polygon is being drawn (header subtitle "Drawing", mockup 07).
@@ -1387,15 +1515,19 @@ impl Canvas {
                     );
                     true
                 }
-                gdk::Key::b => self.edit_text(|t| {
-                    t.toggle("bold");
-                }),
-                gdk::Key::i => self.edit_text(|t| {
-                    t.toggle("italic");
-                }),
-                gdk::Key::u => self.edit_text(|t| {
-                    t.toggle("underline");
-                }),
+                // The sidebar's toggles follow (mockup 08).
+                gdk::Key::b | gdk::Key::i | gdk::Key::u => {
+                    let key = match key.to_lower() {
+                        gdk::Key::b => "bold",
+                        gdk::Key::i => "italic",
+                        _ => "underline",
+                    };
+                    self.edit_text(|t| {
+                        t.toggle(key);
+                    });
+                    self.notify_changed();
+                    true
+                }
                 // Undo and redo wait until editing ends (it is one step then).
                 gdk::Key::z => true,
                 _ => false,
@@ -1438,6 +1570,7 @@ impl Canvas {
 
     /// Executes `edit` as one undo step and updates the selection.
     fn execute(&self, edit: Edit) -> Option<Done> {
+        self.with_state(|s| s.property_preview = None);
         let before = self.canvas_rect();
         let label = labels::undo_label(&edit);
         let (action, subject) = (edit.action, edit.subject);
@@ -1489,6 +1622,7 @@ impl Canvas {
     /// Ends whatever is in progress before an operation on the whole document: a gesture,
     /// text editing (kept), a polygon (dropped), crop mode.
     fn end_modes(&self) {
+        self.with_state(|s| s.property_preview = None);
         self.cancel_drag();
         self.finish_text();
         self.with_state(|s| s.polygon = None);
@@ -2430,12 +2564,21 @@ fn draw(state: &State, cr: &gtk::cairo::Context, size: (f64, f64), scroll: (f64,
     }
     // Text being edited is drawn as edited so far: in place of its object, or on top if it is
     // new; a draw in progress on top; the step tool's placement preview faded (mockup 11).
-    let edited: Vec<(ObjectId, Box<dyn Annotation>)> = state
-        .text
-        .as_ref()
-        .and_then(|t| Some((t.id()?, t.object().clone_box())))
-        .into_iter()
-        .collect();
+    // A sidebar slider being dragged shows its value on the text or the selection.
+    let typed: Option<Box<dyn Annotation>> = state.text.as_ref().map(|t| {
+        let mut object = t.object().clone_box();
+        if let Some((key, value)) = &state.property_preview {
+            let _ = object.set_property(key, value);
+        }
+        object
+    });
+    let edited: Vec<(ObjectId, Box<dyn Annotation>)> = match (&state.text, &typed) {
+        (Some(t), Some(object)) => t.id().map(|id| (id, object.clone())).into_iter().collect(),
+        _ => match &state.property_preview {
+            Some((key, value)) => ops::restyled(&state.doc, state.selection.ids(), key, value),
+            None => Vec::new(),
+        },
+    };
     let ghost = step_ghost(state, &viewport);
     let mut preview = match &state.drag {
         Some(d) => Preview::objects(d.preview(), d.shows_ghost()),
@@ -2446,7 +2589,7 @@ fn draw(state: &State, cr: &gtk::cairo::Context, size: (f64, f64), scroll: (f64,
             .text
             .as_ref()
             .filter(|t| t.id().is_none())
-            .map(TextEdit::object)
+            .and(typed.as_deref())
     });
     preview.ghost_object = ghost
         .as_ref()
