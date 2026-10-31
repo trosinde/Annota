@@ -71,6 +71,9 @@
   .chip.violet { background: var(--annota-violet); }
   .cursor { position: absolute; width: 18px; height: 18px; }
   .zoom-osd .label { min-width: 64px; text-align: center; }
+  /* Editor header end, decision D1: Export is an AdwSplitButton (dropdown = Share menu) */
+  .split-button { display: inline-flex; }
+  .split-button > .btn.split-arrow { width: 26px; min-width: 26px; padding: 0; }
 </style>
 </head>
 <body class="mock-frame flush">
@@ -107,7 +110,7 @@
     <div class="end">
       <button class="btn flat image-button active" title="Show Properties (F9)"><svg class="icon"><use href="#i-sidebar-show-right"/></svg></button>
       <button class="btn image-button" title="Copy to Clipboard (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button>
-      <button class="btn text-button suggested-action">Export</button>
+      <div class="linked split-button"><button class="btn text-button suggested-action" title="Export (Ctrl+E)">Export</button><button class="btn suggested-action split-arrow" title="Share"><svg class="icon"><use href="#i-pan-down"/></svg></button></div>
       <button class="btn flat image-button"><svg class="icon"><use href="#i-open-menu"/></svg></button>
       <div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div>
     </div>
