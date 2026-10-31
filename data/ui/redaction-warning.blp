@@ -5,7 +5,8 @@ using Adw 1;
 // D7; spec annotation-tools "Redaction export warning"): alert 460 px, `warning` icon 32 px in
 // the warning colour, heading, body (set in code: count and blur vs. pixelate), buttons
 // Cancel · Export Anyway · Convert to Solid (suggested). Escape is Cancel, Enter converts.
-// src/ui/editor/redaction_warning.rs sets the body and, for a save, "Save Anyway".
+// src/ui/editor/redaction_warning.rs sets the body. A save never shows this dialog — `.annota`
+// keeps the original image under every redaction regardless, so the warning does not apply.
 
 Adw.Dialog redaction_warning {
   content-width: 460;

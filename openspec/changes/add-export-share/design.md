@@ -310,32 +310,51 @@ estimate equal to the real encoder for small images and available for all format
 Live (`#[ignore]`, `GDK_BACKEND=x11 xvfb-run -a dbus-run-session cargo test --bin annota --
 --ignored --exact ui::editor::tests::export_and_save_on_a_live_display`, private GSettings
 backend and temporary folders only, no file chooser or portal opened): Ctrl+E → warning →
-Cancel; Ctrl+S → warning with Save Anyway → Convert (undo label, group member converted) → one
-pattern-named `.annota` in the save folder with solid redactions and the file's title, header
-title/subtitle, toast, autosave gone; edit + Ctrl+S → saved over the same file, no warning;
-export dialog PNG → JPG (rows, size label, estimate) → Export → JPG file, dialog closed; Ctrl+E/
-Ctrl+S ignored while it is open; existing file → banner, Export disabled, Replace; read-only
-folder → banner, Choose Folder…, Export disabled; failed quick save → toast with Save As…,
-"Not saved", autosave kept. A live test because this wiring (session, history, autosave,
-toasts, dialogs) is not a pure function; such tests have precedent here (eleven in `ui::editor`
-and `ui::canvas`), and the pure parts are unit-tested regardless.
+Cancel; Ctrl+E again → warning → Convert (undo label, group member converted) → Export Image
+opens (cancelled, nothing written yet); Ctrl+S → no warning (save never shows it; nothing
+reversible left anyway) → one pattern-named `.annota` in the save folder with solid redactions
+and the file's title, header title/subtitle, toast, autosave gone; edit + Ctrl+S → saved over
+the same file, still no warning; export dialog PNG → JPG (rows, size label, estimate) → Export
+→ JPG file, dialog closed; Ctrl+E/Ctrl+S ignored while it is open; existing file → banner,
+Export disabled, Replace; read-only folder → banner, Choose Folder…, Export disabled; failed
+quick save → toast with Save As…, "Not saved", autosave kept. A live test because this wiring
+(session, history, autosave, toasts, dialogs) is not a pure function; such tests have
+precedent here (eleven in `ui::editor` and `ui::canvas`), and the pure parts are unit-tested
+regardless.
 - Seen while running every live test: `quick_styles_on_a_live_display` fails in this dev
   container on the destructive menu item's red text with or without this change's CSS (checked
   against the previous `style.css`) — an environment/theme issue to look at separately, not a
   regression here.
 
-**Open questions for the maintainer** (do not block the next phases):
-- *The warning before a save cannot keep its promise.* An `.annota` file contains
-  `original.png` — the capture without any redaction — so converting to solid before `Ctrl+S`
-  hides nothing from someone who has the file; "Solid boxes hide it for good" is only true for
-  exported images. D7 (and this phase's brief) list quick save, so it is built; options: keep
-  it, drop it for saves (only warn on ways that flatten), or word the save variant differently
-  (and/or let `.annota` files leave the original out under redactions — a document-format
-  change).
-- *Mockup 10 vs. add-core-annotation-tools mockup 19 / tasks.md 2.7* disagree on the alert's
-  heading, body and buttons; built as mockup 10. Mockup 19 (approved with that change) and the
-  sidebar's warning note there may want updating to match.
-- *Does an export count as "saved"?* Built: no (status, unsaved dot and autosave unchanged);
-  add-annotation-editor's capture delta says "until saved or exported".
-- *Remember the export settings* (format, folder, size) between exports in a session, or keep
-  starting from the preferences every time as now?
+### Decided during apply (2026-10-31: maintainer follow-ups on the export dialog/save/warning phase)
+- **The redaction warning does not apply to saves, dropped from Ctrl+S/Ctrl+Shift+S.** An
+  `.annota` file contains `original.png` regardless of what a redaction is converted to, so
+  "Convert to Solid" before a save hid nothing and the warning's own text ("hide it for good")
+  was false there — the save path never fires `guard_redactions` now, `Purpose::Save` and its
+  "Save Anyway" string are removed (nothing constructs it any more; Copy/Share/Batch, tasks
+  2.3–2.5, will add their own `Purpose` variants when they're built, reusing `guard_redactions`
+  the way Export already does). The live test's warning+Convert coverage moved onto Export
+  (the only path it still applies to), followed by a Cancel of the export dialog that then
+  opens, so no file is written by that part of the test.
+- **Mockup 10 stays the one true version** of the redaction-warning dialog (horizontal buttons,
+  warning icon, separate blur/pixelate wording) over add-core-annotation-tools mockup 19
+  (stacked buttons, generic wording) and tasks.md 2.7's paraphrase of it — mockup 19 gets a
+  small follow-up redraw to match, tracked separately, not touching anything else in that
+  already-implemented change.
+- **An export does not count as "saved".** Status, the unsaved dot and the autosave are
+  unaffected by Ctrl+E — only writing `.annota` (quick save/Save As) clears them. An export is
+  a one-way flattened copy, not the editable document; add-annotation-editor's capture-delta
+  wording ("until saved or exported") is inherited phrasing to fix when that capability's own
+  spec text is next touched, not a behaviour to match here.
+- **Export dialog settings are not remembered across exports** within a session — every open
+  of the dialog starts from the stored preferences, as built. Simpler and already covers the
+  common case ("I always export as X") via the preference itself.
+- **A save renames the written file's own title, and the session's displayed title, to the
+  file's name** (`export::save_annota_named`, `Session::saved_as` — neither is an undo step:
+  the written copy's metadata and the session name are not document state) but does **not**
+  touch the live, in-memory `Document::metadata().title` the editor keeps working on —
+  acceptable as built. Updating that would need its own `Command`/undo step (it is tracked,
+  undo-history document state), which a save shouldn't silently create; until the document is
+  next saved or explicitly renamed, an autosave taken meanwhile, or any export, still uses the
+  pre-save title, even though the window and the file just written both already show the new
+  one.

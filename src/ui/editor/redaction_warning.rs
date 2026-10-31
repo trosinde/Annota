@@ -16,13 +16,13 @@ use annota::editing::redactions::Reversible;
 
 const UI_WARNING: &str = "/io/github/trosinde/Annota/ui/redaction-warning.ui";
 
-/// The way out of Annota the warning stands in front of; it names the middle button.
+/// The way out of Annota the warning stands in front of; it names the middle button. Quick
+/// save and Save As don't go through this warning at all (`.annota` keeps the original image
+/// regardless of the choice here, so it wouldn't apply) — see `Editor::guard_redactions`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Purpose {
     /// The export dialog (Ctrl+E): "Export Anyway" (mockup 10).
     Export,
-    /// Quick save and Save As (Ctrl+S, Ctrl+Shift+S): "Save Anyway".
-    Save,
 }
 
 /// What the user chose.
@@ -68,11 +68,10 @@ pub fn body(found: Reversible) -> String {
     text.replace("{n}", &n.to_string())
 }
 
-/// The middle button: "Export Anyway" (mockup 10) or "Save Anyway".
+/// The middle button: "Export Anyway" (mockup 10).
 pub fn anyway_label(purpose: Purpose) -> String {
     match purpose {
         Purpose::Export => gettext("Export Anyway"),
-        Purpose::Save => gettext("Save Anyway"),
     }
 }
 
@@ -179,6 +178,5 @@ mod tests {
     #[test]
     fn the_middle_button_names_the_way_out() {
         assert_eq!(anyway_label(Purpose::Export), "Export Anyway");
-        assert_eq!(anyway_label(Purpose::Save), "Save Anyway");
     }
 }

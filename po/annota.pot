@@ -2446,10 +2446,6 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/ui/editor/redaction_warning.rs:75
-msgid "Save Anyway"
-msgstr ""
-
 #: src/ui/editor/saving.rs:39
 msgid "No permission to write to this folder"
 msgstr ""

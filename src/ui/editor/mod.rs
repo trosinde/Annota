@@ -20,9 +20,11 @@
 //! **Export and save** (add-export-share). `Ctrl+E` opens "Export Image" ([`export_dialog`]),
 //! `Ctrl+S` saves the document's `.annota` file — a new document into the save folder, named
 //! after the filename pattern, without a dialog — and `Ctrl+Shift+S` asks where (GTK's file
-//! chooser). A saved document's autosave is removed. Before any of them, a document with blur
-//! or pixelate redactions gets "Make Redactions Solid?" ([`Editor::guard_redactions`], the
-//! one check every way out of Annota goes through; [`redaction_warning`]).
+//! chooser). A saved document's autosave is removed. Before an export, a document with blur or
+//! pixelate redactions gets "Make Redactions Solid?" ([`Editor::guard_redactions`],
+//! [`redaction_warning`]) — not before a save: `.annota` keeps the original image under every
+//! redaction regardless (that is what makes a redaction editable there), so the warning would
+//! be misleading on that path and does not apply to it.
 //!
 //! **Placeholders.** Copy and Share (Email…, Open With…, Copy to Folder…) belong to later
 //! phases of add-export-share, Open Library to add-capture-library: Copy shows a "… arrives in
@@ -1432,15 +1434,19 @@ impl Editor {
 
     // ---- export and save (add-export-share) ----
 
-    /// The check every way out of Annota goes through first (add-export-share task 2.7, spec
-    /// annotation-tools "Redaction export warning", decision D7): if the current document has
-    /// blur or pixelate redactions — at any depth, groups included — "Make Redactions Solid?"
-    /// (mockup 10) asks first. Cancel stops; the middle button goes on as it is; Convert to
-    /// Solid makes every one of them solid as one undo step, then goes on. Without such
-    /// redactions `proceed` runs at once.
+    /// The check every way a document's flattened image leaves Annota goes through first
+    /// (add-export-share task 2.7, spec annotation-tools "Redaction export warning", decision
+    /// D7): if the current document has blur or pixelate redactions — at any depth, groups
+    /// included — "Make Redactions Solid?" (mockup 10) asks first. Cancel stops; the middle
+    /// button goes on as it is; Convert to Solid makes every one of them solid as one undo
+    /// step, then goes on. Without such redactions `proceed` runs at once.
     ///
-    /// Used by Export (`Ctrl+E`), quick save (`Ctrl+S`) and Save As (`Ctrl+Shift+S`) so far;
-    /// Copy, drag-out, Share and batch export (tasks 2.3–2.5) are to call it too.
+    /// Not used by quick save or Save As: `.annota` keeps the original image under every
+    /// redaction regardless of this choice, so the warning does not apply there (maintainer
+    /// decision, 2026-10-31 — see design.md).
+    ///
+    /// Used by Export (`Ctrl+E`) so far; Copy, drag-out, Share and batch export (tasks 2.3–2.5)
+    /// are to call it too.
     fn guard_redactions(&self, purpose: Purpose, proceed: impl FnOnce(&Editor) + 'static) {
         let Some(canvas) = self.current_canvas() else {
             return;
@@ -1507,16 +1513,17 @@ impl Editor {
         );
     }
 
-    /// `Ctrl+S` (spec export-share "Quick save", mockup 06): the redaction warning, then the
-    /// document's own `.annota` file — or, for a document without one, a new file named after
-    /// the `filename-pattern` preference in the save folder. No dialog either way.
+    /// `Ctrl+S` (spec export-share "Quick save", mockup 06): the document's own `.annota` file
+    /// — or, for a document without one, a new file named after the `filename-pattern`
+    /// preference in the save folder. No dialog either way. No redaction warning: see
+    /// `guard_redactions`'s doc comment for why a save doesn't go through it.
     fn quick_save(&self) {
         let Some(session) = self.current_without_dialog() else {
             return;
         };
         session.canvas.finish_text();
         let uid = session.uid;
-        self.guard_redactions(Purpose::Save, move |editor| editor.quick_save_now(uid));
+        self.quick_save_now(uid);
     }
 
     fn quick_save_now(&self, uid: u64) {
@@ -1544,14 +1551,15 @@ impl Editor {
         self.save_to(uid, &target);
     }
 
-    /// `Ctrl+Shift+S`: the redaction warning, then GTK's file chooser for the `.annota` file.
+    /// `Ctrl+Shift+S`: GTK's file chooser for the `.annota` file. No redaction warning, same
+    /// reason as `quick_save`.
     fn save_as(&self) {
         let Some(session) = self.current_without_dialog() else {
             return;
         };
         session.canvas.finish_text();
         let uid = session.uid;
-        self.guard_redactions(Purpose::Save, move |editor| editor.choose_save_path(uid));
+        self.choose_save_path(uid);
     }
 
     fn choose_save_path(&self, uid: u64) {
@@ -4609,12 +4617,12 @@ mod tests {
         assert!(dialog().is_none(), "Cancel opens no export dialog");
         assert_eq!(session.canvas.history_info().undo_label, None);
 
-        // Ctrl+S: the warning with "Save Anyway"; Convert to Solid is one undo step for all
-        // three (the group's too), then the save goes on.
-        WidgetExt::activate_action(&w.window, "win.save", None).unwrap();
+        // Ctrl+E again: Convert to Solid is one undo step for all three (the group's too),
+        // then the export dialog itself opens (mockup 10 "goes on" after converting); cancel
+        // that so nothing is written yet.
+        WidgetExt::activate_action(&w.window, "win.export", None).unwrap();
         pump(150);
-        let alert = dialog().expect("the redaction warning before saving");
-        assert!(find_button(alert.upcast_ref(), "Save Anyway").is_some());
+        let alert = dialog().expect("the redaction warning");
         assert!(click_button(alert.upcast_ref(), "Convert to Solid"));
         pump(300);
         assert_eq!(
@@ -4626,6 +4634,17 @@ mod tests {
             .with_document(redactions::reversible)
             .unwrap()
             .is_empty());
+        let export = dialog().expect("Export Image opens after converting");
+        assert!(click_button(export.upcast_ref(), "Cancel"));
+        pump(300);
+        assert!(dialog().is_none());
+
+        // Ctrl+S: no redaction warning — `.annota` keeps the original image under every
+        // redaction regardless, so the warning does not apply to a save (maintainer decision,
+        // 2026-10-31). Nothing reversible is left anyway, after the conversion above.
+        WidgetExt::activate_action(&w.window, "win.save", None).unwrap();
+        pump(150);
+        assert!(dialog().is_none(), "no redaction warning before a save");
 
         // Scenario "Pattern": one file in the save folder, named after the pattern, no dialog.
         let saved: Vec<PathBuf> = std::fs::read_dir(&captures)
@@ -4656,7 +4675,8 @@ mod tests {
             "a saved document has no autosave"
         );
 
-        // An edit, then Ctrl+S again: no warning (nothing reversible), saved over its file.
+        // An edit, then Ctrl+S again: still no warning (saves never go through it, regardless
+        // of the document's redactions), saved over its file.
         session
             .canvas
             .run(|doc, _| ops::add(doc, redaction(320.0, RedactionKind::Solid)));
@@ -4664,7 +4684,10 @@ mod tests {
         assert!(w.title.subtitle().ends_with("Edited"));
         WidgetExt::activate_action(&w.window, "win.save", None).unwrap();
         pump(150);
-        assert!(dialog().is_none(), "no warning without blur or pixelate");
+        assert!(
+            dialog().is_none(),
+            "a save never shows the redaction warning"
+        );
         assert_eq!(std::fs::read_dir(&captures).unwrap().count(), 1);
         assert_eq!(
             annota::document::archive::load(&file)

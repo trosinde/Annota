@@ -2488,10 +2488,6 @@ msgid_plural "{n} redactions use blur or pixelate. Blurred or pixelated text can
 msgstr[0] "{n} Schwärzung ist weichgezeichnet oder verpixelt. Solcher Text lässt sich manchmal wiederherstellen. Deckende Flächen verbergen ihn endgültig."
 msgstr[1] "{n} Schwärzungen sind weichgezeichnet oder verpixelt. Solcher Text lässt sich manchmal wiederherstellen. Deckende Flächen verbergen ihn endgültig."
 
-#: src/ui/editor/redaction_warning.rs:75
-msgid "Save Anyway"
-msgstr "Trotzdem speichern"
-
 #: src/ui/editor/saving.rs:39
 msgid "No permission to write to this folder"
 msgstr "Keine Schreibberechtigung für diesen Ordner"

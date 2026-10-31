@@ -38,23 +38,25 @@
       "Closing keeps autosaves", "Recovery dialog").
 - [ ] 2.7 Redaction export warning — add-core-annotation-tools builds blur, pixelate and solid
       redactions (`annota::tools::redaction::Redaction`) but has no way out of Annota to guard;
-      its requirement "Redaction export warning" (spec annotation-tools, decision D7, that
-      change's mockup 19 and this change's mockup 10) is only a placeholder scenario there (no
-      export path exists yet when that change archives) — complete it here as a `## MODIFIED
-      Requirements` delta on the `annotation-tools` capability, full requirement block copied
-      from the archived spec per the project's established MODIFIED-delta convention. Before
-      every export,
-      Copy, drag-out, share and quick save of a document with blur or pixelate redactions (at
-      any depth, groups included): the alert "Redactions May Be Reversible" with **Convert to
-      Solid and Export** (suggested; "… and Copy" for Copy), **Export As Is** and **Cancel**.
-      Converting is one undo step: `set_property("redaction", Choice("solid"))` on each, as one
-      `Command::Replace`. Faces found by smart redaction default to Solid (D7, add-smart-redaction).
-      **Partly built (2026-10-31):** the alert follows mockup 10 ("Make Redactions Solid?",
-      Cancel · Export Anyway / Save Anyway · **Convert to Solid**), not the wording above or
-      add-core-annotation-tools mockup 19 (open question, design.md). The MODIFIED delta is
-      `specs/annotation-tools/spec.md`. Wired in front of Export (`Ctrl+E`), quick save
-      (`Ctrl+S`) and Save As (`Ctrl+Shift+S`) through `Editor::guard_redactions`; still to call it
-      from Copy and drag-out (2.3), Share (2.4) and batch export (2.5) — then tick this.
+      its requirement "Redaction export warning" (spec annotation-tools, decision D7) is only a
+      placeholder scenario there (no export path exists yet when that change archives) —
+      completed here as a `## MODIFIED Requirements` delta on the `annotation-tools` capability
+      (`specs/annotation-tools/spec.md`), full requirement block copied from the archived spec
+      per the project's established MODIFIED-delta convention. Before Export (and, once built,
+      Copy, drag-out, Share and batch export — not quick save or Save As, see below) of a
+      document with blur or pixelate redactions (at any depth, groups included): the alert
+      "Make Redactions Solid?" (mockup 10 — the canonical version, maintainer decision
+      2026-10-31, see design.md; add-core-annotation-tools mockup 19 gets a follow-up redraw to
+      match) with **Convert to Solid** (suggested), **Export Anyway**/**Copy Anyway** and
+      **Cancel**. Converting is one undo step: `set_property("redaction", Choice("solid"))` on
+      each, as one `Command::Replace`. Faces found by smart redaction default to Solid (D7,
+      add-smart-redaction).
+      **Partly built (2026-10-31):** wired in front of Export (`Ctrl+E`) through
+      `Editor::guard_redactions`. **Deliberately not wired in front of quick save or Save As**
+      (maintainer decision, 2026-10-31, see design.md): `.annota` keeps the original image
+      under every redaction regardless of the choice made here, so the warning does not apply
+      to a save — `Purpose::Save` was removed. Still to call `guard_redactions` from Copy and
+      drag-out (2.3), Share (2.4) and batch export (2.5) — then tick this.
 
 ## 3. Verify
 - [ ] 3.1 Tests for every scenario (unit, golden-image or documented manual check)
