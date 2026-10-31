@@ -44,7 +44,9 @@ use annota::editing::selection::{selection_frame, Selection};
 use annota::editing::snap::{Axis, Snap};
 use annota::editing::steps;
 use annota::editing::text_edit::{Motion, TextEdit};
-use annota::editing::tool::{Draw, DrawFeedback, Drawn, PolygonDraft, StepPlace, Tool, Toolbox};
+use annota::editing::tool::{
+    route_press, Draw, DrawFeedback, Drawn, PolygonDraft, Press, StepPlace, Tool, Toolbox,
+};
 use annota::render::{self, overlay, view, Options, Preview, Viewport};
 use annota::tools::text::editable;
 
@@ -1000,24 +1002,21 @@ impl Canvas {
                         false
                     }
                     tool => {
-                        // The selection can still be adjusted: its handles, or dragging it.
-                        let on_selected = hit.is_some_and(|id| s.selection.contains(id));
-                        if on_handle || on_selected {
-                            s.drag =
-                                Drag::press(&s.doc, &mut s.selection, &viewport, at, modifiers);
-                            return false;
-                        }
-                        // The text and callout tools edit the text of one of their objects.
-                        if matches!(tool, Tool::Text | Tool::Callout) {
-                            let own = editable_hit.filter(|id| {
-                                s.doc.scene().get(*id).map(|n| n.object.type_name())
-                                    == tool.object_type()
-                            });
-                            if let Some(id) = own {
+                        // Drawing tools always draw, except on a handle of the selection
+                        // (adjust what was just drawn) and, for the text and callout tools, on
+                        // the selected text or callout (edit its text).
+                        match route_press(&s.doc, &s.selection, &viewport, at, tool) {
+                            Press::Handle => {
+                                s.drag =
+                                    Drag::press(&s.doc, &mut s.selection, &viewport, at, modifiers);
+                                return false;
+                            }
+                            Press::EditText(id) => {
                                 return Self::start_text_edit(s, id, Some(doc_at), false);
                             }
+                            Press::Draw => {}
                         }
-                        // Anything else draws a new object, which becomes the selection.
+                        // A new object, which becomes the selection.
                         s.selection.clear();
                         let toolbox = s.toolbox.borrow().clone();
                         if tool == Tool::Shape && toolbox.draws_polygons() {
@@ -1847,18 +1846,18 @@ impl Canvas {
                     },
                     _ => drag::hover(&s.doc, &s.selection, &viewport, pointer),
                 };
-                // Drawing tools draw wherever they do not grab the selection (mockup 03).
-                let grabs_selection = match hover {
-                    Hover::Handle { .. } => true,
-                    Hover::Object => drag::hit(&s.doc, &viewport, pointer)
-                        .is_some_and(|id| s.selection.contains(id)),
-                    Hover::Nothing => false,
-                };
+                // Drawing tools draw wherever they do not grab a handle of the selection
+                // (mockup 03; `route_press`), also over objects.
+                let dragging = s.drag.as_ref().is_some_and(Drag::is_dragging);
                 match s.tool {
                     Tool::Select => {}
-                    _ if grabs_selection => {}
-                    Tool::Text => return Some("text"),
-                    _ => return Some("crosshair"),
+                    _ if dragging => {}
+                    tool => match route_press(&s.doc, &s.selection, &viewport, pointer, tool) {
+                        Press::Handle => {}
+                        Press::EditText(_) => return Some("text"),
+                        Press::Draw if tool == Tool::Text => return Some("text"),
+                        Press::Draw => return Some("crosshair"),
+                    },
                 }
                 match hover {
                     Hover::Handle {
@@ -3284,6 +3283,42 @@ mod tests {
         // Undo takes back one marker at a time.
         canvas.undo();
         assert_eq!(labels(&canvas).len(), 4);
+
+        // Phase-A review repros: drawing tools always draw over existing objects; only a
+        // handle of the selection is still grabbed.
+        let object_json = |c: &Canvas, id| {
+            c.with_document(|d| d.scene().get(id).unwrap().object.to_json().unwrap())
+                .unwrap()
+        };
+        canvas.set_tool(Tool::Arrow);
+        drag(&canvas, at(1250.0, 850.0), at(1550.0, 850.0), none);
+        let first = canvas.selection()[0];
+        drag(&canvas, at(1250.0, 950.0), at(1550.0, 950.0), none);
+        let before = object_json(&canvas, first);
+        let arrows = count(&canvas, "arrow");
+        drag(&canvas, at(1400.0, 850.0), at(1400.0, 780.0), none);
+        assert_eq!(count(&canvas, "arrow"), arrows + 1, "a new arrow");
+        assert_eq!(
+            object_json(&canvas, first),
+            before,
+            "the old arrow is not bent"
+        );
+        // The arrow just drawn still bends through its curve handle.
+        let just_drawn = canvas.selection()[0];
+        let bent_before = object_json(&canvas, just_drawn);
+        drag(&canvas, at(1400.0, 815.0), at(1450.0, 815.0), none);
+        assert_eq!(count(&canvas, "arrow"), arrows + 1, "no new arrow");
+        assert_ne!(object_json(&canvas, just_drawn), bent_before, "bent");
+        assert_eq!(undo_label(&canvas).as_deref(), Some("Edit Arrow"));
+
+        canvas.set_tool(Tool::Highlighter);
+        drag(&canvas, at(700.0, 800.0), at(900.0, 880.0), none);
+        let highlight = canvas.selection()[0];
+        let before = object_json(&canvas, highlight);
+        let highlights = count(&canvas, "highlighter");
+        drag(&canvas, at(760.0, 840.0), at(880.0, 870.0), none);
+        assert_eq!(count(&canvas, "highlighter"), highlights + 1);
+        assert_eq!(object_json(&canvas, highlight), before, "not moved");
         window.destroy();
     }
 }

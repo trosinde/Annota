@@ -15,6 +15,7 @@
 
 use crate::document::annotation::{Annotation, Modifiers, Property, PropertyError, PropertyValue};
 use crate::document::geometry::{Arrange, Point, Rect};
+use crate::document::scene::ObjectId;
 use crate::document::Document;
 use crate::render::Viewport;
 use crate::tools::arrow::Arrow;
@@ -25,10 +26,11 @@ use crate::tools::pen::Pen;
 use crate::tools::redaction::Redaction;
 use crate::tools::shape::{Shape, ShapeKind};
 use crate::tools::step::{Counting, Step};
-use crate::tools::text::Text;
+use crate::tools::text::{editable, Text};
 
-use super::drag::DRAG_THRESHOLD;
+use super::drag::{self, Hover, DRAG_THRESHOLD};
 use super::ops::{self, Edit};
+use super::selection::Selection;
 use super::text_edit::TextEdit;
 
 /// The tools of the tool strip (decision D2's order; Crop is a mode of its own).
@@ -272,6 +274,54 @@ impl Toolbox {
             Tool::Step => Box::new(self.step(at, step)),
         })
     }
+}
+
+/// What a press with a drawing tool does (maintainer decision after the phase-A review:
+/// drawing tools always draw, except on a handle of the current selection).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Press {
+    /// A handle of the selection: adjust what was just drawn (an arrow's curve or end, a
+    /// box handle) without switching to Select — the Select tool's handle drag.
+    Handle,
+    /// The Text or Callout tool on the *selected* text or callout: edit its text in place.
+    EditText(ObjectId),
+    /// Anything else — empty canvas, any other object, the body of the selected object — draws
+    /// a new object on top.
+    Draw,
+}
+
+/// Routes a press at `screen` with the drawing tool `tool` (not Select). Objects never catch
+/// the press with their body: a second highlight started inside the selected one is drawn
+/// instead of moving it, an arrow started on the line of the selected arrow is a new arrow
+/// instead of a move, an arrow started on another existing arrow is a new arrow. Only the
+/// selection's handles take a press — including the selected arrow's curve diamond on its
+/// middle, so the arrow just drawn can be bent without switching tools.
+pub fn route_press(
+    doc: &Document,
+    selection: &Selection,
+    viewport: &Viewport,
+    screen: Point,
+    tool: Tool,
+) -> Press {
+    if matches!(
+        drag::hover(doc, selection, viewport, screen),
+        Hover::Handle { .. }
+    ) {
+        return Press::Handle;
+    }
+    if matches!(tool, Tool::Text | Tool::Callout) {
+        let own = drag::hit(doc, viewport, screen).filter(|id| {
+            selection.contains(*id)
+                && doc.scene().get(*id).is_some_and(|n| {
+                    Some(n.object.type_name()) == tool.object_type()
+                        && editable(n.object.as_ref()).is_some()
+                })
+        });
+        if let Some(id) = own {
+            return Press::EditText(id);
+        }
+    }
+    Press::Draw
 }
 
 /// Size of a callout made with a click (no drag), document pixels.
@@ -869,5 +919,197 @@ mod tests {
         assert!(two.finish(&d, &tb).is_none());
         let mut one = PolygonDraft::new(pts[0]);
         assert!(!one.remove_last());
+    }
+
+    /// Draws with `tool` from `from` to `to` on `doc` and executes it; the new object is the
+    /// selection afterwards, as on the canvas.
+    fn draw_into(
+        doc: &mut Document,
+        history: &mut History,
+        selection: &mut Selection,
+        tool: Tool,
+        from: Point,
+        to: Point,
+    ) -> ObjectId {
+        let tb = Toolbox::default();
+        let edit = added(draw(doc, &tb, tool, from, &[to], NONE));
+        let select = edit.select.clone().unwrap();
+        history.execute(doc, "Add", edit.command).unwrap();
+        selection.set(doc.scene(), select.clone());
+        select[0]
+    }
+
+    fn json(doc: &Document, id: ObjectId) -> serde_json::Value {
+        doc.scene().get(id).unwrap().object.to_json().unwrap()
+    }
+
+    #[test]
+    fn a_second_arrow_started_on_an_existing_arrow_is_a_new_arrow() {
+        // Phase-A review repro: starting a second arrow at the middle of an existing arrow
+        // bent the existing one instead of drawing. Drawing tools now always draw, except on a
+        // handle of the *current* selection.
+        let mut d = doc();
+        let mut history = History::new();
+        let mut sel = Selection::new();
+        let vp = viewport();
+        let first = draw_into(
+            &mut d,
+            &mut history,
+            &mut sel,
+            Tool::Arrow,
+            Point::new(100.0, 100.0),
+            Point::new(500.0, 100.0),
+        );
+        // Another arrow is drawn; the first is no longer selected.
+        draw_into(
+            &mut d,
+            &mut history,
+            &mut sel,
+            Tool::Arrow,
+            Point::new(100.0, 600.0),
+            Point::new(500.0, 600.0),
+        );
+        let before = json(&d, first);
+        let middle = Point::new(300.0, 100.0);
+        assert_eq!(
+            route_press(&d, &sel, &vp, screen(middle), Tool::Arrow),
+            Press::Draw
+        );
+        let third = draw_into(
+            &mut d,
+            &mut history,
+            &mut sel,
+            Tool::Arrow,
+            middle,
+            Point::new(300.0, 400.0),
+        );
+        assert_eq!(d.scene().len(), 3, "a new arrow");
+        assert_eq!(json(&d, first), before, "the first arrow is untouched");
+        let a = d
+            .scene()
+            .get(third)
+            .unwrap()
+            .object
+            .as_any()
+            .downcast_ref::<Arrow>()
+            .unwrap();
+        assert_eq!((a.start, a.end), (middle, Point::new(300.0, 400.0)));
+    }
+
+    #[test]
+    fn the_selected_arrow_keeps_its_handles_but_not_its_line() {
+        // Fine-tuning what was just drawn still works on its handles; a press on its line
+        // (which used to move it) draws a new arrow.
+        let mut d = doc();
+        let mut history = History::new();
+        let mut sel = Selection::new();
+        let vp = viewport();
+        let arrow = draw_into(
+            &mut d,
+            &mut history,
+            &mut sel,
+            Tool::Arrow,
+            Point::new(100.0, 100.0),
+            Point::new(500.0, 100.0),
+        );
+        assert_eq!(sel.ids(), &[arrow]);
+        // The curve diamond (middle), and the ends.
+        for handle in [
+            Point::new(300.0, 100.0),
+            Point::new(100.0, 100.0),
+            Point::new(500.0, 100.0),
+        ] {
+            assert_eq!(
+                route_press(&d, &sel, &vp, screen(handle), Tool::Arrow),
+                Press::Handle,
+                "{handle:?}"
+            );
+        }
+        // On the line, away from the handles.
+        assert_eq!(
+            route_press(&d, &sel, &vp, screen(Point::new(200.0, 100.0)), Tool::Arrow),
+            Press::Draw
+        );
+        // Any drawing tool, the same.
+        assert_eq!(
+            route_press(&d, &sel, &vp, screen(Point::new(200.0, 100.0)), Tool::Pen),
+            Press::Draw
+        );
+    }
+
+    #[test]
+    fn a_second_highlight_started_inside_the_selected_one_is_drawn() {
+        // Phase-A review repro: a second highlight started inside an existing (just drawn,
+        // selected) one moved it.
+        let mut d = doc();
+        let mut history = History::new();
+        let mut sel = Selection::new();
+        let vp = viewport();
+        let first = draw_into(
+            &mut d,
+            &mut history,
+            &mut sel,
+            Tool::Highlighter,
+            Point::new(100.0, 100.0),
+            Point::new(700.0, 300.0),
+        );
+        assert_eq!(sel.ids(), &[first]);
+        let before = json(&d, first);
+        let inside = Point::new(300.0, 200.0);
+        assert_eq!(
+            route_press(&d, &sel, &vp, screen(inside), Tool::Highlighter),
+            Press::Draw
+        );
+        draw_into(
+            &mut d,
+            &mut history,
+            &mut sel,
+            Tool::Highlighter,
+            inside,
+            Point::new(600.0, 260.0),
+        );
+        assert_eq!(d.scene().len(), 2, "a second highlight");
+        assert_eq!(json(&d, first), before, "the first one did not move");
+        // Its resize handles still resize it while it is selected.
+        sel.set(d.scene(), [first]);
+        assert_eq!(
+            route_press(
+                &d,
+                &sel,
+                &vp,
+                screen(Point::new(700.0, 300.0)),
+                Tool::Highlighter
+            ),
+            Press::Handle
+        );
+    }
+
+    #[test]
+    fn text_tools_edit_only_the_selected_text() {
+        let mut d = doc();
+        let mut history = History::new();
+        let mut text = Toolbox::default().text(Point::new(200.0, 200.0));
+        text.text = "Runs nightly".into();
+        let edit = ops::add(&d, Box::new(text)).unwrap();
+        history.execute(&mut d, "Add", edit.command).unwrap();
+        let id = d.scene().ids()[0];
+        let centre = d.scene().get(id).unwrap().object.arrange().rect.centre();
+        let vp = viewport();
+        let mut sel = Selection::new();
+        // Not selected: a new text on top.
+        assert_eq!(
+            route_press(&d, &sel, &vp, screen(centre), Tool::Text),
+            Press::Draw
+        );
+        // Selected: its text is edited; the callout tool does not edit a text.
+        sel.set(d.scene(), [id]);
+        assert_eq!(
+            route_press(&d, &sel, &vp, screen(centre), Tool::Text),
+            Press::EditText(id)
+        );
+        assert_eq!(
+            route_press(&d, &sel, &vp, screen(centre), Tool::Callout),
+            Press::Draw
+        );
     }
 }
