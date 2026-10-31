@@ -6,4 +6,5 @@
 pub mod document;
 pub mod editing;
 pub mod render;
+pub mod styles;
 pub mod tools;

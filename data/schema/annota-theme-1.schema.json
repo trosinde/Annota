@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/trosinde/Annota/data/schema/annota-theme-1.schema.json",
+  "title": "Annota theme (.annota-theme), format 1.x",
+  "description": "A theme for Annota's quick styles: 2-8 colours, a heading font and a body font. Shared between users and installations: imported by users, installed for every user into /usr/share/annota/themes by an administrator. Readers of format 1.x accept every minor version: unknown keys at any depth are preserved and written back when the theme is saved or exported again. A higher major version is refused ('unknown schema version'). A file has no id: themes are told apart by where they are installed and their file name.",
+  "type": "object",
+  "required": ["format", "name", "colours", "fonts"],
+  "properties": {
+    "format": {
+      "description": "Format version MAJOR.MINOR. Minor versions only add optional data.",
+      "type": "string",
+      "pattern": "^1\\.[0-9]+$"
+    },
+    "requires": {
+      "description": "Oldest Annota release that reads this format (\"0.1\" for format 1.x). Informational.",
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)*$"
+    },
+    "name": {
+      "description": "Shown in the theme list and the theme switcher.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "colours": {
+      "description": "The palette, in order. The first colour is the default colour of every tool; colours 1-3 shape most generated quick styles. #RRGGBB, or #RRGGBBAA.",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "pattern": "^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"
+      }
+    },
+    "fonts": {
+      "description": "Font family names. A family that is not installed falls back like any text in Annota.",
+      "type": "object",
+      "required": ["heading", "body"],
+      "properties": {
+        "heading": {
+          "description": "The text tool's font.",
+          "type": "string",
+          "minLength": 1
+        },
+        "body": {
+          "description": "Callouts' font.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

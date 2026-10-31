@@ -1262,3 +1262,77 @@ fn shadow_matrix() {
     add(&mut doc, objects);
     assert_golden("shadow-matrix", &render::flatten(&doc, 1.0).unwrap());
 }
+
+// ---- add-style-system: quick style tiles ----
+
+/// Every tool's eight theme styles as the sidebar's tiles draw them (63 × 48 on paper, 8 px
+/// apart), one row per tool, for `theme`. Glyphs (text samples, step labels) are masked.
+fn theme_tiles(theme: &annota::styles::theme::Theme) -> (Bitmap, Vec<Rect>) {
+    use annota::styles::{generate, tile, value::TOOLS};
+    let (tw, th, gap) = (63.0, 48.0, 8.0);
+    let width = (8.0 * tw + 9.0 * gap) as i32;
+    let height = (TOOLS.len() as f64 * (th + gap) + gap) as i32;
+    let mut masks = Vec::new();
+    let bitmap = Bitmap::draw(width, height, |cr| {
+        cr.set_source_rgb(0.92, 0.92, 0.93);
+        cr.paint()?;
+        for (row, tool) in TOOLS.iter().enumerate() {
+            for (slot, values) in generate::styles(theme, *tool).iter().enumerate() {
+                let x = gap + slot as f64 * (tw + gap);
+                let y = gap + row as f64 * (th + gap);
+                cr.save()?;
+                cr.translate(x, y);
+                palette::PAPER.set_source(cr);
+                cr.rectangle(0.0, 0.0, tw, th);
+                cr.fill()?;
+                tile::draw(cr, *tool, values, tw, th)?;
+                cr.restore()?;
+            }
+        }
+        Ok(())
+    })
+    .unwrap();
+    for (row, tool) in TOOLS.iter().enumerate() {
+        let y = gap + row as f64 * (th + gap);
+        match tool {
+            annota::editing::tool::Tool::Text => {
+                masks.push(Rect::new(0.0, y, f64::from(width), th));
+            }
+            annota::editing::tool::Tool::Step => {
+                for slot in 0..8 {
+                    let x = gap + slot as f64 * (tw + gap);
+                    masks.push(Rect::new(
+                        x + tw / 2.0 - 9.0,
+                        y + th / 2.0 - 10.0,
+                        18.0,
+                        20.0,
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    (bitmap, masks)
+}
+
+#[test]
+fn annota_theme_quick_styles() {
+    let (bitmap, masks) = theme_tiles(&annota::styles::theme::Theme::annota());
+    assert_golden_masked("theme-annota-tiles", &bitmap, &masks);
+}
+
+#[test]
+fn brand_theme_quick_styles() {
+    // Mockup 06's "Northwind Ferries": every tool's theme styles in its colours.
+    let text = r##"{"format": "1.0", "name": "Northwind Ferries",
+        "colours": ["#0B5CAD", "#00A0B0", "#F2A900", "#E4572E", "#2D2D34"],
+        "fonts": {"heading": "DejaVu Serif", "body": "DejaVu Sans"}}"##;
+    let theme = annota::styles::theme::Theme::parse(
+        text,
+        "user/northwind".into(),
+        annota::styles::theme::Origin::User("northwind".into()),
+    )
+    .unwrap();
+    let (bitmap, masks) = theme_tiles(&theme);
+    assert_golden_masked("theme-brand-tiles", &bitmap, &masks);
+}

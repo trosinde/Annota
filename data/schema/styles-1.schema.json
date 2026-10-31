@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/trosinde/Annota/data/schema/styles-1.schema.json",
+  "title": "Annota quick style library (~/.local/share/annota/styles/styles.json), format 1.x",
+  "description": "The user's own quick styles, their favourites and the current theme. Readers of format 1.x keep unknown keys, styles of unknown tools, unknown style properties and favourites of unknown kinds and write them back. A higher major version is neither read nor overwritten.",
+  "type": "object",
+  "required": ["format", "theme", "styles", "favourites"],
+  "properties": {
+    "format": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+$"
+    },
+    "theme": {
+      "description": "Id of the current theme: \"annota\", \"monochrome\", \"system/<file name>\" (/usr/share/annota/themes) or \"user/<file name>\" (themes/ next to this file).",
+      "type": "string"
+    },
+    "styles": {
+      "description": "User styles; their order is each tool's order in the sidebar.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "tool", "name", "properties"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "tool": {
+            "description": "The type of object the tool makes, as in document.json.",
+            "type": "string",
+            "examples": ["arrow", "line", "pen", "shape", "text", "callout", "step", "highlighter", "redaction"]
+          },
+          "name": { "type": "string", "minLength": 1 },
+          "properties": {
+            "description": "Style properties by key, as the type's own JSON form: numbers, booleans, colours \"#RRGGBBAA\", choices and font names as strings, the shadow as document.json's shadow object.",
+            "type": "object"
+          }
+        }
+      }
+    },
+    "favourites": {
+      "description": "Starred styles, in the order they were starred.",
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["style"],
+            "properties": { "style": { "description": "A user style's id.", "type": "string" } }
+          },
+          {
+            "type": "object",
+            "required": ["theme", "tool", "slot"],
+            "properties": {
+              "theme": { "type": "string" },
+              "tool": { "type": "string" },
+              "slot": { "description": "Which of the theme's eight generated styles.", "type": "integer", "minimum": 0, "maximum": 7 }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

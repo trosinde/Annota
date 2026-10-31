@@ -5,7 +5,7 @@
 
 use std::collections::HashSet;
 
-use crate::document::annotation::{Annotation, PropertyValue};
+use crate::document::annotation::{Annotation, Property, PropertyValue};
 use crate::document::bitmap::Bitmap;
 use crate::document::command::Command;
 use crate::document::geometry::{Arrange, Point};
@@ -44,6 +44,8 @@ pub enum Action {
     Add,
     /// A property changed in the sidebar (colour, width, shadow …).
     Style,
+    /// A quick style applied (add-style-system): several properties, one step.
+    ApplyStyle,
     // Operations on the whole document (`super::image_ops`).
     Crop,
     ResizeImage,
@@ -322,6 +324,45 @@ pub fn restyled(
             changed.then_some((id, copy))
         })
         .collect()
+}
+
+/// The selected objects with all of `values` set (a quick style): copies of the objects that
+/// really change. A value an object refuses is skipped for that object; the others still
+/// apply.
+pub fn restyled_all(
+    doc: &Document,
+    ids: &[ObjectId],
+    values: &[Property],
+) -> Vec<(ObjectId, Box<dyn Annotation>)> {
+    let scene = doc.scene();
+    ids.iter()
+        .filter_map(|&id| {
+            let original = scene.get(id)?.object.as_ref();
+            let mut copy = original.clone_box();
+            for p in values {
+                let _ = copy.set_property(p.key, &p.value);
+            }
+            let changed = copy.to_json().ok()? != original.to_json().ok()?;
+            changed.then_some((id, copy))
+        })
+        .collect()
+}
+
+/// Applies a quick style to the selection: every property at once, **one** undo step
+/// ("Apply Style to Arrow"); `None` if no object changes (the phantom-edit guard of
+/// [`set_property`], for a style that is already in use).
+pub fn set_properties(doc: &Document, ids: &[ObjectId], values: &[Property]) -> Option<Edit> {
+    let objects = restyled_all(doc, ids, values);
+    if objects.is_empty() {
+        return None;
+    }
+    let changed: Vec<ObjectId> = objects.iter().map(|(id, _)| *id).collect();
+    Some(Edit {
+        action: Action::ApplyStyle,
+        subject: Subject::of(doc.scene(), &changed),
+        command: Command::Replace { objects },
+        select: None,
+    })
 }
 
 /// A property edit in the sidebar as one undo step ("Change Arrow"); `None` if nothing
@@ -807,5 +848,45 @@ mod tests {
             Some(PropertyValue::Color(palette::CORAL)),
             "one undo restores the colour"
         );
+    }
+
+    #[test]
+    fn a_quick_style_is_one_step_on_every_selected_object() {
+        use crate::document::color::palette;
+        use crate::tools::arrow::Arrow;
+        let mut doc = Document::new(Bitmap::filled(400, 300, Rgba::WHITE).unwrap());
+        let mut history = History::new();
+        for y in [10.0, 50.0] {
+            let a = Arrow::new(Point::new(10.0, y), Point::new(100.0, y));
+            let edit = add(&doc, Box::new(a)).unwrap();
+            history.execute(&mut doc, "Add", edit.command).unwrap();
+        }
+        let ids = doc.scene().ids();
+        let style = [
+            Property::new("color", PropertyValue::Color(palette::TEAL)),
+            Property::new("width", PropertyValue::Number(12.0)),
+            // Refused by an arrow: skipped, the rest applies.
+            Property::new("width_of_nothing", PropertyValue::Number(1.0)),
+        ];
+        let edit = set_properties(&doc, &ids, &style).unwrap();
+        assert_eq!(
+            (edit.action, edit.subject),
+            (Action::ApplyStyle, Subject::Many(2))
+        );
+        history.execute(&mut doc, "Apply", edit.command).unwrap();
+        for id in &ids {
+            let object = doc.scene().get(*id).unwrap().object.as_ref();
+            assert_eq!(property(object, "color"), Some(style[0].value.clone()));
+            assert_eq!(property(object, "width"), Some(style[1].value.clone()));
+        }
+        // Already in use: no step.
+        assert!(set_properties(&doc, &ids, &style).is_none());
+        history.undo(&mut doc).unwrap();
+        let first = doc.scene().get(ids[0]).unwrap().object.as_ref();
+        assert_eq!(
+            property(first, "color"),
+            Some(PropertyValue::Color(palette::CORAL))
+        );
+        assert_eq!(property(first, "width"), Some(PropertyValue::Number(8.0)));
     }
 }
