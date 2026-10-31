@@ -16,7 +16,7 @@ License: CC-BY-SA-4.0
 # BEGIN VENDORED CRATES
 Files: vendor/*
 Copyright: the respective crate authors
-License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (0BSD OR MIT OR Apache-2.0) AND (Apache-2.0) AND (Apache-2.0 OR MIT) AND (Apache-2.0 WITH LLVM-exception) AND (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT) AND (BSD-2-Clause OR Apache-2.0 OR MIT) AND (MIT) AND (MIT OR Apache-2.0) AND (MIT OR Apache-2.0 OR LGPL-2.1-or-later) AND (MIT OR Zlib OR Apache-2.0) AND (Unicode-3.0) AND (Unlicense OR MIT)
+License: ((MIT OR Apache-2.0) AND IJG) AND ((MIT OR Apache-2.0) AND Unicode-3.0) AND (0BSD OR MIT OR Apache-2.0) AND (Apache-2.0) AND (Apache-2.0 OR MIT) AND (Apache-2.0 WITH LLVM-exception) AND (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT) AND (BSD-2-Clause OR Apache-2.0 OR MIT) AND (MIT) AND (MIT OR Apache-2.0) AND (MIT OR Apache-2.0 OR LGPL-2.1-or-later) AND (MIT OR Zlib OR Apache-2.0) AND (Unicode-3.0) AND (Unlicense OR MIT)
  Rust crates statically linked into the annota binary:
  adler2 2.0.1: 0BSD OR MIT OR Apache-2.0
  aho-corasick 1.1.5: Unlicense OR MIT
@@ -84,6 +84,7 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (0BSD OR MIT OR Apache-2.0) A
  glib 0.20.12: MIT
  glib-macros 0.20.12: MIT
  glib-sys 0.20.10: MIT
+ glob 0.3.4: MIT OR Apache-2.0
  gobject-sys 0.20.10: MIT
  graphene-rs 0.20.10: MIT
  graphene-sys 0.20.10: MIT
@@ -109,12 +110,15 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (0BSD OR MIT OR Apache-2.0) A
  idna_adapter 1.2.1: Apache-2.0 OR MIT
  indexmap 2.14.2: Apache-2.0 OR MIT
  itoa 1.0.18: MIT OR Apache-2.0
+ jpeg-decoder 0.3.2: MIT OR Apache-2.0
+ jpeg-encoder 0.6.1: (MIT OR Apache-2.0) AND IJG
  js-sys 0.3.107: MIT OR Apache-2.0
  lazy_static 1.5.1: MIT OR Apache-2.0
  libadwaita 0.7.2: MIT
  libadwaita-sys 0.7.2: MIT
  libc 0.2.191: MIT OR Apache-2.0
  libm 0.2.16: MIT
+ libwebp-sys 0.14.4: MIT
  linux-raw-sys 0.12.1: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
  litemap 0.8.3: Unicode-3.0
  locale_config 0.3.0: MIT
@@ -238,6 +242,81 @@ License: ((MIT OR Apache-2.0) AND Unicode-3.0) AND (0BSD OR MIT OR Apache-2.0) A
  The Apache-2.0 license referenced above can be found in full at
  /usr/share/common-licenses/Apache-2.0.
 # END VENDORED CRATES
+
+Files: vendor/libwebp-sys-*/vendor/*
+Copyright: 2010 Google Inc.
+License: BSD-3-Clause
+Comment: libwebp, bundled by the libwebp-sys crate and linked statically into the
+ annota binary for WebP export. The WebM project's additional patent grant is in
+ vendor/libwebp-sys-*/vendor/PATENTS.
+
+Files: vendor/jpeg-encoder-*/src/fdct.rs
+Copyright: 1991-1996 Thomas G. Lane
+           1991-2020 Thomas G. Lane, Guido Vollbeding
+           2015, 2020 D. R. Commander
+License: IJG
+Comment: This software is based in part on the work of the Independent JPEG Group.
+
+License: BSD-3-Clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+ .
+   * Redistributions of source code must retain the above copyright
+     notice, this list of conditions and the following disclaimer.
+ .
+   * Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in
+     the documentation and/or other materials provided with the
+     distribution.
+ .
+   * Neither the name of Google nor the names of its contributors may
+     be used to endorse or promote products derived from this software
+     without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: IJG
+ The authors make NO WARRANTY or representation, either express or implied,
+ with respect to this software, its quality, accuracy, merchantability, or
+ fitness for a particular purpose.  This software is provided "AS IS", and you,
+ its user, assume the entire risk as to its quality and accuracy.
+ .
+ This software is copyright (C) 1991-2020, Thomas G. Lane, Guido Vollbeding.
+ All Rights Reserved except as specified below.
+ .
+ Permission is hereby granted to use, copy, modify, and distribute this
+ software (or portions thereof) for any purpose, without fee, subject to these
+ conditions:
+ (1) If any part of the source code for this software is distributed, then this
+ README file must be included, with this copyright and no-warranty notice
+ unaltered; and any additions, deletions, or changes to the original files
+ must be clearly indicated in accompanying documentation.
+ (2) If only executable code is distributed, then the accompanying
+ documentation must state that "this software is based in part on the work of
+ the Independent JPEG Group".
+ (3) Permission for use of this software is granted only if the user accepts
+ full responsibility for any undesirable consequences; the authors accept
+ NO LIABILITY for damages of any kind.
+ .
+ These conditions apply to any software derived from or based on the IJG code,
+ not just to the unmodified library.  If you use our work, you ought to
+ acknowledge us.
+ .
+ Permission is NOT granted for the use of any IJG author's name or company name
+ in advertising or publicity relating to this software or products derived from
+ it.  This software may be referred to only as "the Independent JPEG Group's
+ software".
 
 License: MIT
  Permission is hereby granted, free of charge, to any person obtaining a copy

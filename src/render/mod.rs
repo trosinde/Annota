@@ -148,7 +148,33 @@ pub fn render_preview(
     preview: Option<&Preview<'_>>,
 ) -> Result<(), cairo::Error> {
     cr.save()?;
-    let result = render_inner(cr, doc, viewport, options, preview);
+    let result = render_inner(cr, doc, viewport, options, preview, None);
+    cr.restore()?;
+    result
+}
+
+/// Part of the document for [`render_layer`]. The PDF export (`crate::export`) draws the
+/// background, the original image and the objects that must not stay vectors as one bitmap,
+/// then the other objects as vectors on top, both through this one renderer.
+#[derive(Clone, Copy)]
+pub struct Layer<'a> {
+    /// Draw the canvas background and the original image.
+    pub base: bool,
+    /// Whether to draw the top-level object at this stacking position.
+    pub objects: &'a dyn Fn(usize) -> bool,
+}
+
+/// [`render`] limited to `layer`: the same clip, transformation and drawing, objects in their
+/// stacking order, only fewer of them.
+pub fn render_layer(
+    cr: &cairo::Context,
+    doc: &Document,
+    viewport: &Viewport,
+    options: &Options,
+    layer: &Layer<'_>,
+) -> Result<(), cairo::Error> {
+    cr.save()?;
+    let result = render_inner(cr, doc, viewport, options, None, Some(layer));
     cr.restore()?;
     result
 }
@@ -170,6 +196,7 @@ fn render_inner(
     viewport: &Viewport,
     options: &Options,
     preview: Option<&Preview<'_>>,
+    layer: Option<&Layer<'_>>,
 ) -> Result<(), cairo::Error> {
     if !(viewport.zoom.is_finite() && viewport.zoom > 0.0) {
         return Ok(());
@@ -189,23 +216,25 @@ fn render_inner(
         return Ok(());
     }
 
-    match doc.canvas().background {
-        Background::Color { color } => {
-            color.set_source(cr);
-            cr.paint()?;
+    if layer.is_none_or(|l| l.base) {
+        match doc.canvas().background {
+            Background::Color { color } => {
+                color.set_source(cr);
+                cr.paint()?;
+            }
+            // An unknown background type (newer minor format) is drawn as transparent.
+            Background::Transparent | Background::Unknown if options.target == Target::Screen => {
+                let corner = viewport.to_device(Point::new(canvas.x, canvas.y));
+                paint_checker(cr, base, corner, options.checker)?;
+            }
+            Background::Transparent | Background::Unknown => {}
         }
-        // An unknown background type (newer minor format) is drawn as transparent.
-        Background::Transparent | Background::Unknown if options.target == Target::Screen => {
-            let corner = viewport.to_device(Point::new(canvas.x, canvas.y));
-            paint_checker(cr, base, corner, options.checker)?;
-        }
-        Background::Transparent | Background::Unknown => {}
-    }
 
-    let radius = preview
-        .and_then(|p| p.corner_radius)
-        .unwrap_or(doc.image().corner_radius);
-    paint_image(cr, doc, viewport.zoom, radius)?;
+        let radius = preview
+            .and_then(|p| p.corner_radius)
+            .unwrap_or(doc.image().corner_radius);
+        paint_image(cr, doc, viewport.zoom, radius)?;
+    }
 
     let ctx = RenderContext {
         document: doc,
@@ -230,6 +259,9 @@ fn render_inner(
     }
     let ghost = preview.is_some_and(|p| p.ghost);
     for position in positions {
+        if layer.is_some_and(|l| !(l.objects)(position)) {
+            continue;
+        }
         let Some(node) = scene.nodes().get(position) else {
             continue;
         };

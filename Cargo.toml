@@ -17,7 +17,8 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 thiserror = "2"
 futures-channel = "0.3"
 # Document model (add-annotation-editor). Versions chosen for MSRV 1.85, see that change's design.md.
-cairo-rs = { version = "0.20", features = ["png"] }
+# `pdf` + `v1_16` (PDF metadata, cairo >= 1.16): PDF export, add-export-share.
+cairo-rs = { version = "0.20", features = ["png", "pdf", "v1_16"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 zip = { version = "6", default-features = false, features = ["deflate-flate2"] }
@@ -28,7 +29,16 @@ rstar = "0.13"
 # Same gtk-rs 0.20 generation as cairo-rs; libpango is already linked through GTK.
 pango = "0.20"
 pangocairo = "0.20"
+# Export encoders (add-export-share, see its design.md). Statically built into the binary, so no
+# optional system codec (gdk-pixbuf loader) can be missing at runtime. jpeg-encoder 0.7 needs
+# Rust 1.87; 0.6 is the last for MSRV 1.85. libwebp-sys compiles its bundled libwebp with `cc`.
+jpeg-encoder = "0.6"
+libwebp-sys = { version = "0.14", default-features = false, features = ["std"] }
 
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+[dev-dependencies]
+# Decodes exported JPEGs in the export round-trip tests (WebP is decoded with libwebp itself).
+jpeg-decoder = { version = "0.3", default-features = false }

@@ -5,7 +5,8 @@
 - [x] 1.2 Maintainer approval recorded in design.md
 
 ## 2. Implementation
-- [ ] 2.1 Exporters PNG/JPG/WebP/PDF
+- [x] 2.1 Exporters PNG/JPG/WebP/PDF (`src/export/`, not wired into the UI yet; `.annota` save
+      re-exposed as `export::save_annota`; see design.md "Decided during apply", task 2.1)
 - [ ] 2.2 Quick save + Save As
 - [ ] 2.3 Clipboard, DnD source
 - [ ] 2.4 Share menu via portals
