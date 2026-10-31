@@ -6,11 +6,15 @@ Provides the drawing tools that create annotation objects on the canvas and the 
 ## ADDED Requirements
 
 ### Requirement: Tool switching
-Each tool SHALL have a single-key shortcut: Select `V`, Arrow `A`, Line `L`, Pen `P`, Shape `U`, Text `T`, Callout `K`, Step `S`, Highlighter `H`, Blur `B`, Crop `C`. Shortcuts SHALL appear in tooltips. After drawing, the tool stays active until `Esc` or `V`.
+Each tool SHALL have a single-key shortcut: Select `V`, Arrow `A`, Line `L`, Pen `P`, Shape `U`, Text `T`, Callout `K`, Step `S`, Highlighter `H`, Redact (blur, pixelate, solid) `B`, Crop `C`. Shortcuts SHALL appear in tooltips. After drawing, the tool stays active until `Esc` or `V`. While text is edited in place, letter keys type text instead of switching tools.
 
 #### Scenario: Key switches tool
 - **WHEN** the canvas has focus and the user presses `A`
 - **THEN** the arrow tool is active
+
+#### Scenario: Tool stays active
+- **WHEN** the user draws an arrow with the arrow tool
+- **THEN** the arrow tool is still active, a second arrow can be drawn right away, and `Esc` returns to Select
 
 ### Requirement: Common style properties
 Every drawable object SHALL support colour (palette, hex/RGB entry, screen eyedropper), opacity 0–100 %, and a drop shadow with on/off, colour, angle, distance, blur and opacity.
@@ -45,11 +49,15 @@ The pen SHALL draw freehand strokes as editable vector paths with width, colour,
 - **THEN** the stroke re-renders with the new width
 
 ### Requirement: Shape
-Shapes SHALL include rectangle, rounded rectangle (corner radius), ellipse and polygon (click per vertex, double-click or Enter to finish). Fill and outline are independent; fill may be transparent. Shift draws square/circle.
+Shapes SHALL include rectangle, rounded rectangle (corner radius), ellipse and polygon (click per vertex, double-click, Enter or a click on the first vertex to finish, Backspace removes the last vertex, Esc cancels). Fill and outline are independent; fill may be transparent. Shift draws square/circle.
 
 #### Scenario: Frame
 - **WHEN** the user draws a rectangle with transparent fill
 - **THEN** only the outline is visible
+
+#### Scenario: Polygon
+- **WHEN** the shape type is polygon and the user clicks four points and presses Enter
+- **THEN** a four-sided polygon is created as one undo step
 
 ### Requirement: Text
 Text objects SHALL support font family, size, bold, italic, underline, strikethrough, alignment, colour, outline colour/width and multi-line editing in place.
@@ -59,7 +67,7 @@ Text objects SHALL support font family, size, bold, italic, underline, strikethr
 - **THEN** the text becomes editable on the canvas
 
 ### Requirement: Callout
-Callouts SHALL be a text box with shape (rectangle, rounded, ellipse, cloud), fill, outline, padding and one or more tails. Dragging the tail-add handle SHALL create an additional tail; dragging a tail tip onto the body SHALL remove it. The body auto-grows with text.
+Callouts SHALL be a text box with shape (rectangle, rounded, ellipse, cloud), fill, outline, padding and one or more tails. Dragging the tail-add handle SHALL create an additional tail; dragging a tail tip onto the body SHALL remove it, except the last tail, which stays where it was. The body auto-grows with text.
 
 #### Scenario: Two tails
 - **WHEN** the user drags the add-tail handle to a second point
@@ -77,14 +85,21 @@ Clicking SHALL place sequential markers. Sequence types: 1,2,3 / A,B,C / a,b,c /
 - **THEN** the remaining markers read 1, 2, 3
 
 ### Requirement: Highlighter
-The highlighter SHALL draw a semi-transparent rectangle (default 40 % yellow) using multiply blending so underlying text stays readable.
+The highlighter SHALL draw a semi-transparent rectangle (default 45 % yellow) using multiply blending so underlying text stays readable.
 
 #### Scenario: Text readable
 - **WHEN** the user highlights a line of text
 - **THEN** the text remains legible through the highlight
 
 ### Requirement: Redaction
-The blur tool SHALL support types blur, pixelate and solid, with intensity and shape (rectangle, ellipse). When exporting or sharing a document that contains blur or pixelate redactions, the system SHALL warn that these may be reversible and offer to convert them to solid.
+The redact tool SHALL support types blur, pixelate and solid, with intensity and shape (rectangle, ellipse). Blur and pixelate SHALL process the captured image's own pixels under the redaction, so the canvas and the export show the same result.
+
+#### Scenario: Pixelate hides detail
+- **WHEN** the user drags a pixelate redaction over text in the capture
+- **THEN** the area shows blocks of averaged colour on the canvas and in the export, and the text cannot be read
+
+### Requirement: Redaction export warning
+When exporting or sharing a document that contains blur or pixelate redactions, the system SHALL warn that these may be reversible and offer to convert them to solid. The warning applies to every way out of Annota: export, copy, drag and share (decision D7).
 
 #### Scenario: Export warning
 - **WHEN** a document with a pixelate redaction is exported

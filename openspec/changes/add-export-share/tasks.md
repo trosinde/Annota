@@ -19,6 +19,15 @@
       document is saved or the user discards it" — in the code (`Session::close`,
       `Editor::close_all`, `editor::shut_down`) and as a MODIFIED delta of `document-format`
       ("Autosave and recovery", "Closing keeps autosaves", "Recovery dialog").
+- [ ] 2.7 Redaction export warning — add-core-annotation-tools builds blur, pixelate and solid
+      redactions (`annota::tools::redaction::Redaction`) but has no way out of Annota to guard;
+      its requirement "Redaction export warning" (spec annotation-tools, decision D7, that
+      change's mockup 19 and this change's mockup 10) is verified here. Before every export,
+      Copy, drag-out, share and quick save of a document with blur or pixelate redactions (at
+      any depth, groups included): the alert "Redactions May Be Reversible" with **Convert to
+      Solid and Export** (suggested; "… and Copy" for Copy), **Export As Is** and **Cancel**.
+      Converting is one undo step: `set_property("redaction", Choice("solid"))` on each, as one
+      `Command::Replace`. Faces found by smart redaction default to Solid (D7, add-smart-redaction).
 
 ## 3. Verify
 - [ ] 3.1 Tests for every scenario (unit, golden-image or documented manual check)
