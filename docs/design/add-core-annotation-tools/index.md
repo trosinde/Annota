@@ -25,7 +25,7 @@ result on a sample capture together with the full properties sidebar. 1280×800 
 | Step | Renumber on delete | [13-step-renumber-on-delete](png/13-step-renumber-on-delete-light@1x.png) | Ghost of deleted marker + “3 → 2”, “4 → 3” chips (transient, 1.5 s) + toast with Undo. |
 | Highlighter | Text readable | [14-highlighter](png/14-highlighter-light@1x.png) | Multiply blend, 45 % yellow; text under highlight stays legible. |
 | Redaction | (types) | [15-redact-blur-pixelate-solid](png/15-redact-blur-pixelate-solid-light@1x.png) | Blur (email, avatar ellipse), pixelate (selected), solid (phone, booking ref, IP). |
-| Redaction | Export warning | [19-export-redaction-warning](png/19-export-redaction-warning-light@1x.png) | Alert with Convert to Solid and Export (suggested) / Export As Is / Cancel. Also on Copy and drag-out. |
+| Redaction | Export warning | [19-export-redaction-warning](png/19-export-redaction-warning-light@1x.png) | Alert “Make Redactions Solid?”: Cancel · Export Anyway · Convert to Solid (suggested). Matches add-export-share mockup 10 (canonical). Also on Copy, drag-out and share; never on a `.annota` save. |
 
 ## Redlines
 
@@ -85,9 +85,19 @@ offset +18/+18 from the pointer, chip “#RRGGBB · Click to pick · Esc cancels
 If the portal does not provide a loupe, Annota shows none; the chip stays.
 
 ### Redaction export warning (19)
-Alert 440 px: heading “Redactions May Be Reversible”, body “This capture has N blurred or pixelated areas. Someone could partly
-restore what is underneath. Solid boxes hide it completely.” Stacked buttons: **Convert to Solid and Export** (suggested),
-**Export As Is**, **Cancel**. Same alert on Copy (button reads “Convert to Solid and Copy”).
+Identical to add-export-share mockup 10 (“Pixelate warning”), which is the canonical version (maintainer decision
+2026-10-31; built in `data/ui/redaction-warning.blp`). Alert 460 px: `warning` icon 32 px in `--warning`, heading
+“Make Redactions Solid?”, centred body naming the count and the kind (count includes redactions inside groups):
+- only pixelate: “<n> redactions use pixelate. Pixelated text can sometimes be reconstructed. Solid boxes hide it for good.”
+- only blur: “<n> redactions use blur. Blurred text can sometimes be reconstructed. Solid boxes hide it for good.”
+- both (drawn here, 2 blur + 4 pixelate): “<n> redactions use blur or pixelate. Blurred or pixelated text can sometimes be
+  reconstructed. Solid boxes hide it for good.”
+- singular for n = 1: “1 redaction uses …”.
+
+Horizontal, equal-width buttons, 12 px apart: **Cancel** · **Export Anyway** · **Convert to Solid** (suggested). Escape =
+Cancel, Enter = Convert to Solid. Convert to Solid is one undo step, then the action continues. The middle button is named
+after the way out (“Copy Anyway” before Copy, etc.). Shown before export, copy, drag-out and share; never before a `.annota`
+save (quick save, Save As).
 
 ### Kit additions needed (improvised as page-local glyphs)
 `shape-rectangle`, `shape-rounded`, `shape-ellipse`, `shape-polygon`, `shape-cloud`, `line-solid`, `line-dashed`, `line-dotted`,

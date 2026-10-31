@@ -206,15 +206,16 @@
         <button class="btn full" style="justify-content:center">Select All Redactions</button></div></div>
   </div>
   <div class="dialog-host" style="z-index:30">
-    <div class="dialog alert" style="width:440px;max-width:440px">
+    <div class="dialog alert" style="width:460px;max-width:460px">
       <div class="alert-body">
-        <span class="alert-heading">Redactions May Be Reversible</span>
-        <span>This capture has 6 blurred or pixelated areas. Someone could partly restore what is underneath. Solid boxes hide it completely.</span>
+        <div style="color:var(--warning)"><svg class="icon large"><use href="#i-warning"/></svg></div>
+        <div class="alert-heading">Make Redactions Solid?</div>
+        <div>6 redactions use blur or pixelate. Blurred or pixelated text can sometimes be reconstructed. Solid boxes hide it for good.</div>
       </div>
-      <div class="alert-actions" style="flex-direction:column;gap:12px">
-        <button class="btn suggested-action" style="width:100%">Convert to Solid and Export</button>
-        <button class="btn" style="width:100%">Export As Is</button>
-        <button class="btn" style="width:100%">Cancel</button>
+      <div class="alert-actions">
+        <button class="btn">Cancel</button>
+        <button class="btn">Export Anyway</button>
+        <button class="btn suggested-action">Convert to Solid</button>
       </div>
     </div>
   </div>
