@@ -197,10 +197,11 @@ pub fn style_scaled(value: f64, t: &Transform) -> f64 {
     }
 }
 
-/// Scales a shadow's distance and blur for a whole-document transform.
+/// Scales a shadow's distance and blur for a whole-document transform, within the shadow
+/// editor's ranges (so a scaled object's shadow stays editable and drawable).
 pub fn shadow_scaled(shadow: &mut Shadow, t: &Transform) {
-    shadow.distance = style_scaled(shadow.distance, t);
-    shadow.blur = style_scaled(shadow.blur, t);
+    shadow.distance = style_scaled(shadow.distance, t).clamp(0.0, Shadow::MAX_DISTANCE);
+    shadow.blur = style_scaled(shadow.blur, t).clamp(0.0, Shadow::MAX_BLUR);
 }
 
 /// One of a fixed set of choices by its key.

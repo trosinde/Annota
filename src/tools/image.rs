@@ -309,8 +309,8 @@ impl Annotation for Image {
         if s.is_finite() && s > 0.0 && s != 1.0 {
             self.border_width = (self.border_width * s).min(MAX_BORDER);
             self.corner_radius *= s;
-            self.shadow.distance *= s;
-            self.shadow.blur *= s;
+            self.shadow.distance = (self.shadow.distance * s).min(Shadow::MAX_DISTANCE);
+            self.shadow.blur = (self.shadow.blur * s).min(Shadow::MAX_BLUR);
         }
     }
 }

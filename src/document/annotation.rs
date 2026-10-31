@@ -475,16 +475,20 @@ pub mod value {
         }
     }
 
+    /// A shadow inside the shadow editor's ranges (mockup 18): opacity 0–1, distance
+    /// 0–[`Shadow::MAX_DISTANCE`], blur 0–[`Shadow::MAX_BLUR`], any finite angle (stored in
+    /// [0, 360)). Larger values used to be accepted and then silently dropped by the renderer
+    /// once the shadow's mask outgrew cairo's limits.
     pub fn shadow(key: &str, value: &PropertyValue) -> Result<Shadow, PropertyError> {
         match value {
             PropertyValue::Shadow(s)
                 if (0.0..=1.0).contains(&s.opacity)
-                    && s.distance.is_finite()
-                    && s.angle.is_finite()
-                    && s.blur.is_finite()
-                    && s.blur >= 0.0 =>
+                    && (0.0..=Shadow::MAX_DISTANCE).contains(&s.distance)
+                    && (0.0..=Shadow::MAX_BLUR).contains(&s.blur)
+                    && s.angle.is_finite() =>
             {
-                Ok(*s)
+                s.bounded()
+                    .ok_or_else(|| PropertyError::Range(key.to_string()))
             }
             PropertyValue::Shadow(_) => Err(PropertyError::Range(key.to_string())),
             _ => Err(PropertyError::Type(key.to_string())),
@@ -608,5 +612,64 @@ mod tests {
             Err(PropertyError::Type("w".into()))
         );
         assert!(value::number("w", &PropertyValue::Number(f64::NAN), 0.0..=10.0).is_err());
+    }
+
+    #[test]
+    fn shadows_stay_inside_the_editor_ranges() {
+        // B3: a shadow of blur 1e9 used to be accepted and then not drawn at all.
+        let ok = |s: Shadow| value::shadow("shadow", &PropertyValue::Shadow(s));
+        assert_eq!(ok(Shadow::DEFAULT), Ok(Shadow::DEFAULT));
+        let at_max = Shadow {
+            distance: Shadow::MAX_DISTANCE,
+            blur: Shadow::MAX_BLUR,
+            opacity: 1.0,
+            ..Shadow::DEFAULT
+        };
+        assert_eq!(ok(at_max), Ok(at_max));
+        for bad in [
+            Shadow {
+                blur: 1e9,
+                ..Shadow::DEFAULT
+            },
+            Shadow {
+                blur: Shadow::MAX_BLUR + 0.1,
+                ..Shadow::DEFAULT
+            },
+            Shadow {
+                distance: 1e9,
+                ..Shadow::DEFAULT
+            },
+            Shadow {
+                distance: -1.0,
+                ..Shadow::DEFAULT
+            },
+            Shadow {
+                blur: -1.0,
+                ..Shadow::DEFAULT
+            },
+            Shadow {
+                opacity: 1.5,
+                ..Shadow::DEFAULT
+            },
+            Shadow {
+                angle: f64::NAN,
+                ..Shadow::DEFAULT
+            },
+        ] {
+            assert_eq!(
+                ok(bad),
+                Err(PropertyError::Range("shadow".into())),
+                "{bad:?}"
+            );
+        }
+        // Any angle is fine; it is stored as 0–360°.
+        let turned = ok(Shadow {
+            angle: -90.0,
+            ..Shadow::DEFAULT
+        })
+        .unwrap();
+        assert_eq!(turned.angle, 270.0);
+        // The editor shows the blur as a CSS-style radius: the default's "12 px".
+        assert_eq!(Shadow::DEFAULT.blur_radius(), 12.0);
     }
 }

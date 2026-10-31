@@ -17,11 +17,25 @@ Each tool SHALL have a single-key shortcut: Select `V`, Arrow `A`, Line `L`, Pen
 - **THEN** the arrow tool is still active, a second arrow can be drawn right away, and `Esc` returns to Select
 
 ### Requirement: Common style properties
-Every drawable object SHALL support colour (palette, hex/RGB entry, screen eyedropper), opacity 0–100 %, and a drop shadow with on/off, colour, angle, distance, blur and opacity.
+Every drawable object SHALL support colour (palette, hex/RGB entry, screen eyedropper), opacity 0–100 %, and a drop shadow with on/off, colour, angle, distance (0–30 px), blur (0–30 px) and opacity, except where "Style exceptions" says otherwise.
 
 #### Scenario: Eyedropper
 - **WHEN** the user clicks the eyedropper and then a pixel anywhere on screen
 - **THEN** the current object takes that colour
+
+### Requirement: Style exceptions
+A highlight SHALL have colour and opacity but no shadow (it multiplies with the capture underneath). A redaction SHALL have neither opacity nor a shadow (a see-through redaction would not hide anything); a solid redaction has a colour.
+
+#### Scenario: Shared controls follow the type
+- **WHEN** a highlight or a redaction is selected
+- **THEN** the properties show no shadow editor, and for a redaction no opacity either
+
+### Requirement: Shadow ranges
+A shadow's distance SHALL stay within 0–30 px and its blur within 0–30 px (the shadow editor's ranges).
+
+#### Scenario: Shadow out of range
+- **WHEN** a shadow blur of more than 30 px is set on an object
+- **THEN** the change is refused and the object keeps its shadow
 
 ### Requirement: Arrow
 Arrows SHALL support width 1–40 px, independent start and end styles (none, triangle, open, circle, square, bar), independent end sizes, line style (solid, dashed, dotted), and a curve handle for a quadratic Bézier. Shift constrains to 0/45/90°.
@@ -67,11 +81,15 @@ Text objects SHALL support font family, size, bold, italic, underline, strikethr
 - **THEN** the text becomes editable on the canvas
 
 ### Requirement: Callout
-Callouts SHALL be a text box with shape (rectangle, rounded, ellipse, cloud), fill, outline, padding and one or more tails. Dragging the tail-add handle SHALL create an additional tail; dragging a tail tip onto the body SHALL remove it, except the last tail, which stays where it was. The body auto-grows with text.
+Callouts SHALL be a text box with shape (rectangle, rounded, ellipse, cloud), fill, outline, padding and zero or more tails. Dragging the tail-add handle SHALL create an additional tail; dragging a tail tip onto the body SHALL remove it, the last tail included: a callout without tails is a filled text box. The body auto-grows with text.
 
 #### Scenario: Two tails
 - **WHEN** the user drags the add-tail handle to a second point
 - **THEN** the callout points to two locations
+
+#### Scenario: No tails
+- **WHEN** the user drags the only tail tip of a callout onto its body
+- **THEN** the callout has no tail, stays a filled text box and still offers the add-tail handle
 
 ### Requirement: Step
 Clicking SHALL place sequential markers. Sequence types: 1,2,3 / A,B,C / a,b,c / I,II,III. Users SHALL restart the sequence, edit a single marker's value, and choose shape (circle, square, rounded square, pin). Deleting a marker renumbers following markers of the same sequence.

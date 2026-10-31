@@ -36,6 +36,34 @@ impl Shadow {
         blur: 6.0,
     };
 
+    /// Longest offset, document pixels: the shadow editor's Distance slider (mockup 18: 9 px
+    /// sits at 30 % of it).
+    pub const MAX_DISTANCE: f64 = 30.0;
+    /// Strongest blur, as the Gaussian standard deviation stored in [`Shadow::blur`]: the
+    /// Blur slider's 30 px (mockup 18: 12 px at 40 %), which shows twice the deviation.
+    pub const MAX_BLUR: f64 = 15.0;
+
+    /// The blur as the shadow editor shows it: a CSS-style blur radius, twice the deviation.
+    pub fn blur_radius(&self) -> f64 {
+        2.0 * self.blur
+    }
+
+    /// The shadow with every value inside the editor's ranges (angle in [0, 360), distance
+    /// 0–[`Shadow::MAX_DISTANCE`], blur 0–[`Shadow::MAX_BLUR`], opacity 0–1); `None` if a value
+    /// is not a finite number.
+    pub fn bounded(&self) -> Option<Shadow> {
+        let finite = [self.opacity, self.angle, self.distance, self.blur]
+            .iter()
+            .all(|v| v.is_finite());
+        finite.then(|| Shadow {
+            angle: super::geometry::normalize_degrees(self.angle).rem_euclid(360.0),
+            distance: self.distance.clamp(0.0, Self::MAX_DISTANCE),
+            blur: self.blur.clamp(0.0, Self::MAX_BLUR),
+            opacity: self.opacity.clamp(0.0, 1.0),
+            ..*self
+        })
+    }
+
     /// [`Shadow::DEFAULT`] switched off (text: "shadow off").
     pub const DEFAULT_OFF: Shadow = Shadow {
         enabled: false,

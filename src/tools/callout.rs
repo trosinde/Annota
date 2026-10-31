@@ -1,5 +1,5 @@
 //! Callouts (spec annotation-tools: Callout; mockups 09, 10): a text box — rectangle, rounded
-//! rectangle, ellipse or cloud — with fill, outline, padding and one or more tails.
+//! rectangle, ellipse or cloud — with fill, outline, padding and zero or more tails.
 //!
 //! The body is a box like a shape's; the text wraps inside it and the body grows downwards when
 //! the text needs more room ("The body auto-grows with text"). Each tail is a wedge from the
@@ -13,9 +13,9 @@
 //!
 //! Handles (redline "On-canvas handles"): the body's 8 resize handles, a filled 12 px handle at
 //! each tail tip, and the 18 px add-tail handle 23 px below the body. Dragging the add-tail
-//! handle makes another tail; dragging a tip onto the body removes that tail — except the last
-//! one: a callout keeps at least one tail ("one or more tails"), so dropping its only tip on the
-//! body leaves it where it was.
+//! handle makes another tail; dragging a tip onto the body removes that tail, the last one too:
+//! a callout without tails is a filled text box (the only way to put text on a background, since
+//! text objects have no fill). The add-tail handle stays, so a tail can be added again.
 
 use serde::{Deserialize, Serialize};
 
@@ -573,9 +573,7 @@ impl Annotation for Callout {
                     return;
                 };
                 if on_body(self) {
-                    if self.tails.len() > 1 {
-                        self.tails.remove(i);
-                    }
+                    self.tails.remove(i);
                 } else {
                     self.tails[i] = to;
                 }
@@ -664,7 +662,7 @@ mod tests {
     }
 
     #[test]
-    fn dropping_a_tip_on_the_body_removes_the_tail_but_not_the_last() {
+    fn dropping_a_tip_on_the_body_removes_the_tail_even_the_last() {
         let mut c = sample();
         c.tails.push(Point::new(500.0, 350.0));
         let mut removed = c.clone();
@@ -674,18 +672,32 @@ mod tests {
             Modifiers::default(),
         );
         assert_eq!(removed.tails, vec![Point::new(500.0, 350.0)]);
-        // The last tail stays where it was.
+        // Adding a tail onto the body adds nothing.
+        let mut none = removed.clone();
+        none.drag_handle(ADD_TAIL, Point::new(250.0, 140.0), Modifiers::default());
+        assert_eq!(none.tails.len(), 1);
+        // Maintainer decision (phase B): the last tail goes too — a filled text box remains,
+        // with its add-tail handle, and it saves, reads back and renders without a tail.
         let mut last = removed.clone();
         last.drag_handle(
             HandleId::Custom(TAIL_BASE),
             Point::new(250.0, 140.0),
             Modifiers::default(),
         );
-        assert_eq!(last.tails, removed.tails);
-        // Adding a tail onto the body adds nothing.
-        let mut none = removed.clone();
-        none.drag_handle(ADD_TAIL, Point::new(250.0, 140.0), Modifiers::default());
-        assert_eq!(none.tails.len(), 1);
+        assert!(last.tails.is_empty());
+        assert!(last.handles().iter().any(|h| h.id == ADD_TAIL));
+        assert!(!last.handles().iter().any(|h| h.kind == HandleKind::Tip));
+        crate::document::registry::check_reads_back(&last).unwrap();
+        let out = render(&last);
+        let centre = last.body().centre();
+        assert_eq!(
+            out.pixel(centre.x as i32 - 100, centre.y as i32),
+            Some(palette::CORAL),
+            "the body is still filled"
+        );
+        // And a tail can be added back.
+        last.drag_handle(ADD_TAIL, Point::new(500.0, 350.0), Modifiers::default());
+        assert_eq!(last.tails, vec![Point::new(500.0, 350.0)]);
     }
 
     #[test]
