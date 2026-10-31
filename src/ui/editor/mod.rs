@@ -1436,6 +1436,13 @@ impl Editor {
             key,
             gdk::Key::space | gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::ISO_Enter
         );
+        // A focused slider of the properties (opacity, shadow …) moves with the arrow keys
+        // instead of nudging the selection (keyboard path, CLAUDE.md §7).
+        let on_slider =
+            focus.is::<gtk::Range>() || focus.ancestor(gtk::Range::static_type()).is_some();
+        if on_slider && is_navigation_key(key) {
+            return false;
+        }
         on_canvas || !activates
     }
 
@@ -2069,6 +2076,25 @@ fn install_actions(window: &adw::ApplicationWindow, settings: &gio::Settings) ->
 
 /// The keys of the image operations that a document with objects of a newer Annota cannot have:
 /// Rotate (Ctrl+R, Ctrl+Shift+R), Flatten (Ctrl+T, Ctrl+Shift+T) and the Crop tool (C).
+/// Keys a focused slider uses.
+fn is_navigation_key(key: gdk::Key) -> bool {
+    matches!(
+        key,
+        gdk::Key::Left
+            | gdk::Key::Right
+            | gdk::Key::Up
+            | gdk::Key::Down
+            | gdk::Key::KP_Left
+            | gdk::Key::KP_Right
+            | gdk::Key::KP_Up
+            | gdk::Key::KP_Down
+            | gdk::Key::Home
+            | gdk::Key::End
+            | gdk::Key::Page_Up
+            | gdk::Key::Page_Down
+    )
+}
+
 fn is_image_op_key(key: gdk::Key, modifiers: gdk::ModifierType) -> bool {
     let ctrl = modifiers.contains(gdk::ModifierType::CONTROL_MASK);
     let other = modifiers.intersects(gdk::ModifierType::ALT_MASK | gdk::ModifierType::SUPER_MASK);
@@ -3080,7 +3106,7 @@ mod tests {
     /// Saves `widget` as `<name>.png` into `$ANNOTA_SHOTS` (if set), for comparing with the
     /// mockups by eye.
     fn shot(widget: &impl IsA<gtk::Widget>, name: &str) {
-        let Some(dir) = std::env::var_os("ANNOTA_SHOTS") else {
+        let Some(dir) = std::env::var_os("ANNOTA_SHOTS").filter(|d| !d.is_empty()) else {
             return;
         };
         pump(150);
@@ -3275,6 +3301,10 @@ mod tests {
             Some(PropertyValue::Number(0.5))
         );
         assert!(canvas.previewing().is_none());
+        // A focused slider keeps its arrow keys (the selection is not nudged).
+        panel.opacity.scale.grab_focus();
+        assert!(!editor.routes_to_canvas(gdk::Key::Left));
+        canvas.grab_focus();
         // Spec "One undo step per change": one undo brings back 100 %.
         canvas.undo();
         assert_eq!(

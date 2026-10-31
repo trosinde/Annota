@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 06:21+0100\n"
+"POT-Creation-Date: 2026-10-31 06:28+0100\n"
 "PO-Revision-Date: 2026-10-30 15:01+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -480,7 +480,7 @@ msgid "Open in Editor"
 msgstr "Im Editor öffnen"
 
 #: data/ui/preferences.blp:188 data/ui/editor-window.blp:343
-#: src/ui/editor/mod.rs:1978
+#: src/ui/editor/mod.rs:1985
 msgid "Copy to Clipboard"
 msgstr "In die Zwischenablage kopieren"
 
@@ -993,7 +993,7 @@ msgstr "Verkleinern"
 
 #: data/ui/editor-window.blp:299 src/capture/delivery.rs:281
 #: src/ui/editor/mod.rs:594 src/ui/editor/mod.rs:1242 src/ui/editor/mod.rs:1379
-#: src/ui/editor/mod.rs:1856 src/ui/editor/text.rs:101
+#: src/ui/editor/mod.rs:1863 src/ui/editor/text.rs:101
 msgid "Undo"
 msgstr "Rückgängig"
 
@@ -2047,31 +2047,31 @@ msgstr "Exportieren folgt mit Meilenstein 0.1"
 msgid "Saving arrives in milestone 0.1"
 msgstr "Speichern folgt mit Meilenstein 0.1"
 
-#: src/ui/editor/mod.rs:1680
+#: src/ui/editor/mod.rs:1687
 msgid "Picking a colour from the screen needs xdg-desktop-portal"
 msgstr "Farben vom Bildschirm aufnehmen braucht xdg-desktop-portal"
 
-#: src/ui/editor/mod.rs:1683
+#: src/ui/editor/mod.rs:1690
 msgid "Annota may not read colours from the screen"
 msgstr "Annota darf keine Farben vom Bildschirm lesen"
 
-#: src/ui/editor/mod.rs:1687
+#: src/ui/editor/mod.rs:1694
 msgid "The colour could not be picked"
 msgstr "Die Farbe konnte nicht aufgenommen werden"
 
-#: src/ui/editor/mod.rs:1713
+#: src/ui/editor/mod.rs:1720
 msgid "Canvas Colour"
 msgstr "Leinwandfarbe"
 
-#: src/ui/editor/mod.rs:1844
+#: src/ui/editor/mod.rs:1851
 msgid "Could not insert the image"
 msgstr "Das Bild konnte nicht eingefügt werden"
 
-#: src/ui/editor/mod.rs:1855
+#: src/ui/editor/mod.rs:1862
 msgid "Image inserted"
 msgstr "Bild eingefügt"
 
-#: src/ui/editor/mod.rs:1938
+#: src/ui/editor/mod.rs:1945
 msgid "Could not restore “{name}”: {error}"
 msgstr "„{name}“ konnte nicht wiederhergestellt werden: {error}"
 
