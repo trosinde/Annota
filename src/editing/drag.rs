@@ -478,6 +478,20 @@ impl Drag {
                     HandleEdit::new(&self.originals, multi.as_ref(), handle, to, modifiers)
                 };
                 let mut edited = apply(to);
+                // A type's own handle snaps only if it lands under the pointer: a callout's
+                // add-tail handle stays below the body, a Shift-constrained arrow end is off the
+                // pointer, a tail dropped on the body is gone — snapping those would move
+                // something else to the guide.
+                let axes = match handle {
+                    HandleId::Custom(_)
+                        if !edited
+                            .position(handle)
+                            .is_some_and(|p| p.distance(to) <= 0.5 / viewport.zoom) =>
+                    {
+                        None
+                    }
+                    _ => axes,
+                };
                 // Positions only snap on an upright box: a rotated box's edges are not
                 // parallel to the guides.
                 if let (Some((x, y)), true, true) =
@@ -1270,6 +1284,68 @@ mod tests {
         );
         assert!(edit.is_none(), "selection is not an undo step");
         assert_eq!(sel.ids(), &[ids[1], ids[2]]);
+    }
+
+    #[test]
+    fn type_handles_snap_only_where_they_land_under_the_pointer() {
+        use crate::tools::arrow::Arrow;
+        use crate::tools::callout::{Callout, ADD_TAIL};
+        // A callout centred on the canvas (its add-tail handle sits on the canvas centre line)
+        // and an arrow; snapping is on.
+        let mut doc = Document::new(Bitmap::filled(1600, 1000, Rgba::WHITE).unwrap());
+        let mut history = History::new();
+        let callout = Callout::new(
+            Rect::new(700.0, 200.0, 200.0, 80.0),
+            Point::new(650.0, 400.0),
+        );
+        let arrow = Arrow::new(Point::new(100.0, 700.0), Point::new(400.0, 700.0));
+        let ids = doc.scene().fresh_ids(2);
+        history
+            .execute(
+                &mut doc,
+                "Add",
+                Command::Insert {
+                    nodes: vec![
+                        (0, Node::new(ids[0], Box::new(callout))),
+                        (1, Node::new(ids[1], Box::new(arrow))),
+                    ],
+                    resources: Vec::new(),
+                },
+            )
+            .unwrap();
+        let mut sel = Selection::new();
+        sel.set(doc.scene(), [ids[0]]);
+        let vp = viewport();
+        let add = doc.scene().get(ids[0]).unwrap().object.handles();
+        let add = add.iter().find(|h| h.id == ADD_TAIL).unwrap();
+        let grab = add.screen_position(vp.zoom, vp.origin);
+        // Drag the add-tail handle far away: the new tail goes where the pointer is, not to the
+        // canvas centre line the handle itself is on.
+        let mut drag = Drag::press(&doc, &mut sel, &vp, grab, NONE).unwrap();
+        let to = Point::new(1300.0, 620.0);
+        drag.motion(&doc, &mut sel, &vp, screen(to), NONE, true);
+        let Command::Replace { objects } = drag.release(&doc, &mut sel).unwrap().command else {
+            panic!("replace expected");
+        };
+        let c = objects[0].1.as_any().downcast_ref::<Callout>().unwrap();
+        assert_eq!(c.tails.last(), Some(&to));
+        // An arrow end still snaps onto the canvas edge (2 screen px away).
+        sel.set(doc.scene(), [ids[1]]);
+        let mut drag =
+            Drag::press(&doc, &mut sel, &vp, screen(Point::new(400.0, 700.0)), NONE).unwrap();
+        drag.motion(
+            &doc,
+            &mut sel,
+            &vp,
+            screen(Point::new(1596.0, 640.0)),
+            NONE,
+            true,
+        );
+        let Command::Replace { objects } = drag.release(&doc, &mut sel).unwrap().command else {
+            panic!("replace expected");
+        };
+        let a = objects[0].1.as_any().downcast_ref::<Arrow>().unwrap();
+        assert_eq!(a.end, Point::new(1600.0, 640.0));
     }
 
     #[test]

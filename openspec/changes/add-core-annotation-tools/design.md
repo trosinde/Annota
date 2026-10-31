@@ -143,6 +143,12 @@ same `properties`/`set_property` on the prototype (`editing::tool::Toolbox`).
   below 3 screen px are clicks: arrows, lines and boxes need a drag (and a box at least 2 px
   each way), pens make a dot, steps and text place on click. The new object becomes the
   selection, so its handles are there right away (mockups 02, 03).
+- **Snapping type handles** (a fix in `editing::drag`): the Select tool's generic snapping of
+  type-specific handles assumed they land under the pointer. The callout's add-tail handle stays
+  under the body, a Shift-constrained arrow end does not follow the pointer, a dropped tail is
+  gone — snapping those moved something else onto the guide (a centred callout could not get a
+  second tail). Type handles now snap only when they land under the pointer; arrow ends and tail
+  tips still snap (`drag::type_handles_snap_only_where_they_land_under_the_pointer`).
 - **Routing on the canvas.** With a drawing tool, a press on a handle of the selection or on a
   selected object edits it as with Select (adjust what was just drawn without switching tools);
   the Text/Callout tools edit their own objects' text; anything else draws (and clears the
