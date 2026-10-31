@@ -495,7 +495,7 @@ fn pdf_paper_sizes_follow_the_image_orientation() {
 #[test]
 fn paper_layout_centres_and_only_shrinks() {
     // Small: natural size (0.75 pt per px), centred.
-    let small = page_layout(400, 300, PageSize::A4);
+    let small = page_layout(400, 300, PageSize::A4, 1.0);
     assert_eq!(small.points_per_pixel, 0.75);
     assert!(close(small.page, (A4.1, A4.0)));
     assert!(close(
@@ -503,14 +503,39 @@ fn paper_layout_centres_and_only_shrinks() {
         ((A4.1 - 300.0) / 2.0, (A4.0 - 225.0) / 2.0)
     ));
     // Large: shrunk into the margins, the limiting side touching them.
-    let large = page_layout(4000, 1000, PageSize::Letter);
+    let large = page_layout(4000, 1000, PageSize::Letter, 1.0);
     let width = 4000.0 * large.points_per_pixel;
     assert!((width - (LETTER.1 - 2.0 * PAGE_MARGIN)).abs() < 1e-6);
     assert!((large.origin.0 - PAGE_MARGIN).abs() < 1e-6);
     assert!(1000.0 * large.points_per_pixel < LETTER.0 - 2.0 * PAGE_MARGIN);
     // Fit to image: the page is the image.
-    let fit = page_layout(400, 300, PageSize::FitToImage);
+    let fit = page_layout(400, 300, PageSize::FitToImage, 1.0);
     assert_eq!((fit.page, fit.origin), ((300.0, 225.0), (0.0, 0.0)));
+}
+
+#[test]
+fn paper_layout_divides_by_the_captures_device_scale() {
+    // A 2x HiDPI capture is kept at device pixels (Metadata::scale_factor), so a window
+    // captured at 2x has twice the pixel dimensions of the same window at 1x. The physical
+    // page must come out the same size either way, not twice as large.
+    let at_1x = page_layout(400, 300, PageSize::FitToImage, 1.0);
+    let at_2x = page_layout(800, 600, PageSize::FitToImage, 2.0);
+    assert!(close(at_1x.page, at_2x.page));
+    assert_eq!(at_2x.points_per_pixel, at_1x.points_per_pixel / 2.0);
+
+    // Same effect on A4: the 2x capture fits exactly as small as the 1x one would.
+    let a4_1x = page_layout(4000, 1000, PageSize::Letter, 1.0);
+    let a4_2x = page_layout(8000, 2000, PageSize::Letter, 2.0);
+    assert!(close(
+        (
+            4000.0 * a4_1x.points_per_pixel,
+            1000.0 * a4_1x.points_per_pixel
+        ),
+        (
+            8000.0 * a4_2x.points_per_pixel,
+            2000.0 * a4_2x.points_per_pixel
+        ),
+    ));
 }
 
 #[test]

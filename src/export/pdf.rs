@@ -25,8 +25,11 @@ use crate::tools::redaction::Redaction;
 
 use super::{check_scale, ExportError};
 
-/// PDF points per output pixel: 96 pixels per inch, the CSS and GTK reference resolution, so
-/// a 1× capture prints at the size it had on a standard screen.
+/// PDF points per output pixel at device scale 1: 96 pixels per inch, the CSS and GTK
+/// reference resolution. A capture's own device scale (`Metadata::scale_factor`, 2 for a
+/// 2× HiDPI capture kept at device pixels) divides this further in [`page_layout`], so the
+/// same on-screen window prints at the same physical size whichever display it was captured
+/// on, rather than a 2× capture printing twice as large as a 1× capture of the same window.
 pub const POINTS_PER_PIXEL: f64 = 72.0 / 96.0;
 /// Margin around the image on A4 and Letter pages, in points (half an inch).
 pub const PAGE_MARGIN: f64 = 36.0;
@@ -74,18 +77,21 @@ pub struct PageLayout {
     pub points_per_pixel: f64,
 }
 
-/// Places a `width` × `height` pixel image on a page. Fit to image: the page is the image at
-/// [`POINTS_PER_PIXEL`]. A4/Letter: the page turns to the image's orientation (landscape for a
-/// wide image), the image is centred within [`PAGE_MARGIN`] and shrunk to fit, never enlarged.
-pub fn page_layout(width: i32, height: i32, page: PageSize) -> PageLayout {
+/// Places a `width` × `height` pixel image on a page, `doc_scale` device pixels per CSS pixel
+/// (`Metadata::scale_factor`; 1.0 for a capture with no HiDPI scaling). Fit to image: the page
+/// is the image at [`POINTS_PER_PIXEL`] `/ doc_scale`. A4/Letter: the page turns to the image's
+/// orientation (landscape for a wide image), the image is centred within [`PAGE_MARGIN`] and
+/// shrunk to fit, never enlarged.
+pub fn page_layout(width: i32, height: i32, page: PageSize, doc_scale: f64) -> PageLayout {
     let (w, h) = (f64::from(width), f64::from(height));
-    let natural = (w * POINTS_PER_PIXEL, h * POINTS_PER_PIXEL);
+    let ppp = POINTS_PER_PIXEL / doc_scale;
+    let natural = (w * ppp, h * ppp);
     let paper = match page {
         PageSize::FitToImage => {
             return PageLayout {
                 page: natural,
                 origin: (0.0, 0.0),
-                points_per_pixel: POINTS_PER_PIXEL,
+                points_per_pixel: ppp,
             }
         }
         PageSize::A4 => A4,
@@ -97,7 +103,7 @@ pub fn page_layout(width: i32, height: i32, page: PageSize) -> PageLayout {
     let fit = (available.0 / natural.0)
         .min(available.1 / natural.1)
         .min(1.0);
-    let k = POINTS_PER_PIXEL * fit;
+    let k = ppp * fit;
     PageLayout {
         page,
         origin: ((page.0 - w * k) / 2.0, (page.1 - h * k) / 2.0),
@@ -203,7 +209,7 @@ pub fn encode_pdf(
 ) -> Result<Vec<u8>, ExportError> {
     let scale = check_scale(scale)?;
     let (width, height) = output_size(doc, scale);
-    let layout = page_layout(width, height, options.page);
+    let layout = page_layout(width, height, options.page, doc.metadata().scale_factor);
     let surface = cairo::PdfSurface::for_stream(layout.page.0, layout.page.1, Vec::<u8>::new())?;
     surface.set_metadata(cairo::PdfMetadata::Creator, "Annota")?;
     if let Some(title) = doc.metadata().title.as_deref().filter(|t| !t.is_empty()) {

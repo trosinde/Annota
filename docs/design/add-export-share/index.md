@@ -19,6 +19,7 @@ Source HTML: `src/`, renders: `png/<name>-{light,dark}@{1,2}x.png`. Render with
 | 12 | Batch export dialog | [png](png/12-batch-export-dialog-light@1x.png) |
 | 13 | Batch export done toast | [png](png/13-batch-export-done-light@1x.png) |
 | 14 | Share → Email hand-off toast | [png](png/14-email-handoff-light@1x.png) |
+| 15 | "Save Changes?" when closing a window or quitting with unsaved changes (task 2.6) | [png](png/15-close-confirmation-light@1x.png) |
 
 All screens exist as `-dark@1x/2x`.
 
@@ -33,6 +34,7 @@ All screens exist as `-dark@1x/2x`.
 | Email | 01, 14 | Share → Email… exports a temporary PNG and calls the Email portal; toast while handing over. Open With… calls OpenURI (system app chooser, not drawn). |
 | Batch | 11, 12, 13 | Three tray items selected → Export 3… → JPG → three files, toast. |
 | (Redaction warning, from annotation-tools spec) | 10 | Shown on Export, Copy, Drag, Share and Quick save when the document contains blur or pixelate redactions. |
+| (Save changes before closing, task 2.6 — document-format "Autosave and recovery" / "Closing keeps autosaves" MODIFIED) | 15 | Editor window closed (`Ctrl+W`, close button) or Annota quit (`Ctrl+Q`) while a document has unsaved changes → alert with Save / Discard / Cancel. Drawn after `Ctrl+W`, so the default response shows its focus ring. |
 
 ## Redlines
 
@@ -70,3 +72,15 @@ Alert 460 px: `warning` icon 32 px in `--warning`, heading "Make Redactions Soli
 ### Batch (11–13)
 - Tray "Select" button enters selection mode: bar shows Cancel (flat) · "<n> Selected" (centre) · Select All · **Export <n>…** (suggested). Selected thumbnails: 3 px accent ring + check (top-right, 18 px).
 - Batch dialog 580 px, title "Export <n> Images": list of items (64×40 thumb, name, "→ <output file name>" updated live); Format / Quality / Size (same controls as single export); "File name pattern" entry row (default `%name`; tokens `%name`, `%n`, strftime) + info popover; Folder; "If a file exists" dropdown (Add a number / Replace / Skip).
+
+### Save changes before closing (15)
+- `AdwAlertDialog` (kit `.dialog.alert`, 372 px, horizontal responses, 12 px gap, buttons 40 px high), over the editor window it belongs to. No icon (GNOME convention for this alert).
+- Heading **"Save Changes?"**.
+- Body, document saved before and edited since: "“<document title>” has unsaved changes. If you close without saving, they will be lost." Never saved (new capture, pasted image, image opened from a file and changed): "“<document title>” has never been saved. If you close without saving, it will be lost." `<document title>` = the header-bar title.
+- Responses, left → right, ids in brackets: **Cancel** (`cancel`, default appearance) · **Discard** (`discard`, destructive appearance — red label on the neutral fill, as in add-annotation-editor 14) · **Save** (`save`, suggested). Mnemonics `_Cancel`, `_Discard`, `_Save`.
+- Default response `save` (focused when the dialog opens, `Enter`); close response `cancel` (`Esc`). The focus ring is only visible when the close was triggered by keyboard (`Ctrl+W`/`Ctrl+Q`), as drawn.
+- When it appears: closing the editor window (close button, `Ctrl+W`) or quitting (`Ctrl+Q`, main menu Quit) while a document of that window has unsaved changes (subtitle "· Edited" / "· Not saved", unsaved dot in the tray's Open group). Documents without unsaved changes close silently.
+- Save = exactly what `Ctrl+S` does (quick save: overwrite the document's `.annota`, or for a never-saved document write it to the default save folder without a file chooser, mockup 06); on success the autosave is removed and the window closes. If saving fails the window stays open with the document unchanged and the save error is shown as for `Ctrl+S`.
+- Discard closes without saving and removes the document's autosave. Cancel (or `Esc`) keeps the window and every document open, nothing changes.
+- Several unsaved documents in one window: one alert per unsaved document, in the tray's Open order; before each alert the editor switches to that document so it is visible behind the dialog. Cancel at any point stops the whole close/quit (documents already saved stay saved, already discarded ones are closed). Confirmed by the maintainer 2026-10-31 over the alternative (one alert listing all unsaved documents with checkboxes, as GNOME Text Editor does).
+- Labels are gettext strings; German: "Änderungen speichern?", "Abbrechen", "Verwerfen", "Speichern".

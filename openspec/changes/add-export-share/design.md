@@ -21,8 +21,10 @@ Screens (light, 1×; every screen also has `-dark@1x/2x`):
 - [12-batch-export-dialog](../../../docs/design/add-export-share/png/12-batch-export-dialog-light@1x.png)
 - [13-batch-export-done](../../../docs/design/add-export-share/png/13-batch-export-done-light@1x.png)
 - [14-email-handoff](../../../docs/design/add-export-share/png/14-email-handoff-light@1x.png)
+- [15-close-confirmation](../../../docs/design/add-export-share/png/15-close-confirmation-light@1x.png)
+  (task 2.6, added and approved 2026-10-31; screens 01-14 were approved 2026-10-30)
 
-Design approved: 2026-10-30
+Design approved: 2026-10-30 (screens 01-14); 2026-10-31 (screen 15)
 
 ## Technical decisions
 - PDF via cairo PdfSurface, vector annotations kept vector
@@ -143,3 +145,28 @@ title and pixels.
 
 ## Risks / open questions
 - To be completed during `/opsx:propose` refinement.
+
+### Decided during apply (2026-10-31: task 2.6 mockup, and maintainer follow-ups on task 2.1)
+- **Mockup 15 approved as drawn** (Cancel/Discard/Save, Save as default response, same Discard
+  treatment as the add-annotation-editor recovery dialog). See
+  `docs/design/add-export-share/index.md` "Save changes before closing (15)" for the redlines.
+- **Several unsaved documents in one window:** one alert per unsaved document, in the tray's
+  Open order, switching to each document first so it is visible behind its alert; Cancel at any
+  point stops the whole close/quit. Confirmed over the alternative (one alert listing every
+  unsaved document with checkboxes, GNOME Text Editor style) — no second mockup needed.
+- **Screens 01-14 use the pre-D1 header** (drag handle + Share button) instead of the header
+  the editor actually has (Show Properties / Copy / Export / menu, decision D1). Maintainer
+  wants 01-14 redrawn to match before (or alongside) implementing the rest of this change —
+  tracked as its own task, see `tasks.md`.
+- **PDF physical size now divides by the capture's device scale** (`Metadata::scale_factor`):
+  a 2× HiDPI capture kept at device pixels used to print twice as large as the same window
+  captured at 1×; `page_layout` in `src/export/pdf.rs` now takes `doc_scale` and divides
+  `POINTS_PER_PIXEL` by it, so the physical page size depends only on the window's logical
+  size, not which display captured it. Fixed directly (small, self-contained change to task
+  2.1's already-landed code) with a regression test,
+  `paper_layout_divides_by_the_captures_device_scale`, in `src/export/tests.rs`.
+- **PDF page layout stays centred, shrink-to-fit-only** on A4/Letter — no change from what task
+  2.1 already built.
+- **WebP stays statically linked** (`libwebp-sys`, bundled libwebp) rather than switching to
+  Debian/Ubuntu's system `libwebp` — no change from what task 2.1 already built; revisit only if
+  a future CVE in libwebp makes "needs an Annota rebuild to pick up a fix" matter in practice.

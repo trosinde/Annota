@@ -3,6 +3,10 @@
 ## 1. Design gate
 - [x] 1.1 `designer` agent: mockups for all scenarios in `docs/design/add-export-share/` (light + dark, 1x + 2x)
 - [x] 1.2 Maintainer approval recorded in design.md
+- [ ] 1.3 Redraw screens 01-14 with the editor's actual header (Show Properties / Copy / Export /
+      menu, decision D1) instead of the pre-D1 drag-handle/Share header they still show; screen
+      15 (added for task 2.6) already uses the current header — see design.md "Decided during
+      apply", 2026-10-31
 
 ## 2. Implementation
 - [x] 2.1 Exporters PNG/JPG/WebP/PDF (`src/export/`, not wired into the UI yet; `.annota` save
@@ -15,11 +19,12 @@
       autosave when the editor window closes or Annota quits, because there was no Save yet
       (maintainer decision; see add-annotation-editor's design.md, phase 2b-ii, and its
       document-format requirement "Closing keeps autosaves"). Once Save exists: ask before closing
-      a document with unsaved changes (Save / Discard / Cancel; needs a designer mockup and
-      approval — no redline exists), then revert closing to "an autosave is removed when its
-      document is saved or the user discards it" — in the code (`Session::close`,
-      `Editor::close_all`, `editor::shut_down`) and as a MODIFIED delta of `document-format`
-      ("Autosave and recovery", "Closing keeps autosaves", "Recovery dialog").
+      a document with unsaved changes (Save / Discard / Cancel; mockup 15, approved 2026-10-31,
+      redlines in `docs/design/add-export-share/index.md` — one alert per unsaved document, tray
+      Open order), then revert closing to "an autosave is removed when its document is saved or
+      the user discards it" — in the code (`Session::close`, `Editor::close_all`,
+      `editor::shut_down`) and as a MODIFIED delta of `document-format` ("Autosave and recovery",
+      "Closing keeps autosaves", "Recovery dialog").
 - [ ] 2.7 Redaction export warning — add-core-annotation-tools builds blur, pixelate and solid
       redactions (`annota::tools::redaction::Redaction`) but has no way out of Annota to guard;
       its requirement "Redaction export warning" (spec annotation-tools, decision D7, that
