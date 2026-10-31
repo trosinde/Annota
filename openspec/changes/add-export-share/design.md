@@ -154,10 +154,22 @@ title and pixels.
   Open order, switching to each document first so it is visible behind its alert; Cancel at any
   point stops the whole close/quit. Confirmed over the alternative (one alert listing every
   unsaved document with checkboxes, GNOME Text Editor style) — no second mockup needed.
-- **Screens 01-14 use the pre-D1 header** (drag handle + Share button) instead of the header
-  the editor actually has (Show Properties / Copy / Export / menu, decision D1). Maintainer
-  wants 01-14 redrawn to match before (or alongside) implementing the rest of this change —
-  tracked as its own task, see `tasks.md`.
+- **Screens 01-14 redrawn with the editor's real header** (task 1.3, done 2026-10-31): Export is
+  the built `Adw.SplitButton` (Export + a dropdown arrow opening Share: Email…/Open With…/Copy
+  to Folder…, per `data/ui/editor-window.blp`), not a plain button — 01's Share popover now
+  opens from that arrow, matching the built menu's contents (dropped "Copy Image"/"Save As…",
+  which aren't in the real menu). 08/09's drag affordance moved to the window title area (no
+  other drag-out control is built yet; task 2.3 will build the real one, per D1 "dragging the
+  title/subtitle drags the flattened image out").
+- **Other staleness in 01-14 left alone for now** (maintainer decision, 2026-10-31): tool strip
+  order predates D2, and the tray/sidebar still show an older layout (e.g. screen 11 assumes a
+  tray "Select" button the built tray doesn't have). Fix each screen when its own task is
+  actually implemented (11/12/13 when task 2.5's batch-selection entry point is decided,
+  tool-strip/tray/sidebar screens as whichever task touches them), not as a separate pass now.
+- **add-annotation-editor mockup 01 and add-core-annotation-tools mockup 19** also draw Export
+  as a plain button without the dropdown arrow; maintainer wants those fixed too for
+  consistency, even though those changes are otherwise done and awaiting live-portal testing —
+  tracked as a small follow-up, not touching anything else in either change.
 - **PDF physical size now divides by the capture's device scale** (`Metadata::scale_factor`):
   a 2× HiDPI capture kept at device pixels used to print twice as large as the same window
   captured at 1×; `page_layout` in `src/export/pdf.rs` now takes `doc_scale` and divides

@@ -3,10 +3,15 @@
 ## 1. Design gate
 - [x] 1.1 `designer` agent: mockups for all scenarios in `docs/design/add-export-share/` (light + dark, 1x + 2x)
 - [x] 1.2 Maintainer approval recorded in design.md
-- [ ] 1.3 Redraw screens 01-14 with the editor's actual header (Show Properties / Copy / Export /
+- [x] 1.3 Redraw screens 01-14 with the editor's actual header (Show Properties / Copy / Export /
       menu, decision D1) instead of the pre-D1 drag-handle/Share header they still show; screen
       15 (added for task 2.6) already uses the current header — see design.md "Decided during
-      apply", 2026-10-31
+      apply", 2026-10-31. Export is drawn as the built `Adw.SplitButton` (Export + a dropdown
+      arrow opening Share); 08/09's drag affordance moved to the window title area per D1, since
+      no other drag-out control is built yet (task 2.3). Other staleness in 01-14 (tool strip
+      order predates D2, tray and sidebar layout) intentionally left alone — out of this task's
+      scope, see design.md for the maintainer's follow-up decision on whether it needs its own
+      pass.
 
 ## 2. Implementation
 - [x] 2.1 Exporters PNG/JPG/WebP/PDF (`src/export/`, not wired into the UI yet; `.annota` save
