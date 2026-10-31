@@ -55,6 +55,11 @@
       as a window key, shortcuts-window row "Paste"; see design.md "Decided during apply
       (2026-10-31: task 2.4a object copy/paste)". Cross-process paste: `manual-checks.md` rows
       9-10.
+      **Fixed (2026-10-31, maintainer decision):** Copy with a selection now puts the objects
+      *and* the whole flattened image (`image/png` for other apps) on the clipboard as one
+      content (`share::selection_content`), behind the redaction warning ("Copy Anyway"; Convert
+      to Solid applies to both); toast "Image and object copied to clipboard". See design.md
+      "Decided during apply (2026-10-31: selection copy includes the image)".
 - [ ] 2.5 Batch export dialog
 - [ ] 2.6 "Save changes before closing?" — add-annotation-editor keeps every unsaved document's
       autosave when the editor window closes or Annota quits, because there was no Save yet

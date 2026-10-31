@@ -522,13 +522,13 @@ file chooser is never opened (Copy to Folder's chooser only behind a cancelled w
 **Copy with a selection** (`win.copy`: `Ctrl+C`, the header's Copy, the narrow main menu's "Copy
 to Clipboard", the context menu's Copy — one action, as before). With a selection, the selected
 top-level objects (a group counts as one, its members travel inside it) go on the clipboard
-under **`application/x-annota-objects`** — Annota-private (`x-`), and the *only* type offered:
-it is not an image for other apps; Copy without a selection still gives the flattened image.
-No redaction warning: the objects stay Annota objects (a copied blur redaction pastes as a blur
-redaction), nothing leaves Annota as pixels. Toast "Object copied to clipboard" / "<n> objects
-copied to clipboard" (not drawn; 3 s, default priority, worded like mockup 07 so it is never
-unclear which of the two was copied). Held like the image copy
-(`delivery::copy_content_to_clipboard`, the same Wayland app hold).
+under **`application/x-annota-objects`** — Annota-private (`x-`). Held like the image copy
+(`delivery::copy_content_to_clipboard`, the same Wayland app hold). *(Superseded the same day,
+see "Decided during apply (2026-10-31: selection copy includes the image)" below: as first
+built, Annota's type was the only one offered, with no redaction warning and the toast "Object
+copied to clipboard" — which made `Ctrl+C` right after drawing (the new object stays selected)
+paste nothing into other apps. Now the flattened image is offered beside it, behind the
+warning, with the toast "Image and object copied to clipboard".)*
 
 **Payload shape** (`annota::document::clipboard`, library, no GTK) — a cut-down `.annota`, not a
 new format: a ZIP with `objects.json` = `{"format", "requires", "generator", "objects": [...]}`
@@ -590,12 +590,12 @@ and are dropped (documented in the module).
 **Deviations / not drawn.** No mockup draws object copy or paste: the two toasts, the two failure
 toasts and the "Paste <object>" undo label are decided here. Shortcuts window: new row
 **"Paste" `Ctrl+V`** after "Copy image" in "Document" (bootstrap-app-shell mockup 07 has no
-paste row; "Copy image" is kept as drawn although `Ctrl+C` now copies objects when there is a
-selection — maintainer question). The context menu gets no "Paste" entry (none drawn).
+paste row; "Copy image" is kept as drawn — accurate again since the fix below: `Ctrl+C`
+always copies the image, with a selection the objects too). The context menu gets no "Paste" entry (none drawn).
 
 **Spec deltas.** export-share "Clipboard": the header's Copy is the same action, so "with no
 object selected" applies to both; "Object copy and paste": `Ctrl+C` *or the header's Copy*, no
-redaction warning, the toast.
+redaction warning, the toast *(superseded: both types, behind the warning — see below)*.
 
 **Tests.** Unit (lib): `document::clipboard` — round trip equals the saved document's object JSON,
 images included once; stacking order and selection subset, no payload for nothing; groups with
@@ -612,7 +612,8 @@ unknown objects get new nested ids and image names; empty clip. Bin: `share` —
 image"), toast texts; `labels` — "Paste Arrow", "Paste 2 Objects". Live (`#[ignore]`,
 `object_copy_and_paste_on_a_live_display`, Xvfb's clipboard, no portal, isolated bus): no
 document → `paste` disabled; Ctrl+C on a selected arrow in a document with a pixelate redaction
-→ no warning, only `application/x-annota-objects` offered (no `image/png`), toast; Ctrl+V → a
+→ no warning, only `application/x-annota-objects` offered (no `image/png`), toast *(flipped by
+the fix below)*; Ctrl+V → a
 4th object, selected, offset 10 px, original unchanged, "Paste Arrow", undo; header Copy of the
 picture → second document with its own `images/1.png` → Ctrl+V → `images/2.png` with equal
 pixels, saves and reopens; the first document closed → Ctrl+V still pastes ("Paste Image"); a
@@ -621,3 +622,62 @@ document, the other unchanged; Shift+Ctrl+V is not taken by the window. All 14 l
 (each in its own process, `isolated-session.conf` without service directories). Cross-process
 paste (two Annota processes, or after Annota quit on Wayland) is a maintainer check:
 `manual-checks.md` rows 9-10.
+
+### Decided during apply (2026-10-31: selection copy includes the image)
+
+**The bug** (open question left by task 2.4a): a newly drawn object stays selected, so `Ctrl+C`
+right after drawing copied only `application/x-annota-objects` — pasting into a chat or an email
+gave nothing, although the toast said "copied". **Maintainer decision (2026-10-31): Copy with a
+selection SHALL put both types on the clipboard.** Resolved and built as follows.
+
+**Payload** (`share::selection_content`): one `gdk::ContentProvider::new_union` (the pattern of
+`share::drag_content`) of (1) the selected objects' payload under `application/x-annota-objects`
+(`objects_content`, unchanged: `document::clipboard::encode`) and (2) the **whole** document
+flattened at 100 % as a `GdkTexture` (`for_value`) — the very texture Copy without a selection
+puts there, which GTK serialises as `image/png` (and other image types) for other apps. Not a
+crop of the selected objects: right after annotating, the intent is "share the finished
+picture". Annota's `Ctrl+V` is unchanged (`share::paste_kind`: Annota's type anywhere in the
+formats wins), so pasting back still pastes the objects; `document::clipboard` and
+`editing::ops::paste` are untouched. If either half cannot be made (an embedded image that does
+not encode, a document too large to draw), nothing is copied and the respective failure toast
+shows — half a copy would bring the trap back.
+
+**Redaction warning**: `Editor::copy` now calls `guard_redactions(Purpose::Copy, …)` for both
+cases, before anything is encoded — the image leaves Annota either way. Scope is the **whole
+document** (`redactions::reversible`, as for Copy without a selection), since the image half is
+the whole document; a selection without redactions in a document with a blur still asks. The
+selection is captured at `Ctrl+C`; Convert to Solid (one `Command::Replace` that keeps the ids)
+runs before the copy proceeds, so both halves are taken from the converted document — a selected
+pixelate redaction is copied as solid, and the image shows it solid. Copy Anyway copies both
+unconverted; Cancel copies nothing.
+
+**Toast**: "Image and object copied to clipboard" / "Image and <n> objects copied to clipboard"
+(de: "Bild und Objekt in die Zwischenablage kopiert" / "Bild und {n} Objekte in die
+Zwischenablage kopiert"; not drawn; 3 s, default priority as before). It names the image first —
+what another app gets — and still differs from mockup 07's "Image copied to clipboard", so it is
+clear the objects are there for Annota as well. The shortcuts window's "Copy image" row is
+accurate again.
+
+**Unchanged**: Copy without a selection, drag-out, Share, Export, `Ctrl+V`/`Shift+Ctrl+V`.
+
+**Spec deltas.** export-share "Object copy and paste": both types, after the redaction warning,
+the new toast; new scenarios "Paste the copied selection into another app" and "Warning before
+copying a selection" (incl. Convert to Solid applying to both halves). annotation-tools
+"Warning before copy": "with or without objects selected".
+
+**Tests.** Bin unit (`share`): `copy_with_a_selection_offers_the_objects_and_the_whole_image` —
+the union offers Annota's type and the texture type, `paste_kind` still says Objects, the texture
+half is the flattened document's texture, the object half is the payload byte for byte (GTK's
+texture → PNG serialiser needs a display, so `image/png` itself is checked live); toast texts.
+Live (`object_copy_and_paste_on_a_live_display`, assertion flipped from "no warning, no
+`image/png`"): Ctrl+C on the selected arrow in the document with a pixelate redaction → the
+warning with Copy Anyway → Cancel → clipboard empty, no toast → again → Copy Anyway → document
+unchanged, both types offered, Annota's half decodes to the one arrow, the `image/png` read back
+from the clipboard is 400 × 250 with the flattened document's pixels (pixelated block, arrow,
+picture), the new toast; Ctrl+V still pastes the arrow; the redaction selected → Ctrl+C →
+Convert to Solid → "Convert Redaction to Solid" is the undo step, the copied object is a solid
+redaction and the `image/png` equals the converted document's flattening; the picture's header
+Copy then shows no warning and offers both types. All other live tests unchanged and passing
+(each in its own process, isolated bus without service directories) except
+`quick_styles_on_a_live_display`'s known theme issue (above). Manual check rows 8 and 9 updated
+(paste the selection copy into another app → the whole image).

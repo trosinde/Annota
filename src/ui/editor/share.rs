@@ -5,10 +5,11 @@
 //! * **Clipboard**: the flattened document as a `GdkTexture` on the system clipboard
 //!   ([`texture`], `capture::delivery::copy_to_clipboard`); GTK offers a texture as `image/png`
 //!   (and other image types) to whoever pastes. No file is written.
-//! * **Object clipboard** (task 2.4a): with a selection, Copy puts the selected objects there
-//!   instead, as `annota::document::clipboard`'s self-contained payload under its own type
-//!   ([`objects_content`]); `Ctrl+V` reads that type first ([`paste_kind`], [`read_payload`])
-//!   and otherwise opens a clipboard image as a new document, as `Shift+Ctrl+V` does.
+//! * **Object clipboard** (task 2.4a): with a selection, Copy adds the selected objects to that
+//!   image, as `annota::document::clipboard`'s self-contained payload under its own type
+//!   ([`selection_content`]); `Ctrl+V` reads that type first ([`paste_kind`], [`read_payload`])
+//!   and otherwise opens a clipboard image as a new document, as `Shift+Ctrl+V` does. Any other
+//!   app pastes the image.
 //! * **Drag-out**: a temporary PNG named after the document (`annota::export::handoff`), offered
 //!   as `text/uri-list` (a `GdkFileList`) together with the same bytes as `image/png`
 //!   ([`drag_content`]); the drag image is mockup 09's 160 × 100 thumbnail with a "PNG" badge
@@ -176,10 +177,22 @@ pub fn paste_kind<S: AsRef<str>>(mime_types: &[S]) -> PasteKind {
     }
 }
 
-/// Copied objects for the clipboard: the payload under Annota's object type, and only that —
-/// it is not an image for other apps (the whole image is what Copy without a selection gives).
+/// Copied objects under Annota's object type, and only that (one half of
+/// [`selection_content`]).
 pub fn objects_content(payload: Vec<u8>) -> gdk::ContentProvider {
     gdk::ContentProvider::for_bytes(clipboard::MIME_TYPE, &glib::Bytes::from_owned(payload))
+}
+
+/// What Copy with a selection puts on the clipboard (maintainer decision, 2026-10-31): the
+/// selected objects under Annota's object type — what `Ctrl+V` in Annota pastes — together
+/// with the whole flattened image as a texture, which GTK offers as `image/png` (and other
+/// image types) to every other app, exactly as Copy without a selection does. One union, like
+/// [`drag_content`]'s.
+pub fn selection_content(payload: Vec<u8>, image: &gdk::Texture) -> gdk::ContentProvider {
+    gdk::ContentProvider::new_union(&[
+        objects_content(payload),
+        gdk::ContentProvider::for_value(&image.to_value()),
+    ])
 }
 
 /// A payload larger than this is not read (the clipboard can hold anything another program
@@ -305,12 +318,12 @@ pub fn drag_ready_toast() -> String {
 }
 
 /// After Copy with a selection (not drawn; worded like mockup 07's "Image copied to
-/// clipboard", so it is never unclear which of the two was copied). `n` counts the selected
-/// objects, a group as one.
+/// clipboard"): both are there — the image for other apps, the objects for Annota's `Ctrl+V`
+/// ([`selection_content`]). `n` counts the selected objects, a group as one.
 pub fn objects_copied_toast(n: usize) -> String {
     ngettext(
-        "Object copied to clipboard",
-        "{n} objects copied to clipboard",
+        "Image and object copied to clipboard",
+        "Image and {n} objects copied to clipboard",
         u32::try_from(n).unwrap_or(u32::MAX),
     )
     .replace("{n}", &n.to_string())
@@ -417,8 +430,15 @@ mod tests {
 
     #[test]
     fn object_copy_and_paste_texts() {
-        assert_eq!(objects_copied_toast(1), "Object copied to clipboard");
-        assert_eq!(objects_copied_toast(3), "3 objects copied to clipboard");
+        // Copy with a selection gives the image too: the toast says both.
+        assert_eq!(
+            objects_copied_toast(1),
+            "Image and object copied to clipboard"
+        );
+        assert_eq!(
+            objects_copied_toast(3),
+            "Image and 3 objects copied to clipboard"
+        );
         assert_ne!(objects_copied_toast(1), copied_toast());
         let newer = ArchiveError::NewerFormat {
             found: annota::document::archive::FormatVersion { major: 2, minor: 0 },
@@ -429,6 +449,43 @@ mod tests {
             paste_failed_toast(&ArchiveError::Invalid("x".into())),
             "The copied objects could not be pasted"
         );
+    }
+
+    #[test]
+    fn copy_with_a_selection_offers_the_objects_and_the_whole_image() {
+        // Maintainer decision 2026-10-31: Annota's type for Ctrl+V in Annota, and the flattened
+        // image (a texture: GTK serialises it as `image/png` for other apps, exactly as for
+        // Copy without a selection) — both in one clipboard content. GTK's texture → PNG
+        // serialiser needs a display; that half is checked by
+        // `object_copy_and_paste_on_a_live_display`.
+        let doc =
+            Document::new(Bitmap::filled(40, 30, annota::document::color::palette::AZURE).unwrap());
+        let image = texture(&flatten(&doc).unwrap()).unwrap();
+        let provider = selection_content(b"the objects".to_vec(), &image);
+        let formats = provider.formats();
+        assert!(formats.contain_mime_type(clipboard::MIME_TYPE));
+        assert!(formats.contains_type(gdk::Texture::static_type()));
+        // Annota's paste still finds its own type first.
+        assert_eq!(paste_kind(&formats.mime_types()), PasteKind::Objects);
+        // The image half is the very texture, the whole document's.
+        let offered = provider
+            .value(gdk::Texture::static_type())
+            .unwrap()
+            .get::<gdk::Texture>()
+            .unwrap();
+        assert_eq!(offered, image);
+        assert_eq!((offered.width(), offered.height()), (40, 30));
+        // The object half is the payload, byte for byte.
+        let sink = gio::MemoryOutputStream::new_resizable();
+        glib::MainContext::new()
+            .block_on(provider.write_mime_type_future(
+                clipboard::MIME_TYPE,
+                &sink,
+                glib::Priority::DEFAULT,
+            ))
+            .unwrap();
+        sink.close(gio::Cancellable::NONE).unwrap();
+        assert_eq!(&sink.steal_as_bytes()[..], b"the objects");
     }
 
     #[test]

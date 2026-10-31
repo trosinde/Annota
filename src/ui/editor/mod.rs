@@ -34,10 +34,12 @@
 //! first, like Export.
 //!
 //! **Object copy and paste** (task 2.4a). With a selection, `Ctrl+C` and the header's Copy put
-//! the selected objects on the clipboard instead, in Annota's own self-contained type
-//! (`annota::document::clipboard`, the `.annota` object format) — no redaction warning, nothing
-//! leaves Annota as an image. `Ctrl+V` (`win.paste`, a window key like `Ctrl+C`, so text fields
-//! keep pasting text) inserts such objects into the current document as one undo step, offset
+//! the selected objects on the clipboard too, in Annota's own self-contained type
+//! (`annota::document::clipboard`, the `.annota` object format), beside the flattened image
+//! (maintainer decision 2026-10-31: another app pastes the image, Annota the objects) — so the
+//! redaction warning comes first here as well. `Ctrl+V` (`win.paste`, a window key like
+//! `Ctrl+C`, so text fields keep pasting text) inserts such objects into the current document
+//! as one undo step, offset
 //! and selected like a duplicate (`ops::paste`), whichever document they came from and whether
 //! it is still open; without them it opens a clipboard image as a new document, exactly as
 //! `Shift+Ctrl+V` (`app.paste-image`, unchanged) does.
@@ -1739,23 +1741,28 @@ impl Editor {
 
     // ---- copy, drag-out and Share (add-export-share tasks 2.3, 2.4) ----
 
-    /// `Ctrl+C` and the header's Copy. With a selection (spec export-share "Object copy and
-    /// paste", task 2.4a): the selected objects in Annota's own clipboard type, no redaction
-    /// warning — they stay Annota objects, redactions included. Without (spec "Clipboard",
-    /// mockup 07): the redaction warning ("Copy Anyway"), then the flattened image on the
-    /// clipboard and "Image copied to clipboard" for 3 s.
+    /// `Ctrl+C` and the header's Copy: the redaction warning ("Copy Anyway") first either way —
+    /// the flattened image leaves Annota in both cases. Without a selection (spec "Clipboard",
+    /// mockup 07): the flattened image on the clipboard and "Image copied to clipboard" for
+    /// 3 s. With one (spec export-share "Object copy and paste", task 2.4a, maintainer decision
+    /// 2026-10-31): the same image *and* the selected objects in Annota's own clipboard type
+    /// ([`share::selection_content`]) — another app pastes the image, Annota's `Ctrl+V` the
+    /// objects. Convert to Solid runs before either is taken, so both halves are converted.
     fn copy(&self) {
         let Some(session) = self.current_without_dialog() else {
             return;
         };
         session.canvas.finish_text();
+        // What was selected when Copy was asked for (Convert to Solid keeps the ids).
         let selected = session.canvas.selection();
-        if !selected.is_empty() {
-            self.copy_objects(&session, &selected);
-            return;
-        }
         let uid = session.uid;
-        self.guard_redactions(Purpose::Copy, move |editor| editor.copy_now(uid));
+        self.guard_redactions(Purpose::Copy, move |editor| {
+            if selected.is_empty() {
+                editor.copy_now(uid);
+            } else {
+                editor.copy_selection(uid, &selected);
+            }
+        });
     }
 
     fn application(&self) -> Option<adw::Application> {
@@ -1766,9 +1773,32 @@ impl Editor {
             .and_then(|a| a.downcast::<adw::Application>().ok())
     }
 
-    /// The objects `ids` of `session` on the clipboard: a self-contained payload (their
-    /// embedded images included), so they paste after the document is closed too.
-    fn copy_objects(&self, session: &Session, ids: &[ObjectId]) {
+    /// The document of `uid` flattened at 100 % as a texture, for the clipboard; `None` (after
+    /// the failure toast) if it cannot be drawn or the session is gone.
+    fn flattened_texture(&self, uid: u64) -> Option<gdk::Texture> {
+        let session = self.session(uid)?;
+        let texture = match session.canvas.with_document(share::flatten)? {
+            Ok(bitmap) => share::texture(&bitmap),
+            Err(err) => {
+                eprintln!("annota: copying the image failed: {err}");
+                None
+            }
+        };
+        if texture.is_none() {
+            self.toast(&share::copy_failed_toast());
+        }
+        texture
+    }
+
+    /// The objects `ids` of the document `uid` together with its flattened image on the
+    /// clipboard ([`share::selection_content`]). The objects are a self-contained payload
+    /// (their embedded images included), so they paste after the document is closed too. If
+    /// either half cannot be made, nothing is copied: half a copy would be the trap this fixes
+    /// (a "copied" toast and nothing to paste elsewhere).
+    fn copy_selection(&self, uid: u64, ids: &[ObjectId]) {
+        let Some(session) = self.session(uid) else {
+            return;
+        };
         let payload = session
             .canvas
             .with_document(|doc| clipboard::encode(doc, ids));
@@ -1781,11 +1811,17 @@ impl Editor {
                 return;
             }
         };
+        let Some(texture) = self.flattened_texture(uid) else {
+            return;
+        };
         let Some(app) = self.application() else {
             self.toast(&share::objects_copy_failed_toast());
             return;
         };
-        crate::capture::delivery::copy_content_to_clipboard(&app, &share::objects_content(payload));
+        crate::capture::delivery::copy_content_to_clipboard(
+            &app,
+            &share::selection_content(payload, &texture),
+        );
         let toast = adw::Toast::builder()
             .title(share::objects_copied_toast(ids.len()))
             .timeout(share::COPIED_TOAST_SECONDS)
@@ -1847,24 +1883,10 @@ impl Editor {
     }
 
     fn copy_now(&self, uid: u64) {
-        let Some(session) = self.session(uid) else {
+        let Some(texture) = self.flattened_texture(uid) else {
             return;
         };
-        let texture = match session.canvas.with_document(share::flatten) {
-            Some(Ok(bitmap)) => share::texture(&bitmap),
-            Some(Err(err)) => {
-                eprintln!("annota: copying the image failed: {err}");
-                None
-            }
-            None => return,
-        };
-        let app = self
-            .inner
-            .w
-            .window
-            .application()
-            .and_then(|a| a.downcast::<adw::Application>().ok());
-        let (Some(texture), Some(app)) = (texture, app) else {
+        let Some(app) = self.application() else {
             self.toast(&share::copy_failed_toast());
             return;
         };
@@ -5222,9 +5244,11 @@ mod tests {
     }
 
     /// add-export-share task 2.4a (spec export-share "Object copy and paste", all four
-    /// scenarios) through the display's real clipboard (Xvfb's, not the desktop's): Ctrl+C with
-    /// a selection puts only Annota's object type there — no redaction warning, although the
-    /// document has a pixelate redaction —, Ctrl+V pastes into the same document, into another
+    /// scenarios, and the maintainer's 2026-10-31 fix) through the display's real clipboard
+    /// (Xvfb's, not the desktop's): Ctrl+C with a selection shows the redaction warning first
+    /// (the document has a pixelate redaction), then puts Annota's object type *and* the whole
+    /// flattened image (`image/png`, what another app pastes) there — Convert to Solid converts
+    /// both halves —, Ctrl+V pastes into the same document, into another
     /// one, and again after the first one is closed; a plain image still opens as a new document,
     /// a damaged payload is a toast. No portal is involved. Run on its own like the tests above.
     #[test]
@@ -5306,17 +5330,106 @@ mod tests {
                 .unwrap()
         };
 
+        // What another app pastes: the clipboard's `image/png`, decoded.
+        // Read asynchronously: GTK writes Annota's own clipboard into the stream from this
+        // main loop (a blocking read would wait for itself).
+        let pasted_png = || {
+            let sink = gio::MemoryOutputStream::new_resizable();
+            glib::MainContext::default()
+                .block_on(async {
+                    let (stream, _) = clipboard
+                        .read_future(&["image/png"], glib::Priority::DEFAULT)
+                        .await?;
+                    sink.splice_future(
+                        &stream,
+                        gio::OutputStreamSpliceFlags::CLOSE_SOURCE
+                            | gio::OutputStreamSpliceFlags::CLOSE_TARGET,
+                        glib::Priority::DEFAULT,
+                    )
+                    .await
+                })
+                .unwrap();
+            gdk::Texture::from_bytes(&sink.steal_as_bytes()).unwrap()
+        };
+        // Whether `texture` has the pixels of `canvas`'s document flattened at 100 % (a PNG
+        // export's pixels), the redaction's block among them.
+        let is_flattened = |texture: &gdk::Texture, canvas: &Canvas| {
+            let flat = canvas
+                .with_document(|doc| render::flatten(doc, 1.0).unwrap())
+                .unwrap();
+            assert_eq!(
+                (texture.width(), texture.height()),
+                (flat.width(), flat.height())
+            );
+            let mut downloader = gdk::TextureDownloader::new(texture);
+            downloader.set_format(gdk::MemoryFormat::R8g8b8a8);
+            let (bytes, stride) = downloader.download_bytes();
+            [(5, 5), (20, 15), (45, 25), (100, 160), (300, 150)]
+                .into_iter()
+                .all(|(x, y)| {
+                    let i = y * stride + x * 4;
+                    let p = flat.pixel(x as i32, y as i32).unwrap();
+                    bytes[i..i + 4] == [p.r, p.g, p.b, p.a]
+                })
+        };
+        let copied_objects = || {
+            let payload = glib::MainContext::default()
+                .block_on(share::read_payload(&clipboard))
+                .unwrap();
+            clipboard::decode(&payload).unwrap()
+        };
+        let pixelated = |canvas: &Canvas| {
+            canvas
+                .with_document(|doc| annota::editing::redactions::reversible(doc).pixelate)
+                .unwrap()
+        };
+
         // ---- Scenario "Copy and paste into the same document" ----
+        // The document has a pixelate redaction and the clipboard gets the image too: the
+        // redaction warning comes first, also with a selection (it did not before the
+        // maintainer's 2026-10-31 decision). Cancel copies nothing.
         a.canvas.grab_focus();
         assert!(editor.key_pressed(gdk::Key::c, ctrl));
         pump(200);
+        let alert = w
+            .window
+            .visible_dialog()
+            .expect("the redaction warning before Copy with a selection");
+        assert!(find_button(alert.upcast_ref(), "Copy Anyway").is_some());
+        assert!(click_button(alert.upcast_ref(), "Cancel"));
+        pump(300);
         assert!(
-            w.window.visible_dialog().is_none(),
-            "no redaction warning for objects"
+            clipboard.formats().mime_types().is_empty(),
+            "nothing copied"
         );
+        assert!(!shows_label(
+            &toasts(),
+            "Image and object copied to clipboard"
+        ));
+        // Copy Anyway: both on the clipboard, the document unchanged.
+        let edited = a.canvas.history_info().undo_label;
+        assert!(editor.key_pressed(gdk::Key::c, ctrl));
+        pump(200);
+        let alert = w.window.visible_dialog().unwrap();
+        assert!(click_button(alert.upcast_ref(), "Copy Anyway"));
+        pump(300);
+        assert_eq!(a.canvas.history_info().undo_label, edited, "unchanged");
+        assert_eq!(pixelated(&a.canvas), 1);
         assert!(offers(clipboard::MIME_TYPE));
-        assert!(!offers("image/png"), "objects only, not the image");
-        assert!(shows_label(&toasts(), "Object copied to clipboard"));
+        assert!(offers("image/png"), "the image for other apps too");
+        // Annota's half: the selected arrow, nothing else.
+        let clip = copied_objects();
+        assert_eq!(clip.nodes().len(), 1);
+        assert_eq!(clip.nodes()[0].object.type_name(), Arrow::TYPE);
+        // Another app's half (scenario "Paste the selection into another app"): the whole
+        // flattened document, not a crop of the arrow — what Copy without a selection gives.
+        let image = pasted_png();
+        assert_eq!((image.width(), image.height()), (400, 250));
+        assert!(is_flattened(&image, &a.canvas));
+        assert!(shows_label(
+            &toasts(),
+            "Image and object copied to clipboard"
+        ));
         assert!(!shows_label(&toasts(), "Image copied to clipboard"));
         assert!(editor.key_pressed(gdk::Key::v, ctrl));
         pump(300);
@@ -5340,13 +5453,46 @@ mod tests {
         a.canvas.undo();
         assert_eq!(a.canvas.with_document(|d| d.object_count()), Some(3));
 
+        // Convert to Solid before a selection copy: the redaction itself selected — one undo
+        // step, and both halves of the clipboard are the converted document.
+        a.canvas.select_type(Redaction::TYPE);
+        assert!(editor.key_pressed(gdk::Key::c, ctrl));
+        pump(200);
+        let alert = w.window.visible_dialog().unwrap();
+        assert!(click_button(alert.upcast_ref(), "Convert to Solid"));
+        pump(300);
+        assert_eq!(pixelated(&a.canvas), 0);
+        assert_eq!(
+            a.canvas.history_info().undo_label.as_deref(),
+            Some("Convert Redaction to Solid")
+        );
+        let clip = copied_objects();
+        assert_eq!(clip.nodes().len(), 1);
+        let copied = clip.nodes()[0]
+            .object
+            .as_any()
+            .downcast_ref::<Redaction>()
+            .unwrap();
+        assert_eq!(
+            copied.kind,
+            RedactionKind::Solid,
+            "the copied object is solid"
+        );
+        assert!(is_flattened(&pasted_png(), &a.canvas), "so is the image");
+        assert!(shows_label(
+            &toasts(),
+            "Image and object copied to clipboard"
+        ));
+
         // ---- Scenario "Paste into a different document" ----
-        // The picture this time, through the header's Copy (the same action).
+        // The picture this time, through the header's Copy (the same action); no warning, the
+        // redaction is solid now.
         a.canvas.select_type(annota::tools::image::Image::TYPE);
         WidgetExt::activate_action(&w.window, "win.copy", None).unwrap();
         pump(200);
         assert!(w.window.visible_dialog().is_none());
         assert!(offers(clipboard::MIME_TYPE));
+        assert!(offers("image/png"));
         // "Release notes" has its own picture under the same image id.
         let second = editor.add_session(
             Loaded {

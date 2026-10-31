@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 18:56+0100\n"
+"POT-Creation-Date: 2026-10-31 19:25+0100\n"
 "PO-Revision-Date: 2026-10-30 15:01+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -20,7 +20,7 @@ msgstr ""
 #: data/io.github.trosinde.Annota.desktop.in:2
 #: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:42
 #: data/ui/editor-window.blp:268 data/ui/editor-window.blp:317
-#: src/ui/editor/mod.rs:869 src/ui/editor/mod.rs:871
+#: src/ui/editor/mod.rs:871 src/ui/editor/mod.rs:873
 msgid "Annota"
 msgstr "Annota"
 
@@ -481,7 +481,7 @@ msgid "Open in Editor"
 msgstr "Im Editor öffnen"
 
 #: data/ui/preferences.blp:188 data/ui/editor-window.blp:345
-#: src/ui/editor/mod.rs:2786
+#: src/ui/editor/mod.rs:2808
 msgid "Copy to Clipboard"
 msgstr "In die Zwischenablage kopieren"
 
@@ -895,7 +895,7 @@ msgstr "Bibliothek öffnen"
 msgid "Save"
 msgstr "Speichern"
 
-#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1703
+#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1705
 msgid "Save As…"
 msgstr "Speichern unter …"
 
@@ -943,7 +943,7 @@ msgid "Copy to Folder…"
 msgstr "In Ordner kopieren …"
 
 #: data/ui/editor-window.blp:125 src/capture/delivery.rs:315
-#: src/ui/editor/mod.rs:649
+#: src/ui/editor/mod.rs:651
 msgid "Copy"
 msgstr "Kopieren"
 
@@ -1003,8 +1003,8 @@ msgid "Zoom Out"
 msgstr "Verkleinern"
 
 #: data/ui/editor-window.blp:299 src/capture/delivery.rs:300
-#: src/ui/editor/mod.rs:662 src/ui/editor/mod.rs:1329 src/ui/editor/mod.rs:1466
-#: src/ui/editor/mod.rs:2385 src/ui/editor/mod.rs:2664
+#: src/ui/editor/mod.rs:664 src/ui/editor/mod.rs:1331 src/ui/editor/mod.rs:1468
+#: src/ui/editor/mod.rs:2407 src/ui/editor/mod.rs:2686
 #: src/ui/editor/text.rs:101
 msgid "Undo"
 msgstr "Rückgängig"
@@ -1115,7 +1115,7 @@ msgstr "Schwärzen (B)"
 msgid "Redact"
 msgstr "Schwärzen"
 
-#: data/ui/editor-window.blp:526 src/ui/editor/mod.rs:954
+#: data/ui/editor-window.blp:526 src/ui/editor/mod.rs:956
 msgid "Crop (C)"
 msgstr "Zuschneiden (C)"
 
@@ -1910,7 +1910,7 @@ msgstr "Wiederherstellen"
 msgid "Newer Annota Version Needed"
 msgstr "Neuere Annota-Version erforderlich"
 
-#: data/ui/newer-version-dialog.blp:39 src/ui/editor/mod.rs:1720
+#: data/ui/newer-version-dialog.blp:39 src/ui/editor/mod.rs:1722
 msgid "Show in Files"
 msgstr "In Dateien anzeigen"
 
@@ -2366,59 +2366,59 @@ msgstr "{width} × {height} px · {format}"
 msgid "Custom Width…"
 msgstr "Eigene Breite …"
 
-#: src/ui/editor/mod.rs:635
+#: src/ui/editor/mod.rs:637
 msgid "Could not open “{name}”: {error}"
 msgstr "„{name}“ konnte nicht geöffnet werden: {error}"
 
-#: src/ui/editor/mod.rs:891
+#: src/ui/editor/mod.rs:893
 msgid "Pick a colour anywhere on the screen"
 msgstr "Eine Farbe irgendwo auf dem Bildschirm aufnehmen"
 
-#: src/ui/editor/mod.rs:1641
+#: src/ui/editor/mod.rs:1643
 msgid "Annota Documents"
 msgstr "Annota-Dokumente"
 
-#: src/ui/editor/mod.rs:1646
+#: src/ui/editor/mod.rs:1648
 msgid "Save As"
 msgstr "Speichern unter"
 
-#: src/ui/editor/mod.rs:2029
+#: src/ui/editor/mod.rs:2051
 msgid "PNG Images"
 msgstr "PNG-Bilder"
 
-#: src/ui/editor/mod.rs:2034
+#: src/ui/editor/mod.rs:2056
 msgid "Copy to Folder"
 msgstr "In Ordner kopieren"
 
-#: src/ui/editor/mod.rs:2035
+#: src/ui/editor/mod.rs:2057
 msgid "_Copy"
 msgstr "_Kopieren"
 
-#: src/ui/editor/mod.rs:2488
+#: src/ui/editor/mod.rs:2510
 msgid "Picking a colour from the screen needs xdg-desktop-portal"
 msgstr "Farben vom Bildschirm aufnehmen braucht xdg-desktop-portal"
 
-#: src/ui/editor/mod.rs:2491
+#: src/ui/editor/mod.rs:2513
 msgid "Annota may not read colours from the screen"
 msgstr "Annota darf keine Farben vom Bildschirm lesen"
 
-#: src/ui/editor/mod.rs:2495 src/ui/editor/theme_editor.rs:764
+#: src/ui/editor/mod.rs:2517 src/ui/editor/theme_editor.rs:764
 msgid "The colour could not be picked"
 msgstr "Die Farbe konnte nicht aufgenommen werden"
 
-#: src/ui/editor/mod.rs:2521
+#: src/ui/editor/mod.rs:2543
 msgid "Canvas Colour"
 msgstr "Leinwandfarbe"
 
-#: src/ui/editor/mod.rs:2652
+#: src/ui/editor/mod.rs:2674
 msgid "Could not insert the image"
 msgstr "Das Bild konnte nicht eingefügt werden"
 
-#: src/ui/editor/mod.rs:2663
+#: src/ui/editor/mod.rs:2685
 msgid "Image inserted"
 msgstr "Bild eingefügt"
 
-#: src/ui/editor/mod.rs:2746
+#: src/ui/editor/mod.rs:2768
 msgid "Could not restore “{name}”: {error}"
 msgstr "„{name}“ konnte nicht wiederhergestellt werden: {error}"
 
@@ -2581,59 +2581,59 @@ msgstr "Exportiert als „{name}“"
 msgid "{folder} · Saved"
 msgstr "{folder} · Gespeichert"
 
-#: src/ui/editor/share.rs:283
+#: src/ui/editor/share.rs:296
 msgid "Image copied to clipboard"
 msgstr "Bild in die Zwischenablage kopiert"
 
-#: src/ui/editor/share.rs:288
+#: src/ui/editor/share.rs:301
 msgid "Opening your mail app with “{name}” attached…"
 msgstr "Ihre E-Mail-App wird mit „{name}“ im Anhang geöffnet …"
 
-#: src/ui/editor/share.rs:293
+#: src/ui/editor/share.rs:306
 msgid "Copied as “{name}”"
 msgstr "Kopiert als „{name}“"
 
-#: src/ui/editor/share.rs:298
+#: src/ui/editor/share.rs:311
 msgid "Drag image to another app"
 msgstr "Bild in eine andere App ziehen"
 
-#: src/ui/editor/share.rs:304
+#: src/ui/editor/share.rs:317
 msgid "You can drag the image out now"
 msgstr "Sie können das Bild jetzt herausziehen"
 
-#: src/ui/editor/share.rs:312
-msgid "Object copied to clipboard"
-msgid_plural "{n} objects copied to clipboard"
-msgstr[0] "Objekt in die Zwischenablage kopiert"
-msgstr[1] "{n} Objekte in die Zwischenablage kopiert"
+#: src/ui/editor/share.rs:325
+msgid "Image and object copied to clipboard"
+msgid_plural "Image and {n} objects copied to clipboard"
+msgstr[0] "Bild und Objekt in die Zwischenablage kopiert"
+msgstr[1] "Bild und {n} Objekte in die Zwischenablage kopiert"
 
-#: src/ui/editor/share.rs:324
+#: src/ui/editor/share.rs:337
 msgid "These objects were copied from a newer Annota and cannot be pasted here"
 msgstr ""
 "Diese Objekte stammen aus einem neueren Annota und können hier nicht "
 "eingefügt werden"
 
-#: src/ui/editor/share.rs:326
+#: src/ui/editor/share.rs:339
 msgid "The copied objects could not be pasted"
 msgstr "Die kopierten Objekte konnten nicht eingefügt werden"
 
-#: src/ui/editor/share.rs:333
+#: src/ui/editor/share.rs:346
 msgid "The objects could not be copied"
 msgstr "Die Objekte konnten nicht kopiert werden"
 
-#: src/ui/editor/share.rs:338
+#: src/ui/editor/share.rs:351
 msgid "The image could not be copied"
 msgstr "Das Bild konnte nicht kopiert werden"
 
-#: src/ui/editor/share.rs:343
+#: src/ui/editor/share.rs:356
 msgid "The image could not be prepared for sharing"
 msgstr "Das Bild konnte nicht zum Teilen vorbereitet werden"
 
-#: src/ui/editor/share.rs:349
+#: src/ui/editor/share.rs:362
 msgid "Could not open your mail app"
 msgstr "Ihre E-Mail-App konnte nicht geöffnet werden"
 
-#: src/ui/editor/share.rs:350
+#: src/ui/editor/share.rs:363
 msgid "Could not open the image in another app"
 msgstr "Das Bild konnte nicht in einer anderen App geöffnet werden"
 
@@ -3407,6 +3407,11 @@ msgid "{n} object flattened into the image"
 msgid_plural "{n} objects flattened into the image"
 msgstr[0] "{n} Objekt in das Bild eingebrannt"
 msgstr[1] "{n} Objekte in das Bild eingebrannt"
+
+#~ msgid "Object copied to clipboard"
+#~ msgid_plural "{n} objects copied to clipboard"
+#~ msgstr[0] "Objekt in die Zwischenablage kopiert"
+#~ msgstr[1] "{n} Objekte in die Zwischenablage kopiert"
 
 #~ msgid "Exporting arrives in milestone 0.1"
 #~ msgstr "Exportieren folgt mit Meilenstein 0.1"

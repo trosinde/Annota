@@ -19,7 +19,7 @@ Before a document that contains blur or pixelate redactions is exported, copied,
 - **THEN** nothing is exported and the document is unchanged
 
 #### Scenario: Warning before copy
-- **WHEN** a document with a blur redaction is copied with Ctrl+C
+- **WHEN** a document with a blur redaction is copied with Ctrl+C, with or without objects selected (Copy with a selection puts the flattened image on the clipboard too)
 - **THEN** "Make Redactions Solid?" offers Cancel, Copy Anyway and Convert to Solid before anything is put on the clipboard
 
 #### Scenario: Warning before a drag

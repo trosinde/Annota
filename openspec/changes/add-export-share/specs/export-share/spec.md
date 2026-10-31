@@ -53,11 +53,20 @@ A saved document SHALL take its file's name as title, lose its autosave and anno
 - **THEN** the annotated image is pasted
 
 ### Requirement: Object copy and paste
-`Ctrl+C` (or the header's Copy) with a selection SHALL put the selected object(s) on the clipboard in a self-contained Annota-specific format instead of the flattened image, without the redaction warning, and confirm with the toast "Object copied to clipboard" ("<n> objects copied to clipboard"). `Ctrl+V` in an open document SHALL check for that format first and insert the objects there as one undo step; without it, `Ctrl+V` SHALL fall back to the existing new-document paste.
+`Ctrl+C` (or the header's Copy) with a selection SHALL put the selected object(s) in a self-contained Annota-specific format and the whole flattened image as PNG on the clipboard, after the redaction warning, and confirm with the toast "Image and object copied to clipboard" ("Image and <n> objects copied to clipboard"). `Ctrl+V` in a document SHALL check for Annota's format first and insert the objects there as one undo step, else fall back to the new-document paste.
 
 #### Scenario: Copy and paste into the same document
 - **WHEN** the user selects an arrow, presses Ctrl+C, then Ctrl+V in the same document
 - **THEN** a second arrow appears, offset from the first, as one undo step
+
+#### Scenario: Paste the copied selection into another app
+- **WHEN** the user draws an arrow (it stays selected), presses Ctrl+C and pastes into another app
+- **THEN** the whole annotated image is pasted there, exactly as after Ctrl+C with nothing selected
+
+#### Scenario: Warning before copying a selection
+- **WHEN** an object is selected in a document with a pixelate redaction and Ctrl+C is pressed
+- **THEN** "Make Redactions Solid?" offers Cancel, Copy Anyway and Convert to Solid before anything is put on the clipboard
+- **AND** after Convert to Solid both the copied objects and the copied image show the redactions solid
 
 #### Scenario: Paste into a different document
 - **WHEN** an object copied from one document is pasted with Ctrl+V into a different open document
