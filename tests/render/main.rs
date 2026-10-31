@@ -661,3 +661,604 @@ fn redaction_objects() {
     );
     assert_golden("redaction-objects", &render::flatten(&doc, 1.0).unwrap());
 }
+
+// ---- Property matrix (add-core-annotation-tools task 4.1) ----------------------------------
+//
+// One golden per type covering the property values that change how it is drawn: every end
+// style with every line style, widths and end sizes, curves; pen widths and smoothing; every
+// shape kind with outline only, fill only and both, corner radii and dash patterns; text
+// styles and alignments; the four callout shapes with fill/outline variants and tail counts;
+// the four marker shapes in every counting; blur/pixelate/solid in both shapes at two
+// intensities; highlight colours and opacities; shadow angles, distances, blurs, colours and
+// opacities. Not the full cartesian product: each property is varied against the defaults,
+// and the combinations that share drawing code (ends × line styles, shapes × fill modes,
+// redaction kinds × shapes) are crossed.
+
+fn paper(width: i32, height: i32) -> Document {
+    Document::new(Bitmap::filled(width, height, palette::PAPER).unwrap())
+}
+
+fn no_shadow() -> annota::document::style::Shadow {
+    annota::document::style::Shadow::DEFAULT_OFF
+}
+
+#[test]
+fn arrow_end_and_line_style_matrix() {
+    // Every end style (both ends) × solid, dashed, dotted; 6 px, no shadow.
+    let mut doc = paper(400, 300);
+    let mut objects: Vec<Box<dyn Annotation>> = Vec::new();
+    for (row, &style) in EndStyle::ALL.iter().enumerate() {
+        for (col, line) in ["solid", "dashed", "dotted"].iter().enumerate() {
+            let y = 25.0 + row as f64 * 46.0;
+            let x = 20.0 + col as f64 * 128.0;
+            let mut a = Arrow::new(p(x + 10.0, y), p(x + 108.0, y));
+            a.width = 6.0;
+            a.start_style = style;
+            a.end_style = style;
+            a.shadow = no_shadow();
+            a.set_property("line_style", &V::Choice((*line).into()))
+                .unwrap();
+            objects.push(Box::new(a));
+        }
+    }
+    add(&mut doc, objects);
+    assert_golden("arrow-matrix", &render::flatten(&doc, 1.0).unwrap());
+}
+
+#[test]
+fn arrow_widths_sizes_curves_and_lines() {
+    // Widths 2, 8, 20; end sizes 50 %, 100 %, 250 % (start and end apart); curves bent both
+    // ways with dashes; a translucent arrow; lines (no heads) at two widths.
+    let mut doc = paper(420, 330);
+    let mut objects: Vec<Box<dyn Annotation>> = Vec::new();
+    for (k, width) in [2.0, 8.0, 20.0].into_iter().enumerate() {
+        let x = 20.0 + k as f64 * 135.0;
+        let mut a = Arrow::new(p(x, 40.0), p(x + 110.0, 40.0));
+        a.width = width;
+        a.shadow = no_shadow();
+        objects.push(Box::new(a));
+    }
+    for (k, (start, end)) in [(0.5, 0.5), (1.0, 2.5), (2.5, 1.0)].into_iter().enumerate() {
+        let x = 20.0 + k as f64 * 135.0;
+        let mut a = Arrow::new(p(x + 10.0, 110.0), p(x + 100.0, 110.0));
+        a.width = 6.0;
+        a.start_style = EndStyle::Triangle;
+        a.start_size = start;
+        a.end_size = end;
+        a.color = palette::AZURE;
+        a.shadow = no_shadow();
+        objects.push(Box::new(a));
+    }
+    let mut up = Arrow::new(p(20.0, 230.0), p(190.0, 230.0));
+    up.middle = p(105.0, 160.0);
+    up.start_style = EndStyle::Circle;
+    up.end_style = EndStyle::Open;
+    up.set_property("line_style", &V::Choice("dashed".into()))
+        .unwrap();
+    let mut down = Arrow::new(p(220.0, 170.0), p(400.0, 180.0));
+    down.middle = p(330.0, 250.0);
+    down.end_style = EndStyle::Bar;
+    down.color = palette::TEAL;
+    down.set_property("line_style", &V::Choice("dotted".into()))
+        .unwrap();
+    let mut faint = Arrow::new(p(20.0, 280.0), p(180.0, 280.0));
+    faint.opacity = 0.4;
+    faint.width = 12.0;
+    let mut thin = Arrow::line(p(220.0, 270.0), p(400.0, 270.0));
+    thin.width = 1.0;
+    thin.color = palette::INK;
+    let mut thick = Arrow::line(p(220.0, 305.0), p(400.0, 305.0));
+    thick.width = 14.0;
+    thick.color = palette::VIOLET;
+    thick.shadow = no_shadow();
+    for a in [up, down, faint, thin, thick] {
+        objects.push(Box::new(a));
+    }
+    add(&mut doc, objects);
+    assert_golden("arrow-variants", &render::flatten(&doc, 1.0).unwrap());
+}
+
+#[test]
+fn pen_widths_smoothing_and_opacity() {
+    // The same jagged stroke at smoothing 0, 60 and 100, then widths 1, 10, 30, then half
+    // opacity and without shadow.
+    let mut doc = paper(420, 300);
+    let stroke = |x0: f64, y0: f64| {
+        let mut pen = Pen::new(p(x0, y0));
+        for i in 1..=24 {
+            let jag = if i % 2 == 0 { 14.0 } else { -14.0 };
+            pen.points.push(p(x0 + f64::from(i) * 5.0, y0 + jag));
+        }
+        pen
+    };
+    let mut objects: Vec<Box<dyn Annotation>> = Vec::new();
+    for (k, smoothing) in [0.0, 60.0, 100.0].into_iter().enumerate() {
+        let mut pen = stroke(20.0 + k as f64 * 135.0, 50.0);
+        pen.smoothing = smoothing;
+        pen.width = 4.0;
+        pen.shadow = no_shadow();
+        objects.push(Box::new(pen));
+    }
+    for (k, width) in [1.0, 10.0, 30.0].into_iter().enumerate() {
+        let mut pen = stroke(20.0 + k as f64 * 135.0, 150.0);
+        pen.width = width;
+        pen.color = palette::LIME;
+        objects.push(Box::new(pen));
+    }
+    let mut faint = stroke(20.0, 245.0);
+    faint.opacity = 0.5;
+    faint.width = 16.0;
+    let mut flat = stroke(220.0, 245.0);
+    flat.shadow = no_shadow();
+    flat.color = palette::VIOLET;
+    objects.push(Box::new(faint));
+    objects.push(Box::new(flat));
+    add(&mut doc, objects);
+    assert_golden("pen-variants", &render::flatten(&doc, 1.0).unwrap());
+}
+
+#[test]
+fn shape_kind_and_fill_matrix() {
+    // Rectangle, rounded rectangle, ellipse, polygon × outline only, fill only, outline and a
+    // half-opaque fill; then corner radii 0, 16, 40 and dashed/dotted outlines; no shadow
+    // except the last row.
+    let mut doc = paper(480, 420);
+    let mut objects: Vec<Box<dyn Annotation>> = Vec::new();
+    let kinds = [
+        ShapeKind::Rectangle,
+        ShapeKind::RoundedRectangle,
+        ShapeKind::Ellipse,
+        ShapeKind::Polygon,
+    ];
+    let pentagon = |r: Rect| {
+        (0..5)
+            .map(|k| {
+                let a = -std::f64::consts::FRAC_PI_2 + f64::from(k) * std::f64::consts::TAU / 5.0;
+                p(
+                    r.x + r.width / 2.0 + r.width / 2.0 * a.cos(),
+                    r.y + r.height / 2.0 + r.height / 2.0 * a.sin(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    for (col, kind) in kinds.into_iter().enumerate() {
+        for row in 0..3 {
+            let r = Rect::new(
+                20.0 + col as f64 * 115.0,
+                20.0 + row as f64 * 90.0,
+                95.0,
+                70.0,
+            );
+            let mut style = Shape::new(r);
+            style.shadow = no_shadow();
+            match row {
+                0 => {}
+                1 => {
+                    style.outline_width = 0.0;
+                    style.fill = palette::TEAL;
+                }
+                _ => {
+                    style.outline_color = palette::AZURE;
+                    style.fill = palette::AZURE;
+                    style.fill_opacity = 0.5;
+                }
+            }
+            let shape = if kind == ShapeKind::Polygon {
+                Shape::polygon(&pentagon(r), &style).unwrap()
+            } else {
+                style.kind = kind;
+                style
+            };
+            objects.push(Box::new(shape));
+        }
+    }
+    for (k, radius) in [0.0, 16.0, 40.0].into_iter().enumerate() {
+        let mut s = Shape::new(Rect::new(20.0 + k as f64 * 115.0, 300.0, 95.0, 90.0));
+        s.corner_radius = radius;
+        s.outline_color = palette::VIOLET;
+        objects.push(Box::new(s));
+    }
+    let mut dashed = Shape::new(Rect::new(365.0, 290.0, 95.0, 50.0));
+    dashed.kind = ShapeKind::Ellipse;
+    dashed
+        .set_property("line_style", &V::Choice("dashed".into()))
+        .unwrap();
+    dashed.shadow = no_shadow();
+    let mut dotted = Shape::new(Rect::new(365.0, 350.0, 95.0, 50.0));
+    dotted.kind = ShapeKind::Rectangle;
+    dotted.outline_width = 4.0;
+    dotted
+        .set_property("line_style", &V::Choice("dotted".into()))
+        .unwrap();
+    dotted.shadow = no_shadow();
+    objects.push(Box::new(dashed));
+    objects.push(Box::new(dotted));
+    add(&mut doc, objects);
+    assert_golden("shape-matrix", &render::flatten(&doc, 1.0).unwrap());
+}
+
+#[test]
+fn text_style_and_alignment_matrix() {
+    // Regular, bold, italic, underline, strikethrough, all four; left, centre, right on two
+    // lines of different length; outline none, 2 px and 10 px. Compared on 4 × 4 averages with
+    // DejaVu Sans (fonts differ between systems).
+    let mut doc = paper(440, 440);
+    let mut objects: Vec<Box<dyn Annotation>> = Vec::new();
+    let text = |at: Point, s: &str| {
+        let mut t = Text::new(at);
+        t.font_family = "DejaVu Sans".into();
+        t.font_size = 24.0;
+        t.bold = false;
+        t.outline_width = 0.0;
+        t.color = palette::INK;
+        t.text = s.into();
+        t
+    };
+    let styles: [(&str, [bool; 4]); 6] = [
+        ("Plain", [false; 4]),
+        ("Bold", [true, false, false, false]),
+        ("Italic", [false, true, false, false]),
+        ("Under", [false, false, true, false]),
+        ("Strike", [false, false, false, true]),
+        ("All", [true; 4]),
+    ];
+    for (k, (label, [bold, italic, underline, strike])) in styles.into_iter().enumerate() {
+        let mut t = text(
+            p(20.0 + (k % 3) as f64 * 140.0, 20.0 + (k / 3) as f64 * 50.0),
+            label,
+        );
+        t.bold = bold;
+        t.italic = italic;
+        t.underline = underline;
+        t.strikethrough = strike;
+        objects.push(Box::new(t));
+    }
+    for (k, alignment) in [Alignment::Left, Alignment::Center, Alignment::Right]
+        .into_iter()
+        .enumerate()
+    {
+        let mut t = text(p(20.0 + k as f64 * 140.0, 140.0), "A long line\nshort");
+        t.alignment = alignment;
+        t.font_size = 18.0;
+        t.color = palette::AZURE;
+        objects.push(Box::new(t));
+    }
+    for (k, width) in [0.0, 2.0, 10.0].into_iter().enumerate() {
+        let mut t = text(p(20.0 + k as f64 * 140.0, 250.0), "Out");
+        t.font_size = 40.0;
+        t.bold = true;
+        t.color = palette::CORAL;
+        t.outline_color = palette::INK;
+        t.outline_width = width;
+        objects.push(Box::new(t));
+    }
+    let mut faint = text(p(20.0, 340.0), "Half opacity, shadow");
+    faint.opacity = 0.5;
+    faint.shadow = annota::document::style::Shadow::DEFAULT;
+    objects.push(Box::new(faint));
+    add(&mut doc, objects);
+    assert_golden_coarse("text-matrix", &render::flatten(&doc, 1.0).unwrap());
+}
+
+#[test]
+fn callout_shape_matrix() {
+    // The four shapes × filled without outline, white with an outline, and no fill with an
+    // outline; one without a tail (a filled text box) and one with three tails. Glyphs masked.
+    let mut doc = paper(560, 470);
+    let mut callouts: Vec<Callout> = Vec::new();
+    let shapes = [
+        CalloutShape::Rectangle,
+        CalloutShape::Rounded,
+        CalloutShape::Ellipse,
+        CalloutShape::Cloud,
+    ];
+    for (col, shape) in shapes.into_iter().enumerate() {
+        for row in 0..3 {
+            let x = 15.0 + col as f64 * 135.0;
+            let y = 15.0 + row as f64 * 110.0;
+            let mut c = Callout::new(Rect::new(x, y, 115.0, 55.0), p(x + 30.0, y + 95.0));
+            c.shape = shape;
+            c.font_family = "DejaVu Sans".into();
+            c.font_size = 16.0;
+            c.text = "Note".into();
+            c.shadow = no_shadow();
+            match row {
+                0 => {}
+                1 => {
+                    c.fill = palette::PAPER;
+                    c.outline_width = 4.0;
+                    c.outline_color = palette::AZURE;
+                    c.text_color = palette::INK;
+                }
+                _ => {
+                    c.fill = annota::document::color::Rgba::TRANSPARENT;
+                    c.outline_width = 3.0;
+                    c.outline_color = palette::VIOLET;
+                    c.text_color = palette::VIOLET;
+                }
+            }
+            callouts.push(c);
+        }
+    }
+    let mut boxed = Callout::new(Rect::new(15.0, 360.0, 200.0, 60.0), p(0.0, 0.0));
+    boxed.tails.clear();
+    boxed.fill = palette::TEAL;
+    boxed.text = "No tail".into();
+    boxed.font_family = "DejaVu Sans".into();
+    let mut three = Callout::new(Rect::new(300.0, 350.0, 160.0, 50.0), p(280.0, 460.0));
+    three.tails.push(p(400.0, 465.0));
+    three.tails.push(p(545.0, 380.0));
+    three.fill = palette::AMBER;
+    three.text = "Three".into();
+    three.font_family = "DejaVu Sans".into();
+    callouts.push(boxed);
+    callouts.push(three);
+    let masks: Vec<Rect> = callouts
+        .iter()
+        .map(|c| {
+            use annota::tools::text::EditableText;
+            c.text_block().bounds().rect.inflate(4.0)
+        })
+        .collect();
+    add(
+        &mut doc,
+        callouts
+            .into_iter()
+            .map(|c| Box::new(c) as Box<dyn Annotation>)
+            .collect(),
+    );
+    assert_golden_masked(
+        "callout-matrix",
+        &render::flatten(&doc, 1.0).unwrap(),
+        &masks,
+    );
+}
+
+#[test]
+fn step_shape_and_counting_matrix() {
+    // Circle, square, rounded square, pin × 1, 2, 3 · A, B, C · a, b, c · I, II, III (one
+    // sequence per row), with a thick ring, without a ring, large and small. Labels are masked
+    // here (fonts differ) and checked as text.
+    let mut doc = paper(400, 400);
+    let shapes = [
+        StepShape::Circle,
+        StepShape::Square,
+        StepShape::RoundedSquare,
+        StepShape::Pin,
+    ];
+    let countings = [
+        Counting::Numbers,
+        Counting::UpperLetters,
+        Counting::LowerLetters,
+        Counting::Roman,
+    ];
+    let colours = [
+        palette::CORAL,
+        palette::AZURE,
+        palette::TEAL,
+        palette::VIOLET,
+    ];
+    let mut markers: Vec<Step> = Vec::new();
+    for (row, counting) in countings.into_iter().enumerate() {
+        for (col, shape) in shapes.into_iter().enumerate() {
+            let mut s = Step::new(
+                p(45.0 + col as f64 * 80.0, 45.0 + row as f64 * 75.0),
+                row as u32 + 1,
+                col as u32 + 2,
+            );
+            s.shape = shape;
+            s.counting = counting;
+            s.radius = 24.0;
+            s.color = colours[row];
+            s.shadow = no_shadow();
+            markers.push(s);
+        }
+    }
+    let mut thick = Step::new(p(45.0, 350.0), 9, 1);
+    thick.ring_width = 8.0;
+    thick.ring_color = palette::INK;
+    let mut bare = Step::new(p(125.0, 350.0), 9, 2);
+    bare.ring_width = 0.0;
+    let mut big = Step::new(p(220.0, 350.0), 9, 3);
+    big.radius = 40.0;
+    let mut small = Step::new(p(310.0, 350.0), 9, 4);
+    small.radius = 10.0;
+    markers.extend([thick, bare, big, small]);
+    let labels: Vec<String> = markers.iter().map(Step::label).collect();
+    assert_eq!(
+        labels[..16],
+        ["2", "3", "4", "5", "B", "C", "D", "E", "b", "c", "d", "e", "II", "III", "IV", "V"]
+    );
+    let masks: Vec<Rect> = markers
+        .iter()
+        .map(|s| {
+            Rect::new(
+                s.x - 0.8 * s.radius,
+                s.y - 0.8 * s.radius,
+                1.6 * s.radius,
+                1.6 * s.radius,
+            )
+        })
+        .collect();
+    add(
+        &mut doc,
+        markers
+            .into_iter()
+            .map(|s| Box::new(s) as Box<dyn Annotation>)
+            .collect(),
+    );
+    assert_golden_masked("step-matrix", &render::flatten(&doc, 1.0).unwrap(), &masks);
+}
+
+#[test]
+fn redaction_kind_shape_and_intensity_matrix() {
+    // Blur, pixelate and solid × rectangle and ellipse at intensity 100, and blur and pixelate
+    // at 30; a solid box in Coral.
+    let detail = Bitmap::draw(400, 330, |cr| {
+        cr.set_source_rgb(0.96, 0.95, 0.93);
+        cr.paint()?;
+        for row in 0..20 {
+            for col in 0..50 {
+                if (row * 7 + col * 3) % 5 < 3 {
+                    [palette::INK, palette::AZURE, palette::CORAL][(row + col) as usize % 3]
+                        .set_source(cr);
+                    cr.rectangle(
+                        f64::from(col) * 8.0 + 2.0,
+                        f64::from(row) * 16.0 + 6.0,
+                        5.0,
+                        7.0,
+                    );
+                    cr.fill()?;
+                }
+            }
+        }
+        Ok(())
+    })
+    .unwrap();
+    let mut doc = Document::new(detail);
+    let mut objects: Vec<Box<dyn Annotation>> = Vec::new();
+    let kinds = [
+        RedactionKind::Blur,
+        RedactionKind::Pixelate,
+        RedactionKind::Solid,
+    ];
+    for (col, kind) in kinds.into_iter().enumerate() {
+        for (row, shape) in [RedactionShape::Rectangle, RedactionShape::Ellipse]
+            .into_iter()
+            .enumerate()
+        {
+            let mut r = Redaction::new(Rect::new(
+                10.0 + col as f64 * 130.0,
+                10.0 + row as f64 * 80.0,
+                120.0,
+                70.0,
+            ));
+            r.kind = kind;
+            r.shape = shape;
+            r.intensity = 100.0;
+            objects.push(Box::new(r));
+        }
+    }
+    for (col, kind) in [RedactionKind::Blur, RedactionKind::Pixelate]
+        .into_iter()
+        .enumerate()
+    {
+        let mut r = Redaction::new(Rect::new(10.0 + col as f64 * 130.0, 180.0, 120.0, 70.0));
+        r.kind = kind;
+        r.intensity = 30.0;
+        objects.push(Box::new(r));
+    }
+    let mut coral = Redaction::new(Rect::new(270.0, 180.0, 120.0, 70.0));
+    coral.kind = RedactionKind::Solid;
+    coral.color = palette::CORAL;
+    objects.push(Box::new(coral));
+    add(&mut doc, objects);
+    assert_golden("redaction-matrix", &render::flatten(&doc, 1.0).unwrap());
+}
+
+#[test]
+fn highlighter_colours_and_opacities() {
+    // Each palette colour at 45 %, and the default yellow at 20 %, 45 % and 90 % — multiply
+    // keeps the dark header dark under all of them.
+    let mut doc = Document::new(test_card(420, 260));
+    let mut objects: Vec<Box<dyn Annotation>> = Vec::new();
+    let colours = [
+        palette::CORAL,
+        palette::AMBER,
+        palette::LIME,
+        palette::TEAL,
+        palette::AZURE,
+        palette::VIOLET,
+        palette::INK,
+    ];
+    for (k, colour) in colours.into_iter().enumerate() {
+        let mut h = Highlighter::new(Rect::new(10.0 + k as f64 * 58.0, 10.0, 50.0, 140.0));
+        h.color = colour;
+        objects.push(Box::new(h));
+    }
+    for (k, opacity) in [0.2, 0.45, 0.9].into_iter().enumerate() {
+        let mut h = Highlighter::new(Rect::new(10.0 + k as f64 * 135.0, 170.0, 125.0, 70.0));
+        h.opacity = opacity;
+        objects.push(Box::new(h));
+    }
+    add(&mut doc, objects);
+    let out = render::flatten(&doc, 1.0).unwrap();
+    let header = out.pixel(250, 15).unwrap();
+    assert!(
+        header.r < 40 && header.g < 40 && header.b < 50,
+        "{header:?}"
+    );
+    assert_golden("highlighter-matrix", &out);
+}
+
+#[test]
+fn shadow_matrix() {
+    // The shadow editor's ranges on a box and an arrow: angles 0°, 90°, 225°; distance 0 and
+    // 30 px; blur 0 and 15 (the slider's 30 px); a Violet and an opaque shadow; an object at
+    // half opacity casting one shadow for the whole object.
+    use annota::document::style::Shadow;
+    let mut doc = paper(460, 330);
+    let mut objects: Vec<Box<dyn Annotation>> = Vec::new();
+    let variants = [
+        Shadow {
+            angle: 0.0,
+            ..Shadow::DEFAULT
+        },
+        Shadow {
+            angle: 90.0,
+            ..Shadow::DEFAULT
+        },
+        Shadow {
+            angle: 225.0,
+            ..Shadow::DEFAULT
+        },
+        Shadow {
+            distance: 0.0,
+            ..Shadow::DEFAULT
+        },
+        Shadow {
+            distance: Shadow::MAX_DISTANCE,
+            ..Shadow::DEFAULT
+        },
+        Shadow {
+            blur: 0.0,
+            ..Shadow::DEFAULT
+        },
+        Shadow {
+            blur: Shadow::MAX_BLUR,
+            ..Shadow::DEFAULT
+        },
+        Shadow {
+            color: palette::VIOLET,
+            opacity: 1.0,
+            ..Shadow::DEFAULT
+        },
+    ];
+    for (k, shadow) in variants.into_iter().enumerate() {
+        let r = Rect::new(
+            30.0 + (k % 4) as f64 * 110.0,
+            30.0 + (k / 4) as f64 * 110.0,
+            70.0,
+            60.0,
+        );
+        let mut s = Shape::new(r);
+        s.kind = ShapeKind::Rectangle;
+        s.fill = palette::AZURE;
+        s.outline_width = 0.0;
+        s.shadow = shadow;
+        objects.push(Box::new(s));
+    }
+    let mut faint = Shape::new(Rect::new(30.0, 250.0, 150.0, 50.0));
+    faint.fill = palette::CORAL;
+    faint.opacity = 0.5;
+    objects.push(Box::new(faint));
+    let mut arrow = Arrow::new(p(220.0, 290.0), p(430.0, 250.0));
+    arrow.shadow = Shadow {
+        angle: 135.0,
+        distance: 14.0,
+        ..Shadow::DEFAULT
+    };
+    objects.push(Box::new(arrow));
+    add(&mut doc, objects);
+    assert_golden("shadow-matrix", &render::flatten(&doc, 1.0).unwrap());
+}
