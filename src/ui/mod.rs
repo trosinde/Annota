@@ -7,8 +7,15 @@ pub mod editor;
 pub mod labels;
 
 /// Helpers for the `#[ignore]`d tests that need a display. Run each such test in a process of
-/// its own (GTK can only be initialised on one thread per process), headless:
-/// `GDK_BACKEND=x11 xvfb-run -a dbus-run-session cargo test --bin annota -- --ignored --exact <test>`.
+/// its own (GTK can only be initialised on one thread per process), headless, with an isolated
+/// `XDG_CONFIG_HOME` (a dev machine's own `~/.config/gtk-4.0/gtk.css` — e.g. a GTK theme —
+/// loads above Annota's own stylesheet otherwise and can fail an assertion on something the
+/// theme restyled, not a real bug; this cost `quick_styles_on_a_live_display` a long-standing,
+/// hard-to-reproduce failure before it was traced to exactly this):
+/// `XDG_CONFIG_HOME=$(mktemp -d) GDK_BACKEND=x11 xvfb-run -a dbus-run-session cargo test --bin annota -- --ignored --exact <test>`.
+/// A test that also must not risk a real xdg-desktop-portal call should additionally pass
+/// `dbus-run-session --config-file=<a bus config with no service directories>`, so nothing can
+/// be D-Bus-activated on the private bus at all.
 #[cfg(test)]
 pub mod test_support {
     use std::time::{Duration, Instant};
