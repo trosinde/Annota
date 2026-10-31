@@ -33,7 +33,7 @@ All screens exist as `-dark@1x/2x`.
 | Drop into file manager | 08, 09 | Drag starts from the header bar's title area (title + subtitle, decision D1); ghost = 160×100 thumbnail + "PNG" badge; drop creates `Checkout flow.png`. |
 | Email | 01, 14 | Export split button arrow (Share) → Email… exports a temporary PNG and calls the Email portal; toast while handing over. Open With… calls OpenURI (system app chooser, not drawn). |
 | Batch | 11, 12, 13 | Three tray items selected → Export 3… → JPG → three files, toast. |
-| (Redaction warning, from annotation-tools spec) | 10 | Shown on Export, Copy, Drag, Share and Quick save when the document contains blur or pixelate redactions. |
+| (Redaction warning, from annotation-tools spec) | 10 | Shown on Export, Copy, Drag and Share when the document contains blur or pixelate redactions. Never on a save (Ctrl+S/Ctrl+Shift+S) — `.annota` keeps the original image regardless. |
 | (Save changes before closing, task 2.6 — document-format "Autosave and recovery" / "Closing keeps autosaves" MODIFIED) | 15 | Editor window closed (`Ctrl+W`, close button) or Annota quit (`Ctrl+Q`) while a document has unsaved changes → alert with Save / Discard / Cancel. Drawn after `Ctrl+W`, so the default response shows its focus ring. |
 
 ## Redlines
