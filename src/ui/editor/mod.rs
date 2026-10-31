@@ -17,22 +17,33 @@
 //! OSD and menus; keys that text fields also use (Ctrl+C, Ctrl+Z) are deliberately not
 //! application accelerators, because those run before the focused widget.
 //!
-//! **Placeholders.** Copy, Export, Save and Save As belong to add-export-share, Open Library
-//! to add-capture-library: they show a "… arrives in milestone 0.1" toast; Share (D1) is
-//! present but insensitive.
+//! **Export and save** (add-export-share). `Ctrl+E` opens "Export Image" ([`export_dialog`]),
+//! `Ctrl+S` saves the document's `.annota` file — a new document into the save folder, named
+//! after the filename pattern, without a dialog — and `Ctrl+Shift+S` asks where (GTK's file
+//! chooser). A saved document's autosave is removed. Before any of them, a document with blur
+//! or pixelate redactions gets "Make Redactions Solid?" ([`Editor::guard_redactions`], the
+//! one check every way out of Annota goes through; [`redaction_warning`]).
 //!
-//! **Closing keeps autosaves.** Until Save exists (add-export-share), closing the window — or
-//! quitting — writes a last autosave of every document with unsaved changes and keeps it, so
-//! nothing is lost; "Restore Unsaved Captures?" offers them at the next start, and only its
-//! Discard removes them. See design.md ("Decided during apply — phase 2b-ii").
+//! **Placeholders.** Copy and Share (Email…, Open With…, Copy to Folder…) belong to later
+//! phases of add-export-share, Open Library to add-capture-library: Copy shows a "… arrives in
+//! milestone 0.1" toast; the Share entries (D1) are present but insensitive.
+//!
+//! **Closing keeps autosaves.** Until "Save changes before closing?" exists (add-export-share
+//! task 2.6), closing the window — or quitting — writes a last autosave of every document with
+//! unsaved changes and keeps it, so nothing is lost; "Restore Unsaved Captures?" offers them at
+//! the next start, and only its Discard (or saving the document) removes them. See design.md
+//! ("Decided during apply — phase 2b-ii").
 
 mod colour;
 mod dialogs;
+mod export_dialog;
 mod glyphs;
 mod panel;
 pub(crate) mod properties;
 mod quick_styles;
+mod redaction_warning;
 mod resize;
+mod saving;
 mod session;
 mod sidebar;
 mod styles;
@@ -59,8 +70,10 @@ use annota::document::{Background, Document};
 use annota::editing::canvas_edit;
 use annota::editing::image_ops::{self, Turn};
 use annota::editing::ops::{self, Stacking, Subject};
+use annota::editing::redactions;
 use annota::editing::selection::Selection;
 use annota::editing::tool::{Tool, Toolbox};
+use annota::export::{self, ExportError};
 use annota::render::{self, view};
 use annota::styles::store::StylePaths;
 use annota::styles::theme::Theme;
@@ -69,6 +82,7 @@ use annota::tools::group::Group;
 
 use self::panel::PanelEvent;
 use self::quick_styles::QuickEvent;
+use self::redaction_warning::{Purpose, Response};
 use self::session::{LoadError, Loaded, Origin, Session};
 use self::sidebar::{CropInfo, Event, Sidebar};
 use self::styles::Styles;
@@ -546,7 +560,7 @@ impl Editor {
         if let Some(open) = self
             .sessions()
             .into_iter()
-            .find(|s| s.path.as_deref() == Some(canonical.as_path()))
+            .find(|s| s.path.borrow().as_deref() == Some(canonical.as_path()))
         {
             self.switch_to(open.uid);
             return;
@@ -707,10 +721,11 @@ impl Editor {
         let session = Rc::new(Session {
             uid,
             canvas,
-            origin,
-            source: loaded.source,
-            path: loaded.path,
-            name,
+            origin: Cell::new(origin),
+            source: RefCell::new(loaded.source),
+            path: RefCell::new(loaded.path),
+            name: RefCell::new(name),
+            saved: Cell::new(false),
             autosave,
             schedule: Cell::new(Schedule::new()),
             thumbnail: RefCell::new(None),
@@ -750,7 +765,7 @@ impl Editor {
 
     /// The window closes (or Annota quits): every document with unsaved changes is autosaved
     /// one last time and its autosave kept for the next start (spec document-format: Autosave
-    /// and recovery — until Save exists).
+    /// and recovery — until "Save changes before closing?", add-export-share task 2.6).
     fn close_all(&self) {
         // Text being typed belongs to the document: it is kept.
         for session in self.inner.sessions.borrow().iter() {
@@ -820,8 +835,9 @@ impl Editor {
             .with_document(|d| (d.canvas().rect.width, d.canvas().rect.height))
             .unwrap_or_default();
         let (zoom, fitted) = (canvas.zoom(), canvas.fitted());
-        w.title.set_title(&session.name);
-        w.window.set_title(Some(&session.name));
+        let name = session.name();
+        w.title.set_title(&name);
+        w.window.set_title(Some(&name));
         let crop = canvas.crop_frame().map(|f| (f.width, f.height));
         // Mockup 17: the eyedropper's instruction; mockup 07: "1600 × 1000 · Drawing" while a
         // polygon is drawn.
@@ -829,10 +845,13 @@ impl Editor {
             gettext("Pick a colour anywhere on the screen")
         } else if canvas.drawing_polygon() {
             text::drawing_subtitle(size)
+        } else if let Some(folder) = session.saved_folder().filter(|_| fitted && crop.is_none()) {
+            // Mockup 06: right after a save, where it went.
+            saving::saved_subtitle(&crate::preferences::display_path(&folder))
         } else {
             text::subtitle(
                 size,
-                session::status(session.origin, &info),
+                session::status(session.origin.get(), &info),
                 (!fitted).then_some(zoom),
                 crop,
             )
@@ -945,7 +964,7 @@ impl Editor {
             .iter()
             .map(|s| OpenTile {
                 uid: s.uid,
-                name: s.name.clone(),
+                name: s.name(),
                 thumbnail: s.thumbnail.borrow().clone(),
                 current: Some(s.uid) == current,
                 unsaved: s.status().unsaved(),
@@ -963,8 +982,9 @@ impl Editor {
             .iter()
             .filter_map(|s| {
                 s.path
+                    .borrow()
                     .clone()
-                    .or_else(|| s.source.as_deref().map(session::canonical))
+                    .or_else(|| s.source.borrow().as_deref().map(session::canonical))
             })
             .collect();
         self.inner.tray.refresh_recent(&dir, &open);
@@ -1207,19 +1227,15 @@ impl Editor {
                 });
             }
         }
-        // Placeholders until add-export-share.
+        // Placeholder until add-export-share task 2.3.
         entry("copy", |e| {
             e.toast(&gettext("Copying the image arrives in milestone 0.1"))
         });
-        entry("export", |e| {
-            e.toast(&gettext("Exporting arrives in milestone 0.1"))
-        });
-        entry("save", |e| {
-            e.toast(&gettext("Saving arrives in milestone 0.1"))
-        });
-        entry("save-as", |e| {
-            e.toast(&gettext("Saving arrives in milestone 0.1"))
-        });
+        // add-export-share: the export dialog (mockups 02–05), quick save and Save As (task
+        // 2.2, mockup 06), each behind the redaction warning (task 2.7, mockup 10).
+        entry("export", |e| e.export());
+        entry("save", |e| e.quick_save());
+        entry("save-as", |e| e.save_as());
 
         let weak = self.downgrade();
         let zoom_preset = &self.inner.actions.zoom_preset;
@@ -1411,6 +1427,244 @@ impl Editor {
     fn toast(&self, text: &str) {
         let toast = adw::Toast::new(text);
         toast.set_use_markup(false);
+        self.inner.w.toast_overlay.add_toast(toast);
+    }
+
+    // ---- export and save (add-export-share) ----
+
+    /// The check every way out of Annota goes through first (add-export-share task 2.7, spec
+    /// annotation-tools "Redaction export warning", decision D7): if the current document has
+    /// blur or pixelate redactions — at any depth, groups included — "Make Redactions Solid?"
+    /// (mockup 10) asks first. Cancel stops; the middle button goes on as it is; Convert to
+    /// Solid makes every one of them solid as one undo step, then goes on. Without such
+    /// redactions `proceed` runs at once.
+    ///
+    /// Used by Export (`Ctrl+E`), quick save (`Ctrl+S`) and Save As (`Ctrl+Shift+S`) so far;
+    /// Copy, drag-out, Share and batch export (tasks 2.3–2.5) are to call it too.
+    fn guard_redactions(&self, purpose: Purpose, proceed: impl FnOnce(&Editor) + 'static) {
+        let Some(canvas) = self.current_canvas() else {
+            return;
+        };
+        let found = canvas
+            .with_document(redactions::reversible)
+            .unwrap_or_default();
+        if found.is_empty() {
+            proceed(self);
+            return;
+        }
+        let weak = self.downgrade();
+        redaction_warning::present(&self.inner.w.window, found, purpose, move |response| {
+            let Some(editor) = weak.upgrade() else {
+                return;
+            };
+            match response {
+                Response::Cancel => {}
+                Response::Anyway => proceed(&editor),
+                Response::Convert => {
+                    canvas.run(|doc, _| redactions::make_solid(doc));
+                    proceed(&editor);
+                }
+            }
+        });
+    }
+
+    /// The current document, unless a dialog is open over the window: the window's
+    /// accelerators still work then, and Export, Save and Save As must not start a second
+    /// round behind the dialog (a second export dialog, a save during the redaction warning).
+    fn current_without_dialog(&self) -> Option<Rc<Session>> {
+        if self.inner.w.window.visible_dialog().is_some() {
+            return None;
+        }
+        self.current()
+    }
+
+    /// `Ctrl+E`, the header's Export: the redaction warning, then "Export Image".
+    fn export(&self) {
+        let Some(session) = self.current_without_dialog() else {
+            return;
+        };
+        // Text being typed belongs to the document: it is exported too.
+        session.canvas.finish_text();
+        let uid = session.uid;
+        self.guard_redactions(Purpose::Export, move |editor| editor.present_export(uid));
+    }
+
+    fn present_export(&self, uid: u64) {
+        let Some(session) = self.session(uid) else {
+            return;
+        };
+        let weak = self.downgrade();
+        export_dialog::present(
+            &self.inner.w.window,
+            session.canvas.clone(),
+            &session.name(),
+            &self.inner.settings,
+            move |path| {
+                if let Some(editor) = weak.upgrade() {
+                    editor.toast_with_files(&saving::exported_toast(&path), path);
+                }
+            },
+        );
+    }
+
+    /// `Ctrl+S` (spec export-share "Quick save", mockup 06): the redaction warning, then the
+    /// document's own `.annota` file — or, for a document without one, a new file named after
+    /// the `filename-pattern` preference in the save folder. No dialog either way.
+    fn quick_save(&self) {
+        let Some(session) = self.current_without_dialog() else {
+            return;
+        };
+        session.canvas.finish_text();
+        let uid = session.uid;
+        self.guard_redactions(Purpose::Save, move |editor| editor.quick_save_now(uid));
+    }
+
+    fn quick_save_now(&self, uid: u64) {
+        let Some(session) = self.session(uid) else {
+            return;
+        };
+        let source = session.source.borrow().clone();
+        let target = match source {
+            Some(file) => file,
+            None => {
+                let settings = &self.inner.settings;
+                let folder =
+                    crate::preferences::resolved_save_folder(&settings.string("save-folder"));
+                if let Err(err) = std::fs::create_dir_all(&folder) {
+                    self.save_failed(uid, &folder, &ExportError::Io(err));
+                    return;
+                }
+                let pattern = settings.string("filename-pattern");
+                let stem = glib::DateTime::now_local()
+                    .map(|now| saving::pattern_stem(&pattern, &now))
+                    .unwrap_or_else(|_| "Annota".to_string());
+                saving::quick_save_path(None, &folder, &stem, Path::exists)
+            }
+        };
+        self.save_to(uid, &target);
+    }
+
+    /// `Ctrl+Shift+S`: the redaction warning, then GTK's file chooser for the `.annota` file.
+    fn save_as(&self) {
+        let Some(session) = self.current_without_dialog() else {
+            return;
+        };
+        session.canvas.finish_text();
+        let uid = session.uid;
+        self.guard_redactions(Purpose::Save, move |editor| editor.choose_save_path(uid));
+    }
+
+    fn choose_save_path(&self, uid: u64) {
+        let Some(session) = self.session(uid) else {
+            return;
+        };
+        let folder = session
+            .source
+            .borrow()
+            .as_deref()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| {
+                crate::preferences::resolved_save_folder(&self.inner.settings.string("save-folder"))
+            });
+        let stem = saving::file_stem(&session.name()).unwrap_or_else(text::untitled);
+        let filter = gtk::FileFilter::new();
+        filter.set_name(Some(&gettext("Annota Documents")));
+        filter.add_suffix(saving::ANNOTA_EXTENSION);
+        let filters = gio::ListStore::new::<gtk::FileFilter>();
+        filters.append(&filter);
+        let mut builder = gtk::FileDialog::builder()
+            .title(gettext("Save As"))
+            .modal(true)
+            .filters(&filters)
+            .default_filter(&filter)
+            .initial_name(format!("{stem}.{}", saving::ANNOTA_EXTENSION));
+        if folder.is_dir() {
+            builder = builder.initial_folder(&gio::File::for_path(&folder));
+        }
+        let chooser = builder.build();
+        let window = self.inner.w.window.clone();
+        let weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let Ok(file) = chooser.save_future(Some(&window)).await else {
+                return;
+            };
+            if let (Some(editor), Some(path)) = (weak.upgrade(), file.path()) {
+                editor.save_to(uid, &saving::with_annota_extension(&path));
+            }
+        });
+    }
+
+    /// Writes document `uid` to the `.annota` file `path`. On success the document belongs to
+    /// that file and is named after it, its history is marked saved, its autosave goes, and
+    /// the toast of mockup 06 says where it went; on failure the document stays as it was and
+    /// a toast says why. Returns whether it was saved.
+    fn save_to(&self, uid: u64, path: &Path) -> bool {
+        let Some(session) = self.session(uid) else {
+            return false;
+        };
+        let written = session
+            .canvas
+            .with_document(|doc| export::save_annota_named(doc, path));
+        match written {
+            Some(Ok(())) => {
+                session.saved_as(path);
+                session.forget_autosave(&self.inner.store);
+                session.canvas.mark_saved();
+                self.refresh();
+                self.refresh_recent_tray();
+                self.toast_with_files(&saving::saved_toast(path), path.to_path_buf());
+                true
+            }
+            Some(Err(err)) => {
+                self.save_failed(uid, path, &err);
+                false
+            }
+            None => false,
+        }
+    }
+
+    /// A save failed: the same words as the export dialog's banner (mockup 04), in a toast
+    /// whose Save As… lets the user pick another place. The document stays unsaved.
+    fn save_failed(&self, uid: u64, path: &Path, err: &ExportError) {
+        // The path is the user's chosen location; no capture content is logged.
+        eprintln!("annota: saving {} failed: {err}", path.display());
+        let toast = adw::Toast::builder()
+            .title(saving::problem(err).message())
+            .button_label(gettext("Save As…"))
+            .priority(adw::ToastPriority::High)
+            .build();
+        toast.set_use_markup(false);
+        let weak = self.downgrade();
+        toast.connect_button_clicked(move |_| {
+            if let Some(editor) = weak.upgrade() {
+                editor.choose_save_path(uid);
+            }
+        });
+        self.inner.w.toast_overlay.add_toast(toast);
+    }
+
+    /// A toast about a written file with "Show in Files" (mockup 06).
+    fn toast_with_files(&self, title: &str, path: PathBuf) {
+        let toast = adw::Toast::builder()
+            .title(title)
+            .button_label(gettext("Show in Files"))
+            .build();
+        toast.set_use_markup(false);
+        let window = self.inner.w.window.downgrade();
+        toast.connect_button_clicked(move |_| {
+            let file = gio::File::for_path(&path);
+            let window = window.upgrade();
+            gtk::FileLauncher::new(Some(&file)).open_containing_folder(
+                window.as_ref(),
+                gio::Cancellable::NONE,
+                |result| {
+                    if let Err(err) = result {
+                        eprintln!("annota: cannot show the file: {err}");
+                    }
+                },
+            );
+        });
         self.inner.w.toast_overlay.add_toast(toast);
     }
 
@@ -2127,7 +2381,7 @@ fn load_flattened(path: &Path) -> Option<annota::document::bitmap::Bitmap> {
     }
 }
 
-/// Creates the window actions. Share (add-export-share) exists but stays disabled; the others
+/// Creates the window actions. Share (add-export-share task 2.4) exists but stays disabled; the others
 /// get their handlers in [`Editor::setup_actions`] and their state in
 /// [`Editor::refresh_action_states`].
 fn install_actions(window: &adw::ApplicationWindow, settings: &gio::Settings) -> Actions {
@@ -3104,7 +3358,7 @@ mod tests {
         let capture_canvas = editor
             .sessions()
             .iter()
-            .find(|s| s.name == "Capture 2026-10-30 14-22-08")
+            .find(|s| s.name() == "Capture 2026-10-30 14-22-08")
             .map(|s| s.canvas.clone())
             .unwrap();
         capture_canvas.run(|doc, _| image_ops::rotate(doc, Turn::Right));
@@ -4213,5 +4467,319 @@ mod tests {
     fn window_done(window: &adw::ApplicationWindow) {
         window.destroy();
         pump(50);
+    }
+
+    /// The shown button labelled `text` under `root`.
+    fn find_button(root: &gtk::Widget, text: &str) -> Option<gtk::Button> {
+        if let Some(button) = root.downcast_ref::<gtk::Button>() {
+            if button.label().as_deref() == Some(text) && button.is_mapped() {
+                return Some(button.clone());
+            }
+        }
+        let mut child = root.first_child();
+        while let Some(c) = child {
+            if let Some(found) = find_button(&c, text) {
+                return Some(found);
+            }
+            child = c.next_sibling();
+        }
+        None
+    }
+
+    /// The text of the first shown label under `root` that starts with `prefix`.
+    fn label_starting(root: &gtk::Widget, prefix: &str) -> Option<String> {
+        if let Some(label) = root.downcast_ref::<gtk::Label>() {
+            if label.label().starts_with(prefix) && label.is_mapped() {
+                return Some(label.label().to_string());
+            }
+        }
+        let mut child = root.first_child();
+        while let Some(c) = child {
+            if let Some(found) = label_starting(&c, prefix) {
+                return Some(found);
+            }
+            child = c.next_sibling();
+        }
+        None
+    }
+
+    /// add-export-share: the redaction warning before Export and Save (task 2.7, mockup 10),
+    /// quick save into the save folder (task 2.2, scenario "Pattern", mockup 06), a save that
+    /// fails, and the export dialog with its banners (mockups 02–05). Everything is written
+    /// to a temporary folder; no file chooser or portal is opened. Run on its own like the
+    /// tests above.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn export_and_save_on_a_live_display() {
+        use annota::document::annotation::Annotation;
+        use annota::document::command::Command;
+        use annota::document::geometry::Rect;
+        use annota::document::scene::Node;
+        use annota::tools::redaction::{Redaction, RedactionKind};
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = TempDir(
+            std::env::temp_dir().join(format!("annota-export-test-{}", std::process::id())),
+        );
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(&tmp.0).unwrap();
+        // Not created: quick save and export create their folders.
+        let captures = tmp.0.join("captures");
+        let exports = tmp.0.join("exports");
+        let app = environment(&tmp.0);
+        let store = Store::new(tmp.0.join("autosave"));
+        let editor = Editor::build(&app, store.clone(), style_paths(&tmp.0)).unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let settings = editor.inner.settings.clone();
+        settings
+            .set_string("save-folder", &captures.to_string_lossy())
+            .unwrap();
+        settings
+            .set_string("export-folder", &exports.to_string_lossy())
+            .unwrap();
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let dialog = || w.window.visible_dialog();
+        let toasts = || w.toast_overlay.clone().upcast::<gtk::Widget>();
+
+        // A capture with a pixelate redaction, a solid one, and a group holding a blur and a
+        // pixelate redaction.
+        let redaction = |x: f64, kind: RedactionKind| -> Box<dyn Annotation> {
+            let mut r = Redaction::new(Rect::new(x, 10.0, 40.0, 20.0));
+            r.kind = kind;
+            Box::new(r)
+        };
+        let mut doc = Document::with_title(
+            Bitmap::filled(400, 250, palette::PAPER).unwrap(),
+            "Chat with Jonas",
+        );
+        let ids = doc.scene().fresh_ids(5);
+        let group = Group::new(vec![
+            Node::new(ids[3], redaction(200.0, RedactionKind::Blur)),
+            Node::new(ids[4], redaction(260.0, RedactionKind::Pixelate)),
+        ]);
+        let nodes = vec![
+            (
+                0,
+                Node::new(ids[0], redaction(10.0, RedactionKind::Pixelate)),
+            ),
+            (1, Node::new(ids[1], redaction(60.0, RedactionKind::Solid))),
+            (2, Node::new(ids[2], Box::new(group))),
+        ];
+        History::new()
+            .execute(
+                &mut doc,
+                "Add",
+                Command::Insert {
+                    nodes,
+                    resources: Vec::new(),
+                },
+            )
+            .unwrap();
+        let uid = editor.add_session(
+            Loaded {
+                document: doc,
+                source: None,
+                path: None,
+                name: "Chat with Jonas".into(),
+            },
+            Origin::New,
+            AutosaveId::generate(),
+        );
+        let session = editor.session(uid).unwrap();
+        // Autosaved like every new capture.
+        editor.autosave_now();
+        assert_eq!(store.list().entries.len(), 1);
+
+        // Ctrl+E: the warning comes first; Cancel exports nothing and changes nothing.
+        WidgetExt::activate_action(&w.window, "win.export", None).unwrap();
+        pump(150);
+        let alert = dialog().expect("the redaction warning");
+        assert!(shows_label(
+            alert.upcast_ref(),
+            "3 redactions use blur or pixelate. Blurred or pixelated text can sometimes be reconstructed. Solid boxes hide it for good."
+        ));
+        assert!(shows_label(alert.upcast_ref(), "Make Redactions Solid?"));
+        assert!(find_button(alert.upcast_ref(), "Export Anyway").is_some());
+        shot(&w.window, "es10-redaction-warning");
+        assert!(click_button(alert.upcast_ref(), "Cancel"));
+        pump(300);
+        assert!(dialog().is_none(), "Cancel opens no export dialog");
+        assert_eq!(session.canvas.history_info().undo_label, None);
+
+        // Ctrl+S: the warning with "Save Anyway"; Convert to Solid is one undo step for all
+        // three (the group's too), then the save goes on.
+        WidgetExt::activate_action(&w.window, "win.save", None).unwrap();
+        pump(150);
+        let alert = dialog().expect("the redaction warning before saving");
+        assert!(find_button(alert.upcast_ref(), "Save Anyway").is_some());
+        assert!(click_button(alert.upcast_ref(), "Convert to Solid"));
+        pump(300);
+        assert_eq!(
+            session.canvas.history_info().undo_label.as_deref(),
+            Some("Convert Redactions to Solid")
+        );
+        assert!(session
+            .canvas
+            .with_document(redactions::reversible)
+            .unwrap()
+            .is_empty());
+
+        // Scenario "Pattern": one file in the save folder, named after the pattern, no dialog.
+        let saved: Vec<PathBuf> = std::fs::read_dir(&captures)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        assert_eq!(saved.len(), 1, "{saved:?}");
+        let file = saved[0].clone();
+        let stem = session::file_stem(&file);
+        assert!(stem.starts_with("Annota 20"), "{stem}");
+        assert_eq!(file.extension().unwrap(), "annota");
+        let back = annota::document::archive::load(&file).unwrap();
+        assert_eq!(back.object_count(), 3);
+        assert!(redactions::reversible(&back).is_empty());
+        assert_eq!(back.metadata().title.as_deref(), Some(stem.as_str()));
+        // Mockup 06: title, subtitle, toast; the autosave is gone.
+        assert_eq!(w.title.title(), stem);
+        assert_eq!(
+            w.title.subtitle(),
+            format!("{} · Saved", crate::preferences::display_path(&captures))
+        );
+        assert_eq!(session.status(), text::Status::Clean);
+        assert!(shows_label(&toasts(), &format!("Saved as “{stem}.annota”")));
+        assert!(find_button(&toasts(), "Show in Files").is_some());
+        shot(&w.window, "es06-saved");
+        assert!(
+            store.list().entries.is_empty(),
+            "a saved document has no autosave"
+        );
+
+        // An edit, then Ctrl+S again: no warning (nothing reversible), saved over its file.
+        session
+            .canvas
+            .run(|doc, _| ops::add(doc, redaction(320.0, RedactionKind::Solid)));
+        assert_eq!(session.status(), text::Status::Edited);
+        assert!(w.title.subtitle().ends_with("Edited"));
+        WidgetExt::activate_action(&w.window, "win.save", None).unwrap();
+        pump(150);
+        assert!(dialog().is_none(), "no warning without blur or pixelate");
+        assert_eq!(std::fs::read_dir(&captures).unwrap().count(), 1);
+        assert_eq!(
+            annota::document::archive::load(&file)
+                .unwrap()
+                .object_count(),
+            4
+        );
+        assert_eq!(session.status(), text::Status::Clean);
+
+        // Ctrl+E: "Export Image" (mockup 02), PNG from the preference; JPG adds Quality.
+        WidgetExt::activate_action(&w.window, "win.export", None).unwrap();
+        pump(300);
+        let export = dialog().expect("Export Image");
+        let root: &gtk::Widget = export.upcast_ref();
+        assert!(shows_label(root, "Export Image"));
+        assert!(shows_label(root, "Pixel-identical to the canvas at 100 %"));
+        assert!(shows_label(root, ".png"));
+        assert!(!shows_label(root, "Quality"));
+        assert!(click_button(root, "JPG"));
+        pump(50);
+        assert!(shows_label(root, ".jpg"));
+        assert!(shows_label(root, "Quality"));
+        assert!(shows_label(root, "100 % · 400 × 250 px"));
+        // The estimate arrives a moment later.
+        pump(800);
+        let line = label_starting(root, "400 × 250 px · JPG").unwrap();
+        assert!(line.contains("≈ ") && line.ends_with(" KB"), "{line}");
+        shot(&w.window, "es03-export-jpg");
+        assert!(click_button(root, "Export"));
+        pump(300);
+        assert!(dialog().is_none(), "the dialog closes after exporting");
+        let jpg = exports.join(format!("{stem}.jpg"));
+        let bytes = std::fs::read(&jpg).unwrap();
+        assert_eq!(&bytes[..2], &[0xFF, 0xD8], "a JPG file");
+
+        // Again: the file exists now (banner with Replace, Export disabled until replaced).
+        WidgetExt::activate_action(&w.window, "win.export", None).unwrap();
+        pump(300);
+        let export = dialog().unwrap();
+        // Ctrl+E and Ctrl+S do nothing while it is open.
+        WidgetExt::activate_action(&w.window, "win.export", None).unwrap();
+        WidgetExt::activate_action(&w.window, "win.save", None).unwrap();
+        pump(100);
+        assert_eq!(dialog().as_ref(), Some(&export));
+        let root: &gtk::Widget = export.upcast_ref();
+        assert!(click_button(root, "JPG"));
+        pump(50);
+        assert!(shows_label(root, "A file with this name already exists"));
+        assert!(!find_button(root, "Export").unwrap().is_sensitive());
+        shot(&w.window, "es04-exists");
+        std::fs::write(&jpg, b"old").unwrap();
+        assert!(click_button(root, "Replace"));
+        pump(300);
+        assert!(dialog().is_none());
+        assert_eq!(
+            &std::fs::read(&jpg).unwrap()[..2],
+            &[0xFF, 0xD8],
+            "replaced"
+        );
+
+        // Mockup 04: a folder without write permission (unless running as root, who may).
+        let locked = tmp.0.join("locked");
+        std::fs::create_dir_all(&locked).unwrap();
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let root_user = std::fs::write(locked.join("probe"), b"").is_ok();
+        settings
+            .set_string("export-folder", &locked.to_string_lossy())
+            .unwrap();
+        WidgetExt::activate_action(&w.window, "win.export", None).unwrap();
+        pump(300);
+        let export = dialog().unwrap();
+        let root: &gtk::Widget = export.upcast_ref();
+        if !root_user {
+            assert!(shows_label(root, "No permission to write to this folder"));
+            assert!(find_button(root, "Choose Folder…").is_some());
+            assert!(!find_button(root, "Export").unwrap().is_sensitive());
+        }
+        assert!(click_button(root, "WebP"));
+        assert!(click_button(root, "Lossy"));
+        shot(&w.window, "es04-permission-webp");
+        assert!(click_button(root, "PDF"));
+        shot(&w.window, "es05-pdf");
+        assert!(click_button(root, "Cancel"));
+        pump(300);
+        assert!(dialog().is_none());
+
+        // A save that fails (the save folder cannot be created): the same words in a toast,
+        // the document stays unsaved and keeps its autosave.
+        settings
+            .set_string("save-folder", &locked.join("captures").to_string_lossy())
+            .unwrap();
+        editor.add_session(
+            Loaded {
+                document: Document::new(Bitmap::filled(40, 30, palette::PAPER).unwrap()),
+                source: None,
+                path: None,
+                name: "Pasted Image".into(),
+            },
+            Origin::New,
+            AutosaveId::generate(),
+        );
+        let pasted = editor.current().unwrap();
+        editor.autosave_now();
+        WidgetExt::activate_action(&w.window, "win.save", None).unwrap();
+        pump(300);
+        if !root_user {
+            assert!(shows_label(
+                &toasts(),
+                "No permission to write to this folder"
+            ));
+            assert!(find_button(&toasts(), "Save As…").is_some());
+            assert_eq!(pasted.status(), text::Status::NotSaved);
+            assert_eq!(store.list().entries.len(), 1, "the autosave is kept");
+        }
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
+        window_done(&w.window);
     }
 }

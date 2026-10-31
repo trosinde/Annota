@@ -206,6 +206,30 @@ impl Annotation for Redaction {
     }
 }
 
+impl Redaction {
+    /// Whether what it hides might be recovered from an exported image: blur and pixelate
+    /// (decision D7). Solid boxes are not.
+    pub fn reversible(&self) -> bool {
+        self.kind != RedactionKind::Solid
+    }
+}
+
+/// Every redaction in `object`: the object itself, or members of a group at any depth
+/// (through `Annotation::children`), bottom to top.
+pub fn redactions_in(object: &dyn Annotation) -> Vec<&Redaction> {
+    fn collect<'a>(object: &'a dyn Annotation, found: &mut Vec<&'a Redaction>) {
+        if let Some(redaction) = object.as_any().downcast_ref::<Redaction>() {
+            found.push(redaction);
+        }
+        for child in object.children() {
+            collect(child.object.as_ref(), found);
+        }
+    }
+    let mut found = Vec::new();
+    collect(object, &mut found);
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

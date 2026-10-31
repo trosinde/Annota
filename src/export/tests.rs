@@ -729,6 +729,26 @@ fn save_annota_keeps_the_document_editable() {
 }
 
 #[test]
+fn saved_files_are_titled_after_their_name() {
+    // Save / Save As (task 2.2, mockup 06): the file's title is its name; the open document
+    // is not touched.
+    let dir = temp_dir("named");
+    let doc = rich_document();
+    assert_eq!(doc.metadata().title.as_deref(), Some("Checkout flow"));
+    let path = dir.join("Annota 2026-10-30 14-22-08.annota");
+    save_annota_named(&doc, &path).unwrap();
+    let back = crate::document::archive::load(&path).unwrap();
+    assert_eq!(
+        back.metadata().title.as_deref(),
+        Some("Annota 2026-10-30 14-22-08")
+    );
+    assert_eq!(back.metadata().scale_factor, doc.metadata().scale_factor);
+    assert_eq!(back.object_count(), doc.object_count());
+    assert_eq!(doc.metadata().title.as_deref(), Some("Checkout flow"));
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn formats_name_their_files() {
     let cases = [
         (Format::Png, "png", "PNG"),

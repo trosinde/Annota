@@ -12,12 +12,38 @@ The system SHALL export the flattened document to PNG, JPG (quality 1–100), We
 - **WHEN** a document is exported to PNG
 - **THEN** the PNG matches the canvas rendering at 100 % pixel by pixel
 
+### Requirement: Export dialog
+`Ctrl+E` SHALL open "Export Image" (mockups 02–05) with file name, folder (`export-folder` preference), format (`default-export-format` preference), the format's settings and a size. Before anything is written it SHALL show a banner when the folder is not writable or a file of that name exists, and keep Export disabled until that is resolved.
+
+#### Scenario: Folder not writable
+- **WHEN** the export dialog's folder is one the user may not write to
+- **THEN** the banner "No permission to write to this folder" with Choose Folder… is shown and Export is disabled
+
+#### Scenario: File exists
+- **WHEN** a file with the dialog's file name and the format's extension already exists in its folder
+- **THEN** the banner "A file with this name already exists" with Replace is shown, Export is disabled, and Replace writes over the file
+
 ### Requirement: Quick save
-`Ctrl+S` on a new capture SHALL save to the default folder using a filename pattern (default `Annota %Y-%m-%d %H-%M-%S`) without a dialog; `Ctrl+Shift+S` opens Save As.
+`Ctrl+S` SHALL save the document as an editable `.annota` file without a dialog: over its own `.annota` file if it has one, otherwise into the default folder (`save-folder` preference) named after the filename pattern (`filename-pattern` preference, default `Annota %Y-%m-%d %H-%M-%S`), never replacing another file. `Ctrl+Shift+S` SHALL open Save As.
 
 #### Scenario: Pattern
 - **WHEN** the user presses Ctrl+S on a new capture
 - **THEN** a file named after the pattern is created in the default folder
+
+#### Scenario: Saved over its file
+- **WHEN** the user edits a document that was saved before and presses Ctrl+S
+- **THEN** its `.annota` file is replaced and no new file is created
+
+### Requirement: Saved document
+A saved document SHALL take its file's name as title, lose its autosave and announce the file in a toast with Show in Files (mockup 06). If saving fails, the document SHALL stay open and unsaved and a toast SHALL say why.
+
+#### Scenario: Saved
+- **WHEN** a new capture is saved with Ctrl+S
+- **THEN** the window title is the file's name, the subtitle "<folder> · Saved", its autosave is removed, and the toast "Saved as “<file name>”" offers Show in Files
+
+#### Scenario: Save fails
+- **WHEN** the user presses Ctrl+S on a new capture and the default folder cannot be written
+- **THEN** a toast says "No permission to write to this folder", the document stays "Not saved" and keeps its autosave
 
 ### Requirement: Clipboard
 `Ctrl+C` with no object selected SHALL copy the flattened image to the clipboard as PNG.

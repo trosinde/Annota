@@ -79,6 +79,17 @@ pub fn undo_label(edit: &Edit) -> String {
         Action::CornerRadius => gettext("Corner Radius"),
         Action::Flatten => with_object(gettext("Flatten {object}")),
         Action::FlattenAll => gettext("Flatten All"),
+        Action::MakeSolid => {
+            let n = match edit.subject {
+                Subject::Many(n) => n,
+                Subject::One(_) => 1,
+            };
+            ngettext(
+                "Convert Redaction to Solid",
+                "Convert Redactions to Solid",
+                u32::try_from(n).unwrap_or(u32::MAX),
+            )
+        }
     }
 }
 
@@ -308,6 +319,15 @@ mod tests {
         assert_eq!(
             undo_label(&edit(Action::FlattenAll, Subject::Many(7))),
             "Flatten All"
+        );
+        // add-export-share mockup 10: "Convert to Solid" is one named step.
+        assert_eq!(
+            undo_label(&edit(Action::MakeSolid, Subject::Many(4))),
+            "Convert Redactions to Solid"
+        );
+        assert_eq!(
+            undo_label(&edit(Action::MakeSolid, Subject::Many(1))),
+            "Convert Redaction to Solid"
         );
     }
 

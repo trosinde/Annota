@@ -13,6 +13,8 @@
     <file compressed="true" preprocess="xml-stripblanks">ui/newer-version-dialog.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">ui/resize-dialog.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">ui/theme-editor.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/export-dialog.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/redaction-warning.ui</file>
     <file compressed="true">style.css</file>
     <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-capture-region-symbolic.svg</file>
     <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-capture-window-symbolic.svg</file>

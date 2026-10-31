@@ -1,0 +1,68 @@
+using Gtk 4.0;
+using Adw 1;
+
+// "Make Redactions Solid?" (add-export-share mockup 10, redline "Pixelate warning"; decision
+// D7; spec annotation-tools "Redaction export warning"): alert 460 px, `warning` icon 32 px in
+// the warning colour, heading, body (set in code: count and blur vs. pixelate), buttons
+// Cancel · Export Anyway · Convert to Solid (suggested). Escape is Cancel, Enter converts.
+// src/ui/editor/redaction_warning.rs sets the body and, for a save, "Save Anyway".
+
+Adw.Dialog redaction_warning {
+  content-width: 460;
+  title: _("Make Redactions Solid?");
+
+  child: Box {
+    orientation: vertical;
+    spacing: 12;
+    margin-top: 32;
+    margin-bottom: 24;
+    margin-start: 24;
+    margin-end: 24;
+
+    Image {
+      icon-name: "dialog-warning-symbolic";
+      pixel-size: 32;
+      halign: center;
+      styles ["warning"]
+
+      accessibility {
+        label: _("Warning");
+      }
+    }
+
+    Label {
+      label: _("Make Redactions Solid?");
+      wrap: true;
+      justify: center;
+      styles ["title-2"]
+    }
+
+    Label body_label {
+      wrap: true;
+      justify: center;
+      max-width-chars: 48;
+    }
+
+    Box {
+      homogeneous: true;
+      spacing: 12;
+      margin-top: 12;
+
+      Button cancel_button {
+        label: _("Cancel");
+        styles ["annota-dialog-button"]
+      }
+
+      Button anyway_button {
+        label: _("Export Anyway");
+        styles ["annota-dialog-button"]
+      }
+
+      Button convert_button {
+        label: _("Convert to Solid");
+        receives-default: true;
+        styles ["annota-dialog-button", "suggested-action"]
+      }
+    }
+  };
+}

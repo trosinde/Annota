@@ -1,0 +1,286 @@
+using Gtk 4.0;
+using Adw 1;
+
+// "Export Image" (add-export-share mockups 02–05, redline "Export dialog"): AdwDialog 560 px,
+// header Cancel | "Export Image" | Export (suggested); Ctrl+E opens it, Enter exports.
+// Body: error banner (mockup 04, hidden until needed), preview row (160 × 100 thumbnail, name,
+// "<w × h px> · <format> · ≈ <size>", "Pixel-identical to the canvas at 100 %"), list 1 File
+// name + Folder, list 2 Format and the format's own rows. Which rows show, the size menu's
+// entries, the thumbnail and the live size estimate are set in src/ui/editor/export_dialog.rs.
+
+Adw.Dialog export_dialog {
+  content-width: 560;
+  title: _("Export Image");
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      show-start-title-buttons: false;
+      show-end-title-buttons: false;
+
+      [start]
+      Button cancel_button {
+        label: _("Cancel");
+      }
+
+      [end]
+      Button export_button {
+        label: _("Export");
+        styles ["suggested-action"]
+      }
+    }
+
+    content: ScrolledWindow {
+      hscrollbar-policy: never;
+      propagate-natural-height: true;
+
+      child: Box {
+        orientation: vertical;
+        spacing: 18;
+        margin-top: 6;
+        margin-bottom: 24;
+        margin-start: 24;
+        margin-end: 24;
+
+        // Mockup 04: "No permission to write to this folder" + Choose Folder…, or "A file
+        // with this name already exists" + Replace (destructive).
+        Adw.Banner error_banner {
+          revealed: false;
+          styles ["annota-error-banner"]
+        }
+
+        Box {
+          spacing: 18;
+
+          Box thumbnail_box {
+            valign: center;
+          }
+
+          Box {
+            orientation: vertical;
+            spacing: 4;
+            valign: center;
+
+            Label name_label {
+              xalign: 0;
+              ellipsize: end;
+              styles ["heading"]
+            }
+
+            Label summary_label {
+              xalign: 0;
+              styles ["caption", "dim-label"]
+            }
+
+            Label {
+              label: _("Pixel-identical to the canvas at 100 %");
+              xalign: 0;
+              styles ["caption", "dim-label"]
+            }
+          }
+        }
+
+        ListBox {
+          selection-mode: none;
+          styles ["boxed-list"]
+
+          Adw.EntryRow name_row {
+            title: _("File name");
+            activates-default: true;
+
+            [suffix]
+            Label extension_label {
+              styles ["dim-label"]
+            }
+          }
+
+          Adw.ActionRow folder_row {
+            title: _("Folder");
+
+            [suffix]
+            Button folder_button {
+              icon-name: "folder-open-symbolic";
+              valign: center;
+              tooltip-text: _("Choose Folder…");
+              styles ["flat"]
+
+              accessibility {
+                label: _("Choose Folder…");
+              }
+            }
+          }
+        }
+
+        ListBox {
+          selection-mode: none;
+          styles ["boxed-list"]
+
+          Adw.ActionRow {
+            title: _("Format");
+            activatable: false;
+
+            [suffix]
+            Box {
+              valign: center;
+              homogeneous: true;
+              styles ["annota-segmented"]
+
+              ToggleButton png_button {
+                label: "PNG";
+                active: true;
+              }
+
+              ToggleButton jpg_button {
+                label: "JPG";
+                group: png_button;
+              }
+
+              ToggleButton webp_button {
+                label: "WebP";
+                group: png_button;
+              }
+
+              ToggleButton pdf_button {
+                label: "PDF";
+                group: png_button;
+              }
+            }
+          }
+
+          // WebP only.
+          Adw.ActionRow compression_row {
+            title: _("Compression");
+            activatable: false;
+
+            [suffix]
+            Box {
+              valign: center;
+              homogeneous: true;
+              styles ["annota-segmented"]
+
+              ToggleButton lossless_button {
+                label: _("Lossless");
+                active: true;
+              }
+
+              ToggleButton lossy_button {
+                label: _("Lossy");
+                group: lossless_button;
+              }
+            }
+          }
+
+          // JPG, and lossy WebP: 1–100, value right-aligned.
+          Adw.ActionRow quality_row {
+            title: _("Quality");
+            activatable: false;
+
+            [suffix]
+            Scale quality_scale {
+              width-request: 220;
+              valign: center;
+              draw-value: true;
+              value-pos: right;
+              digits: 0;
+              round-digits: 0;
+
+              adjustment: Adjustment {
+                lower: 1;
+                upper: 100;
+                step-increment: 1;
+                page-increment: 10;
+                value: 85;
+              };
+
+              accessibility {
+                label: _("Quality");
+              }
+            }
+          }
+
+          // 200 %, 100 %, 50 %, 25 % with their pixel sizes, Custom Width… (mockup 03).
+          Adw.ActionRow size_row {
+            title: _("Size");
+            activatable: false;
+
+            [suffix]
+            MenuButton size_button {
+              valign: center;
+              styles ["flat"]
+
+              accessibility {
+                label: _("Size");
+              }
+            }
+          }
+
+          // Image formats always flatten: shown on and insensitive.
+          Adw.ActionRow flatten_row {
+            title: _("Flatten annotations");
+            subtitle: _("Image formats always contain the flattened result. Save as .annota to keep them editable.");
+            activatable: false;
+
+            [suffix]
+            Switch {
+              active: true;
+              sensitive: false;
+              valign: center;
+
+              accessibility {
+                label: _("Flatten annotations");
+              }
+            }
+          }
+
+          // PDF only (mockup 05).
+          Adw.SwitchRow vectors_row {
+            title: _("Keep annotations as vectors");
+            subtitle: _("Text and shapes stay sharp at any zoom");
+            active: true;
+          }
+
+          Adw.ComboRow page_row {
+            title: _("Page size");
+
+            model: StringList {
+              strings [
+                _("Fit to image"),
+                _("A4"),
+                _("Letter"),
+              ]
+            };
+          }
+        }
+      };
+    };
+  };
+}
+
+// "Custom Width…" of the size menu.
+Adw.AlertDialog custom_width_dialog {
+  heading: _("Custom Width");
+  body: _("The height follows the image’s aspect ratio.");
+  default-response: "set";
+  close-response: "cancel";
+
+  extra-child: SpinButton width_spin {
+    halign: center;
+    numeric: true;
+
+    adjustment: Adjustment {
+      lower: 1;
+      upper: 32767;
+      step-increment: 1;
+      page-increment: 100;
+    };
+
+    accessibility {
+      label: _("Width in pixels");
+    }
+  };
+
+  responses [
+    cancel: _("Cancel"),
+    set: _("Set") suggested,
+  ]
+}

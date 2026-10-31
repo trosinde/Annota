@@ -13,6 +13,8 @@ data/ui/restore-dialog.blp
 data/ui/newer-version-dialog.blp
 data/ui/resize-dialog.blp
 data/ui/theme-editor.blp
+data/ui/export-dialog.blp
+data/ui/redaction-warning.blp
 src/application.rs
 src/capture/countdown.rs
 src/capture/delivery.rs
@@ -23,9 +25,12 @@ src/capture/shortcut_dialog.rs
 src/capture/shortcuts.rs
 src/preferences.rs
 src/ui/editor/dialogs.rs
+src/ui/editor/export_dialog.rs
 src/ui/editor/mod.rs
 src/ui/editor/panel.rs
 src/ui/editor/quick_styles.rs
+src/ui/editor/redaction_warning.rs
+src/ui/editor/saving.rs
 src/ui/editor/sidebar.rs
 src/ui/editor/styles.rs
 src/ui/editor/text.rs

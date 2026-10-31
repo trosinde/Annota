@@ -182,3 +182,160 @@ title and pixels.
 - **WebP stays statically linked** (`libwebp-sys`, bundled libwebp) rather than switching to
   Debian/Ubuntu's system `libwebp` — no change from what task 2.1 already built; revisit only if
   a future CVE in libwebp makes "needs an Annota rebuild to pick up a fix" matter in practice.
+
+### Decided during apply (2026-10-31: export dialog, task 2.2 quick save + Save As, task 2.7 in part)
+
+**Export dialog** (`src/ui/editor/export_dialog.rs`, `data/ui/export-dialog.blp`; tasks.md
+2.1a). `Ctrl+E` and the header's Export replace the "arrives in milestone 0.1" placeholder.
+- *Built per redlines 02–05:* AdwDialog 560 px, Cancel | "Export Image" | Export (suggested,
+  default widget; Enter in the name exports); preview row (160 × 100 thumbnail drawn once,
+  radius 6, 1 px border; the document's name; "W × H px · FORMAT · ≈ SIZE"; "Pixel-identical to
+  the canvas at 100 %", shown for every format as drawn); list 1 File name (extension dim,
+  not editable) + Folder (folder button: GTK's folder chooser); list 2 Format toggle (the
+  existing `.annota-segmented` style, libadwaita 1.5 has no `AdwToggleGroup`), Compression
+  (WebP), Quality 1–100 value right (JPG; lossy WebP), Size menu, Flatten annotations (on,
+  insensitive, raster only), Keep annotations as vectors + Page size (PDF only).
+- *The values live in a widget-free `Form`* (format, qualities, PDF options, size, name, folder
+  → `export::Format`, scale, output size, path, problems); the widgets only show it. Every new
+  dialog starts from the preferences (`default-export-format`, `export-folder`, the redline's
+  quality defaults) — nothing is remembered between exports. **WebP starts Lossless** (no redline
+  says; mockup 04 shows Lossy as a user choice): it keeps "pixel-identical" true by default.
+- *Size*: a flat MenuButton labelled "100 % · 1600 × 1000 px"; its menu has the four presets
+  with pixel sizes (radio state) and "Custom Width…", an AdwAlertDialog with a width spin (1 to
+  32767 px; the height follows the aspect ratio; the button then shows the rounded percentage).
+- *Estimated size*: the real encoder, 250 ms after the settings last changed, on the main loop.
+  Outputs up to 0.5 MP are encoded whole (exact); larger ones at a smaller scale with ~0.5 MP
+  and scaled by the pixel count — "≈" by design, cheap enough for a debug build. Shown in
+  decimal KB/MB like GNOME Files, the decimal separator translatable.
+- *Banner (mockup 04)*: checked live on every change, before anything is written — the folder
+  (or, if it does not exist yet, the nearest existing folder above it) without
+  `access::can-write` (GIO) → "No permission to write to this folder" + Choose Folder…; a file
+  of that name → "A file with this name already exists" + **Replace** (red label), which exports
+  over it; an output larger than the format allows (WebP 16383 px, otherwise the renderer's
+  32767 px) → its own text. Export stays disabled while one of those shows. Failures only the
+  write can find (disk full, I/O) show in the same banner afterwards, without a button, and
+  Export stays available to retry. `ExportError` → banner text is `saving::problem`
+  (`io_kind()` for file system errors), shared with quick save. The folder is created if missing.
+- *After exporting* the dialog closes and a toast "Exported as “Checkout flow.png”" with Show in
+  Files appears — **not drawn** in the mockups (only batch export has a toast, mockup 13); worded
+  like mockup 06's save toast. Exporting is not saving: the document's status and autosave do
+  not change. (add-annotation-editor's capture delta says a new capture is autosaved "until
+  saved or exported" — that wording predates this decision; open question below.)
+- *Deviation from the mockups*: the extension label sits at the end of the File name row (an
+  `AdwEntryRow` suffix), not directly after the typed name as drawn — libadwaita has no inline
+  non-editable tail for an entry; a typed extension of the chosen format is ignored ("Shot.png"
+  stays "Shot.png", not "Shot.png.png").
+- The PDF's metadata title is the document's own title (see quick save below for why that can
+  differ from the window title after a save).
+
+**Quick save and Save As** (task 2.2; spec export-share "Quick save", "Saved document").
+- `Ctrl+S` writes the editable `.annota` (it is a save, not an export): over the document's own
+  `.annota` file if it has one (opened from or saved to it, or restored from an autosave that
+  belongs to one); otherwise — new capture, pasted image, image opened from a PNG/JPG — into
+  the `save-folder` preference (created if missing), named after `filename-pattern` (glib
+  strftime; `/` becomes `-`; empty → "Annota"), with " 2", " 3" … added rather than replacing
+  another file. No dialog. `Ctrl+Shift+S` opens GTK's file chooser (`gtk::FileDialog`; GTK uses
+  the FileChooser portal only where it decides to, e.g. sandboxed — never exercised in tests),
+  in the file's folder or the save folder, `.annota` appended if missing.
+- *A saved document* belongs to its file: `Session`'s origin/source/path/name became `Cell`/
+  `RefCell` so `Session::saved_as` can switch them; the window title and tray tile take the
+  file's name, the subtitle reads "~/Pictures/Annota · Saved" while nothing changed since
+  (mockup 06), and the history is marked saved. **The autosave is removed right away**
+  (`Session::forget_autosave`; the spec allows "at the next tick").
+- *The title in the file*: `export::save_annota_named` writes the document with its title set to
+  the file's name (a copy; the open document's title is not changed, because a title change is
+  not an undoable edit and must not be one either). Reopening the file shows the same name as
+  the window did. Side effect: until the next save, the open document's own title (used by its
+  autosave and a PDF export) is still the old one.
+- *Failure* (no permission, disk full …): a toast with the same words as the export dialog's
+  banner and **Save As…**, high priority; the document stays open and unsaved and keeps its
+  autosave. No mockup draws this; the redline only says "shown as for Ctrl+S".
+- `Ctrl+E`, `Ctrl+S` and `Ctrl+Shift+S` do nothing while a dialog is open over the window
+  (window accelerators still fire then; otherwise a second export dialog, or a save behind the
+  redaction warning).
+- Closing still keeps autosaves (add-annotation-editor 2b-ii) until task 2.6; a document saved
+  and unchanged has none to keep.
+
+**Redaction warning** (task 2.7, in part; spec annotation-tools "Redaction export warning",
+`specs/annotation-tools/spec.md`).
+- *One entry point*, `Editor::guard_redactions(purpose, proceed)`: counts the current document's
+  blur and pixelate redactions (`annota::editing::redactions::reversible`, at any depth through
+  `tools::redaction::redactions_in`, the walker `export::pdf::contains_redaction` now uses too);
+  none → `proceed` at once; otherwise the alert, then Cancel → nothing, the middle button →
+  `proceed`, Convert to Solid → `canvas.run(redactions::make_solid)` then `proceed`.
+- *Conversion*: one `Command::Replace` of every top-level object that holds a blur/pixelate
+  redaction — a redaction is copied with `set_property("redaction", Choice("solid"))`, a group is
+  copied with that done to its members at any depth (downcast to `Group`, members by
+  `children`) — executed as one undo step, `Action::MakeSolid`, "Undo Convert Redactions to
+  Solid". Geometry, ids and colour stay; solid boxes use the colour each redaction already has.
+- *The alert follows mockup 10* (`data/ui/redaction-warning.blp`: AdwDialog 460 px, 32 px
+  `dialog-warning-symbolic` in the warning colour, "Make Redactions Solid?", body, Cancel ·
+  Export Anyway · **Convert to Solid**, Enter converts, Escape cancels), as the maintainer's
+  brief for this phase says — not tasks.md's paraphrase nor add-core-annotation-tools mockup 19
+  ("Redactions May Be Reversible", stacked "Convert to Solid and Export" / "Export As Is" /
+  Cancel). The body names the kind: "use pixelate" / "use blur" as drawn, and — not drawn — "use
+  blur or pixelate. Blurred or pixelated text …" when there are both.
+- *Middle button*: "Export Anyway" before an export (as drawn), **"Save Anyway"** before quick
+  save and Save As (not drawn; "Export Anyway" would mislabel a save). Save As gets the warning
+  like quick save (D7 names quick save; Save As writes the same file).
+- *When*: before the export dialog opens (mockup 10 shows the alert over the editor, not over the
+  dialog; "then the export continues" = the dialog opens, already showing the solid result),
+  and before a save writes anything.
+- *Covered call sites*: Export (`Ctrl+E`, header Export), quick save (`Ctrl+S`), Save As
+  (`Ctrl+Shift+S`). *Not yet*: Copy (`Ctrl+C`) and drag-out (task 2.3), Share (2.4), batch export
+  (2.5) — they are to call `guard_redactions` too (batch: per document, or once for the
+  selection — to decide with 2.5). Task 2.6's Save goes through quick save, so it gets the
+  warning without more work. Task 2.7 stays unticked until then.
+
+**Spec deltas.** `specs/annotation-tools/spec.md` MODIFIES "Redaction export warning" — copied
+from add-core-annotation-tools' delta (that change is not archived, so there is no
+`openspec/specs/annotation-tools/` yet) and rewritten as the real requirement with five
+scenarios. **Archive order: add-core-annotation-tools before add-export-share** (`openspec
+validate` notes that archiving would refuse a MODIFIED delta without the base spec, the same
+situation as add-annotation-editor's deltas on add-screen-capture). `specs/export-share/spec.md`:
+"Export formats" split into "Export formats" + "Export dialog" (banners), "Quick save" made
+concrete (`.annota`, own file vs. pattern, never replacing) plus "Saved document" (title,
+autosave, toast, failure) — strict validation refuses requirement texts over 500 characters.
+`proposal.md` lists `annotation-tools` under Modified Capabilities.
+
+**Tests.** Unit (no display): `editing::redactions` (counting at any depth, one undo step that
+converts all and one Undo that restores all, ids and geometry kept, no phantom step);
+`export::tests::saved_files_are_titled_after_their_name`; `ui::editor::saving` (error → banner
+text/button/blocking, pattern names and numbering, own file, `/` and empty names, `.annota`
+appended, toast texts); `ui::editor::export_dialog` (redline defaults, controls → `Format`/scale/
+size, preset and custom-size labels, typed extensions, problems before writing incl. Replace and
+size limits, the GIO folder check against a read-only temporary folder, summary/size texts, the
+estimate equal to the real encoder for small images and available for all formats);
+`ui::editor::redaction_warning` (body variants, middle button); `ui::labels` (undo label).
+Live (`#[ignore]`, `GDK_BACKEND=x11 xvfb-run -a dbus-run-session cargo test --bin annota --
+--ignored --exact ui::editor::tests::export_and_save_on_a_live_display`, private GSettings
+backend and temporary folders only, no file chooser or portal opened): Ctrl+E → warning →
+Cancel; Ctrl+S → warning with Save Anyway → Convert (undo label, group member converted) → one
+pattern-named `.annota` in the save folder with solid redactions and the file's title, header
+title/subtitle, toast, autosave gone; edit + Ctrl+S → saved over the same file, no warning;
+export dialog PNG → JPG (rows, size label, estimate) → Export → JPG file, dialog closed; Ctrl+E/
+Ctrl+S ignored while it is open; existing file → banner, Export disabled, Replace; read-only
+folder → banner, Choose Folder…, Export disabled; failed quick save → toast with Save As…,
+"Not saved", autosave kept. A live test because this wiring (session, history, autosave,
+toasts, dialogs) is not a pure function; such tests have precedent here (eleven in `ui::editor`
+and `ui::canvas`), and the pure parts are unit-tested regardless.
+- Seen while running every live test: `quick_styles_on_a_live_display` fails in this dev
+  container on the destructive menu item's red text with or without this change's CSS (checked
+  against the previous `style.css`) — an environment/theme issue to look at separately, not a
+  regression here.
+
+**Open questions for the maintainer** (do not block the next phases):
+- *The warning before a save cannot keep its promise.* An `.annota` file contains
+  `original.png` — the capture without any redaction — so converting to solid before `Ctrl+S`
+  hides nothing from someone who has the file; "Solid boxes hide it for good" is only true for
+  exported images. D7 (and this phase's brief) list quick save, so it is built; options: keep
+  it, drop it for saves (only warn on ways that flatten), or word the save variant differently
+  (and/or let `.annota` files leave the original out under redactions — a document-format
+  change).
+- *Mockup 10 vs. add-core-annotation-tools mockup 19 / tasks.md 2.7* disagree on the alert's
+  heading, body and buttons; built as mockup 10. Mockup 19 (approved with that change) and the
+  sidebar's warning note there may want updating to match.
+- *Does an export count as "saved"?* Built: no (status, unsaved dot and autosave unchanged);
+  add-annotation-editor's capture delta says "until saved or exported".
+- *Remember the export settings* (format, folder, size) between exports in a session, or keep
+  starting from the preferences every time as now?

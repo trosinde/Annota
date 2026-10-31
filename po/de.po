@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 07:46+0100\n"
+"POT-Creation-Date: 2026-10-31 12:31+0100\n"
 "PO-Revision-Date: 2026-10-30 15:01+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -20,7 +20,7 @@ msgstr ""
 #: data/io.github.trosinde.Annota.desktop.in:2
 #: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:42
 #: data/ui/editor-window.blp:268 data/ui/editor-window.blp:315
-#: src/ui/editor/mod.rs:808 src/ui/editor/mod.rs:810
+#: src/ui/editor/mod.rs:823 src/ui/editor/mod.rs:825
 msgid "Annota"
 msgstr "Annota"
 
@@ -389,6 +389,7 @@ msgid "Example"
 msgstr "Beispiel"
 
 #: data/ui/preferences.blp:60 data/ui/editor-window.blp:328
+#: data/ui/export-dialog.blp:28
 msgid "Export"
 msgstr "Export"
 
@@ -480,7 +481,7 @@ msgid "Open in Editor"
 msgstr "Im Editor öffnen"
 
 #: data/ui/preferences.blp:188 data/ui/editor-window.blp:343
-#: src/ui/editor/mod.rs:2110
+#: src/ui/editor/mod.rs:2364
 msgid "Copy to Clipboard"
 msgstr "In die Zwischenablage kopieren"
 
@@ -753,7 +754,7 @@ msgctxt "width"
 msgid "W"
 msgstr "B"
 
-#: data/ui/region-overlay.blp:179
+#: data/ui/region-overlay.blp:179 data/ui/export-dialog.blp:278
 msgid "Width in pixels"
 msgstr "Breite in Pixeln"
 
@@ -775,7 +776,8 @@ msgstr "px"
 #: data/ui/countdown.blp:48 data/ui/shortcut-dialog.blp:18
 #: data/ui/editor-window.blp:1344 data/ui/editor-window.blp:3408
 #: data/ui/editor-window.blp:3780 data/ui/resize-dialog.blp:21
-#: src/ui/editor/theme_editor.rs:859
+#: data/ui/export-dialog.blp:23 data/ui/export-dialog.blp:283
+#: data/ui/redaction-warning.blp:52 src/ui/editor/theme_editor.rs:859
 msgid "Cancel"
 msgstr "Abbrechen"
 
@@ -872,7 +874,7 @@ msgstr "Einstellungen öffnen"
 msgid "Set Shortcut"
 msgstr "Tastenkürzel festlegen"
 
-#: data/ui/shortcut-dialog.blp:23
+#: data/ui/shortcut-dialog.blp:23 data/ui/export-dialog.blp:284
 msgid "Set"
 msgstr "Festlegen"
 
@@ -888,7 +890,7 @@ msgstr "Bibliothek öffnen"
 msgid "Save"
 msgstr "Speichern"
 
-#: data/ui/editor-window.blp:39
+#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1634
 msgid "Save As…"
 msgstr "Speichern unter …"
 
@@ -936,7 +938,7 @@ msgid "Copy to Folder…"
 msgstr "In Ordner kopieren …"
 
 #: data/ui/editor-window.blp:125 src/capture/delivery.rs:296
-#: src/ui/editor/mod.rs:601
+#: src/ui/editor/mod.rs:615
 msgid "Copy"
 msgstr "Kopieren"
 
@@ -996,8 +998,8 @@ msgid "Zoom Out"
 msgstr "Verkleinern"
 
 #: data/ui/editor-window.blp:299 src/capture/delivery.rs:281
-#: src/ui/editor/mod.rs:614 src/ui/editor/mod.rs:1262 src/ui/editor/mod.rs:1399
-#: src/ui/editor/mod.rs:1709 src/ui/editor/mod.rs:1988
+#: src/ui/editor/mod.rs:628 src/ui/editor/mod.rs:1278 src/ui/editor/mod.rs:1415
+#: src/ui/editor/mod.rs:1963 src/ui/editor/mod.rs:2242
 #: src/ui/editor/text.rs:101
 msgid "Undo"
 msgstr "Rückgängig"
@@ -1031,7 +1033,7 @@ msgid "Select (V)"
 msgstr "Auswählen (V)"
 
 #: data/ui/editor-window.blp:386 src/ui/editor/sidebar.rs:812
-#: src/ui/labels.rs:186
+#: src/ui/labels.rs:197
 msgid "Select"
 msgstr "Auswählen"
 
@@ -1039,7 +1041,7 @@ msgstr "Auswählen"
 msgid "Arrow (A)"
 msgstr "Pfeil (A)"
 
-#: data/ui/editor-window.blp:405 src/ui/labels.rs:187
+#: data/ui/editor-window.blp:405 src/ui/labels.rs:198
 msgid "Arrow"
 msgstr "Pfeil"
 
@@ -1047,7 +1049,7 @@ msgstr "Pfeil"
 msgid "Line (L)"
 msgstr "Linie (L)"
 
-#: data/ui/editor-window.blp:417 src/ui/labels.rs:188
+#: data/ui/editor-window.blp:417 src/ui/labels.rs:199
 msgid "Line"
 msgstr "Linie"
 
@@ -1055,7 +1057,7 @@ msgstr "Linie"
 msgid "Pen (P)"
 msgstr "Stift (P)"
 
-#: data/ui/editor-window.blp:429 src/ui/labels.rs:189
+#: data/ui/editor-window.blp:429 src/ui/labels.rs:200
 msgid "Pen"
 msgstr "Stift"
 
@@ -1064,7 +1066,7 @@ msgid "Shape (U)"
 msgstr "Form (U)"
 
 #: data/ui/editor-window.blp:441 data/ui/editor-window.blp:1719
-#: data/ui/editor-window.blp:2881 src/ui/labels.rs:190
+#: data/ui/editor-window.blp:2881 src/ui/labels.rs:201
 msgid "Shape"
 msgstr "Form"
 
@@ -1072,7 +1074,7 @@ msgstr "Form"
 msgid "Text (T)"
 msgstr "Text (T)"
 
-#: data/ui/editor-window.blp:453 src/ui/labels.rs:191
+#: data/ui/editor-window.blp:453 src/ui/labels.rs:202
 msgid "Text"
 msgstr "Text"
 
@@ -1080,7 +1082,7 @@ msgstr "Text"
 msgid "Callout (K)"
 msgstr "Sprechblase (K)"
 
-#: data/ui/editor-window.blp:465 src/ui/labels.rs:192
+#: data/ui/editor-window.blp:465 src/ui/labels.rs:203
 msgid "Callout"
 msgstr "Sprechblase"
 
@@ -1088,7 +1090,7 @@ msgstr "Sprechblase"
 msgid "Step (S)"
 msgstr "Schritt (S)"
 
-#: data/ui/editor-window.blp:477 src/ui/labels.rs:193
+#: data/ui/editor-window.blp:477 src/ui/labels.rs:204
 msgid "Step"
 msgstr "Schritt"
 
@@ -1096,7 +1098,7 @@ msgstr "Schritt"
 msgid "Highlighter (H)"
 msgstr "Textmarker (H)"
 
-#: data/ui/editor-window.blp:496 src/ui/labels.rs:194
+#: data/ui/editor-window.blp:496 src/ui/labels.rs:205
 msgid "Highlighter"
 msgstr "Textmarker"
 
@@ -1104,11 +1106,11 @@ msgstr "Textmarker"
 msgid "Redact (B)"
 msgstr "Schwärzen (B)"
 
-#: data/ui/editor-window.blp:508 src/ui/labels.rs:195
+#: data/ui/editor-window.blp:508 src/ui/labels.rs:206
 msgid "Redact"
 msgstr "Schwärzen"
 
-#: data/ui/editor-window.blp:524 src/ui/editor/mod.rs:889
+#: data/ui/editor-window.blp:524 src/ui/editor/mod.rs:908
 msgid "Crop (C)"
 msgstr "Zuschneiden (C)"
 
@@ -1182,7 +1184,8 @@ msgid "Image"
 msgstr "Bild"
 
 #: data/ui/editor-window.blp:887 data/ui/editor-window.blp:2923
-#: data/ui/editor-window.blp:2940
+#: data/ui/editor-window.blp:2940 data/ui/export-dialog.blp:203
+#: data/ui/export-dialog.blp:212
 msgid "Size"
 msgstr "Größe"
 
@@ -1902,7 +1905,7 @@ msgstr "Wiederherstellen"
 msgid "Newer Annota Version Needed"
 msgstr "Neuere Annota-Version erforderlich"
 
-#: data/ui/newer-version-dialog.blp:39
+#: data/ui/newer-version-dialog.blp:39 src/ui/editor/mod.rs:1651
 msgid "Show in Files"
 msgstr "In Dateien anzeigen"
 
@@ -2056,6 +2059,103 @@ msgstr "Nach rechts verschieben (Strg+→)"
 #: data/ui/theme-editor.blp:363
 msgid "Remove"
 msgstr "Entfernen"
+
+#: data/ui/export-dialog.blp:13
+msgid "Export Image"
+msgstr "Bild exportieren"
+
+#: data/ui/export-dialog.blp:76
+msgid "Pixel-identical to the canvas at 100 %"
+msgstr "Pixelgenau wie die Arbeitsfläche bei 100 %"
+
+#: data/ui/export-dialog.blp:88
+msgid "File name"
+msgstr "Dateiname"
+
+#: data/ui/export-dialog.blp:98
+msgid "Folder"
+msgstr "Ordner"
+
+#: data/ui/export-dialog.blp:104 data/ui/export-dialog.blp:108
+#: src/ui/editor/saving.rs:55
+msgid "Choose Folder…"
+msgstr "Ordner wählen …"
+
+#: data/ui/export-dialog.blp:119
+msgid "Format"
+msgstr "Format"
+
+#: data/ui/export-dialog.blp:152
+msgid "Compression"
+msgstr "Kompression"
+
+#: data/ui/export-dialog.blp:162
+msgid "Lossless"
+msgstr "Verlustfrei"
+
+#: data/ui/export-dialog.blp:167
+msgid "Lossy"
+msgstr "Verlustbehaftet"
+
+#: data/ui/export-dialog.blp:175 data/ui/export-dialog.blp:196
+msgid "Quality"
+msgstr "Qualität"
+
+#: data/ui/export-dialog.blp:219 data/ui/export-dialog.blp:230
+msgid "Flatten annotations"
+msgstr "Anmerkungen zusammenfügen"
+
+#: data/ui/export-dialog.blp:220
+msgid "Image formats always contain the flattened result. Save as .annota to keep them editable."
+msgstr "Bildformate enthalten immer das zusammengefügte Ergebnis. Als .annota speichern, um Anmerkungen bearbeitbar zu halten."
+
+#: data/ui/export-dialog.blp:237
+msgid "Keep annotations as vectors"
+msgstr "Anmerkungen als Vektoren behalten"
+
+#: data/ui/export-dialog.blp:238
+msgid "Text and shapes stay sharp at any zoom"
+msgstr "Text und Formen bleiben in jeder Vergrößerung scharf"
+
+#: data/ui/export-dialog.blp:243
+msgid "Page size"
+msgstr "Seitengröße"
+
+#: data/ui/export-dialog.blp:247
+msgid "Fit to image"
+msgstr "An Bild anpassen"
+
+#: data/ui/export-dialog.blp:248
+msgid "A4"
+msgstr "A4"
+
+#: data/ui/export-dialog.blp:249
+msgid "Letter"
+msgstr "US Letter"
+
+#: data/ui/export-dialog.blp:261
+msgid "Custom Width"
+msgstr "Eigene Breite"
+
+#: data/ui/export-dialog.blp:262
+msgid "The height follows the image’s aspect ratio."
+msgstr "Die Höhe folgt dem Seitenverhältnis des Bildes."
+
+#: data/ui/redaction-warning.blp:12 data/ui/redaction-warning.blp:34
+msgid "Make Redactions Solid?"
+msgstr "Schwärzungen deckend machen?"
+
+#: data/ui/redaction-warning.blp:29
+msgid "Warning"
+msgstr "Warnung"
+
+#: data/ui/redaction-warning.blp:57 src/ui/editor/redaction_warning.rs:74
+msgid "Export Anyway"
+msgstr "Trotzdem exportieren"
+
+#: data/ui/redaction-warning.blp:62
+msgid "Convert to Solid"
+msgstr "Deckend machen"
 
 #: src/application.rs:136 src/capture/import.rs:72
 msgid "The editor could not be opened"
@@ -2224,55 +2324,84 @@ msgstr "Tastatureinstellungen öffnen"
 msgid "Could not create GNOME shortcuts: {error}"
 msgstr "GNOME-Tastenkürzel konnten nicht angelegt werden: {error}"
 
-#: src/preferences.rs:348
+#: src/preferences.rs:348 src/ui/editor/export_dialog.rs:495
 msgid "Choose Folder"
 msgstr "Ordner wählen"
 
-#: src/ui/editor/mod.rs:587
+#: src/ui/editor/export_dialog.rs:206
+msgid "{percent} % · {width} × {height} px"
+msgstr "{percent} % · {width} × {height} px"
+
+#: src/ui/editor/export_dialog.rs:215
+msgid "{percent} % · {width} × {height}"
+msgstr "{percent} % · {width} × {height}"
+
+#: src/ui/editor/export_dialog.rs:225
+msgid "≈ {size} KB"
+msgstr "≈ {size} KB"
+
+#: src/ui/editor/export_dialog.rs:228
+msgctxt "decimal separator"
+msgid "."
+msgstr ","
+
+#: src/ui/editor/export_dialog.rs:229
+msgid "≈ {size} MB"
+msgstr "≈ {size} MB"
+
+#: src/ui/editor/export_dialog.rs:236
+msgid "{width} × {height} px · {format}"
+msgstr "{width} × {height} px · {format}"
+
+#: src/ui/editor/export_dialog.rs:579
+msgid "Custom Width…"
+msgstr "Eigene Breite …"
+
+#: src/ui/editor/mod.rs:601
 msgid "Could not open “{name}”: {error}"
 msgstr "„{name}“ konnte nicht geöffnet werden: {error}"
 
-#: src/ui/editor/mod.rs:829
+#: src/ui/editor/mod.rs:845
 msgid "Pick a colour anywhere on the screen"
 msgstr "Eine Farbe irgendwo auf dem Bildschirm aufnehmen"
 
-#: src/ui/editor/mod.rs:1212
+#: src/ui/editor/mod.rs:1232
 msgid "Copying the image arrives in milestone 0.1"
 msgstr "Bild kopieren folgt mit Meilenstein 0.1"
 
-#: src/ui/editor/mod.rs:1215
-msgid "Exporting arrives in milestone 0.1"
-msgstr "Exportieren folgt mit Meilenstein 0.1"
+#: src/ui/editor/mod.rs:1572
+msgid "Annota Documents"
+msgstr "Annota-Dokumente"
 
-#: src/ui/editor/mod.rs:1218 src/ui/editor/mod.rs:1221
-msgid "Saving arrives in milestone 0.1"
-msgstr "Speichern folgt mit Meilenstein 0.1"
+#: src/ui/editor/mod.rs:1577
+msgid "Save As"
+msgstr "Speichern unter"
 
-#: src/ui/editor/mod.rs:1812
+#: src/ui/editor/mod.rs:2066
 msgid "Picking a colour from the screen needs xdg-desktop-portal"
 msgstr "Farben vom Bildschirm aufnehmen braucht xdg-desktop-portal"
 
-#: src/ui/editor/mod.rs:1815
+#: src/ui/editor/mod.rs:2069
 msgid "Annota may not read colours from the screen"
 msgstr "Annota darf keine Farben vom Bildschirm lesen"
 
-#: src/ui/editor/mod.rs:1819 src/ui/editor/theme_editor.rs:764
+#: src/ui/editor/mod.rs:2073 src/ui/editor/theme_editor.rs:764
 msgid "The colour could not be picked"
 msgstr "Die Farbe konnte nicht aufgenommen werden"
 
-#: src/ui/editor/mod.rs:1845
+#: src/ui/editor/mod.rs:2099
 msgid "Canvas Colour"
 msgstr "Leinwandfarbe"
 
-#: src/ui/editor/mod.rs:1976
+#: src/ui/editor/mod.rs:2230
 msgid "Could not insert the image"
 msgstr "Das Bild konnte nicht eingefügt werden"
 
-#: src/ui/editor/mod.rs:1987
+#: src/ui/editor/mod.rs:2241
 msgid "Image inserted"
 msgstr "Bild eingefügt"
 
-#: src/ui/editor/mod.rs:2070
+#: src/ui/editor/mod.rs:2324
 msgid "Could not restore “{name}”: {error}"
 msgstr "„{name}“ konnte nicht wiederhergestellt werden: {error}"
 
@@ -2321,25 +2450,87 @@ msgid "Yellow"
 msgstr "Gelb"
 
 #. Redline: "Properties" + "Modified" (or the mode, as add-core-annotation-tools had it).
-#: src/ui/editor/quick_styles.rs:472
+#: src/ui/editor/quick_styles.rs:495
 msgid "Properties"
 msgstr "Eigenschaften"
 
-#: src/ui/editor/quick_styles.rs:711 src/ui/editor/theme_editor.rs:395
+#: src/ui/editor/quick_styles.rs:734 src/ui/editor/theme_editor.rs:395
 msgid "Managed by your administrator"
 msgstr "Von Ihrer Systemverwaltung bereitgestellt"
 
-#: src/ui/editor/quick_styles.rs:807
+#: src/ui/editor/quick_styles.rs:830
 msgid "Quick style “{name}” deleted"
 msgstr "Schnellstil „{name}“ gelöscht"
 
-#: src/ui/editor/quick_styles.rs:864
+#: src/ui/editor/quick_styles.rs:887
 msgid "Added to the end of {tool}"
 msgstr "Wird am Ende von {tool} angefügt"
 
-#: src/ui/editor/quick_styles.rs:896
+#: src/ui/editor/quick_styles.rs:919
 msgid "Quick style “{name}” saved"
 msgstr "Schnellstil „{name}“ gespeichert"
+
+#: src/ui/editor/redaction_warning.rs:53
+msgid "{n} redaction uses pixelate. Pixelated text can sometimes be reconstructed. Solid boxes hide it for good."
+msgid_plural "{n} redactions use pixelate. Pixelated text can sometimes be reconstructed. Solid boxes hide it for good."
+msgstr[0] "{n} Schwärzung ist verpixelt. Verpixelter Text lässt sich manchmal wiederherstellen. Deckende Flächen verbergen ihn endgültig."
+msgstr[1] "{n} Schwärzungen sind verpixelt. Verpixelter Text lässt sich manchmal wiederherstellen. Deckende Flächen verbergen ihn endgültig."
+
+#: src/ui/editor/redaction_warning.rs:58
+msgid "{n} redaction uses blur. Blurred text can sometimes be reconstructed. Solid boxes hide it for good."
+msgid_plural "{n} redactions use blur. Blurred text can sometimes be reconstructed. Solid boxes hide it for good."
+msgstr[0] "{n} Schwärzung ist weichgezeichnet. Weichgezeichneter Text lässt sich manchmal wiederherstellen. Deckende Flächen verbergen ihn endgültig."
+msgstr[1] "{n} Schwärzungen sind weichgezeichnet. Weichgezeichneter Text lässt sich manchmal wiederherstellen. Deckende Flächen verbergen ihn endgültig."
+
+#: src/ui/editor/redaction_warning.rs:63
+msgid "{n} redaction uses blur or pixelate. Blurred or pixelated text can sometimes be reconstructed. Solid boxes hide it for good."
+msgid_plural "{n} redactions use blur or pixelate. Blurred or pixelated text can sometimes be reconstructed. Solid boxes hide it for good."
+msgstr[0] "{n} Schwärzung ist weichgezeichnet oder verpixelt. Solcher Text lässt sich manchmal wiederherstellen. Deckende Flächen verbergen ihn endgültig."
+msgstr[1] "{n} Schwärzungen sind weichgezeichnet oder verpixelt. Solcher Text lässt sich manchmal wiederherstellen. Deckende Flächen verbergen ihn endgültig."
+
+#: src/ui/editor/redaction_warning.rs:75
+msgid "Save Anyway"
+msgstr "Trotzdem speichern"
+
+#: src/ui/editor/saving.rs:39
+msgid "No permission to write to this folder"
+msgstr "Keine Schreibberechtigung für diesen Ordner"
+
+#: src/ui/editor/saving.rs:40
+msgid "A file with this name already exists"
+msgstr "Eine Datei mit diesem Namen existiert bereits"
+
+#: src/ui/editor/saving.rs:42
+msgid "{format} images can be at most {max} pixels wide and high"
+msgstr "{format}-Bilder dürfen höchstens {max} Pixel breit und hoch sein"
+
+#: src/ui/editor/saving.rs:46
+msgid "The image is too large to export at this size"
+msgstr "Das Bild ist in dieser Größe zu groß zum Exportieren"
+
+#: src/ui/editor/saving.rs:47
+msgid "There is not enough space on the disk"
+msgstr "Auf dem Datenträger ist nicht genug Platz"
+
+#: src/ui/editor/saving.rs:48
+msgid "The file could not be written"
+msgstr "Die Datei konnte nicht geschrieben werden"
+
+#: src/ui/editor/saving.rs:56
+msgid "Replace"
+msgstr "Ersetzen"
+
+#: src/ui/editor/saving.rs:161
+msgid "Saved as “{name}”"
+msgstr "Gespeichert als „{name}“"
+
+#: src/ui/editor/saving.rs:166
+msgid "Exported as “{name}”"
+msgstr "Exportiert als „{name}“"
+
+#: src/ui/editor/saving.rs:171
+msgid "{folder} · Saved"
+msgstr "{folder} · Gespeichert"
 
 #: src/ui/editor/sidebar.rs:438
 msgctxt "key"
@@ -2352,7 +2543,7 @@ msgid "Enter"
 msgstr "Eingabe"
 
 #: src/ui/editor/sidebar.rs:509 src/ui/editor/styles.rs:257
-#: src/ui/labels.rs:166
+#: src/ui/labels.rs:177
 msgid "{n} px"
 msgstr "{n} px"
 
@@ -2545,7 +2736,7 @@ msgstr "„{file}“ konnte nicht importiert werden. {reason}"
 msgid "“{file}” is not a valid Annota theme. {reason}"
 msgstr "„{file}“ ist kein gültiges Annota-Design. {reason}"
 
-#: src/ui/editor/text.rs:48 src/ui/labels.rs:145
+#: src/ui/editor/text.rs:48 src/ui/labels.rs:156
 msgid "{width} × {height}"
 msgstr "{width} × {height}"
 
@@ -3029,78 +3220,90 @@ msgid "Flatten {object}"
 msgstr "{object} einbrennen"
 
 #: src/ui/labels.rs:88
+msgid "Convert Redaction to Solid"
+msgid_plural "Convert Redactions to Solid"
+msgstr[0] "Schwärzung deckend machen"
+msgstr[1] "Schwärzungen deckend machen"
+
+#: src/ui/labels.rs:99
 msgid "Canvas centre"
 msgstr "Leinwandmitte"
 
-#: src/ui/labels.rs:89
+#: src/ui/labels.rs:100
 msgid "Canvas edge"
 msgstr "Leinwandrand"
 
-#: src/ui/labels.rs:90
+#: src/ui/labels.rs:101
 msgid "Object centre"
 msgstr "Objektmitte"
 
-#: src/ui/labels.rs:91
+#: src/ui/labels.rs:102
 msgid "Object edge"
 msgstr "Objektkante"
 
-#: src/ui/labels.rs:135
+#: src/ui/labels.rs:146
 msgid "X {x} · Y {y}"
 msgstr "X {x} · Y {y}"
 
-#: src/ui/labels.rs:140
+#: src/ui/labels.rs:151
 msgid "Δ X {dx} · Y {dy}"
 msgstr "Δ X {dx} · Y {dy}"
 
-#: src/ui/labels.rs:151
+#: src/ui/labels.rs:162
 msgid "{angle}° · Shift: 15° steps"
 msgstr "{angle}° · Umschalt: 15°-Schritte"
 
-#: src/ui/labels.rs:153
+#: src/ui/labels.rs:164
 msgid "{angle}°"
 msgstr "{angle}°"
 
-#: src/ui/labels.rs:169
+#: src/ui/labels.rs:180
 msgid "Corner radius {n} px"
 msgstr "Eckenradius {n} px"
 
-#: src/ui/labels.rs:177
+#: src/ui/labels.rs:188
 msgid "{width} × {height} px"
 msgstr "{width} × {height} px"
 
-#: src/ui/labels.rs:201
+#: src/ui/labels.rs:212
 msgid "Esc or click outside to finish"
 msgstr "Esc oder Klick daneben beendet"
 
-#: src/ui/labels.rs:208
+#: src/ui/labels.rs:219
 msgid "{n} point · Enter or double-click to finish"
 msgid_plural "{n} points · Enter or double-click to finish"
 msgstr[0] "{n} Punkt · Eingabe oder Doppelklick beendet"
 msgstr[1] "{n} Punkte · Eingabe oder Doppelklick beendet"
 
-#: src/ui/labels.rs:217
+#: src/ui/labels.rs:228
 msgid "{angle}° · Shift: 0/45/90°"
 msgstr "{angle}° · Umschalt: 0/45/90°"
 
-#: src/ui/labels.rs:222
+#: src/ui/labels.rs:233
 msgid "Click to place {label}"
 msgstr "Klicken, um {label} zu setzen"
 
-#: src/ui/labels.rs:229
+#: src/ui/labels.rs:240
 msgid "{n} step renumbered"
 msgid_plural "{n} steps renumbered"
 msgstr[0] "{n} Schritt neu nummeriert"
 msgstr[1] "{n} Schritte neu nummeriert"
 
-#: src/ui/labels.rs:232
+#: src/ui/labels.rs:243
 msgid "Step {label} deleted · {renumbered}"
 msgstr "Schritt {label} gelöscht · {renumbered}"
 
-#: src/ui/labels.rs:243
+#: src/ui/labels.rs:254
 msgid "{n} object flattened into the image"
 msgid_plural "{n} objects flattened into the image"
 msgstr[0] "{n} Objekt in das Bild eingebrannt"
 msgstr[1] "{n} Objekte in das Bild eingebrannt"
+
+#~ msgid "Exporting arrives in milestone 0.1"
+#~ msgstr "Exportieren folgt mit Meilenstein 0.1"
+
+#~ msgid "Saving arrives in milestone 0.1"
+#~ msgstr "Speichern folgt mit Meilenstein 0.1"
 
 #~ msgid "Callout and text body, step numbers"
 #~ msgstr "Text in Sprechblasen und Texten, Schrittnummern"

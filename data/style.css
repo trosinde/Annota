@@ -226,6 +226,26 @@ banner.annota-warning-banner > revealer > widget {
   color: @window_fg_color;
 }
 
+/* --- Export dialog (add-export-share 02–05) ---------------------------------------------- */
+
+/* Mockup 04: the error banner at the top of the dialog's body, rounded like the lists. */
+banner.annota-error-banner > revealer > widget {
+  background-color: mix(@error_bg_color, @window_bg_color, 0.78);
+  color: @window_fg_color;
+  border-radius: 12px;
+}
+
+/* "A file with this name already exists": Replace is destructive (red label). */
+banner.annota-error-banner.annota-banner-destructive button {
+  color: @error_color;
+}
+
+/* Preview thumbnail: 160 × 100, radius 6, 1 px border. */
+.annota-export-thumb {
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px alpha(currentColor, 0.15);
+}
+
 /* --- Editor canvas (add-annotation-editor 02, 03, 06) ---------------------------------- */
 
 /* Measurement and snap chips on the canvas: redline "Canvas" — 12 px bold, radius 6,

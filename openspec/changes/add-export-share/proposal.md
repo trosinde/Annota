@@ -27,7 +27,15 @@ Annotated images must reach documents, chats and tickets in one step.
 - `export-share`
 
 ### Modified Capabilities
-- none
+- `annotation-tools` — "Redaction export warning": add-core-annotation-tools left it a placeholder
+  (no way out of Annota existed yet); this change makes it the real warning (mockup 10, D7) on
+  every way out it builds. Archive add-core-annotation-tools before this change: the MODIFIED
+  delta needs its `annotation-tools` spec to exist.
 
 ## Impact
-- New module `src/export/`
+- New module `src/export/` (encoders, `.annota` save); new crates `jpeg-encoder`, `libwebp-sys`
+  (bundled libwebp, statically linked)
+- `src/editing/redactions.rs`: finding and converting blur/pixelate redactions
+- Editor UI: `src/ui/editor/{export_dialog,saving,redaction_warning}.rs`,
+  `data/ui/{export-dialog,redaction-warning}.blp`; the editor's Export, Save and Save As actions
+  (placeholders until now) and `Session` (a saved document's file, name and autosave)

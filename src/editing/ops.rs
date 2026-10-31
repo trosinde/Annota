@@ -60,6 +60,9 @@ pub enum Action {
     Flatten,
     /// Flatten All (Ctrl+Shift+T); the subject counts the objects.
     FlattenAll,
+    /// "Convert to Solid" before an export (add-export-share mockup 10); the subject counts
+    /// the redactions converted (`super::redactions`).
+    MakeSolid,
 }
 
 /// What the edit applies to, for the label ("Move Group", "Move 3 Objects").

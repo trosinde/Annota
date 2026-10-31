@@ -16,6 +16,7 @@ pub mod crop;
 pub mod drag;
 pub mod image_ops;
 pub mod ops;
+pub mod redactions;
 pub mod selection;
 pub mod snap;
 pub mod steps;

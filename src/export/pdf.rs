@@ -21,7 +21,7 @@ use crate::document::bitmap::Bitmap;
 use crate::document::geometry::Rect;
 use crate::document::Document;
 use crate::render::{self, Layer, Options, Viewport};
-use crate::tools::redaction::Redaction;
+use crate::tools::redaction::redactions_in;
 
 use super::{check_scale, ExportError};
 
@@ -114,11 +114,7 @@ pub fn page_layout(width: i32, height: i32, page: PageSize, doc_scale: f64) -> P
 /// True if `object` is or contains (in a group, at any depth) a redaction. Groups expose their
 /// members through `Annotation::children`; other types have none.
 pub fn contains_redaction(object: &dyn Annotation) -> bool {
-    object.as_any().is::<Redaction>()
-        || object
-            .children()
-            .iter()
-            .any(|child| contains_redaction(child.object.as_ref()))
+    !redactions_in(object).is_empty()
 }
 
 /// For each top-level object (by stacking position), whether it goes into the page's bitmap.

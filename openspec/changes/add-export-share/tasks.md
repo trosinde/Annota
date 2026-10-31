@@ -16,7 +16,13 @@
 ## 2. Implementation
 - [x] 2.1 Exporters PNG/JPG/WebP/PDF (`src/export/`, not wired into the UI yet; `.annota` save
       re-exposed as `export::save_annota`; see design.md "Decided during apply", task 2.1)
-- [ ] 2.2 Quick save + Save As
+- [x] 2.1a Export dialog (`Ctrl+E`, header Export; mockups 02-05; spec export-share "Export
+      dialog") — not a task of its own originally: 2.1 built the encoders without UI.
+      `src/ui/editor/export_dialog.rs`, `data/ui/export-dialog.blp`, error mapping in
+      `src/ui/editor/saving.rs`; see design.md "Decided during apply", export dialog
+- [x] 2.2 Quick save + Save As (`Ctrl+S` writes `.annota` — own file, or the filename pattern in
+      the save folder; `Ctrl+Shift+S` GTK's file chooser; title becomes the file's name, autosave
+      removed, mockup 06 toast; failures as a toast with Save As…; see design.md, task 2.2)
 - [ ] 2.3 Clipboard, DnD source
 - [ ] 2.4 Share menu via portals
 - [ ] 2.5 Batch export dialog
@@ -43,6 +49,12 @@
       Solid and Export** (suggested; "… and Copy" for Copy), **Export As Is** and **Cancel**.
       Converting is one undo step: `set_property("redaction", Choice("solid"))` on each, as one
       `Command::Replace`. Faces found by smart redaction default to Solid (D7, add-smart-redaction).
+      **Partly built (2026-10-31):** the alert follows mockup 10 ("Make Redactions Solid?",
+      Cancel · Export Anyway / Save Anyway · **Convert to Solid**), not the wording above or
+      add-core-annotation-tools mockup 19 (open question, design.md). The MODIFIED delta is
+      `specs/annotation-tools/spec.md`. Wired in front of Export (`Ctrl+E`), quick save
+      (`Ctrl+S`) and Save As (`Ctrl+Shift+S`) through `Editor::guard_redactions`; still to call it
+      from Copy and drag-out (2.3), Share (2.4) and batch export (2.5) — then tick this.
 
 ## 3. Verify
 - [ ] 3.1 Tests for every scenario (unit, golden-image or documented manual check)

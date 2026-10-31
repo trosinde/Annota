@@ -369,7 +369,9 @@ pub(crate) fn resolved_save_folder(value: &str) -> PathBuf {
     }
 }
 
-fn resolved_export_folder(value: &str) -> PathBuf {
+/// The export folder setting with its default applied: empty means the save folder's
+/// `Exports` subfolder.
+pub(crate) fn resolved_export_folder(value: &str) -> PathBuf {
     if value.is_empty() {
         let mut path = resolved_save_folder("");
         path.push("Exports");
@@ -379,7 +381,8 @@ fn resolved_export_folder(value: &str) -> PathBuf {
     }
 }
 
-fn display_path(path: &Path) -> String {
+/// `path` as shown in folder rows: `~/…` inside the home folder.
+pub(crate) fn display_path(path: &Path) -> String {
     let home = glib::home_dir();
     match path.strip_prefix(&home) {
         Ok(rest) if rest != Path::new("") => format!("~/{}", rest.display()),

@@ -182,5 +182,25 @@ pub fn save_annota(doc: &Document, path: &Path) -> Result<(), ExportError> {
     Ok(())
 }
 
+/// Save and Save As (task 2.2): like [`save_annota`], but the file's document title is the
+/// file's name, so a saved document is called what its file is called — in the window title
+/// right after saving (mockup 06) and whenever the file is opened again. `doc` itself is not
+/// changed (a title is not an edit with an undo step); only the written copy is renamed.
+pub fn save_annota_named(doc: &Document, path: &Path) -> Result<(), ExportError> {
+    let title = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .filter(|stem| !stem.is_empty());
+    if title.is_none() || doc.metadata().title == title {
+        return save_annota(doc, path);
+    }
+    let mut copy = doc.clone();
+    copy.replace_metadata(crate::document::Metadata {
+        title,
+        ..doc.metadata().clone()
+    });
+    save_annota(&copy, path)
+}
+
 #[cfg(test)]
 mod tests;

@@ -44,14 +44,20 @@ pub struct Session {
     /// Identifies the session within the window (canvas stack page "doc-<uid>").
     pub uid: u64,
     pub canvas: Canvas,
-    pub origin: Origin,
-    /// The `.annota` file the document belongs to, if any (written into its autosave).
-    pub source: Option<PathBuf>,
-    /// The file it was opened from, of any type (canonical): an open file is not listed
-    /// under "Recent" and opening it again switches to it.
-    pub path: Option<PathBuf>,
-    /// Window title: the document title, else the file name, else "Untitled Capture".
-    pub name: String,
+    /// Where it came from; a save makes it a [`Origin::File`] ([`Session::saved_as`]).
+    pub origin: Cell<Origin>,
+    /// The `.annota` file the document belongs to, if any (written into its autosave; where
+    /// `Ctrl+S` saves).
+    pub source: RefCell<Option<PathBuf>>,
+    /// The file it was opened from (or last saved to), of any type (canonical): an open file
+    /// is not listed under "Recent" and opening it again switches to it.
+    pub path: RefCell<Option<PathBuf>>,
+    /// Window title: the document title, else the file name, else "Untitled Capture"; after
+    /// a save the file's name (add-export-share mockup 06).
+    pub name: RefCell<String>,
+    /// Saved with Save or Save As since it was opened: while it has no changes, the subtitle
+    /// says where ("~/Pictures/Annota · Saved", mockup 06).
+    pub saved: Cell<bool>,
     pub autosave: AutosaveId,
     pub schedule: Cell<Schedule>,
     /// Tray thumbnail; rendered again a moment after the document changes.
@@ -61,7 +67,45 @@ pub struct Session {
 
 impl Session {
     pub fn status(&self) -> Status {
-        status(self.origin, &self.canvas.history_info())
+        status(self.origin.get(), &self.canvas.history_info())
+    }
+
+    pub fn name(&self) -> String {
+        self.name.borrow().clone()
+    }
+
+    /// The document was written to the `.annota` file `path` (Save, Save As): from now on it
+    /// belongs to that file and is named after it. The caller marks the history saved.
+    pub fn saved_as(&self, path: &Path) {
+        self.origin.set(Origin::File);
+        self.source.replace(Some(path.to_path_buf()));
+        self.path.replace(Some(canonical(path)));
+        self.name.replace(file_stem(path));
+        self.saved.set(true);
+    }
+
+    /// The folder to name in the subtitle after a save (mockup 06), while nothing changed
+    /// since.
+    pub fn saved_folder(&self) -> Option<PathBuf> {
+        if !self.saved.get() || self.status() != Status::Clean {
+            return None;
+        }
+        self.source
+            .borrow()
+            .as_deref()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+    }
+
+    /// The document is saved: its autosave is not needed any more (spec document-format:
+    /// "Saved document leaves no autosave").
+    pub fn forget_autosave(&self, store: &Store) {
+        if let Err(err) = store.discard(&self.autosave) {
+            eprintln!("annota: cannot remove an autosave: {err}");
+        }
+        let mut schedule = self.schedule.get();
+        schedule.discarded();
+        self.schedule.set(schedule);
     }
 
     pub fn page_name(&self) -> String {
@@ -82,7 +126,7 @@ impl Session {
                     info.revision,
                     info.dirty,
                     doc,
-                    self.source.as_deref(),
+                    self.source.borrow().as_deref(),
                 )
             })
             .unwrap_or(Ok(Action::Nothing));

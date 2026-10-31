@@ -80,7 +80,8 @@ pub fn present_restore(
             .thumbnail_png
             .clone()
             .and_then(|png| Bitmap::from_png(png).ok());
-        let thumbnail = thumbnail_area(bitmap, ROW_THUMB);
+        let thumbnail = thumbnail_area(bitmap, ROW_THUMB, 4.0);
+        thumbnail.add_css_class("annota-row-thumb");
         let subtitle = match (local_time(entry.saved_at), &now) {
             (Some(saved), Some(now)) => text::autosaved(&saved, now, entry.object_count),
             _ => text::object_count(entry.object_count),
@@ -147,18 +148,20 @@ pub fn present_restore(
     dialog.set_focus(Some(&restore_button));
 }
 
-/// A `size` thumbnail of `bitmap`, scaled to cover it, with rounded corners. (A `GtkPicture`
-/// would ask for the bitmap's own size where nothing limits its height.)
-fn thumbnail_area(bitmap: Option<Bitmap>, size: (i32, i32)) -> gtk::DrawingArea {
+/// A `size` thumbnail of `bitmap`, scaled to cover it, with corners rounded by `radius`. (A
+/// `GtkPicture` would ask for the bitmap's own size where nothing limits its height.)
+pub(super) fn thumbnail_area(
+    bitmap: Option<Bitmap>,
+    size: (i32, i32),
+    radius: f64,
+) -> gtk::DrawingArea {
     let area = gtk::DrawingArea::builder()
         .content_width(size.0)
         .content_height(size.1)
         .valign(gtk::Align::Center)
-        .css_classes(["annota-row-thumb"])
         .build();
     area.set_draw_func(move |_, cr, w, h| {
         let (w, h) = (f64::from(w), f64::from(h));
-        let radius = 4.0;
         cr.new_sub_path();
         cr.arc(w - radius, radius, radius, -FRAC_PI_2, 0.0);
         cr.arc(w - radius, h - radius, radius, 0.0, FRAC_PI_2);
