@@ -108,8 +108,11 @@ annota/
 ## 4. Project status and build
 
 **Status (2026-11-01)**
-- `add-export-share`: all implementation tasks built; reviewer found no blockers and its follow-ups
-  are fixed; 3.2 (a final reviewer pass) and 3.3 (Ubuntu 24.04) are open. Archive it after `add-annotation-editor` and
+- `add-screen-capture`: the screenshot permission flow rebuilt 2026-11-01 has had independent review
+  but no real-desktop run; it has only run against a stand-in portal on X11. See its
+  `manual-checks.md`, "Screenshot permission".
+- `add-export-share`: all implementation tasks built and reviewed; 3.3 (Ubuntu 24.04) and the
+  maintainer checks in `manual-checks.md` are open. Archive it after `add-annotation-editor` and
   `add-core-annotation-tools`, whose specs its MODIFIED deltas need. `add-capture-library` is the
   last MVP change not started.
 - Roadmap: 18 OpenSpec changes in `openspec/changes/`, all validated. `bootstrap-app-shell` is

@@ -136,7 +136,11 @@
 - [x] 3.1 Tests for every scenario (unit, golden-image or documented manual check) — unit and
       live GTK tests throughout 2.1-2.7; remaining real-portal/real-window-manager checks in
       `manual-checks.md`
-- [ ] 3.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
+- [x] 3.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green — two passes, 2026-11-01.
+      The second made ticking this conditional on fixing toast placement, done in `b2a151c`; that
+      fix and the dialog fixes had tests and a side-by-side check, but no further reviewer pass.
+      Screens 01 and 02 were never compared against the running app, and mockups 11 and 13 remain
+      known stale
 - [ ] 3.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean — **not verified on 24.04.**
       Built, lintian-clean and installed 2026-11-01 on the maintainer's Ubuntu 26.04 machine with
       cargo 1.93 only; cargo 1.85 is not installed there, and the new crates' MSRV (`libwebp-sys`
