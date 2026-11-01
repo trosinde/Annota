@@ -12,6 +12,12 @@
 
 - [x] 2.1 Screenshot portal wrapper with error mapping (`src/capture/portal.rs`)
 - [x] 2.2 Permission-denied dialog (`data/ui/permission-dialog.blp`, mockup 08)
+- [x] 2.3 First-use permission (2026-11-01): ask with a parent window when nothing is stored, tell a
+      stored "no" from "GNOME could not ask" through the permission store, correct the dialog
+      (`src/capture/permission.rs`, `portal.rs`, `mod.rs`). See design.md "Decided 2026-11-01: the
+      screenshot permission". Tested against a stand-in portal only (`src/capture/live_tests.rs`).
+- [ ] 2.4 Maintainer: approve or change the dialog and toast wording, which differs from mockup 08
+- [ ] 2.5 Maintainer: run the "Screenshot permission" steps in `manual-checks.md` on a real desktop
 
 ## 3. Overlay
 - [x] 3.1 Frozen-image overlay per monitor (`src/capture/overlay.rs`, `data/ui/region-overlay.blp`)

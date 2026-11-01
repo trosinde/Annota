@@ -6,6 +6,8 @@ pub mod delivery;
 pub mod frame;
 pub mod geometry;
 pub mod import;
+#[cfg(test)]
+mod live_tests;
 pub mod overlay;
 pub mod permission;
 pub mod portal;
@@ -27,10 +29,15 @@ use crate::config;
 use delivery::Source;
 use frame::Frame;
 use overlay::{Desktop, Outcome, PointerAt};
+use permission::{FirstStep, Refusal};
 use portal::{CaptureError, GrabOptions};
 
 /// Time for the compositor to take Annota's own windows off the screen before a grab.
 const HIDE_SETTLE: Duration = Duration::from_millis(250);
+/// How long a window on screen for the permission question may take to get the focus. The focus
+/// only matters if the window has no handle to pass to the portal; then GNOME Shell asks instead.
+const FOCUS_WAIT: Duration = Duration::from_secs(2);
+const FOCUS_POLL: Duration = Duration::from_millis(50);
 
 /// One capture request (launcher, `--capture`, global shortcut).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,8 +63,9 @@ thread_local! {
     static BUSY: Cell<bool> = const { Cell::new(false) };
 }
 
-/// Starts a capture. Annota's own windows are hidden first so they are not captured, and the
-/// application is held while no window is open (`annota --capture` from a shortcut).
+/// Starts a capture. Annota's own windows are hidden first so they are not captured, except for
+/// the permission question (see [`with_permission`]), and the application is held while no window
+/// is open (`annota --capture` from a shortcut).
 pub fn start(app: &adw::Application, request: Request) {
     if BUSY.with(|busy| busy.replace(true)) {
         return;
@@ -68,28 +76,13 @@ pub fn start(app: &adw::Application, request: Request) {
     // glib can decide to quit before an async-block `app.hold()` ever gets a chance to run.
     let hold = app.hold();
     glib::spawn_future_local(async move {
-        let hidden: Vec<gtk::Window> = app
-            .windows()
-            .into_iter()
-            .filter(|w| w.is_visible())
-            .collect();
-        for window in &hidden {
-            window.set_visible(false);
-        }
-        if !hidden.is_empty() {
-            glib::timeout_future(HIDE_SETTLE).await;
-        }
-
-        let result = run(&app, request).await;
-
-        for window in &hidden {
-            window.set_visible(true);
-        }
+        let open_before = visible_windows(&app);
+        let result = with_permission(&app, request, &open_before).await;
         BUSY.with(|busy| busy.set(false));
 
         match result {
             Ok(Some((frame, source))) => {
-                delivery::deliver(&app, frame, source, !hidden.is_empty());
+                delivery::deliver(&app, frame, source, !open_before.is_empty());
             }
             Ok(None) | Err(CaptureError::Cancelled) => {}
             Err(CaptureError::PermissionDenied) => permission::present(&app),
@@ -100,6 +93,9 @@ pub fn start(app: &adw::Application, request: Request) {
                     CaptureError::PortalUnavailable => {
                         gettext("Capturing needs xdg-desktop-portal, which is not running")
                     }
+                    CaptureError::CouldNotAsk => gettext(
+                        "GNOME could not ask for screen access. Click this window and try again.",
+                    ),
                     _ => gettext("The capture failed. Nothing was captured."),
                 };
                 application::show_toast(&window, &adw::Toast::new(&text));
@@ -107,6 +103,95 @@ pub fn start(app: &adw::Application, request: Request) {
         }
         drop(hold);
     });
+}
+
+fn visible_windows(app: &adw::Application) -> Vec<gtk::Window> {
+    app.windows()
+        .into_iter()
+        .filter(|w| w.is_visible())
+        .collect()
+}
+
+/// Runs the capture and sorts out the screenshot permission around it.
+///
+/// With no stored answer the portal asks on the first frozen grab, so a window stays on the screen
+/// for that request ([`ask_with_window`]). "Allow" stores the answer and the capture itself then
+/// starts as always, with the windows hidden, so no capture ever shows Annota's own window.
+async fn with_permission(
+    app: &adw::Application,
+    request: Request,
+    open_before: &[gtk::Window],
+) -> Result<Option<(Frame, Source)>, CaptureError> {
+    let store = permission::read_store().await;
+    let mut ask = permission::first_step(request.mode, store) == FirstStep::Ask;
+    let mut asked = false;
+    loop {
+        let answer = if ask {
+            asked = true;
+            ask_with_window(app).await
+        } else {
+            Ok(())
+        };
+        let result = match answer {
+            Ok(()) => run_hidden(app, request, open_before).await,
+            Err(err) => Err(err),
+        };
+        if !matches!(result, Err(CaptureError::Refused)) {
+            return result;
+        }
+        let store = permission::read_store().await;
+        match permission::after_refusal(request.mode, store, asked) {
+            Refusal::Denied => return Err(CaptureError::PermissionDenied),
+            Refusal::CouldNotAsk => return Err(CaptureError::CouldNotAsk),
+            Refusal::Failed => {
+                return Err(CaptureError::Failed(String::from(
+                    "the portal refused the request",
+                )))
+            }
+            Refusal::Ask => ask = true,
+        }
+    }
+}
+
+/// Asks for the permission over the window in use, or a new one if a shortcut or
+/// `annota --capture` started the capture with none open.
+async fn ask_with_window(app: &adw::Application) -> Result<(), CaptureError> {
+    let window = app
+        .active_window()
+        .filter(|w| w.is_visible())
+        .or_else(|| visible_windows(app).into_iter().next())
+        .unwrap_or_else(|| application::present_window(app).upcast());
+    window.present();
+    let start = std::time::Instant::now();
+    while !window.is_active() && start.elapsed() < FOCUS_WAIT {
+        glib::timeout_future(FOCUS_POLL).await;
+    }
+    portal::ask_permission(&window).await
+}
+
+/// One attempt at the capture with Annota's windows off the screen. Afterwards the windows of
+/// `open_before` are back; one opened only for the permission question is gone, as a capture
+/// from a shortcut opens no window of its own.
+async fn run_hidden(
+    app: &adw::Application,
+    request: Request,
+    open_before: &[gtk::Window],
+) -> Result<Option<(Frame, Source)>, CaptureError> {
+    let visible = visible_windows(app);
+    for window in &visible {
+        window.set_visible(false);
+    }
+    if !visible.is_empty() {
+        glib::timeout_future(HIDE_SETTLE).await;
+    }
+    for window in visible.iter().filter(|w| !open_before.contains(w)) {
+        window.destroy();
+    }
+    let result = run(app, request).await;
+    for window in open_before {
+        window.set_visible(true);
+    }
+    result
 }
 
 async fn run(

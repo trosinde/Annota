@@ -65,6 +65,67 @@ Design approved: 2026-10-30
 - **Editor destination**: no editor exists yet, so "Open in Editor" quick-saves PNG into the save
   folder (`preferences::resolved_save_folder`, `filename-pattern`) with a toast; see `tasks.md`.
 
+## Decided 2026-11-01: the screenshot permission
+Found on the maintainer's GNOME Shell 50.1 / xdg-desktop-portal 1.21.1 (Wayland, `.deb`): every
+frozen capture ended in "Screen Access Denied", whose Settings switch does not exist, while the
+permission store had no entry at all. Journal: `Failed to associate portal window with parent
+window` and `Only the focused app is allowed to show a system access dialog`.
+
+**Cause, read from the sources of the installed versions.** This chain is read, not observed:
+1. `check_non_interactive_permission_in_thread` (`src/screenshot.c`, xdg-desktop-portal 1.21.1):
+   `yes` passes, `no` refuses, anything else shows the access dialog. Interactive requests skip all
+   of this. A failed dialog logs `Failed to show access dialog`, stores nothing and answers response
+   code 2, the same code as a stored `no`. So code 2 does not mean "denied".
+2. `handle_access_dialog` (`src/access.c`, xdg-desktop-portal-gnome 50.0): Annota's empty parent
+   handle gives the `Failed to associate` warning. With a valid parent it shows its own dialog on
+   that window. Without one it delegates to GNOME Shell.
+3. `AccessDialogAsync` (`js/ui/accessDialog.js`, extracted from the installed GNOME Shell 50.1):
+   refuses unless `<appId>.desktop` is the focused app. Annota had just hidden all its windows.
+
+**The Settings switch.** `screenshots_row` in gnome-control-center 50.0's `cc-applications-panel.c`
+shows only if `get_portal_app_id` finds `X-Flatpak` or `X-SnapInstanceName` in the desktop file, and
+an entry exists. An unsandboxed app never gets it, which matches what the maintainer saw (50.3 is
+installed; its binary has the row).
+
+**Decisions.**
+- **Ask first, with a window.** `permission::first_step` keeps an Annota window on screen when the
+  store holds no answer and the mode is region or screen. It uses the active window, else any
+  visible one, else a new main window (shortcut and cold `--capture`). `portal::ask_permission`
+  passes it as parent through `WindowIdentifier::from_native`. Focus is waited for up to 2 s, but
+  with a parent handle GNOME doesn't need it; it matters only if no handle could be made, where the
+  Shell's check applies.
+- **The asking request's image is discarded unread.** On Allow the portal grabs at once, with
+  Annota's window in the picture, so that file is deleted. The capture is a second request with the
+  windows hidden, now without a question. The question comes before any countdown.
+- **A window opened only to ask is destroyed** before the capture, so `window_was_open` and
+  "Copy to clipboard opens no window" keep their meaning.
+- **Only the store decides what code 2 means.** `map_portal_error` gives `CaptureError::Refused`;
+  `permission::after_refusal` sorts it by a fresh `Lookup` into denied (stored `no`), ask once more,
+  could not ask, or plain failure. Window mode is always a plain failure, since the portal doesn't
+  check it. `PortalError::NotAllowed` is sorted the same way.
+- **The store is read, never written**, with `Lookup` on
+  `org.freedesktop.impl.portal.PermissionStore` over GIO, 2 s timeout. `NotFound` means undecided;
+  any other error means unreadable. An unreadable store (a sandbox) grabs first, so an existing
+  permission never flashes a window, and asks once if refused.
+- **New crates:** `ashpd`'s `gtk4` feature adds `gdk4-wayland`, `gdk4-x11` and their `-sys` crates
+  (MIT; `gtk4-wayland.pc` and `gtk4-x11.pc` are in `libgtk-4-dev`). Regenerate `vendor/` with
+  `build-aux/vendor.sh`.
+
+**Dialog text: proposed, not approved.** Mockup 08 is not redrawn and still shows the old text and
+"Open Settings", and its redline in `docs/design/add-screen-capture/index.md` still says so. The
+code differs from it until the maintainer decides: new body text, the reset command as a selectable
+monospace label, "Copy Command" instead of "Open Settings", and a toast for "GNOME could not ask".
+
+**Known limits.**
+- Nothing here has run against a real portal. The tests in `src/capture/live_tests.rs` use a stand-in
+  written from the sources above, so they can't show a misreading of them. See `manual-checks.md`.
+- A stored `ask`, which nothing in GNOME writes, asks on every request, so the second request
+  would be refused and end in "could not ask".
+- Before xdg-desktop-portal 1.19 (Ubuntu 24.04 has 1.18) there is no host app registry. If the portal
+  can't derive Annota's ID from the systemd unit, it stores the answer under the empty ID, which
+  Annota doesn't read: it would ask first on every capture, and a stored `no` would show as "could
+  not ask". Check this on 24.04.
+
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.
 
@@ -72,6 +133,6 @@ Design approved: 2026-10-30
 - Nothing in this change was run against a live xdg-desktop-portal (development happened on the
   maintainer's own desktop). The portal calls follow `ashpd` 0.11's API; `manual-checks.md` lists
   what to verify on a real session before archiving.
-- Response code 2 ("other") from the Screenshot portal is treated as "permission denied"; confirm
-  on GNOME 46 and 50 that a denied permission really answers that way.
+- Whether the first-use question really appears over the parent window on GNOME 46 and 50: see
+  "Decided 2026-11-01: the screenshot permission".
 - Mixed-scale multi-monitor layouts assume one scale factor for the whole portal image.

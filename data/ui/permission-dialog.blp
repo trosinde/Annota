@@ -1,7 +1,9 @@
 using Gtk 4.0;
 using Adw 1;
 
-// "Screen Access Denied" alert (mockup 08 of add-screen-capture).
+// "Screen Access Denied" alert (mockup 08 of add-screen-capture). The body, the command and the
+// Copy Command button differ from the mockup and await the maintainer's approval: the Settings
+// switch it names doesn't exist for an unsandboxed app (see add-screen-capture's design.md).
 
 Adw.Dialog permission_dialog {
   content-width: 420;
@@ -29,11 +31,20 @@ Adw.Dialog permission_dialog {
     }
 
     Label {
-      label: _("GNOME did not allow Annota to take a screenshot. To allow it, open <b>Settings</b>, choose <b>Apps → Annota</b> and turn on <b>Screenshots</b>. Then try again.");
-      use-markup: true;
+      label: _("GNOME has stored that Annota may not take screenshots. To be asked again, run this command in a terminal, then try again.");
       wrap: true;
       justify: center;
       max-width-chars: 44;
+    }
+
+    // Set from code: permission::reset_command().
+    Label reset_command_label {
+      selectable: true;
+      wrap: true;
+      wrap-mode: word_char;
+      xalign: 0;
+      max-width-chars: 44;
+      styles ["monospace", "caption"]
     }
 
     Label {
@@ -53,8 +64,8 @@ Adw.Dialog permission_dialog {
         styles ["annota-dialog-button"]
       }
 
-      Button open_settings_button {
-        label: _("Open Settings");
+      Button copy_command_button {
+        label: _("Copy Command");
         receives-default: true;
         styles ["annota-dialog-button", "suggested-action"]
       }

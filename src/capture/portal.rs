@@ -23,9 +23,18 @@ pub enum CaptureError {
     /// The user dismissed the portal's own UI (or pressed Esc in Annota's overlay).
     #[error("the capture was cancelled")]
     Cancelled,
-    /// The portal refused screen access for Annota (spec: Portal permission handling).
+    /// The portal ended the request without an image and without saying why. A denial, a
+    /// dialog that could not be shown and an internal failure all look like this; `capture`
+    /// tells them apart with the permission store (`permission::after_refusal`).
+    #[error("the portal refused the request")]
+    Refused,
+    /// The permission store says Annota may not take screenshots (spec: Portal permission
+    /// handling).
     #[error("screen access was denied")]
     PermissionDenied,
+    /// The permission is undecided and GNOME could not show its question.
+    #[error("GNOME could not ask for screen access")]
+    CouldNotAsk,
     /// No xdg-desktop-portal Screenshot implementation is running.
     #[error("no screenshot portal is available")]
     PortalUnavailable,
@@ -47,13 +56,14 @@ const MISSING_SERVICE_ERRORS: [&str; 4] = [
 
 /// Maps an `ashpd` error to what Annota shows the user.
 ///
-/// A request answered with response code 2 ("other") is how xdg-desktop-portal reports that
-/// the permission store denies Annota screenshots, so it maps to [`CaptureError::PermissionDenied`].
+/// Response code 2 ("other") is not a denial as such. xdg-desktop-portal also answers it when its
+/// access dialog could not be shown, which writes nothing to the permission store, and when its
+/// backend fails (`src/screenshot.c`), so it maps to [`CaptureError::Refused`].
 pub fn map_portal_error(err: &ashpd::Error) -> CaptureError {
     match err {
         ashpd::Error::Response(ResponseError::Cancelled) => CaptureError::Cancelled,
-        ashpd::Error::Response(ResponseError::Other) => CaptureError::PermissionDenied,
-        ashpd::Error::Portal(PortalError::NotAllowed(_)) => CaptureError::PermissionDenied,
+        ashpd::Error::Response(ResponseError::Other) => CaptureError::Refused,
+        ashpd::Error::Portal(PortalError::NotAllowed(_)) => CaptureError::Refused,
         ashpd::Error::Portal(PortalError::Cancelled(_)) => CaptureError::Cancelled,
         ashpd::Error::PortalNotFound(_) => CaptureError::PortalUnavailable,
         ashpd::Error::Zbus(dbus) | ashpd::Error::Portal(PortalError::ZBus(dbus))
@@ -115,7 +125,7 @@ thread_local! {
 }
 
 /// Registers Annota's app ID with xdg-desktop-portal (≥ 1.19) once per process, so that
-/// permissions and GNOME Settings › Apps › Annota refer to Annota rather than "unknown app".
+/// the access dialog and the stored permission refer to Annota rather than "unknown app".
 /// Older portals don't have the registry; that's fine and ignored.
 pub async fn ensure_registered() {
     if HOST_REGISTERED.with(|done| done.replace(true)) {
@@ -127,18 +137,42 @@ pub async fn ensure_registered() {
     }
 }
 
-/// Asks the Screenshot portal for an image and loads it.
-pub async fn grab(options: GrabOptions) -> Result<Frame, CaptureError> {
+/// One Screenshot request; the answer is the file the portal wrote.
+async fn request_file(
+    parent: Option<WindowIdentifier>,
+    options: GrabOptions,
+) -> Result<gio::File, CaptureError> {
     ensure_registered().await;
     let request = Screenshot::request()
-        .identifier(None::<WindowIdentifier>)
+        .identifier(parent)
         .interactive(options.interactive)
         .modal(options.modal)
         .send()
         .await
         .map_err(|err| map_portal_error(&err))?;
     let screenshot = request.response().map_err(|err| map_portal_error(&err))?;
-    let file = gio::File::for_uri(screenshot.uri().as_str());
+    Ok(gio::File::for_uri(screenshot.uri().as_str()))
+}
+
+/// Makes the portal ask for the screenshot permission, over `window`.
+///
+/// With a parent handle `xdg-desktop-portal-gnome` shows the question as a dialog of that window.
+/// Without one it passes the question on to GNOME Shell, which refuses unless Annota is the
+/// focused app. On "Allow" the portal grabs the screen at once, with `window` in the picture, so
+/// that image is thrown away unread and `capture` grabs again with its windows hidden.
+pub async fn ask_permission(window: &gtk::Window) -> Result<(), CaptureError> {
+    let parent = WindowIdentifier::from_native(window).await;
+    if parent.is_none() {
+        eprintln!("annota: no parent window handle for the screenshot permission dialog");
+    }
+    let file = request_file(parent, GrabOptions::FROZEN).await?;
+    discard_portal_file(&file);
+    Ok(())
+}
+
+/// Asks the Screenshot portal for an image and loads it.
+pub async fn grab(options: GrabOptions) -> Result<Frame, CaptureError> {
+    let file = request_file(None, options).await?;
     let loaded = gdk::Texture::from_file(&file);
     discard_portal_file(&file);
     let texture = loaded.map_err(|err| CaptureError::Unreadable(err.to_string()))?;
@@ -195,17 +229,17 @@ mod tests {
     }
 
     #[test]
-    fn permission_errors_map_to_denied() {
-        // Scenario "Permission denied": the portal returns a permission error.
+    fn response_code_2_is_a_refusal_not_a_denial() {
+        // Only the permission store can say "denied" (`permission::after_refusal`).
         assert_eq!(
             map_portal_error(&ashpd::Error::Response(ResponseError::Other)),
-            CaptureError::PermissionDenied
+            CaptureError::Refused
         );
         assert_eq!(
             map_portal_error(&ashpd::Error::Portal(PortalError::NotAllowed(
                 String::from("Screenshot not allowed")
             ))),
-            CaptureError::PermissionDenied
+            CaptureError::Refused
         );
     }
 

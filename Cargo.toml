@@ -12,7 +12,9 @@ publish = false
 gtk = { package = "gtk4", version = "0.9", features = ["v4_14"] }
 adw = { package = "libadwaita", version = "0.7", features = ["v1_5"] }
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
-ashpd = { version = "0.11.1", default-features = false, features = ["async-std"] }
+# `gtk4` (gdk4-wayland, gdk4-x11; MIT): the parent window handle for the portal's first-use access
+# dialog (add-screen-capture, "Portal permission handling").
+ashpd = { version = "0.11.1", default-features = false, features = ["async-std", "gtk4"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 thiserror = "2"
 futures-channel = "0.3"

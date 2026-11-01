@@ -113,9 +113,40 @@ The system SHALL deliver every region, window and screen capture according to th
 - **THEN** the PNG is saved into the save folder and the image is on the clipboard
 
 ### Requirement: Portal permission handling
-If the screenshot portal denies access, the system SHALL show an explanatory dialog with a button that opens the relevant GNOME privacy settings.
+When the portal's permission store holds no answer for Annota, the system SHALL keep an Annota window on screen as the parent of the first frozen-image request, so GNOME can ask, and SHALL keep that window out of the captured image. Only a stored "no" SHALL count as a denial, with a dialog that explains how to be asked again. A refusal with nothing stored SHALL be reported as GNOME being unable to ask.
+
+#### Scenario: First capture, user allows
+- **WHEN** no answer is stored, the user starts a region or screen capture and chooses Allow in GNOME's question
+- **THEN** that question's request carries a visible Annota window as its parent
+- **AND** the image of that request is discarded unread, and the capture comes from a second request made with Annota's windows hidden
+
+#### Scenario: First capture with no window open
+- **WHEN** no answer is stored and `annota --capture region` or a shortcut starts a capture with no Annota window open
+- **THEN** a window opens for the question
+- **AND** it is gone before the capture, so a capture that opens no window leaves none behind
+
+#### Scenario: User chooses Deny
+- **WHEN** no answer is stored and the user chooses Deny in GNOME's question
+- **THEN** no further request is made and the "Screen Access Denied" dialog is shown
 
 #### Scenario: Permission denied
-- **WHEN** the portal returns a permission error
-- **THEN** the dialog explains how to grant access
-- **AND** "Open Settings" opens GNOME Settings at Apps › Annota
+- **WHEN** the permission store holds "no" for Annota and the user starts a region or screen capture
+- **THEN** no Annota window stays on screen for the request, and the "Screen Access Denied" dialog is shown
+- **AND** the dialog names no control that does not exist, and offers a way to be asked again
+
+#### Scenario: GNOME could not ask
+- **WHEN** the portal refuses a request with a window on screen and nothing is stored
+- **THEN** no "Screen Access Denied" dialog is shown
+- **AND** a toast says that GNOME could not ask, on an Annota window the user can retry from
+
+#### Scenario: Permission exists
+- **WHEN** the permission store holds "yes" for Annota and the user starts a capture
+- **THEN** exactly one request is made, with Annota's windows hidden
+
+#### Scenario: Window mode is not checked
+- **WHEN** no answer is stored and the user starts a window capture
+- **THEN** the desktop's picker is requested with Annota's windows hidden, without asking first
+
+#### Scenario: Store cannot be read
+- **WHEN** Annota cannot read the permission store and the portal refuses the first request
+- **THEN** the request is repeated once with a window on screen as its parent

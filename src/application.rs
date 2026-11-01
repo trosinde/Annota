@@ -101,7 +101,8 @@ fn handle_command_line(app: &adw::Application, cmdline: &gio::ApplicationCommand
     let options = cmdline.options_dict();
 
     // `--capture` starts the capture without raising the window first, so Annota itself is
-    // not in the picture (spec app-shell: Single application instance). Autosaves of a previous
+    // not in the picture (spec app-shell: Single application instance; only the first-use
+    // permission question shows a window, see `capture::with_permission`). Autosaves of a previous
     // run are offered when the capture opens the editor (`editor::open_capture`), over it.
     if let Some(mode) = options
         .lookup::<String>("capture")

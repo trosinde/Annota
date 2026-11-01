@@ -828,11 +828,10 @@ msgstr ""
 msgid "Screen Access Denied"
 msgstr ""
 
-#: data/ui/permission-dialog.blp:32
+#: data/ui/permission-dialog.blp:36
 msgid ""
-"GNOME did not allow Annota to take a screenshot. To allow it, open "
-"<b>Settings</b>, choose <b>Apps → Annota</b> and turn on <b>Screenshots</b>. "
-"Then try again."
+"GNOME has stored that Annota may not take screenshots. To be asked again, "
+"run this command in a terminal, then try again."
 msgstr ""
 
 #: data/ui/permission-dialog.blp:40
@@ -843,8 +842,8 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-#: data/ui/permission-dialog.blp:57
-msgid "Open Settings"
+#: data/ui/permission-dialog.blp:68
+msgid "Copy Command"
 msgstr ""
 
 #: data/ui/shortcut-dialog.blp:8
@@ -2267,7 +2266,11 @@ msgstr ""
 msgid "Capturing needs xdg-desktop-portal, which is not running"
 msgstr ""
 
-#: src/capture/mod.rs:103
+#: src/capture/mod.rs:97
+msgid "GNOME could not ask for screen access. Click this window and try again."
+msgstr ""
+
+#: src/capture/mod.rs:99
 msgid "The capture failed. Nothing was captured."
 msgstr ""
 
