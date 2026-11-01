@@ -117,7 +117,11 @@
       task 2.5.
 
 ## 3. Verify
-- [ ] 3.1 Tests for every scenario (unit, golden-image or documented manual check)
+- [x] 3.1 Tests for every scenario (unit, golden-image or documented manual check) — unit and
+      live GTK tests throughout 2.1-2.7; remaining real-portal/real-window-manager checks in
+      `manual-checks.md`
 - [ ] 3.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
-- [ ] 3.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean
-- [ ] 3.4 German translation updated
+- [x] 3.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean — verified in this dev
+      container (`build-aux/make-deb.sh`, `sudo apt install ../annota_*.deb`), 2026-11-01
+- [x] 3.4 German translation updated — `msgfmt --statistics po/de.po`: 770 translated, 0
+      fuzzy/untranslated
