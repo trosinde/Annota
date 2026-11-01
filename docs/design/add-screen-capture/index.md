@@ -64,7 +64,7 @@ only Annota chrome follows the style.
 
 **Countdown (07)** — centred OSD, radius 30, padding 28/36; ring Ø 148, 8 px track white/18 %, progress Coral; number 72 px heavy; label "Capturing region in 3 s"; keys "Esc Cancel · Enter Capture now". Removed one frame before the grab.
 
-**Permission alert (08)** — redrawn 2026-11-01, awaiting the maintainer's approval. Shown only when GNOME's permission store holds "no" for Annota. `Adw.Dialog` 420 px as built (`AdwAlertDialog` has no slot for an icon above the heading); `warning` icon 32 px (warning colour), then the texts below in this order, all centred. No command, no "Open Settings".
+**Permission alert (08)** — redrawn and approved 2026-11-01. Shown only when GNOME's permission store holds "no" for Annota. `Adw.Dialog` 420 px as built (`AdwAlertDialog` has no slot for an icon above the heading); `warning` icon 32 px (warning colour), then the texts below in this order, all centred. No command, no "Open Settings".
 
 | Element | English | German |
 |---|---|---|
@@ -98,4 +98,4 @@ only Annota chrome follows the style.
 ## Open questions
 - Wayland window capture: portal picker look is GNOME's; if the portal returns a full screen instead of a window (older portals), do we fall back to the X11-style pick overlay on the frozen image? Mockup 06 would cover it.
 - Overlay toolbar delay dropdown values (1/2/3/5/10 s + Custom) are proposed, not in spec.
-- For the engineer, permission alert (08): no state is designed for removing the stored answer failing (store unreachable, timeout, error reply). The drawn dialog closes on Ask Again, so a failure would be silent, and the next capture would show this dialog again. Report what can fail; the designer draws the state before it is built. Do not invent text for it.
+- Permission alert (08), resetting the answer fails (decided 2026-11-01, not drawn): the dialog stays open and shows "The answer could not be reset" / "Die Antwort konnte nicht zurückgesetzt werden" in the `error` style between the caption and the buttons. On success the dialog closes with no toast.
