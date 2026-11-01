@@ -521,6 +521,7 @@ impl State {
             }
             None => w.banner.set_revealed(false),
         }
+        super::dialogs::fit_height(&w.dialog);
         let blocked = problem.is_some_and(Problem::blocks_export);
         w.export_button
             .set_sensitive(form.path().is_some() && !blocked);

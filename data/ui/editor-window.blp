@@ -365,189 +365,191 @@ Adw.ApplicationWindow editor_window {
       }
     }
 
-    content: Adw.ToastOverlay toast_overlay {
-      child: Adw.OverlaySplitView split_view {
-        sidebar-position: end;
-        min-sidebar-width: 300;
-        max-sidebar-width: 300;
-        sidebar-width-fraction: 0.3;
+    content: Adw.OverlaySplitView split_view {
+      sidebar-position: end;
+      min-sidebar-width: 300;
+      max-sidebar-width: 300;
+      sidebar-width-fraction: 0.3;
 
-        content: Box {
-          // Tool strip (redline "Window and shell"). Decision D2: Select · Arrow, Line, Pen,
-          // Shape, Text, Callout, Step · Highlighter, Redact (Magnify, Spotlight, Stamp later)
-          // · Crop (More Tools later). Tools of a later phase are hidden until their change
-          // ships. The tooltips show the name and the key as a keycap (add-core-annotation-tools
-          // mockup 01); `tooltip-text` is the plain fallback.
-          Box {
-            orientation: vertical;
-            spacing: 4;
-            width-request: 52;
-            styles ["annota-tool-strip"]
+      content: Box {
+        // Tool strip (redline "Window and shell"). Decision D2: Select · Arrow, Line, Pen,
+        // Shape, Text, Callout, Step · Highlighter, Redact (Magnify, Spotlight, Stamp later)
+        // · Crop (More Tools later). Tools of a later phase are hidden until their change
+        // ships. The tooltips show the name and the key as a keycap (add-core-annotation-tools
+        // mockup 01); `tooltip-text` is the plain fallback.
+        Box {
+          orientation: vertical;
+          spacing: 4;
+          width-request: 52;
+          styles ["annota-tool-strip"]
 
-            ToggleButton select_tool_button {
-              active: true;
-              halign: center;
-              icon-name: "annota-select-symbolic";
-              tooltip-text: _("Select (V)");
-              styles ["flat", "annota-tool-button"]
+          ToggleButton select_tool_button {
+            active: true;
+            halign: center;
+            icon-name: "annota-select-symbolic";
+            tooltip-text: _("Select (V)");
+            styles ["flat", "annota-tool-button"]
 
-              accessibility {
-                label: _("Select");
-              }
-            }
-
-            Separator {
-              halign: center;
-              width-request: 28;
-              margin-top: 2;
-              margin-bottom: 2;
-            }
-
-            ToggleButton arrow_tool_button {
-              group: select_tool_button;
-              halign: center;
-              icon-name: "annota-arrow-symbolic";
-              tooltip-text: _("Arrow (A)");
-              styles ["flat", "annota-tool-button"]
-
-              accessibility {
-                label: _("Arrow");
-              }
-            }
-
-            ToggleButton line_tool_button {
-              group: select_tool_button;
-              halign: center;
-              icon-name: "annota-line-symbolic";
-              tooltip-text: _("Line (L)");
-              styles ["flat", "annota-tool-button"]
-
-              accessibility {
-                label: _("Line");
-              }
-            }
-
-            ToggleButton pen_tool_button {
-              group: select_tool_button;
-              halign: center;
-              icon-name: "annota-pen-symbolic";
-              tooltip-text: _("Pen (P)");
-              styles ["flat", "annota-tool-button"]
-
-              accessibility {
-                label: _("Pen");
-              }
-            }
-
-            ToggleButton shape_tool_button {
-              group: select_tool_button;
-              halign: center;
-              icon-name: "annota-shape-symbolic";
-              tooltip-text: _("Shape (U)");
-              styles ["flat", "annota-tool-button"]
-
-              accessibility {
-                label: _("Shape");
-              }
-            }
-
-            ToggleButton text_tool_button {
-              group: select_tool_button;
-              halign: center;
-              icon-name: "annota-text-symbolic";
-              tooltip-text: _("Text (T)");
-              styles ["flat", "annota-tool-button"]
-
-              accessibility {
-                label: _("Text");
-              }
-            }
-
-            ToggleButton callout_tool_button {
-              group: select_tool_button;
-              halign: center;
-              icon-name: "annota-callout-symbolic";
-              tooltip-text: _("Callout (K)");
-              styles ["flat", "annota-tool-button"]
-
-              accessibility {
-                label: _("Callout");
-              }
-            }
-
-            ToggleButton step_tool_button {
-              group: select_tool_button;
-              halign: center;
-              icon-name: "annota-step-symbolic";
-              tooltip-text: _("Step (S)");
-              styles ["flat", "annota-tool-button"]
-
-              accessibility {
-                label: _("Step");
-              }
-            }
-
-            Separator {
-              halign: center;
-              width-request: 28;
-              margin-top: 2;
-              margin-bottom: 2;
-            }
-
-            ToggleButton highlighter_tool_button {
-              group: select_tool_button;
-              halign: center;
-              icon-name: "annota-highlighter-symbolic";
-              tooltip-text: _("Highlighter (H)");
-              styles ["flat", "annota-tool-button"]
-
-              accessibility {
-                label: _("Highlighter");
-              }
-            }
-
-            ToggleButton redact_tool_button {
-              group: select_tool_button;
-              halign: center;
-              icon-name: "annota-redact-symbolic";
-              tooltip-text: _("Redact (B)");
-              styles ["flat", "annota-tool-button"]
-
-              accessibility {
-                label: _("Redact");
-              }
-            }
-
-            Separator {
-              halign: center;
-              width-request: 28;
-              margin-top: 2;
-              margin-bottom: 2;
-            }
-
-            // Crop is a mode, not a dialog (mockup 08).
-            ToggleButton crop_tool_button {
-              group: select_tool_button;
-              halign: center;
-              icon-name: "annota-crop-symbolic";
-              tooltip-text: _("Crop (C)");
-              styles ["flat", "annota-tool-button"]
-
-              accessibility {
-                label: _("Crop");
-              }
+            accessibility {
+              label: _("Select");
             }
           }
 
           Separator {
-            orientation: vertical;
+            halign: center;
+            width-request: 28;
+            margin-top: 2;
+            margin-bottom: 2;
           }
 
-          Box {
-            orientation: vertical;
-            hexpand: true;
+          ToggleButton arrow_tool_button {
+            group: select_tool_button;
+            halign: center;
+            icon-name: "annota-arrow-symbolic";
+            tooltip-text: _("Arrow (A)");
+            styles ["flat", "annota-tool-button"]
 
-            Overlay canvas_area {
+            accessibility {
+              label: _("Arrow");
+            }
+          }
+
+          ToggleButton line_tool_button {
+            group: select_tool_button;
+            halign: center;
+            icon-name: "annota-line-symbolic";
+            tooltip-text: _("Line (L)");
+            styles ["flat", "annota-tool-button"]
+
+            accessibility {
+              label: _("Line");
+            }
+          }
+
+          ToggleButton pen_tool_button {
+            group: select_tool_button;
+            halign: center;
+            icon-name: "annota-pen-symbolic";
+            tooltip-text: _("Pen (P)");
+            styles ["flat", "annota-tool-button"]
+
+            accessibility {
+              label: _("Pen");
+            }
+          }
+
+          ToggleButton shape_tool_button {
+            group: select_tool_button;
+            halign: center;
+            icon-name: "annota-shape-symbolic";
+            tooltip-text: _("Shape (U)");
+            styles ["flat", "annota-tool-button"]
+
+            accessibility {
+              label: _("Shape");
+            }
+          }
+
+          ToggleButton text_tool_button {
+            group: select_tool_button;
+            halign: center;
+            icon-name: "annota-text-symbolic";
+            tooltip-text: _("Text (T)");
+            styles ["flat", "annota-tool-button"]
+
+            accessibility {
+              label: _("Text");
+            }
+          }
+
+          ToggleButton callout_tool_button {
+            group: select_tool_button;
+            halign: center;
+            icon-name: "annota-callout-symbolic";
+            tooltip-text: _("Callout (K)");
+            styles ["flat", "annota-tool-button"]
+
+            accessibility {
+              label: _("Callout");
+            }
+          }
+
+          ToggleButton step_tool_button {
+            group: select_tool_button;
+            halign: center;
+            icon-name: "annota-step-symbolic";
+            tooltip-text: _("Step (S)");
+            styles ["flat", "annota-tool-button"]
+
+            accessibility {
+              label: _("Step");
+            }
+          }
+
+          Separator {
+            halign: center;
+            width-request: 28;
+            margin-top: 2;
+            margin-bottom: 2;
+          }
+
+          ToggleButton highlighter_tool_button {
+            group: select_tool_button;
+            halign: center;
+            icon-name: "annota-highlighter-symbolic";
+            tooltip-text: _("Highlighter (H)");
+            styles ["flat", "annota-tool-button"]
+
+            accessibility {
+              label: _("Highlighter");
+            }
+          }
+
+          ToggleButton redact_tool_button {
+            group: select_tool_button;
+            halign: center;
+            icon-name: "annota-redact-symbolic";
+            tooltip-text: _("Redact (B)");
+            styles ["flat", "annota-tool-button"]
+
+            accessibility {
+              label: _("Redact");
+            }
+          }
+
+          Separator {
+            halign: center;
+            width-request: 28;
+            margin-top: 2;
+            margin-bottom: 2;
+          }
+
+          // Crop is a mode, not a dialog (mockup 08).
+          ToggleButton crop_tool_button {
+            group: select_tool_button;
+            halign: center;
+            icon-name: "annota-crop-symbolic";
+            tooltip-text: _("Crop (C)");
+            styles ["flat", "annota-tool-button"]
+
+            accessibility {
+              label: _("Crop");
+            }
+          }
+        }
+
+        Separator {
+          orientation: vertical;
+        }
+
+        Box {
+          orientation: vertical;
+          hexpand: true;
+
+          // Toasts are centred over the canvas column, between tool strip and sidebar, 24 px above
+          // the tray (add-export-share and add-annotation-editor redlines "Toasts").
+          Adw.ToastOverlay toast_overlay {
+            child: Overlay canvas_area {
               vexpand: true;
 
               child: Stack canvas_stack {
@@ -674,156 +676,156 @@ Adw.ApplicationWindow editor_window {
                   }
                 };
               }
-            }
+            };
+          }
 
-            // Recent captures tray (task 4.2, redline "Window and shell", mockup 11).
-            Revealer tray_revealer {
-              transition-type: slide_up;
-              reveal-child: true;
+          // Recent captures tray (task 4.2, redline "Window and shell", mockup 11).
+          Revealer tray_revealer {
+            transition-type: slide_up;
+            reveal-child: true;
 
-              child: Box tray_box {
-                height-request: 107;
-                styles ["annota-tray"]
+            child: Box tray_box {
+              height-request: 107;
+              styles ["annota-tray"]
 
-                Overlay {
-                  hexpand: true;
+              Overlay {
+                hexpand: true;
 
-                  child: ScrolledWindow {
-                    vscrollbar-policy: never;
-                    hscrollbar-policy: automatic;
+                child: ScrolledWindow {
+                  vscrollbar-policy: never;
+                  hscrollbar-policy: automatic;
 
-                    child: Box {
-                      spacing: 12;
+                  child: Box {
+                    spacing: 12;
 
-                      Box open_section {
-                        visible: false;
-                        orientation: vertical;
-                        spacing: 4;
+                    Box open_section {
+                      visible: false;
+                      orientation: vertical;
+                      spacing: 4;
 
-                        Label {
-                          label: _("Open");
-                          xalign: 0;
-                          styles ["caption-heading", "dim-label", "annota-tray-label"]
-                        }
-
-                        Box open_items {
-                          spacing: 6;
-                        }
+                      Label {
+                        label: _("Open");
+                        xalign: 0;
+                        styles ["caption-heading", "dim-label", "annota-tray-label"]
                       }
 
-                      Separator open_separator {
-                        visible: false;
-                        orientation: vertical;
+                      Box open_items {
+                        spacing: 6;
+                      }
+                    }
+
+                    Separator open_separator {
+                      visible: false;
+                      orientation: vertical;
+                    }
+
+                    Box recent_section {
+                      visible: false;
+                      orientation: vertical;
+                      spacing: 4;
+
+                      Label {
+                        label: _("Recent");
+                        xalign: 0;
+                        styles ["caption-heading", "dim-label", "annota-tray-label"]
                       }
 
-                      Box recent_section {
-                        visible: false;
-                        orientation: vertical;
-                        spacing: 4;
-
-                        Label {
-                          label: _("Recent");
-                          xalign: 0;
-                          styles ["caption-heading", "dim-label", "annota-tray-label"]
-                        }
-
-                        Box recent_items {
-                          spacing: 6;
-                        }
+                      Box recent_items {
+                        spacing: 6;
                       }
-                    };
+                    }
                   };
+                };
 
-                  [overlay]
-                  Box {
-                    halign: end;
-                    width-request: 48;
-                    can-target: false;
-                    styles ["annota-tray-fade"]
-                  }
+                [overlay]
+                Box {
+                  halign: end;
+                  width-request: 48;
+                  can-target: false;
+                  styles ["annota-tray-fade"]
+                }
 
-                  // Batch export (add-export-share task 2.5, mockups 11/13): "Select" at the
-                  // right end of the label row enters selection mode, whose bar takes the label
-                  // row's place (the "Open"/"Recent" labels fade out): Cancel · "<n> Selected"
-                  // · Select All · Export <n>… (suggested). Shown by src/ui/editor/tray.rs.
-                  [overlay]
-                  Button select_button {
-                    visible: false;
-                    halign: end;
-                    valign: start;
-                    label: _("Select");
-                    tooltip-text: _("Select Images to Export");
+                // Batch export (add-export-share task 2.5, mockups 11/13): "Select" at the
+                // right end of the label row enters selection mode, whose bar takes the label
+                // row's place (the "Open"/"Recent" labels fade out): Cancel · "<n> Selected"
+                // · Select All · Export <n>… (suggested). Shown by src/ui/editor/tray.rs.
+                [overlay]
+                Button select_button {
+                  visible: false;
+                  halign: end;
+                  valign: start;
+                  label: _("Select");
+                  tooltip-text: _("Select Images to Export");
+                  styles ["flat", "annota-tray-action"]
+                }
+
+                [overlay]
+                CenterBox selection_bar {
+                  visible: false;
+                  valign: start;
+
+                  [start]
+                  Button selection_cancel_button {
+                    label: _("Cancel");
                     styles ["flat", "annota-tray-action"]
                   }
 
-                  [overlay]
-                  CenterBox selection_bar {
-                    visible: false;
-                    valign: start;
+                  [center]
+                  Label selection_label {
+                    styles ["annota-tray-action-label"]
+                  }
 
-                    [start]
-                    Button selection_cancel_button {
-                      label: _("Cancel");
-                      styles ["flat", "annota-tray-action"]
+                  [end]
+                  Box {
+                    spacing: 6;
+
+                    Button select_all_button {
+                      label: _("Select All");
+                      styles ["annota-tray-action"]
                     }
 
-                    [center]
-                    Label selection_label {
-                      styles ["annota-tray-action-label"]
-                    }
-
-                    [end]
-                    Box {
-                      spacing: 6;
-
-                      Button select_all_button {
-                        label: _("Select All");
-                        styles ["annota-tray-action"]
-                      }
-
-                      Button batch_export_button {
-                        styles ["suggested-action", "annota-tray-action"]
-                      }
+                    Button batch_export_button {
+                      styles ["suggested-action", "annota-tray-action"]
                     }
                   }
                 }
+              }
 
-                Box {
-                  orientation: vertical;
-                  valign: center;
-                  spacing: 6;
-                  margin-start: 6;
+              Box {
+                orientation: vertical;
+                valign: center;
+                spacing: 6;
+                margin-start: 6;
 
-                  Button {
-                    icon-name: "annota-library-symbolic";
-                    action-name: "app.open-library";
-                    tooltip-text: _("Open Library (Ctrl+L)");
-                    styles ["flat"]
+                Button {
+                  icon-name: "annota-library-symbolic";
+                  action-name: "app.open-library";
+                  tooltip-text: _("Open Library (Ctrl+L)");
+                  styles ["flat"]
 
-                    accessibility {
-                      label: _("Open Library");
-                    }
-                  }
-
-                  Button {
-                    icon-name: "pan-down-symbolic";
-                    action-name: "win.show-tray";
-                    tooltip-text: _("Hide Tray");
-                    styles ["flat"]
-
-                    accessibility {
-                      label: _("Hide Tray");
-                    }
+                  accessibility {
+                    label: _("Open Library");
                   }
                 }
-              };
-            }
+
+                Button {
+                  icon-name: "pan-down-symbolic";
+                  action-name: "win.show-tray";
+                  tooltip-text: _("Hide Tray");
+                  styles ["flat"]
+
+                  accessibility {
+                    label: _("Hide Tray");
+                  }
+                }
+              }
+            };
           }
-        };
+        }
+      };
 
-        sidebar: ScrolledWindow sidebar_scroller {
-          hscrollbar-policy: never;
-        };
+      sidebar: ScrolledWindow sidebar_scroller {
+        hscrollbar-policy: never;
       };
     };
   };

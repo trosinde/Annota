@@ -19,6 +19,7 @@
     <file compressed="true" preprocess="xml-stripblanks">ui/save-changes-dialog.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">ui/replace-file-dialog.ui</file>
     <file compressed="true">style.css</file>
+    <file compressed="true">style-dark.css</file>
     <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-capture-region-symbolic.svg</file>
     <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-capture-window-symbolic.svg</file>
     <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-capture-screen-symbolic.svg</file>

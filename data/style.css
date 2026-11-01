@@ -214,8 +214,11 @@ popover.annota-launcher > contents {
   font-weight: bold;
 }
 
+/* 40 px high all in (redlines): `min-height` does not include the button's padding. */
 .annota-dialog-button {
   min-height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
   font-weight: bold;
 }
 

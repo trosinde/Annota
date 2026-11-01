@@ -570,6 +570,11 @@ Items from the final reviewer pass, each decided by the maintainer before it was
   dialog. Not verified: a real `annota --capture` through the portal (the portal is never
   invoked here); the path from the portal result into `open_capture` is unchanged.
 
+### Decided during apply (2026-11-01: toast placement)
+`toast_overlay` now wraps `canvas_area` instead of the whole split view, as the redline "Toasts" asks
+("bottom, above tray, centred on canvas"). Details and test: add-export-share `design.md`, "Decided
+during apply (2026-11-01: second review)".
+
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.
 

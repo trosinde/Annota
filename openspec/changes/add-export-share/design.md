@@ -109,8 +109,10 @@ an `Option<&Layer>`; `render`/`render_preview` pass `None`, so canvas and raster
 unchanged — golden tests green). A test draws both layers onto pixels and gets exactly
 `flatten`'s bitmap, at 100 % and 50 %. Effects that the renderer already rasterises internally
 (blurred shadows) are still rasterised on the PDF page, at the page's device resolution.
-- *Page geometry*: user space is output pixels; **1 px = 0.75 pt (96 px per inch)**, the CSS/GTK
-  reference resolution. "Fit to image": the page is the image. A4/Letter: the page takes the
+- *Page geometry*: user space is output pixels. **One canvas pixel is 0.75 pt (96 px per inch)**,
+  the CSS/GTK reference resolution, divided by the capture's device scale. An output pixel is that
+  size only at Size 100 %: other Sizes change the bitmap's density, not the page (see "PDF Size only
+  sets the resolution" below). "Fit to image": the page is the image. A4/Letter: the page takes the
   image's orientation (landscape if wider than high), the image is centred inside a 36 pt
   (½ inch) margin and only ever shrunk to fit, never enlarged. "Keep annotations as vectors" off:
   the page is the flattened bitmap, the same pixels as the PNG.
@@ -790,7 +792,8 @@ Ubuntu 24.04's adwaita-icon-theme 46; adwaita-icon-theme 50 draws it as a light 
 
 **Open question for the maintainer**: mockups 11 and 13 should be redrawn against the real tray
 (Open/Recent groups, no captions) now that the entry point is built — the follow-up the
-2026-10-31 "other staleness" note foresaw for 11/12/13; 12 matches as built.
+2026-10-31 "other staleness" note foresaw for 11/12/13; 12 matches as built, except for the
+deviations recorded under "Decided during apply (2026-11-01: second review)".
 
 **Spec deltas.** export-share "Batch export" rewritten (Select, both groups, Export <n>…, the
 pattern tokens, If a file exists, the toast) with scenarios "Batch" (+ toast, end of selection
@@ -980,3 +983,39 @@ change — since a plain window close asks now.
   builds in the scratchpad can fill, which fails the test's writes with "Disk quota exceeded" (2 of
   20 runs, in `copy_to_folder_now`; a test's stderr names it). The second is the machine, not
   Annota. Which of them caused the original uncaptured failure is not known.
+
+### Decided during apply (2026-11-01: second review)
+- **Toasts are over the canvas column, as the redlines say.** `Adw.ToastOverlay toast_overlay` used
+  to wrap the split view, so toasts centred on the window and covered the tray. It now wraps
+  `canvas_area` only (`data/ui/editor-window.blp`), so every editor toast is centred between tool
+  strip and sidebar and 24 px above the tray, or above the window's edge when the tray is hidden. The
+  24 px is libadwaita's own toast margin, measured on 1.9, not on the 1.5 of Ubuntu 24.04. A long
+  toast can reach the zoom OSD; it stays on top, nothing is moved for it. Dialogs are unaffected:
+  they open on the window. Test: `toasts_sit_over_the_canvas_column_on_a_live_display`, all four
+  combinations of tray and sidebar, with a dialog over the toast.
+- **Export and batch dialogs were really clipped, not only in the test.** `AdwDialog` takes its height
+  from the content when it opens and keeps it, so a row added afterwards (JPG's Quality, the banner,
+  PDF's rows) pushed the last row out of sight behind a scrollbar. `dialogs::fit_height` sets
+  `content-height` to the natural height after every change, and follows for 400 ms because a banner
+  animates. `follows-content-size` would do it too, but gives up `content-width`. In a window too
+  small for the content the body still scrolls. Test: `assert_nothing_clipped` at mockups 02, 03, 05
+  and 12.
+- **`.annota-dialog-button` is 40 px high all in.** `min-height` doesn't include the button's padding,
+  which made it 50 px, so the vertical padding is 0. Shared by the redaction warning, restore, newer
+  version and permission dialogs, which are all drawn with 40 px buttons. Their tests measure it.
+- **The selected segment in dark** is `alpha(white, 0.2)` without a shadow, the kit's
+  `.toggle-group > .toggle.active`, in `data/style-dark.css` (GTK 4.14 has no CSS media queries for
+  this). It was `@view_bg_color`, the darkest thing in the group. The same holds for
+  `.annota-mode-toggle`, which the kit draws with the same class. Light is unchanged. Test:
+  `the_selected_segment_is_the_lightest_on_a_live_display`, both schemes, both classes. A test can only
+  compare lightness, so the exact colours were compared by eye with mockups 03 and 05.
+
+**Deviations left as built.**
+- *Mockup 12's icons.* File name pattern: the mockup draws one info icon; the app also has
+  `AdwEntryRow`'s own edit pencil, and `dialog-information-symbolic` is a light bulb in
+  adwaita-icon-theme 50. Folder: `folder-open-symbolic`, the mockup's closed folder. The same folder
+  icon is in the export dialog (mockups 02–05).
+- *Focus on the file name.* The export dialog opens with the name selected and focused, so typing
+  replaces it, which draws the accent ring and the selection (mockups 03, 05 draw neither). Enter
+  still exports.
+- *Dialogs change height with the format.* As the mockups draw each format, with no animation.

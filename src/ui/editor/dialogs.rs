@@ -8,7 +8,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::rc::Rc;
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use adw::prelude::*;
 use gtk::{gio, glib};
@@ -25,6 +25,36 @@ const UI_NEWER: &str = "/io/github/trosinde/Annota/ui/newer-version-dialog.ui";
 const UI_REPLACE: &str = "/io/github/trosinde/Annota/ui/replace-file-dialog.ui";
 /// Redline: 64 × 40 row thumbnails.
 const ROW_THUMB: (i32, i32) = (64, 40);
+
+/// How long [`fit_height`] follows the content: longer than a banner's reveal animation.
+const FIT_TIME: Duration = Duration::from_millis(400);
+
+/// Makes a dialog as high as its content, after rows came or went.
+///
+/// `AdwDialog` takes its height from the content when it opens and then keeps it, so rows added
+/// later would only be reachable by scrolling. `follows-content-size` would do this, but it also
+/// gives up `content-width`. Follows the content for a moment, as a revealed banner grows.
+pub fn fit_height(dialog: &adw::Dialog) {
+    let fit = |dialog: &adw::Dialog| {
+        let Some(content) = dialog.child().filter(|c| c.width() > 0) else {
+            return;
+        };
+        let (_, natural, _, _) = content.measure(gtk::Orientation::Vertical, content.width());
+        dialog.set_content_height(natural);
+    };
+    fit(dialog);
+    let started = Instant::now();
+    dialog.add_tick_callback(move |widget, _| {
+        if let Some(dialog) = widget.downcast_ref::<adw::Dialog>() {
+            fit(dialog);
+        }
+        if started.elapsed() < FIT_TIME {
+            glib::ControlFlow::Continue
+        } else {
+            glib::ControlFlow::Break
+        }
+    });
+}
 
 /// Looks up a builder object, or logs and returns (never panics; see `preferences.rs`).
 macro_rules! obj {

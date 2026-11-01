@@ -453,6 +453,7 @@ impl State {
             }
             None => w.banner.set_revealed(false),
         }
+        super::dialogs::fit_height(&w.dialog);
         let blocked = problem.is_some_and(Problem::blocks_export);
         let writes = plan.iter().any(Outcome::writes);
         w.export_button

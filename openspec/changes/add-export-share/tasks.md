@@ -128,6 +128,9 @@
       on the canvas pixels and `Metadata::scale_factor`, spec scenario "PDF Size sets the
       resolution, not the page". See design.md "Decided during apply (2026-11-01: PDF Size only
       sets the resolution)".
+- [x] 2.10 Second review (2026-11-01): toasts over the canvas column, export and batch dialogs fit
+      their content, 40 px dialog buttons, the selected segment in dark. See design.md "Decided during
+      apply (2026-11-01: second review)".
 
 ## 3. Verify
 - [x] 3.1 Tests for every scenario (unit, golden-image or documented manual check) — unit and

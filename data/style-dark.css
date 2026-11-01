@@ -1,0 +1,9 @@
+/* Loaded after style.css in the dark colour scheme (libadwaita, by its file name). */
+
+/* The selected segment is the lightest part of a toggle group in dark, not the darkest
+ * (kit `.toggle-group > .toggle.active`). */
+.annota-mode-toggle:checked,
+.annota-segmented > button:checked {
+  background-color: alpha(white, 0.2);
+  box-shadow: none;
+}

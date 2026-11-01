@@ -3526,6 +3526,8 @@ mod tests {
             .window
             .visible_dialog()
             .expect("Restore Unsaved Captures?");
+        pump(100);
+        assert_eq!(assert_dialog_buttons_40(dialog.upcast_ref()), 2);
         assert!(
             shows_label(dialog.upcast_ref(), "Left behind"),
             "lists the autosave"
@@ -4348,6 +4350,228 @@ mod tests {
             texts + 1
         );
         w.window.destroy();
+    }
+
+    /// Everything in `dialog`'s scrolled body is on the screen, with nothing left to scroll to.
+    fn assert_nothing_clipped(dialog: &adw::Dialog) {
+        fn scroller(widget: &gtk::Widget) -> Option<gtk::ScrolledWindow> {
+            widget.clone().downcast().ok().or_else(|| {
+                std::iter::successors(widget.first_child(), |c| c.next_sibling())
+                    .find_map(|child| scroller(&child))
+            })
+        }
+        pump(600);
+        let scroller = scroller(dialog.upcast_ref()).expect("a scrolled body");
+        let adjustment = scroller.vadjustment();
+        assert!(
+            adjustment.upper() <= adjustment.page_size() + 0.5,
+            "{}: {} px of content in {} px",
+            dialog.title(),
+            adjustment.upper(),
+            adjustment.page_size()
+        );
+    }
+
+    /// Each `.annota-dialog-button` below `root` is 40 px high all in (redlines).
+    fn assert_dialog_buttons_40(root: &gtk::Widget) -> usize {
+        let mut found = 0;
+        if root.has_css_class("annota-dialog-button") {
+            let bounds = root.compute_bounds(root).expect("on the screen");
+            assert_eq!(bounds.height(), 40.0, "{:?}", root.type_().name());
+            found += 1;
+        }
+        std::iter::successors(root.first_child(), |c| c.next_sibling())
+            .map(|child| assert_dialog_buttons_40(&child))
+            .sum::<usize>()
+            + found
+    }
+
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn toasts_sit_over_the_canvas_column_on_a_live_display() {
+        let tmp =
+            TempDir(std::env::temp_dir().join(format!("annota-toast-test-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(&tmp.0).unwrap();
+        let app = environment(&tmp.0);
+        let store = Store::new(tmp.0.join("autosave"));
+        let editor = Editor::build(&app, store, style_paths(&tmp.0)).unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let settings = editor.inner.settings.clone();
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        editor.add_session(
+            Loaded {
+                document: Document::new(Bitmap::filled(400, 250, palette::PAPER).unwrap()),
+                source: None,
+                path: None,
+                name: "Checkout flow".into(),
+            },
+            Origin::New,
+            AutosaveId::generate(),
+        );
+        pump(300);
+
+        fn toast_widget(root: &gtk::Widget) -> Option<gtk::Widget> {
+            if root.type_().name() == "AdwToastWidget" {
+                return Some(root.clone());
+            }
+            std::iter::successors(root.first_child(), |c| c.next_sibling())
+                .find_map(|child| toast_widget(&child))
+        }
+        // No timeout: it has to outlast the tray's and the sidebar's animations.
+        let toast = adw::Toast::builder()
+            .title("Image copied to clipboard")
+            .timeout(0)
+            .build();
+        w.toast_overlay.add_toast(toast.clone());
+        let check = |tray: bool, sidebar: bool| {
+            settings.set_boolean("show-tray", tray).unwrap();
+            settings.set_boolean("show-properties", sidebar).unwrap();
+            pump(900);
+            let toast = toast_widget(w.toast_overlay.upcast_ref()).expect("the toast");
+            let bounds = |widget: &gtk::Widget| widget.compute_bounds(&w.window).expect("bounds");
+            let (toast, column) = (bounds(&toast), bounds(w.canvas_area.upcast_ref()));
+            let window_height = w.window.height() as f32;
+            let centre = |r: &gtk::graphene::Rect| r.x() + r.width() / 2.0;
+            let state = format!("tray {tray}, sidebar {sidebar}");
+            assert!(
+                (centre(&toast) - centre(&column)).abs() <= 1.0,
+                "centred over the canvas column, {state}: {} vs {}",
+                centre(&toast),
+                centre(&column)
+            );
+            assert_eq!(
+                column.y() + column.height() - (toast.y() + toast.height()),
+                24.0,
+                "24 px above the column's end, {state}"
+            );
+            assert!(column.x() >= 52.0, "right of the tool strip, {state}");
+            let sidebar_left = w.window.width() as f32 - if sidebar { 300.0 } else { 0.0 };
+            assert!(
+                column.x() + column.width() <= sidebar_left + 1.0,
+                "left of the sidebar, {state}"
+            );
+            let tray_room = window_height - (column.y() + column.height());
+            assert_eq!(
+                tray_room > 100.0,
+                tray,
+                "the column ends at the tray, {state}"
+            );
+        };
+        check(true, true);
+        shot(&w.window, "toast-tray-sidebar");
+        check(false, true);
+        shot(&w.window, "toast-no-tray");
+        check(true, false);
+        shot(&w.window, "toast-no-sidebar");
+        check(false, false);
+        shot(&w.window, "toast-no-tray-no-sidebar");
+        settings.set_boolean("show-tray", true).unwrap();
+        settings.set_boolean("show-properties", true).unwrap();
+        pump(600);
+
+        // A dialog still opens over the whole window, the toast behind it stays and comes back.
+        WidgetExt::activate_action(&w.window, "win.export", None).unwrap();
+        pump(300);
+        let export = w.window.visible_dialog().expect("Export Image");
+        assert!(export.width() >= w.window.width() - 2, "over the window");
+        assert!(shows_label(
+            w.toast_overlay.upcast_ref(),
+            "Image copied to clipboard"
+        ));
+        export.close();
+        pump(400);
+        assert!(w.window.visible_dialog().is_none());
+        assert!(shows_label(
+            w.toast_overlay.upcast_ref(),
+            "Image copied to clipboard"
+        ));
+        toast.dismiss();
+        pump(100);
+
+        // The one dialog with `.annota-dialog-button` no other test opens.
+        dialogs::present_newer_version(
+            &w.window,
+            &tmp.0.join("from the future.annota"),
+            annota::document::archive::FormatVersion { major: 9, minor: 0 },
+            None,
+        );
+        pump(300);
+        let newer = w
+            .window
+            .visible_dialog()
+            .expect("Newer Annota Version Needed");
+        assert_eq!(assert_dialog_buttons_40(newer.upcast_ref()), 2);
+        shot(&w.window, "newer-version");
+        newer.close();
+        pump(300);
+        w.window.destroy();
+    }
+
+    /// The lightest part of a toggle group is its selected segment, in both colour schemes: in dark
+    /// `@view_bg_color` is darker than the trough, which the kit doesn't draw.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn the_selected_segment_is_the_lightest_on_a_live_display() {
+        let tmp = TempDir(
+            std::env::temp_dir().join(format!("annota-segment-test-{}", std::process::id())),
+        );
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(&tmp.0).unwrap();
+        let app = environment(&tmp.0);
+        let styles = adw::StyleManager::default();
+        let lightness = |window: &gtk::Window, button: &gtk::ToggleButton| {
+            let bounds = button.compute_bounds(window).expect("bounds");
+            let snapshot = gtk::Snapshot::new();
+            let (width, height) = (window.width(), window.height());
+            gtk::WidgetPaintable::new(Some(window)).snapshot(
+                &snapshot,
+                f64::from(width),
+                f64::from(height),
+            );
+            let node = snapshot.to_node().unwrap();
+            let texture = window.renderer().unwrap().render_texture(&node, None);
+            let (w, h) = (texture.width() as usize, texture.height() as usize);
+            let mut pixels = vec![0u8; w * h * 4];
+            texture.download(&mut pixels, w * 4);
+            let (x, y) = (
+                (bounds.x() + bounds.width() / 2.0) as usize,
+                (bounds.y() + bounds.height() / 2.0) as usize,
+            );
+            pixels[(y * w + x) * 4 + 1]
+        };
+        for class in ["annota-segmented", "annota-mode-toggle"] {
+            for scheme in [adw::ColorScheme::ForceDark, adw::ColorScheme::ForceLight] {
+                styles.set_color_scheme(scheme);
+                let window = gtk::Window::builder()
+                    .application(&app)
+                    .default_width(240)
+                    .default_height(120)
+                    .build();
+                let group = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+                let (on, off) = (gtk::ToggleButton::new(), gtk::ToggleButton::new());
+                on.set_active(true);
+                for button in [&on, &off] {
+                    button.set_hexpand(true);
+                    if class == "annota-mode-toggle" {
+                        button.add_css_class("flat");
+                        button.add_css_class(class);
+                    }
+                    group.append(button);
+                }
+                if class == "annota-segmented" {
+                    group.add_css_class(class);
+                }
+                window.set_child(Some(&group));
+                window.present();
+                pump(300);
+                let (on, off) = (lightness(&window, &on), lightness(&window, &off));
+                assert!(on > off, "{class} {scheme:?}: selected {on}, other {off}");
+                window.destroy();
+            }
+        }
     }
 
     /// Saves `widget` as `<name>.png` into `$ANNOTA_SHOTS` (if set), for comparing with the
@@ -5525,6 +5749,7 @@ mod tests {
             "3 redactions use blur or pixelate. Blurred or pixelated text can sometimes be reconstructed. Solid boxes hide it for good."
         ));
         assert!(shows_label(alert.upcast_ref(), "Make Redactions Solid?"));
+        assert_eq!(assert_dialog_buttons_40(alert.upcast_ref()), 3);
         assert!(find_button(alert.upcast_ref(), "Export Anyway").is_some());
         shot(&w.window, "es10-redaction-warning");
         assert!(click_button(alert.upcast_ref(), "Cancel"));
@@ -5616,6 +5841,7 @@ mod tests {
         WidgetExt::activate_action(&w.window, "win.export", None).unwrap();
         pump(300);
         let export = dialog().expect("Export Image");
+        assert_nothing_clipped(&export);
         let root: &gtk::Widget = export.upcast_ref();
         assert!(shows_label(root, "Export Image"));
         assert!(shows_label(root, "Pixel-identical to the canvas at 100 %"));
@@ -5631,6 +5857,7 @@ mod tests {
         let line = label_starting(root, "400 × 250 px · JPG").unwrap();
         assert!(line.contains("≈ ") && line.ends_with(" KB"), "{line}");
         shot(&w.window, "es03-export-jpg");
+        assert_nothing_clipped(&export);
         assert!(click_button(root, "Export"));
         pump(300);
         assert!(dialog().is_none(), "the dialog closes after exporting");
@@ -5685,6 +5912,7 @@ mod tests {
         shot(&w.window, "es04-permission-webp");
         assert!(click_button(root, "PDF"));
         shot(&w.window, "es05-pdf");
+        assert_nothing_clipped(&export);
         assert!(click_button(root, "Cancel"));
         pump(300);
         assert!(dialog().is_none());
@@ -7227,6 +7455,7 @@ mod tests {
         pattern.set_text("%name");
         pump(20);
         shot(&w.window, "es12-batch-dialog");
+        assert_nothing_clipped(&batch);
 
         // Export: three JPGs, the existing file kept, the dialog closed, mockup 13's toast,
         // selection mode over.
