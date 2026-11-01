@@ -170,21 +170,58 @@ pub fn present_window(app: &adw::Application) -> adw::ApplicationWindow {
     window
 }
 
-/// Raises the window a message about a capture goes to: the editor if it is on the screen (as
-/// add-screen-capture mockup 08 draws it, and where the capture would have gone), else the main
-/// window.
+/// Which window a message goes to, given (visible, active, editor) per window: the active one,
+/// else a visible editor; `None` means the main window.
+fn message_window(windows: &[(bool, bool, bool)]) -> Option<usize> {
+    let on_screen =
+        |pick: fn(&(bool, bool, bool)) -> bool| windows.iter().position(|w| w.0 && pick(w));
+    on_screen(|w| w.1).or_else(|| on_screen(|w| w.2))
+}
+
+/// Raises the window a message about a capture goes to: the one the user is in, else the editor
+/// if it is on the screen (as add-screen-capture mockup 08 draws it), else the main window.
 pub fn present_for_message(app: &adw::Application) -> adw::ApplicationWindow {
-    let editor = app
+    let windows: Vec<adw::ApplicationWindow> = app
         .windows()
         .into_iter()
-        .filter(|w| w.has_css_class(EDITOR_WINDOW_CLASS) && w.is_visible())
-        .find_map(|w| w.downcast::<adw::ApplicationWindow>().ok());
-    match editor {
-        Some(editor) => {
-            editor.present();
-            editor
+        .filter_map(|w| w.downcast::<adw::ApplicationWindow>().ok())
+        .collect();
+    let states: Vec<_> = windows
+        .iter()
+        .map(|w| {
+            (
+                w.is_visible(),
+                w.is_active(),
+                w.has_css_class(EDITOR_WINDOW_CLASS),
+            )
+        })
+        .collect();
+    match message_window(&states).and_then(|i| windows.get(i)) {
+        Some(window) => {
+            window.present();
+            window.clone()
         }
         None => present_window(app),
+    }
+}
+
+#[cfg(test)]
+mod message_window_tests {
+    use super::message_window;
+
+    #[test]
+    fn a_message_goes_to_the_active_window_first() {
+        // (visible, active, editor)
+        let main_active = [(true, true, false), (true, false, true)];
+        assert_eq!(message_window(&main_active), Some(0));
+        let editor_active = [(true, false, false), (true, true, true)];
+        assert_eq!(message_window(&editor_active), Some(1));
+        let none_active = [(true, false, false), (true, false, true)];
+        assert_eq!(message_window(&none_active), Some(1), "the editor");
+        let main_only = [(true, false, false)];
+        assert_eq!(message_window(&main_only), None, "the main window");
+        let hidden = [(false, true, true)];
+        assert_eq!(message_window(&hidden), None, "a hidden window is no place");
     }
 }
 

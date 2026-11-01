@@ -193,3 +193,8 @@ command to copy: GNOME Settings shows no such switch for an unsandboxed app.
 - Whether the first-use question really appears over the parent window on GNOME 46 and 50: see
   "Decided 2026-11-01: the screenshot permission".
 - Mixed-scale multi-monitor layouts assume one scale factor for the whole portal image.
+
+**Where capture messages appear (maintainer decision, 2026-11-01).** The denied dialog and the
+capture toasts go to the active window, else a visible editor, else the main window
+(`application::message_window`). With both windows open, a capture started from the main window
+gets its dialog there, not over the editor.
