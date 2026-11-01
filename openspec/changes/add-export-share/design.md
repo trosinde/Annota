@@ -140,6 +140,26 @@ title and pixels.
 - A4/Letter: centred, ½ inch margin, never enlarged (a small capture stays small in the middle of
   the page) — no redline covers this; top-aligned or fill-width are the alternatives.
 
+### Decided during apply (2026-11-01: PDF Size only sets the resolution)
+Maintainer decision, reversing the earlier state, where `page_layout` got pixels already multiplied
+by the export scale: 200 % doubled a Fit-to-image page and shrank by a different amount on
+A4/Letter.
+- **The physical size depends only on the canvas pixels and `Metadata::scale_factor`.**
+  `encode_pdf` passes canvas pixels to `page_layout`; the export scale is not an input of the
+  layout. 96 px per inch and the division by the device scale (decided 2026-10-31) are unchanged.
+- **The bitmap layer keeps its higher pixel density, vectors stay vectors.** 200 % embeds twice the
+  pixels per side in the same place on the page (checked with `pdfinfo` and `pdfimages -list`: 135 ×
+  75 pt at both, 180 × 100 px at 96 ppi against 360 × 200 px at 192 ppi).
+- **Output pixels map to points per axis**, not by one factor: rounding the output size can change a
+  side's proportion (101 × 51 px at 33 % is 33 × 17 px), and the bitmap must still cover the image's
+  place with no blank strip. The distortion is under one output pixel.
+- **Mockup 05 stays as drawn:** it shows only the 100 % case, where nothing changes.
+- **The dialog's summary is unchanged:** "<w × h px> · PDF" is the bitmap layer's resolution at that
+  Size, which is true, but it says nothing about the page.
+- Tests in `src/export/tests.rs`: `pdf_is_one_page_of_the_image_size`,
+  `pdf_size_changes_the_resolution_not_the_page`, `pdf_size_keeps_the_images_place_on_paper`,
+  `pdf_bitmap_fills_the_page_when_a_size_rounds`.
+
 ## Wayland / X11
 - Behaviour is identical unless stated in a decision above.
 

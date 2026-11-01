@@ -442,6 +442,65 @@ fn media_box(pdf: &str) -> (f64, f64) {
     (n[2] - n[0], n[3] - n[1])
 }
 
+/// Pixel sizes of the page's images, without their alpha masks: `(/Width, /Height)` of every
+/// image dictionary that is not itself a soft mask.
+fn image_sizes(pdf: &str) -> Vec<(i32, i32)> {
+    let number = |dict: &str, key: &str| -> i32 {
+        let at = dict.find(key).expect("image dictionary key") + key.len();
+        let digits: String = dict[at..]
+            .trim_start()
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
+        digits.parse().unwrap()
+    };
+    pdf.match_indices("/Subtype /Image")
+        .filter_map(|(at, _)| {
+            let start = pdf[..at].rfind("<<").unwrap();
+            let end = at + pdf[at..].find(">>").unwrap();
+            let dict = &pdf[start..end];
+            (!dict.contains("/DeviceGray"))
+                .then(|| (number(dict, "/Width"), number(dict, "/Height")))
+        })
+        .collect()
+}
+
+/// `(width, height, x, y)` of the page's one image in points, from the `cm` before its `Do`.
+/// cairo's own image matrix has the image upside down in a y-down page, so y is the image's top
+/// measured from the page's top once the page's own flip is applied.
+fn image_placement(pdf: &str) -> (f64, f64, f64, f64) {
+    let do_at = pdf.find(" Do").expect("the page draws an image");
+    let ops = &pdf[..do_at];
+    let numbers = |line: &str| -> Vec<f64> {
+        line.split_whitespace()
+            .filter_map(|v| v.parse().ok())
+            .collect()
+    };
+    let mut matrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+    let start = ops.rfind("stream").unwrap_or(0);
+    for line in ops[start..]
+        .lines()
+        .filter(|l| l.trim_end().ends_with(" cm"))
+    {
+        let n = numbers(line.trim_end().trim_end_matches("cm"));
+        let n = &n[n.len() - 6..];
+        let m = matrix;
+        matrix = [
+            n[0] * m[0] + n[1] * m[2],
+            n[0] * m[1] + n[1] * m[3],
+            n[2] * m[0] + n[3] * m[2],
+            n[2] * m[1] + n[3] * m[3],
+            n[4] * m[0] + n[5] * m[2] + m[4],
+            n[4] * m[1] + n[5] * m[3] + m[5],
+        ];
+    }
+    let height = matrix[3].abs();
+    let page_height = media_box(pdf).1;
+    // The image's unit square in page coordinates (y up): its top edge is the larger y.
+    let top = matrix[5].max(matrix[5] + matrix[3]);
+    (matrix[0].abs(), height, matrix[4], page_height - top)
+}
+
 fn close(a: (f64, f64), b: (f64, f64)) -> bool {
     (a.0 - b.0).abs() < 0.01 && (a.1 - b.1).abs() < 0.01
 }
@@ -468,8 +527,76 @@ fn pdf_is_one_page_of_the_image_size() {
     );
     assert!(pdf.contains("Checkout flow"), "title metadata");
     assert!(pdf.contains("Annota"), "creator metadata");
+    // Size only sets the resolution: 200 % is the same page.
     let doubled = pdf_text(&encode(&doc, &Format::Pdf(PdfOptions::default()), 2.0).unwrap());
-    assert!(close(media_box(&doubled), (270.0, 150.0)));
+    assert!(close(media_box(&doubled), (135.0, 75.0)));
+}
+
+#[test]
+fn pdf_size_changes_the_resolution_not_the_page() {
+    // Maintainer decision 2026-11-01. Both layers: with vectors, and flattened.
+    let doc = rich_document();
+    for vectors in [true, false] {
+        let pdf_at = |scale| {
+            let options = PdfOptions {
+                vectors,
+                page: PageSize::FitToImage,
+            };
+            pdf_text(&encode(&doc, &Format::Pdf(options), scale).unwrap())
+        };
+        let (normal, doubled) = (pdf_at(1.0), pdf_at(2.0));
+        assert!(
+            close(media_box(&normal), (135.0, 75.0)),
+            "vectors {vectors}"
+        );
+        assert!(close(media_box(&doubled), media_box(&normal)), "{vectors}");
+        assert_eq!(image_sizes(&normal), vec![(180, 100)], "vectors {vectors}");
+        assert_eq!(image_sizes(&doubled), vec![(360, 200)], "vectors {vectors}");
+    }
+}
+
+#[test]
+fn pdf_size_keeps_the_images_place_on_paper() {
+    // A small image stays at its natural size in the middle of the page, a large one shrinks
+    // into the margins, by the same amount at every Size. 200 % used to count as a larger image.
+    let place = |doc: &Document, page, scale| {
+        let options = PdfOptions {
+            vectors: false,
+            page,
+        };
+        image_placement(&pdf_text(
+            &encode(doc, &Format::Pdf(options), scale).unwrap(),
+        ))
+    };
+    let small = Document::new(test_card(400, 300));
+    let expected = (300.0, 225.0, (A4.1 - 300.0) / 2.0, (A4.0 - 225.0) / 2.0);
+    for scale in [1.0, 2.0, 0.5] {
+        let at = place(&small, PageSize::A4, scale);
+        assert!(close((at.0, at.1), (expected.0, expected.1)), "{at:?}");
+        assert!(close((at.2, at.3), (expected.2, expected.3)), "{at:?}");
+    }
+    let large = Document::new(test_card(2000, 500));
+    let normal = place(&large, PageSize::Letter, 1.0);
+    let doubled = place(&large, PageSize::Letter, 2.0);
+    assert!((normal.0 - (LETTER.1 - 2.0 * PAGE_MARGIN)).abs() < 0.01);
+    assert!(close((normal.0, normal.1), (doubled.0, doubled.1)));
+    assert!(close((normal.2, normal.3), (doubled.2, doubled.3)));
+}
+
+#[test]
+fn pdf_bitmap_fills_the_page_when_a_size_rounds() {
+    // 101 × 51 px at 33 %: the bitmap's 33 × 17 pixels don't have the canvas' exact proportion,
+    // and still cover the whole page, with no blank strip along an edge.
+    let doc = Document::new(test_card(101, 51));
+    let options = PdfOptions {
+        vectors: false,
+        page: PageSize::FitToImage,
+    };
+    let pdf = pdf_text(&encode(&doc, &Format::Pdf(options), 0.33).unwrap());
+    assert_eq!(image_sizes(&pdf), vec![(33, 17)]);
+    let at = image_placement(&pdf);
+    assert!(close(media_box(&pdf), (75.75, 38.25)));
+    assert!(close((at.0, at.1), media_box(&pdf)), "{at:?}");
 }
 
 #[test]
@@ -494,7 +621,7 @@ fn pdf_paper_sizes_follow_the_image_orientation() {
 
 #[test]
 fn paper_layout_centres_and_only_shrinks() {
-    // Small: natural size (0.75 pt per px), centred.
+    // Canvas pixels, at any Size. Small: natural size (0.75 pt per px), centred.
     let small = page_layout(400, 300, PageSize::A4, 1.0);
     assert_eq!(small.points_per_pixel, 0.75);
     assert!(close(small.page, (A4.1, A4.0)));
@@ -522,6 +649,8 @@ fn paper_layout_divides_by_the_captures_device_scale() {
     let at_2x = page_layout(800, 600, PageSize::FitToImage, 2.0);
     assert!(close(at_1x.page, at_2x.page));
     assert_eq!(at_2x.points_per_pixel, at_1x.points_per_pixel / 2.0);
+    // The export's Size is not an input of the layout at all, so a 2x capture exported at 200 %
+    // is still this page: see `pdf_size_changes_the_resolution_not_the_page`.
 
     // Same effect on A4: the 2x capture fits exactly as small as the 1x one would.
     let a4_1x = page_layout(4000, 1000, PageSize::Letter, 1.0);

@@ -12,6 +12,11 @@ The system SHALL export the flattened document to PNG, JPG (quality 1–100), We
 - **WHEN** a document is exported to PNG
 - **THEN** the PNG matches the canvas rendering at 100 % pixel by pixel
 
+#### Scenario: PDF Size sets the resolution, not the page
+- **WHEN** a document is exported to PDF at 100 % and at 200 %, with the same Page size
+- **THEN** both files have the same page size, with the image in the same place at the same physical size, which depend only on the canvas pixels and the capture's device scale
+- **AND** the bitmap layer of the 200 % file has twice the pixels per side
+
 ### Requirement: Export dialog
 `Ctrl+E` SHALL open "Export Image" (mockups 02–05) with file name, folder (`export-folder` preference), format (`default-export-format` preference), the format's settings and a size. Before anything is written it SHALL show a banner when the folder is not writable or a file of that name exists, and keep Export disabled until that is resolved.
 

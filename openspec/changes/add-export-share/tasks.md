@@ -116,6 +116,10 @@
       step and in a recent file's exported copy only), through `Editor::ask_redactions`, the
       alert half of `guard_redactions`; scenario "Warning before batch export". See design.md,
       task 2.5.
+- [x] 2.9 PDF Size only sets the resolution (maintainer decision 2026-11-01): the page depends only
+      on the canvas pixels and `Metadata::scale_factor`, spec scenario "PDF Size sets the
+      resolution, not the page". See design.md "Decided during apply (2026-11-01: PDF Size only
+      sets the resolution)".
 
 ## 3. Verify
 - [x] 3.1 Tests for every scenario (unit, golden-image or documented manual check) — unit and

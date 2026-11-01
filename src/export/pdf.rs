@@ -25,11 +25,12 @@ use crate::tools::redaction::redactions_in;
 
 use super::{check_scale, ExportError};
 
-/// PDF points per output pixel at device scale 1: 96 pixels per inch, the CSS and GTK
+/// PDF points per canvas pixel at device scale 1: 96 pixels per inch, the CSS and GTK
 /// reference resolution. A capture's own device scale (`Metadata::scale_factor`, 2 for a
 /// 2× HiDPI capture kept at device pixels) divides this further in [`page_layout`], so the
 /// same on-screen window prints at the same physical size whichever display it was captured
 /// on, rather than a 2× capture printing twice as large as a 1× capture of the same window.
+/// The export's Size plays no part: it only sets the bitmap layer's resolution.
 pub const POINTS_PER_PIXEL: f64 = 72.0 / 96.0;
 /// Margin around the image on A4 and Letter pages, in points (half an inch).
 pub const PAGE_MARGIN: f64 = 36.0;
@@ -73,13 +74,15 @@ pub struct PageLayout {
     pub page: (f64, f64),
     /// Top-left corner of the image on the page, in points.
     pub origin: (f64, f64),
-    /// Points per output pixel.
+    /// Points per canvas pixel.
     pub points_per_pixel: f64,
 }
 
-/// Places a `width` × `height` pixel image on a page, `doc_scale` device pixels per CSS pixel
-/// (`Metadata::scale_factor`; 1.0 for a capture with no HiDPI scaling). Fit to image: the page
-/// is the image at [`POINTS_PER_PIXEL`] `/ doc_scale`. A4/Letter: the page turns to the image's
+/// Places a canvas of `width` × `height` pixels on a page, `doc_scale` device pixels per CSS
+/// pixel (`Metadata::scale_factor`; 1.0 for a capture with no HiDPI scaling). These are canvas
+/// pixels, never the export's output pixels: the maintainer decided on 2026-11-01 that Size only
+/// sets the resolution, so 100 % and 200 % give the same page. Fit to image: the page is the
+/// image at [`POINTS_PER_PIXEL`] `/ doc_scale`. A4/Letter: the page turns to the image's
 /// orientation (landscape for a wide image), the image is centred within [`PAGE_MARGIN`] and
 /// shrunk to fit, never enlarged.
 pub fn page_layout(width: i32, height: i32, page: PageSize, doc_scale: f64) -> PageLayout {
@@ -197,7 +200,8 @@ fn paint_bitmap(cr: &cairo::Context, bitmap: &Bitmap) -> Result<(), cairo::Error
     filled
 }
 
-/// The PDF of `doc`, one page, `scale` output pixels per document pixel.
+/// The PDF of `doc`, one page. `scale` is the bitmap layer's resolution in output pixels per
+/// document pixel; the page and the image's place on it don't depend on it ([`page_layout`]).
 pub fn encode_pdf(
     doc: &Document,
     scale: f64,
@@ -205,7 +209,14 @@ pub fn encode_pdf(
 ) -> Result<Vec<u8>, ExportError> {
     let scale = check_scale(scale)?;
     let (width, height) = output_size(doc, scale);
-    let layout = page_layout(width, height, options.page, doc.metadata().scale_factor);
+    let canvas = doc.canvas().rect;
+    let (canvas_width, canvas_height) = (f64::from(canvas.width), f64::from(canvas.height));
+    let layout = page_layout(
+        canvas.width,
+        canvas.height,
+        options.page,
+        doc.metadata().scale_factor,
+    );
     let surface = cairo::PdfSurface::for_stream(layout.page.0, layout.page.1, Vec::<u8>::new())?;
     surface.set_metadata(cairo::PdfMetadata::Creator, "Annota")?;
     if let Some(title) = doc.metadata().title.as_deref().filter(|t| !t.is_empty()) {
@@ -214,7 +225,12 @@ pub fn encode_pdf(
     let drawn = (|| {
         let cr = cairo::Context::new(&surface)?;
         cr.translate(layout.origin.0, layout.origin.1);
-        cr.scale(layout.points_per_pixel, layout.points_per_pixel);
+        // Output pixels to points. Per axis, because rounding the output size can change a
+        // side's proportion slightly; the bitmap must still cover the image's place exactly.
+        cr.scale(
+            layout.points_per_pixel * canvas_width / f64::from(width),
+            layout.points_per_pixel * canvas_height / f64::from(height),
+        );
         cr.rectangle(0.0, 0.0, f64::from(width), f64::from(height));
         cr.clip();
         if options.vectors {
