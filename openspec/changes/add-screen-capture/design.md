@@ -20,7 +20,8 @@ Source HTML: `docs/design/add-screen-capture/src/`; dark and 2× renders sit nex
 - [13-paste-from-clipboard](../../../docs/design/add-screen-capture/png/13-paste-from-clipboard-light@1x.png)
 - [14-drop-image-file](../../../docs/design/add-screen-capture/png/14-drop-image-file-light@1x.png)
 
-Design approved: 2026-10-30
+Design approved: 2026-10-30; screen 08 redrawn with Close / Ask Again and approved 2026-11-01, also
+the "could not ask" toast text
 
 ## Technical decisions
 - `ashpd` for Screenshot portal (non-interactive full-screen grab, then own overlay)

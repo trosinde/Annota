@@ -108,8 +108,8 @@ annota/
 ## 4. Project status and build
 
 **Status (2026-11-01)**
-- `add-export-share`: all implementation tasks built; reviewer found no blockers, follow-up fixes
-  and 3.2/3.3 are still open (see its `tasks.md`). Archive it after `add-annotation-editor` and
+- `add-export-share`: all implementation tasks built; reviewer found no blockers and its follow-ups
+  are fixed; 3.2 (a final reviewer pass) and 3.3 (Ubuntu 24.04) are open. Archive it after `add-annotation-editor` and
   `add-core-annotation-tools`, whose specs its MODIFIED deltas need. `add-capture-library` is the
   last MVP change not started.
 - Roadmap: 18 OpenSpec changes in `openspec/changes/`, all validated. `bootstrap-app-shell` is
@@ -120,8 +120,8 @@ annota/
   more such check, the eyedropper's PickColor call) that was deliberately left to the maintainer
   rather than run from a dev session; see `openspec/changes/add-screen-capture/manual-checks.md`
   (covers the eyedropper row too) and `add-core-annotation-tools/manual-checks.md`.
-  `add-style-system/manual-checks.md` has one row of its own (a focus-management check that
-  has no automated regression test yet). **Archive
+  `add-style-system/manual-checks.md` lists what its focus regression test does not exercise
+  (a real right-click and Escape). **Archive
   order: add-screen-capture, then add-annotation-editor** (its spec deltas build on the first —
   task 5.6 in its `tasks.md`); `add-core-annotation-tools` has no technical ordering dependency on
   either (new `annotation-tools` capability only) but logically assumes the editor exists, so

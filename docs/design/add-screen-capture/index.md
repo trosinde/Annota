@@ -38,7 +38,8 @@ only Annota chrome follows the style.
 | Cursor inclusion / Include cursor | 01, 03 (pointer toggle), 09 | Default off. Pointer presence in image *verified by test*. |
 | Image from clipboard / Paste | 01 (menu item), 13 | Shift+Ctrl+V; new tab becomes current in tray "Open". |
 | Image from file (open / drop) | 01 (Open Image… Ctrl+O), 14 | Drop zone covers canvas only. |
-| Portal permission handling / Permission denied | 08 | Alert dialog, "Open Settings" is the suggested, focused action. |
+| Portal permission handling / Permission denied | 08 | Alert dialog, "Ask Again" is the suggested, focused action. It names no Settings switch, because GNOME shows that switch only for Flatpak and Snap apps. |
+| Portal permission handling / GNOME could not ask | no mockup, redline below | Standard toast, text under "Permission alert (08)". No dialog. |
 
 ## Redlines
 
@@ -63,7 +64,24 @@ only Annota chrome follows the style.
 
 **Countdown (07)** — centred OSD, radius 30, padding 28/36; ring Ø 148, 8 px track white/18 %, progress Coral; number 72 px heavy; label "Capturing region in 3 s"; keys "Esc Cancel · Enter Capture now". Removed one frame before the grab.
 
-**Permission alert (08)** — `AdwAlertDialog` 420 px; `warning` icon 32 px (warning colour); heading "Screen Access Denied"; body as drawn; caption "Nothing was captured."; buttons "Close", "Open Settings" (suggested, default). Opens `gnome-control-center applications io.github.trosinde.Annota`.
+**Permission alert (08)** — redrawn 2026-11-01, awaiting the maintainer's approval. Shown only when GNOME's permission store holds "no" for Annota. `Adw.Dialog` 420 px as built (`AdwAlertDialog` has no slot for an icon above the heading); `warning` icon 32 px (warning colour), then the texts below in this order, all centred. No command, no "Open Settings".
+
+| Element | English | German |
+|---|---|---|
+| Heading | Screen Access Denied | Bildschirmzugriff verweigert |
+| Body (markup on, bold as written) | `GNOME has stored that Annota may not take screenshots. Choose <b>Ask Again</b>, then take the screenshot again. GNOME will ask you.` | `GNOME hat gespeichert, dass Annota keine Bildschirmfotos aufnehmen darf. Wählen Sie <b>Erneut fragen</b> und nehmen Sie das Bildschirmfoto danach noch einmal auf. GNOME fragt Sie dann.` |
+| Caption (dim, 11 px) | Nothing was captured. | Es wurde nichts aufgenommen. |
+| Button, start | Close | Schließen |
+| Button, end (suggested) | Ask Again | Erneut fragen |
+
+- **Buttons:** Close on the left, Ask Again on the right, equal width, 12 px apart.
+- **Default:** Ask Again. It has the initial focus (ring as drawn), and Enter activates it.
+- **Close response:** Close. Esc does the same as the Close button: the dialog closes and the stored answer stays.
+- **Ask Again:** removes Annota's own entry from the permission store (`DeletePermission` on table `screenshot`, id `screenshot`, app `io.github.trosinde.Annota`), and no other app's entry. The dialog closes and nothing is captured, no capture starts and no access is granted. No toast is drawn for success. The next region or screen capture finds nothing stored, so GNOME shows its own question. Window mode never asks, because the portal doesn't check it.
+
+**Toast "GNOME could not ask"** — approved by the maintainer. Standard `AdwToast` on an Annota window the user can retry from, no button. No "Screen Access Denied" dialog in this case.
+- English: "GNOME could not ask for screen access. Click this window and try again."
+- German: "GNOME konnte nicht nach dem Bildschirmzugriff fragen. Klicken Sie in dieses Fenster und versuchen Sie es erneut."
 
 **Preferences › Capture (09/10/11)** — `AdwPreferencesDialog` 660 × 720, view switcher General / Capture / Library.
 - Group "Global Shortcuts", rows: Region capture `Print`, Window capture `Alt+Print`, Screen capture `Shift+Print` (keycaps + chevron, row opens 11; per decision D9, these are the GNOME screenshot keys Annota offers to take over at first launch, not new combinations).
@@ -80,3 +98,4 @@ only Annota chrome follows the style.
 ## Open questions
 - Wayland window capture: portal picker look is GNOME's; if the portal returns a full screen instead of a window (older portals), do we fall back to the X11-style pick overlay on the frozen image? Mockup 06 would cover it.
 - Overlay toolbar delay dropdown values (1/2/3/5/10 s + Custom) are proposed, not in spec.
+- For the engineer, permission alert (08): no state is designed for removing the stored answer failing (store unreachable, timeout, error reply). The drawn dialog closes on Ask Again, so a failure would be silent, and the next capture would show this dialog again. Report what can fail; the designer draws the state before it is built. Do not invent text for it.
