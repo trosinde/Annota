@@ -104,22 +104,39 @@ installed; its binary has the row).
   `permission::after_refusal` sorts it by a fresh `Lookup` into denied (stored `no`), ask once more,
   could not ask, or plain failure. Window mode is always a plain failure, since the portal doesn't
   check it. `PortalError::NotAllowed` is sorted the same way.
-- **The store is read, never written**, with `Lookup` on
+- **The store is read on every capture, and written only by Ask Again.** Reading is `Lookup` on
   `org.freedesktop.impl.portal.PermissionStore` over GIO, 2 s timeout. `NotFound` means undecided;
   any other error means unreadable. An unreadable store (a sandbox) grabs first, so an existing
-  permission never flashes a window, and asks once if refused.
+  permission never flashes a window, and asks once if refused. The only write is
+  `DeletePermission(screenshot, screenshot, io.github.trosinde.Annota)` when the user clicks Ask
+  Again in the "Screen Access Denied" dialog: Annota's own entry, no other app's. It grants nothing
+  and captures nothing; the next region or screen capture finds no answer, so GNOME asks.
 - **New crates:** `ashpd`'s `gtk4` feature adds `gdk4-wayland`, `gdk4-x11` and their `-sys` crates
   (MIT; `gtk4-wayland.pc` and `gtk4-x11.pc` are in `libgtk-4-dev`). Regenerate `vendor/` with
   `build-aux/vendor.sh`.
 
-**Dialog text: proposed, not approved.** Mockup 08 is not redrawn and still shows the old text and
-"Open Settings", and its redline in `docs/design/add-screen-capture/index.md` still says so. The
-code differs from it until the maintainer decides: new body text, the reset command as a selectable
-monospace label, "Copy Command" instead of "Open Settings", and a toast for "GNOME could not ask".
+**Dialog text: approved by the maintainer.** Mockup 08 was redrawn with Close and Ask Again, and the
+"could not ask" toast text was approved as is. It names no Settings switch and no
+command to copy: GNOME Settings shows no such switch for an unsandboxed app.
+
+**Ask Again, maintainer's decisions (2026-11-01).**
+- Success closes the dialog with no toast. An entry that is already gone (`NotFound`) is a success.
+- Failure keeps the dialog open with one more line, "The answer could not be reset" / "Die Antwort
+  konnte nicht zurückgesetzt werden", no new screen. Mockup 08 doesn't draw this line. The error is
+  logged; it holds no capture content. A new try is possible at once and clears the line.
+- Decided during apply: while the call runs (5 s timeout at most, since the store replies after
+  writing its file) Ask Again and Close are insensitive and the dialog can't be closed, because once
+  the delete is sent, Close and Esc could no longer keep the stored answer. The UI doesn't block.
+  A timeout counts as a failure, although the store may still have deleted the entry; a new try then
+  ends in success.
+- Decided during apply: `Window::set_focus_visible` shows the focus ring mockup 08 draws, which GTK
+  otherwise holds back until the first key press.
 
 **Known limits.**
-- Nothing here has run against a real portal. The tests in `src/capture/live_tests.rs` use a stand-in
-  written from the sources above, so they can't show a misreading of them. See `manual-checks.md`.
+- Nothing here has run against a real portal or store. The tests in `src/capture/live_tests.rs` use
+  a stand-in written from the sources above, so they can't show a misreading of them. That includes
+  `DeletePermission`, whose stand-in follows `handle_delete_permission` from memory of
+  xdg-permission-store, not from its source. See `manual-checks.md`.
 - A stored `ask`, which nothing in GNOME writes, asks on every request, so the second request
   would be refused and end in "could not ask".
 - Before xdg-desktop-portal 1.19 (Ubuntu 24.04 has 1.18) there is no host app registry. If the portal

@@ -16,7 +16,11 @@
       stored "no" from "GNOME could not ask" through the permission store, correct the dialog
       (`src/capture/permission.rs`, `portal.rs`, `mod.rs`). See design.md "Decided 2026-11-01: the
       screenshot permission". Tested against a stand-in portal only (`src/capture/live_tests.rs`).
-- [ ] 2.4 Maintainer: approve or change the dialog and toast wording, which differs from mockup 08
+- [x] 2.4 Maintainer: approve or change the dialog and toast wording (approved 2026-11-01, mockup 08
+      redrawn with Close and Ask Again)
+- [x] 2.6 Ask Again in the "Screen Access Denied" dialog deletes Annota's own stored answer, with the
+      copied command removed (`src/capture/permission.rs`, `data/ui/permission-dialog.blp`). See
+      design.md "Ask Again". Tested against a stand-in store only (`src/capture/live_tests.rs`).
 - [ ] 2.5 Maintainer: run the "Screenshot permission" steps in `manual-checks.md` on a real desktop
 
 ## 3. Overlay

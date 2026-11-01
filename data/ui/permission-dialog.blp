@@ -1,9 +1,8 @@
 using Gtk 4.0;
 using Adw 1;
 
-// "Screen Access Denied" alert (mockup 08 of add-screen-capture). The body, the command and the
-// Copy Command button differ from the mockup and await the maintainer's approval: the Settings
-// switch it names doesn't exist for an unsandboxed app (see add-screen-capture's design.md).
+// "Screen Access Denied" alert (mockup 08 of add-screen-capture). The mockup draws no failure
+// state: reset_failed_label is the maintainer's decision, see add-screen-capture's design.md.
 
 Adw.Dialog permission_dialog {
   content-width: 420;
@@ -31,20 +30,11 @@ Adw.Dialog permission_dialog {
     }
 
     Label {
-      label: _("GNOME has stored that Annota may not take screenshots. To be asked again, run this command in a terminal, then try again.");
+      label: _("GNOME has stored that Annota may not take screenshots. Choose <b>Ask Again</b>, then take the screenshot again. GNOME will ask you.");
+      use-markup: true;
       wrap: true;
       justify: center;
       max-width-chars: 44;
-    }
-
-    // Set from code: permission::reset_command().
-    Label reset_command_label {
-      selectable: true;
-      wrap: true;
-      wrap-mode: word_char;
-      xalign: 0;
-      max-width-chars: 44;
-      styles ["monospace", "caption"]
     }
 
     Label {
@@ -52,6 +42,16 @@ Adw.Dialog permission_dialog {
       wrap: true;
       justify: center;
       styles ["dim-label", "caption"]
+    }
+
+    // Shown when Ask Again fails.
+    Label reset_failed_label {
+      label: _("The answer could not be reset");
+      visible: false;
+      wrap: true;
+      justify: center;
+      max-width-chars: 44;
+      styles ["error"]
     }
 
     Box {
@@ -64,8 +64,8 @@ Adw.Dialog permission_dialog {
         styles ["annota-dialog-button"]
       }
 
-      Button copy_command_button {
-        label: _("Copy Command");
+      Button ask_again_button {
+        label: _("Ask Again");
         receives-default: true;
         styles ["annota-dialog-button", "suggested-action"]
       }

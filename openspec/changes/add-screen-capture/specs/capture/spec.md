@@ -113,7 +113,7 @@ The system SHALL deliver every region, window and screen capture according to th
 - **THEN** the PNG is saved into the save folder and the image is on the clipboard
 
 ### Requirement: Portal permission handling
-When the portal's permission store holds no answer for Annota, the system SHALL keep an Annota window on screen as the parent of the first frozen-image request, so GNOME can ask, and SHALL keep that window out of the captured image. Only a stored "no" SHALL count as a denial, with a dialog that explains how to be asked again. A refusal with nothing stored SHALL be reported as GNOME being unable to ask.
+When the portal's permission store holds no answer for Annota, the system SHALL keep an Annota window on screen as the parent of the first frozen-image request, so GNOME can ask, and SHALL keep that window out of the captured image. Only a stored "no" SHALL count as a denial, with a dialog whose Ask Again removes Annota's own stored answer, and no other app's. A refusal with nothing stored SHALL be reported as GNOME being unable to ask.
 
 #### Scenario: First capture, user allows
 - **WHEN** no answer is stored, the user starts a region or screen capture and chooses Allow in GNOME's question
@@ -132,7 +132,33 @@ When the portal's permission store holds no answer for Annota, the system SHALL 
 #### Scenario: Permission denied
 - **WHEN** the permission store holds "no" for Annota and the user starts a region or screen capture
 - **THEN** no Annota window stays on screen for the request, and the "Screen Access Denied" dialog is shown
-- **AND** the dialog names no control that does not exist, and offers a way to be asked again
+- **AND** the dialog names no control that does not exist, and Ask Again is its default action with the initial focus
+
+#### Scenario: Ask Again
+- **WHEN** the "Screen Access Denied" dialog is open and the user chooses Ask Again
+- **THEN** Annota's own entry is removed from the permission store and no other app's entry changes
+- **AND** the dialog closes without a toast and nothing is captured
+
+#### Scenario: Asked again after the reset
+- **WHEN** the user chose Ask Again and then starts a region or screen capture
+- **THEN** nothing is stored, so GNOME's question appears over an Annota window
+
+#### Scenario: Close keeps the answer
+- **WHEN** the "Screen Access Denied" dialog is open and the user chooses Close or presses Esc
+- **THEN** the dialog closes and the permission store is unchanged
+
+#### Scenario: The answer cannot be reset
+- **WHEN** removing the entry fails
+- **THEN** the dialog stays open and shows that the answer could not be reset
+- **AND** the error is logged without capture content
+
+#### Scenario: The entry is already gone
+- **WHEN** the store answers Ask Again with NotFound
+- **THEN** this counts as success and the dialog closes
+
+#### Scenario: Ask Again while it is running
+- **WHEN** Ask Again is activated again, or the dialog is closed, while the removal runs
+- **THEN** no second removal is sent, the dialog stays open until the store answers, and the UI does not block
 
 #### Scenario: GNOME could not ask
 - **WHEN** the portal refuses a request with a window on screen and nothing is stored

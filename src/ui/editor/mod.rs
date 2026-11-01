@@ -2696,9 +2696,6 @@ impl Editor {
             Err(CaptureError::PortalUnavailable) => self.toast(&gettext(
                 "Picking a colour from the screen needs xdg-desktop-portal",
             )),
-            Err(CaptureError::PermissionDenied) => {
-                self.toast(&gettext("Annota may not read colours from the screen"))
-            }
             Err(err) => {
                 eprintln!("annota: eyedropper: {err}");
                 self.toast(&gettext("The colour could not be picked"));

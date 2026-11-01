@@ -6,16 +6,17 @@
 //! (window mode) is never checked. If the question cannot be shown, nothing is stored and the
 //! answer is the same response code 2 as for a stored `no`, so only the store can tell them apart.
 //!
-//! Annota only reads the store. The portal writes it, and only the user resets it
-//! ([`reset_command`]): GNOME Settings has no switch for it unless the app is a Flatpak or Snap
-//! (`get_portal_app_id` in gnome-control-center's `cc-applications-panel.c`).
+//! The portal writes the answers. Annota reads them, and writes in one case only: Ask Again in the
+//! dialog deletes Annota's own entry ([`forget_answer`]), because GNOME Settings has no switch for
+//! it unless the app is a Flatpak or Snap (`get_portal_app_id` in gnome-control-center's
+//! `cc-applications-panel.c`). Nothing else ever changes the store, and a delete grants nothing:
+//! the next frozen capture finds no answer, so GNOME asks.
 
 use std::collections::HashMap;
 use std::time::Duration;
 
 use adw::prelude::*;
-use gettextrs::gettext;
-use gtk::{gdk, gio, glib};
+use gtk::{gio, glib};
 
 use crate::cli::CaptureMode;
 use crate::{application, config};
@@ -29,6 +30,9 @@ const STORE_TABLE: &str = "screenshot";
 const STORE_ID: &str = "screenshot";
 /// A store that answers late must not hold up a capture for long.
 const STORE_TIMEOUT: Duration = Duration::from_secs(2);
+/// The store replies to a delete after writing its file. The user waits for this with the dialog
+/// held open, so it stays short, but a slow disk must not look like a failure.
+const STORE_DELETE_TIMEOUT: Duration = Duration::from_secs(5);
 /// The store's error for a table or entry that doesn't exist yet.
 const STORE_NOT_FOUND: &str = "org.freedesktop.portal.Error.NotFound";
 
@@ -55,9 +59,14 @@ pub fn state_of(entries: &HashMap<String, Vec<String>>, app_id: &str) -> StoreSt
     }
 }
 
+/// Whether a store error says that there is no such table or entry.
+fn is_not_found(message: &str) -> bool {
+    message.contains(STORE_NOT_FOUND)
+}
+
 /// The state when `Lookup` failed. "No such entry" is an answer; anything else says nothing.
 pub fn state_after_error(message: &str) -> StoreState {
-    if message.contains(STORE_NOT_FOUND) {
+    if is_not_found(message) {
         StoreState::NotDecided
     } else {
         StoreState::Unreadable
@@ -144,23 +153,40 @@ pub fn after_refusal(mode: CaptureMode, store: StoreState, asked: bool) -> Refus
     }
 }
 
-/// The command that removes Annota's stored answer, so that GNOME asks again.
-pub fn reset_command() -> String {
-    format!(
-        "gdbus call --session --dest {STORE_BUS_NAME} --object-path {STORE_PATH} \
-         --method {STORE_INTERFACE}.DeletePermission {STORE_TABLE} {STORE_ID} {}",
-        config::APP_ID
-    )
+/// What `DeletePermission` is called with: Annota's own entry and no other app's.
+fn delete_parameters() -> glib::Variant {
+    (STORE_TABLE, STORE_ID, config::APP_ID).to_variant()
+}
+
+/// Removes Annota's stored answer. An entry that is already gone is what was asked for.
+async fn forget_answer() -> Result<(), glib::Error> {
+    let connection = gio::bus_get_future(gio::BusType::Session).await?;
+    let answer = connection
+        .call_future(
+            Some(STORE_BUS_NAME),
+            STORE_PATH,
+            STORE_INTERFACE,
+            "DeletePermission",
+            Some(&delete_parameters()),
+            None,
+            gio::DBusCallFlags::NONE,
+            STORE_DELETE_TIMEOUT.as_millis() as i32,
+        )
+        .await;
+    match answer {
+        Err(err) if !is_not_found(err.message()) => Err(err),
+        _ => Ok(()),
+    }
 }
 
 pub fn present(app: &adw::Application) {
     let window = application::present_window(app);
     let builder = gtk::Builder::from_resource(UI_PERMISSION);
-    let (Some(dialog), Some(close), Some(copy), Some(command)) = (
+    let (Some(dialog), Some(close), Some(ask_again), Some(failed)) = (
         builder.object::<adw::Dialog>("permission_dialog"),
         builder.object::<gtk::Button>("close_button"),
-        builder.object::<gtk::Button>("copy_command_button"),
-        builder.object::<gtk::Label>("reset_command_label"),
+        builder.object::<gtk::Button>("ask_again_button"),
+        builder.object::<gtk::Label>("reset_failed_label"),
     ) else {
         eprintln!("annota: permission-dialog.ui is incomplete");
         return;
@@ -172,23 +198,56 @@ pub fn present(app: &adw::Application) {
             dialog.close();
         }
     ));
-    command.set_text(&reset_command());
-    copy.connect_clicked(glib::clone!(
+    ask_again.connect_clicked(glib::clone!(
         #[weak]
         dialog,
         #[weak]
-        window,
-        move |_| {
-            if let Some(display) = gdk::Display::default() {
-                display.clipboard().set_text(&reset_command());
+        close,
+        #[weak]
+        failed,
+        move |ask_again| {
+            // Insensitive while a delete runs. `clicked` can still be emitted, so check here too.
+            if ask_again.is_sensitive() {
+                reset(&dialog, ask_again, &close, &failed);
             }
-            dialog.close();
-            application::show_toast(&window, &adw::Toast::new(&gettext("Copied to clipboard")));
         }
     ));
-    dialog.set_default_widget(Some(&copy));
-    dialog.set_focus(Some(&copy));
+    dialog.set_default_widget(Some(&ask_again));
+    dialog.set_focus(Some(&ask_again));
     dialog.present(Some(&window));
+    // The mockup draws the focus ring. GTK would keep it back until the first key press.
+    window.set_focus_visible(true);
+}
+
+/// Ask Again. Close and Esc wait for the answer: once the delete is sent they could no longer
+/// keep the stored answer as they promise. The wait ends at [`STORE_DELETE_TIMEOUT`].
+fn reset(dialog: &adw::Dialog, ask_again: &gtk::Button, close: &gtk::Button, failed: &gtk::Label) {
+    failed.set_visible(false);
+    ask_again.set_sensitive(false);
+    close.set_sensitive(false);
+    dialog.set_can_close(false);
+    let (dialog, ask_again, close, failed) = (
+        dialog.clone(),
+        ask_again.clone(),
+        close.clone(),
+        failed.clone(),
+    );
+    glib::spawn_future_local(async move {
+        let result = forget_answer().await;
+        dialog.set_can_close(true);
+        match result {
+            Ok(()) => {
+                dialog.close();
+            }
+            Err(err) => {
+                eprintln!("annota: cannot reset the screenshot permission: {err}");
+                failed.set_visible(true);
+                close.set_sensitive(true);
+                ask_again.set_sensitive(true);
+                dialog.set_focus(Some(&ask_again));
+            }
+        }
+    });
 }
 
 #[cfg(test)]
@@ -288,13 +347,25 @@ mod tests {
     }
 
     #[test]
-    fn the_reset_command_deletes_annotas_entry_only() {
+    fn the_delete_names_annotas_entry_only() {
         assert_eq!(
-            reset_command(),
-            "gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore \
-             --object-path /org/freedesktop/impl/portal/PermissionStore \
-             --method org.freedesktop.impl.portal.PermissionStore.DeletePermission \
-             screenshot screenshot io.github.trosinde.Annota"
+            delete_parameters().get::<(String, String, String)>(),
+            Some((
+                String::from("screenshot"),
+                String::from("screenshot"),
+                String::from(ID)
+            ))
         );
+    }
+
+    #[test]
+    fn only_not_found_counts_as_already_deleted() {
+        assert!(is_not_found(
+            "GDBus.Error:org.freedesktop.portal.Error.NotFound: No entry for screenshot"
+        ));
+        assert!(!is_not_found(
+            "GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Sandboxed"
+        ));
+        assert!(!is_not_found("Timeout was reached"));
     }
 }
