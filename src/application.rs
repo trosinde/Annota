@@ -205,26 +205,6 @@ pub fn present_for_message(app: &adw::Application) -> adw::ApplicationWindow {
     }
 }
 
-#[cfg(test)]
-mod message_window_tests {
-    use super::message_window;
-
-    #[test]
-    fn a_message_goes_to_the_active_window_first() {
-        // (visible, active, editor)
-        let main_active = [(true, true, false), (true, false, true)];
-        assert_eq!(message_window(&main_active), Some(0));
-        let editor_active = [(true, false, false), (true, true, true)];
-        assert_eq!(message_window(&editor_active), Some(1));
-        let none_active = [(true, false, false), (true, false, true)];
-        assert_eq!(message_window(&none_active), Some(1), "the editor");
-        let main_only = [(true, false, false)];
-        assert_eq!(message_window(&main_only), None, "the main window");
-        let hidden = [(false, true, true)];
-        assert_eq!(message_window(&hidden), None, "a hidden window is no place");
-    }
-}
-
 /// Fills `container` with one keycap per key of `accel` ("Alt" "Print").
 fn fill_keycaps(container: &gtk::Box, accel: &str) {
     while let Some(child) = container.first_child() {
@@ -577,4 +557,24 @@ fn show_about(app: &adw::Application) {
         ))
         .build();
     about.present(app.active_window().as_ref());
+}
+
+#[cfg(test)]
+mod message_window_tests {
+    use super::message_window;
+
+    #[test]
+    fn a_message_goes_to_the_active_window_first() {
+        // (visible, active, editor)
+        let main_active = [(true, true, false), (true, false, true)];
+        assert_eq!(message_window(&main_active), Some(0));
+        let editor_active = [(true, false, false), (true, true, true)];
+        assert_eq!(message_window(&editor_active), Some(1));
+        let none_active = [(true, false, false), (true, false, true)];
+        assert_eq!(message_window(&none_active), Some(1), "the editor");
+        let main_only = [(true, false, false)];
+        assert_eq!(message_window(&main_only), None, "the main window");
+        let hidden = [(false, true, true)];
+        assert_eq!(message_window(&hidden), None, "a hidden window is no place");
+    }
 }
