@@ -29,7 +29,7 @@ All screens exist as `-dark@1x/2x`.
 |---|---|---|
 | WYSIWYG | 02–05 | Preview line "Pixel-identical to the canvas at 100 %". Pixel equality itself is verified by golden-image test. |
 | Pattern | 06 | `Ctrl+S` on a new capture: no dialog, file written to the default save folder, title becomes the file name, subtitle "<folder> · Saved", toast. `Ctrl+Shift+S` opens the portal Save dialog (system UI, not drawn). |
-| Paste elsewhere | 07 | `Ctrl+C` with no object selected (Select tool, no selection) copies the flattened PNG. With an object selected, `Ctrl+C` copies the object (editor change). |
+| Paste elsewhere | 07 | `Ctrl+C` with no object selected (Select tool, no selection) copies the flattened PNG. With a selection, `Ctrl+C` puts the objects and the whole flattened image on the clipboard: Annota pastes the objects, other apps get the image (task 2.4a). |
 | Drop into file manager | 08, 09 | Drag starts from the header bar's title area (title + subtitle, decision D1); ghost = 160×100 thumbnail + "PNG" badge; drop creates `Checkout flow.png`. |
 | Email | 01, 14 | Export split button arrow (Share) → Email… exports a temporary PNG and calls the Email portal; toast while handing over. Open With… calls OpenURI (system app chooser, not drawn). |
 | Batch | 11, 12, 13 | Three tray items selected → Export 3… → JPG → three files, toast. |

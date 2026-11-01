@@ -15,7 +15,8 @@
       `manual-checks.md` for the one row needing a real display/window manager
 - [x] 3.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green — findings B1/N1
       fixed, see design.md "Fixed during review"
-- [x] 3.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean — verified in this dev
-      container (`build-aux/make-deb.sh`, `sudo apt install ../annota_*.deb`), 2026-10-31
+- [ ] 3.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean — **not verified on 24.04.**
+      Built, lintian-clean and installed 2026-10-31 on the maintainer's Ubuntu 26.04 machine with
+      cargo 1.93 only. Needs the ubuntu-24.04 CI job.
 - [x] 3.4 German translation updated — `msgfmt --statistics po/de.po`: 682 translated, 0
       fuzzy/untranslated

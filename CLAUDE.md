@@ -107,7 +107,11 @@ annota/
 
 ## 4. Project status and build
 
-**Status (2026-10-31)**
+**Status (2026-11-01)**
+- `add-export-share`: all implementation tasks built; reviewer found no blockers, follow-up fixes
+  and 3.2/3.3 are still open (see its `tasks.md`). Archive it after `add-annotation-editor` and
+  `add-core-annotation-tools`, whose specs its MODIFIED deltas need. `add-capture-library` is the
+  last MVP change not started.
 - Roadmap: 18 OpenSpec changes in `openspec/changes/`, all validated. `bootstrap-app-shell` is
   archived. `add-screen-capture`, `add-annotation-editor`, `add-core-annotation-tools` and
   `add-style-system` are all **fully implemented and reviewer-verified, but not archived yet** —
@@ -117,7 +121,7 @@ annota/
   rather than run from a dev session; see `openspec/changes/add-screen-capture/manual-checks.md`
   (covers the eyedropper row too) and `add-core-annotation-tools/manual-checks.md`.
   `add-style-system/manual-checks.md` has one row of its own (a focus-management check that
-  needs a real window manager, not bare `xvfb-run`) and is otherwise fully unit-tested. **Archive
+  has no automated regression test yet). **Archive
   order: add-screen-capture, then add-annotation-editor** (its spec deltas build on the first —
   task 5.6 in its `tasks.md`); `add-core-annotation-tools` has no technical ordering dependency on
   either (new `annotation-tools` capability only) but logically assumes the editor exists, so
@@ -151,16 +155,15 @@ annota/
   system theme directory. Each of these four changes took multiple implementation phases and
   review rounds — see each change's `design.md` "Decided during apply" history before touching
   its code again, it's long for a reason.
-- Packaging: `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean for all five
-  implemented changes, verified repeatedly in this dev container (cargo/rustc 1.93, not the
-  pinned 1.85 — several real bugs surfaced and got fixed here regardless, see each change's
-  `tasks.md`). CI should be green (its known step-order bug is fixed) but hasn't been confirmed
+- Packaging: `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean, verified only on
+  the maintainer's Ubuntu 26.04 desktop (cargo/rustc 1.93, not the pinned 1.85; never on 24.04 —
+  several real bugs surfaced and got fixed here regardless, see each change's `tasks.md`). CI should be green (its known step-order bug is fixed) but hasn't been confirmed
   on an actual ubuntu-24.04 runner — check the Actions tab before trusting it blindly.
 - Next step: the maintainer runs the live portal/hotkey/focus checks tracked across
   `add-screen-capture/manual-checks.md`, `add-core-annotation-tools/manual-checks.md` and
   `add-style-system/manual-checks.md`, then all four changes archive in order (screen-capture,
-  annotation-editor, core-annotation-tools, style-system). After that, the last 2 MVP changes are
-  `add-export-share`, `add-capture-library`.
+  annotation-editor, core-annotation-tools, style-system), then `add-export-share`.
+  `add-capture-library` is the remaining MVP change.
 
 **Build dependencies (Ubuntu 24.04)**
 ```bash

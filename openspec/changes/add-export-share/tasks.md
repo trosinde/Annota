@@ -83,9 +83,10 @@
       everything, Discard removes the autosave; ending without asking (logout, a signal) still
       keeps autosaves. `specs/document-format/spec.md`: the three requirements MODIFIED
       (copied from add-annotation-editor's delta, not archived yet — archive it first) plus
-      ADDED "Save changes before closing". No "Quit" main-menu item exists or was added (open
-      question). See design.md "Decided during apply (2026-10-31: task 2.6 save changes before
-      closing)".
+      ADDED "Save changes before closing". A "Quit" item was added to both main menus afterwards
+      (maintainer decision, 2026-11-01; `app.quit`, no mockup draws it yet). See design.md
+      "Decided during apply (2026-10-31: task 2.6 save changes before closing)" and its
+      2026-11-01 follow-up.
 - [x] 2.7 Redaction export warning — add-core-annotation-tools builds blur, pixelate and solid
       redactions (`annota::tools::redaction::Redaction`) but has no way out of Annota to guard;
       its requirement "Redaction export warning" (spec annotation-tools, decision D7) is only a
@@ -121,7 +122,9 @@
       live GTK tests throughout 2.1-2.7; remaining real-portal/real-window-manager checks in
       `manual-checks.md`
 - [ ] 3.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
-- [x] 3.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean — verified in this dev
-      container (`build-aux/make-deb.sh`, `sudo apt install ../annota_*.deb`), 2026-11-01
+- [ ] 3.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean — **not verified on 24.04.**
+      Built, lintian-clean and installed 2026-11-01 on the maintainer's Ubuntu 26.04 machine with
+      cargo 1.93 only; cargo 1.85 is not installed there, and the new crates' MSRV (`libwebp-sys`
+      needs exactly 1.85) has only been read, not built. Needs the ubuntu-24.04 CI job.
 - [x] 3.4 German translation updated — `msgfmt --statistics po/de.po`: 770 translated, 0
       fuzzy/untranslated
