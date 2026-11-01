@@ -902,6 +902,10 @@ by itself (the unchanged file and image are not asked about) and no autosave is 
 asking (`close_all`, as `shut_down` does) keeps the unsaved documents' autosaves with their last
 change — since a plain window close asks now.
 
-**Open question for the maintainer**: should the editor's main menu get a "Quit" item (the
-redline and the brief mention "main menu Quit", nothing draws one)? As built, quitting is `Ctrl+Q`
-and GNOME Shell's Quit, both through the same "Save Changes?" path.
+### Decided during apply (2026-11-01: maintainer follow-up on task 2.6)
+- **A "Quit" item was added to both main menus** (`data/ui/editor-window.blp` and
+  `data/ui/window.blp`, its own trailing section after About, GNOME HIG convention), over
+  "leave it out" — matches what the redline assumed existed. It's the existing `app.quit`
+  action (the same one `Ctrl+Q` already activates), so it goes through the same "Save Changes?"
+  path with no further wiring needed. German "_Beenden" (po/de.po), mnemonic kept the way
+  `_Preferences`/`_Keyboard Shortcuts`/`_About Annota` already do in the same menu.

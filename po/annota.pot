@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-31 20:00+0100\n"
+"POT-Creation-Date: 2026-11-01 06:14+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,9 +19,9 @@ msgstr ""
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
 #: data/io.github.trosinde.Annota.desktop.in:2
-#: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:42
-#: data/ui/editor-window.blp:268 data/ui/editor-window.blp:317
-#: src/ui/editor/mod.rs:913 src/ui/editor/mod.rs:915
+#: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:49
+#: data/ui/editor-window.blp:275 data/ui/editor-window.blp:324
+#: src/ui/editor/mod.rs:914 src/ui/editor/mod.rs:916
 msgid "Annota"
 msgstr ""
 
@@ -180,7 +180,7 @@ msgid ""
 "given back when the Annota shortcut is disabled or changed."
 msgstr ""
 
-#: data/io.github.trosinde.Annota.gschema.xml:89 data/ui/editor-window.blp:1199
+#: data/io.github.trosinde.Annota.gschema.xml:89 data/ui/editor-window.blp:1206
 msgid "Snap to guides"
 msgstr ""
 
@@ -215,7 +215,7 @@ msgid "Editor window maximized"
 msgstr ""
 
 #: data/ui/window.blp:8 data/ui/editor-window.blp:17
-#: data/ui/editor-window.blp:285
+#: data/ui/editor-window.blp:292
 msgid "New Capture"
 msgstr ""
 
@@ -239,92 +239,96 @@ msgstr ""
 msgid "_About Annota"
 msgstr ""
 
-#: data/ui/window.blp:54 data/ui/editor-window.blp:282
+#: data/ui/window.blp:42 data/ui/editor-window.blp:100
+msgid "_Quit"
+msgstr ""
+
+#: data/ui/window.blp:61 data/ui/editor-window.blp:289
 msgid "New Capture (Ctrl+N)"
 msgstr ""
 
-#: data/ui/window.blp:72 data/ui/window.blp:86 data/ui/window.blp:336
+#: data/ui/window.blp:79 data/ui/window.blp:93 data/ui/window.blp:343
 #: data/ui/region-overlay.blp:139
 msgid "Region"
 msgstr ""
 
-#: data/ui/window.blp:98 data/ui/window.blp:112 data/ui/window.blp:362
+#: data/ui/window.blp:105 data/ui/window.blp:119 data/ui/window.blp:369
 #: data/ui/region-overlay.blp:146
 msgid "Window"
 msgstr ""
 
-#: data/ui/window.blp:124 data/ui/window.blp:138 data/ui/window.blp:388
+#: data/ui/window.blp:131 data/ui/window.blp:145 data/ui/window.blp:395
 #: data/ui/region-overlay.blp:153
 msgid "Screen"
 msgstr ""
 
-#: data/ui/window.blp:159 data/ui/region-overlay.blp:226
+#: data/ui/window.blp:166 data/ui/region-overlay.blp:226
 msgid "Delay"
 msgstr ""
 
-#: data/ui/window.blp:164
+#: data/ui/window.blp:171
 msgid "Countdown before capturing"
 msgstr ""
 
-#: data/ui/window.blp:172 data/ui/region-overlay.blp:248
+#: data/ui/window.blp:179 data/ui/region-overlay.blp:248
 msgid "Delay in seconds"
 msgstr ""
 
-#: data/ui/window.blp:187 data/ui/preferences.blp:166
+#: data/ui/window.blp:194 data/ui/preferences.blp:166
 msgid "Include pointer"
 msgstr ""
 
-#: data/ui/window.blp:194 data/ui/region-overlay.blp:221
+#: data/ui/window.blp:201 data/ui/region-overlay.blp:221
 msgid "Include Pointer"
 msgstr ""
 
-#: data/ui/window.blp:232
+#: data/ui/window.blp:239
 msgid "Paste Image From Clipboard"
 msgstr ""
 
-#: data/ui/window.blp:255
+#: data/ui/window.blp:262
 msgid "Open Image…"
 msgstr ""
 
-#: data/ui/window.blp:273 data/ui/editor-window.blp:324
+#: data/ui/window.blp:280 data/ui/editor-window.blp:331
 msgid "Main Menu"
 msgstr ""
 
-#: data/ui/window.blp:301
+#: data/ui/window.blp:308
 msgid "Capture Anything"
 msgstr ""
 
-#: data/ui/window.blp:308
+#: data/ui/window.blp:315
 msgid ""
 "Pick what to capture. The capture opens in the editor, ready to mark up. "
 "Every annotation stays editable until you export."
 msgstr ""
 
-#: data/ui/window.blp:322
+#: data/ui/window.blp:329
 msgid "Capture a region"
 msgstr ""
 
-#: data/ui/window.blp:348
+#: data/ui/window.blp:355
 msgid "Capture a window"
 msgstr ""
 
-#: data/ui/window.blp:374
+#: data/ui/window.blp:381
 msgid "Capture the screen"
 msgstr ""
 
-#: data/ui/window.blp:411
+#: data/ui/window.blp:418
 msgid "or open an image or .annota file with"
 msgstr ""
 
-#: data/ui/window.blp:421
+#: data/ui/window.blp:428
 msgid "— or drop it here"
 msgstr ""
 
-#: data/ui/window.blp:455
+#: data/ui/window.blp:462
 msgid "Drop to Open as New Capture"
 msgstr ""
 
-#: data/ui/window.blp:460
+#: data/ui/window.blp:467
 msgid "PNG, JPG, WebP or .annota"
 msgstr ""
 
@@ -360,7 +364,7 @@ msgstr ""
 msgid "Example"
 msgstr ""
 
-#: data/ui/preferences.blp:60 data/ui/editor-window.blp:330
+#: data/ui/preferences.blp:60 data/ui/editor-window.blp:337
 #: data/ui/export-dialog.blp:28 data/ui/batch-export-dialog.blp:28
 msgid "Export"
 msgstr ""
@@ -450,8 +454,8 @@ msgstr ""
 msgid "Open in Editor"
 msgstr ""
 
-#: data/ui/preferences.blp:188 data/ui/editor-window.blp:345
-#: src/ui/editor/mod.rs:3097
+#: data/ui/preferences.blp:188 data/ui/editor-window.blp:352
+#: src/ui/editor/mod.rs:3098
 msgid "Copy to Clipboard"
 msgstr ""
 
@@ -749,8 +753,8 @@ msgstr ""
 #: data/ui/region-overlay.blp:263 data/ui/region-overlay.blp:335
 #: data/ui/region-overlay.blp:377 data/ui/region-overlay.blp:410
 #: data/ui/countdown.blp:48 data/ui/shortcut-dialog.blp:18
-#: data/ui/editor-window.blp:759 data/ui/editor-window.blp:1391
-#: data/ui/editor-window.blp:3455 data/ui/editor-window.blp:3827
+#: data/ui/editor-window.blp:766 data/ui/editor-window.blp:1398
+#: data/ui/editor-window.blp:3462 data/ui/editor-window.blp:3834
 #: data/ui/resize-dialog.blp:21 data/ui/export-dialog.blp:23
 #: data/ui/export-dialog.blp:283 data/ui/redaction-warning.blp:53
 #: data/ui/batch-export-dialog.blp:23 src/ui/editor/theme_editor.rs:859
@@ -766,8 +770,8 @@ msgctxt "keyboard key"
 msgid "Shift"
 msgstr ""
 
-#: data/ui/region-overlay.blp:307 data/ui/editor-window.blp:1790
-#: data/ui/editor-window.blp:1798
+#: data/ui/region-overlay.blp:307 data/ui/editor-window.blp:1797
+#: data/ui/editor-window.blp:1805
 msgid "Square"
 msgstr ""
 
@@ -855,15 +859,15 @@ msgstr ""
 msgid "Esc cancels · Backspace disables the shortcut"
 msgstr ""
 
-#: data/ui/editor-window.blp:27 data/ui/editor-window.blp:797
+#: data/ui/editor-window.blp:27 data/ui/editor-window.blp:804
 msgid "Open Library"
 msgstr ""
 
-#: data/ui/editor-window.blp:34 data/ui/editor-window.blp:3459
+#: data/ui/editor-window.blp:34 data/ui/editor-window.blp:3466
 msgid "Save"
 msgstr ""
 
-#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1822
+#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1823
 msgid "Save As…"
 msgstr ""
 
@@ -883,963 +887,963 @@ msgstr ""
 msgid "Rotate Left"
 msgstr ""
 
-#: data/ui/editor-window.blp:66 data/ui/editor-window.blp:969
+#: data/ui/editor-window.blp:66 data/ui/editor-window.blp:976
 #: src/ui/labels.rs:76
 msgid "Flip Horizontally"
 msgstr ""
 
-#: data/ui/editor-window.blp:71 data/ui/editor-window.blp:975
+#: data/ui/editor-window.blp:71 data/ui/editor-window.blp:982
 #: src/ui/labels.rs:77
 msgid "Flip Vertically"
 msgstr ""
 
-#: data/ui/editor-window.blp:76 data/ui/editor-window.blp:190
-#: data/ui/editor-window.blp:1206 src/ui/labels.rs:82
+#: data/ui/editor-window.blp:76 data/ui/editor-window.blp:197
+#: data/ui/editor-window.blp:1213 src/ui/labels.rs:82
 msgid "Flatten All"
 msgstr ""
 
-#: data/ui/editor-window.blp:103
+#: data/ui/editor-window.blp:110
 msgid "Email…"
 msgstr ""
 
-#: data/ui/editor-window.blp:108
+#: data/ui/editor-window.blp:115
 msgid "Open With…"
 msgstr ""
 
-#: data/ui/editor-window.blp:113
+#: data/ui/editor-window.blp:120
 msgid "Copy to Folder…"
 msgstr ""
 
-#: data/ui/editor-window.blp:125 src/capture/delivery.rs:315
-#: src/ui/editor/mod.rs:691
+#: data/ui/editor-window.blp:132 src/capture/delivery.rs:315
+#: src/ui/editor/mod.rs:692
 msgid "Copy"
 msgstr ""
 
-#: data/ui/editor-window.blp:131 data/ui/theme-editor.blp:16
+#: data/ui/editor-window.blp:138 data/ui/theme-editor.blp:16
 #: data/ui/theme-editor.blp:164
 msgid "Duplicate"
 msgstr ""
 
-#: data/ui/editor-window.blp:137 data/ui/editor-window.blp:3896
+#: data/ui/editor-window.blp:144 data/ui/editor-window.blp:3903
 #: src/ui/editor/theme_editor.rs:860
 msgid "Delete"
 msgstr ""
 
-#: data/ui/editor-window.blp:145 src/ui/labels.rs:62
+#: data/ui/editor-window.blp:152 src/ui/labels.rs:62
 msgid "Bring to Front"
 msgstr ""
 
-#: data/ui/editor-window.blp:151 src/ui/labels.rs:63
+#: data/ui/editor-window.blp:158 src/ui/labels.rs:63
 msgid "Bring Forward"
 msgstr ""
 
-#: data/ui/editor-window.blp:157 src/ui/labels.rs:64
+#: data/ui/editor-window.blp:164 src/ui/labels.rs:64
 msgid "Send Backward"
 msgstr ""
 
-#: data/ui/editor-window.blp:163 src/ui/labels.rs:65
+#: data/ui/editor-window.blp:170 src/ui/labels.rs:65
 msgid "Send to Back"
 msgstr ""
 
-#: data/ui/editor-window.blp:171 src/ui/labels.rs:66
+#: data/ui/editor-window.blp:178 src/ui/labels.rs:66
 msgid "Group"
 msgstr ""
 
-#: data/ui/editor-window.blp:177 data/ui/editor-window.blp:1599
+#: data/ui/editor-window.blp:184 data/ui/editor-window.blp:1606
 #: src/ui/labels.rs:67
 msgid "Ungroup"
 msgstr ""
 
-#: data/ui/editor-window.blp:185
+#: data/ui/editor-window.blp:192
 msgid "Flatten Selection"
 msgstr ""
 
-#: data/ui/editor-window.blp:200
+#: data/ui/editor-window.blp:207
 msgid "Fit to Window"
 msgstr ""
 
-#: data/ui/editor-window.blp:205
+#: data/ui/editor-window.blp:212
 msgid "Fit Width"
 msgstr ""
 
-#: data/ui/editor-window.blp:256 data/ui/editor-window.blp:595
+#: data/ui/editor-window.blp:263 data/ui/editor-window.blp:602
 msgid "Zoom In"
 msgstr ""
 
-#: data/ui/editor-window.blp:261 data/ui/editor-window.blp:574
+#: data/ui/editor-window.blp:268 data/ui/editor-window.blp:581
 msgid "Zoom Out"
 msgstr ""
 
-#: data/ui/editor-window.blp:299 src/capture/delivery.rs:300
-#: src/ui/editor/mod.rs:704 src/ui/editor/mod.rs:1377 src/ui/editor/mod.rs:1514
-#: src/ui/editor/mod.rs:2529 src/ui/editor/mod.rs:2936
+#: data/ui/editor-window.blp:306 src/capture/delivery.rs:300
+#: src/ui/editor/mod.rs:705 src/ui/editor/mod.rs:1378 src/ui/editor/mod.rs:1515
+#: src/ui/editor/mod.rs:2530 src/ui/editor/mod.rs:2937
 #: src/ui/editor/text.rs:101
 msgid "Undo"
 msgstr ""
 
-#: data/ui/editor-window.blp:309 src/ui/editor/text.rs:103
+#: data/ui/editor-window.blp:316 src/ui/editor/text.rs:103
 msgid "Redo"
 msgstr ""
 
-#: data/ui/editor-window.blp:333
+#: data/ui/editor-window.blp:340
 msgid "Export (Ctrl+E)"
 msgstr ""
 
-#: data/ui/editor-window.blp:334
+#: data/ui/editor-window.blp:341
 msgid "Share"
 msgstr ""
 
-#: data/ui/editor-window.blp:342
+#: data/ui/editor-window.blp:349
 msgid "Copy to Clipboard (Ctrl+C)"
 msgstr ""
 
-#: data/ui/editor-window.blp:353
+#: data/ui/editor-window.blp:360
 msgid "Show Properties (F9)"
 msgstr ""
 
-#: data/ui/editor-window.blp:356
+#: data/ui/editor-window.blp:363
 msgid "Show Properties"
 msgstr ""
 
-#: data/ui/editor-window.blp:384
+#: data/ui/editor-window.blp:391
 msgid "Select (V)"
 msgstr ""
 
-#: data/ui/editor-window.blp:388 data/ui/editor-window.blp:747
+#: data/ui/editor-window.blp:395 data/ui/editor-window.blp:754
 #: src/ui/editor/sidebar.rs:812 src/ui/labels.rs:198
 msgid "Select"
 msgstr ""
 
-#: data/ui/editor-window.blp:403
+#: data/ui/editor-window.blp:410
 msgid "Arrow (A)"
 msgstr ""
 
-#: data/ui/editor-window.blp:407 src/ui/labels.rs:199
+#: data/ui/editor-window.blp:414 src/ui/labels.rs:199
 msgid "Arrow"
 msgstr ""
 
-#: data/ui/editor-window.blp:415
+#: data/ui/editor-window.blp:422
 msgid "Line (L)"
 msgstr ""
 
-#: data/ui/editor-window.blp:419 src/ui/labels.rs:200
+#: data/ui/editor-window.blp:426 src/ui/labels.rs:200
 msgid "Line"
 msgstr ""
 
-#: data/ui/editor-window.blp:427
+#: data/ui/editor-window.blp:434
 msgid "Pen (P)"
 msgstr ""
 
-#: data/ui/editor-window.blp:431 src/ui/labels.rs:201
+#: data/ui/editor-window.blp:438 src/ui/labels.rs:201
 msgid "Pen"
 msgstr ""
 
-#: data/ui/editor-window.blp:439
+#: data/ui/editor-window.blp:446
 msgid "Shape (U)"
 msgstr ""
 
-#: data/ui/editor-window.blp:443 data/ui/editor-window.blp:1766
-#: data/ui/editor-window.blp:2928 src/ui/labels.rs:202
+#: data/ui/editor-window.blp:450 data/ui/editor-window.blp:1773
+#: data/ui/editor-window.blp:2935 src/ui/labels.rs:202
 msgid "Shape"
 msgstr ""
 
-#: data/ui/editor-window.blp:451
+#: data/ui/editor-window.blp:458
 msgid "Text (T)"
 msgstr ""
 
-#: data/ui/editor-window.blp:455 src/ui/labels.rs:203
+#: data/ui/editor-window.blp:462 src/ui/labels.rs:203
 msgid "Text"
 msgstr ""
 
-#: data/ui/editor-window.blp:463
+#: data/ui/editor-window.blp:470
 msgid "Callout (K)"
 msgstr ""
 
-#: data/ui/editor-window.blp:467 src/ui/labels.rs:204
+#: data/ui/editor-window.blp:474 src/ui/labels.rs:204
 msgid "Callout"
 msgstr ""
 
-#: data/ui/editor-window.blp:475
+#: data/ui/editor-window.blp:482
 msgid "Step (S)"
 msgstr ""
 
-#: data/ui/editor-window.blp:479 src/ui/labels.rs:205
+#: data/ui/editor-window.blp:486 src/ui/labels.rs:205
 msgid "Step"
 msgstr ""
 
-#: data/ui/editor-window.blp:494
+#: data/ui/editor-window.blp:501
 msgid "Highlighter (H)"
 msgstr ""
 
-#: data/ui/editor-window.blp:498 src/ui/labels.rs:206
+#: data/ui/editor-window.blp:505 src/ui/labels.rs:206
 msgid "Highlighter"
 msgstr ""
 
-#: data/ui/editor-window.blp:506
+#: data/ui/editor-window.blp:513
 msgid "Redact (B)"
 msgstr ""
 
-#: data/ui/editor-window.blp:510 src/ui/labels.rs:207
+#: data/ui/editor-window.blp:517 src/ui/labels.rs:207
 msgid "Redact"
 msgstr ""
 
-#: data/ui/editor-window.blp:526 src/ui/editor/mod.rs:998
+#: data/ui/editor-window.blp:533 src/ui/editor/mod.rs:999
 msgid "Crop (C)"
 msgstr ""
 
-#: data/ui/editor-window.blp:530 data/ui/editor-window.blp:1224
-#: data/ui/editor-window.blp:1409 src/ui/labels.rs:72
+#: data/ui/editor-window.blp:537 data/ui/editor-window.blp:1231
+#: data/ui/editor-window.blp:1416 src/ui/labels.rs:72
 msgid "Crop"
 msgstr ""
 
-#: data/ui/editor-window.blp:570
+#: data/ui/editor-window.blp:577
 msgid "Zoom Out (Ctrl+−)"
 msgstr ""
 
-#: data/ui/editor-window.blp:582
+#: data/ui/editor-window.blp:589
 msgid "Zoom Level"
 msgstr ""
 
-#: data/ui/editor-window.blp:591
+#: data/ui/editor-window.blp:598
 msgid "Zoom In (Ctrl++)"
 msgstr ""
 
-#: data/ui/editor-window.blp:609 data/ui/editor-window.blp:613
+#: data/ui/editor-window.blp:616 data/ui/editor-window.blp:620
 msgid "Show Tray"
 msgstr ""
 
-#: data/ui/editor-window.blp:626
+#: data/ui/editor-window.blp:633
 msgid "Click to pick · Esc cancels"
 msgstr ""
 
-#: data/ui/editor-window.blp:644
+#: data/ui/editor-window.blp:651
 msgid "Drop to insert image"
 msgstr ""
 
-#: data/ui/editor-window.blp:697
+#: data/ui/editor-window.blp:704
 msgid "Open"
 msgstr ""
 
-#: data/ui/editor-window.blp:718
+#: data/ui/editor-window.blp:725
 msgid "Recent"
 msgstr ""
 
-#: data/ui/editor-window.blp:748
+#: data/ui/editor-window.blp:755
 msgid "Select Images to Export"
 msgstr ""
 
-#: data/ui/editor-window.blp:773
+#: data/ui/editor-window.blp:780
 msgid "Select All"
 msgstr ""
 
-#: data/ui/editor-window.blp:793
+#: data/ui/editor-window.blp:800
 msgid "Open Library (Ctrl+L)"
 msgstr ""
 
-#: data/ui/editor-window.blp:804 data/ui/editor-window.blp:808
+#: data/ui/editor-window.blp:811 data/ui/editor-window.blp:815
 msgid "Hide Tray"
 msgstr ""
 
-#: data/ui/editor-window.blp:842
+#: data/ui/editor-window.blp:849
 msgid "Quick Styles of This Tool"
 msgstr ""
 
-#: data/ui/editor-window.blp:858 data/ui/editor-window.blp:863
+#: data/ui/editor-window.blp:865 data/ui/editor-window.blp:870
 msgid "Favourites"
 msgstr ""
 
-#: data/ui/editor-window.blp:881
+#: data/ui/editor-window.blp:888
 msgid ""
 "Pick a favourite to switch to its tool. Star any quick style with right-"
 "click → Add to Favourites."
 msgstr ""
 
-#: data/ui/editor-window.blp:913
+#: data/ui/editor-window.blp:920
 msgid "Document"
 msgstr ""
 
-#: data/ui/editor-window.blp:931
+#: data/ui/editor-window.blp:938
 msgid "Image"
 msgstr ""
 
-#: data/ui/editor-window.blp:934 data/ui/editor-window.blp:2970
-#: data/ui/editor-window.blp:2987 data/ui/export-dialog.blp:203
+#: data/ui/editor-window.blp:941 data/ui/editor-window.blp:2977
+#: data/ui/editor-window.blp:2994 data/ui/export-dialog.blp:203
 #: data/ui/export-dialog.blp:212 data/ui/batch-export-dialog.blp:150
 msgid "Size"
 msgstr ""
 
-#: data/ui/editor-window.blp:939
+#: data/ui/editor-window.blp:946
 msgid "Resize…"
 msgstr ""
 
-#: data/ui/editor-window.blp:946
+#: data/ui/editor-window.blp:953
 msgid "Rotate & Flip"
 msgstr ""
 
-#: data/ui/editor-window.blp:957
+#: data/ui/editor-window.blp:964
 msgid "Rotate Left (Ctrl+Shift+R)"
 msgstr ""
 
-#: data/ui/editor-window.blp:963
+#: data/ui/editor-window.blp:970
 msgid "Rotate Right (Ctrl+R)"
 msgstr ""
 
-#: data/ui/editor-window.blp:981 data/ui/editor-window.blp:2141
-#: data/ui/editor-window.blp:2189
+#: data/ui/editor-window.blp:988 data/ui/editor-window.blp:2148
+#: data/ui/editor-window.blp:2196
 msgid "Corner radius"
 msgstr ""
 
-#: data/ui/editor-window.blp:992
+#: data/ui/editor-window.blp:999
 msgid "Canvas"
 msgstr ""
 
-#: data/ui/editor-window.blp:999
+#: data/ui/editor-window.blp:1006
 msgid "Background"
 msgstr ""
 
-#: data/ui/editor-window.blp:1008 src/ui/editor/panel.rs:1678
+#: data/ui/editor-window.blp:1015 src/ui/editor/panel.rs:1678
 msgid "Coral"
 msgstr ""
 
-#: data/ui/editor-window.blp:1013 src/ui/editor/panel.rs:1679
+#: data/ui/editor-window.blp:1020 src/ui/editor/panel.rs:1679
 msgid "Amber"
 msgstr ""
 
-#: data/ui/editor-window.blp:1018 src/ui/editor/panel.rs:1680
+#: data/ui/editor-window.blp:1025 src/ui/editor/panel.rs:1680
 msgid "Lime"
 msgstr ""
 
-#: data/ui/editor-window.blp:1023 src/ui/editor/panel.rs:1681
+#: data/ui/editor-window.blp:1030 src/ui/editor/panel.rs:1681
 msgid "Teal"
 msgstr ""
 
-#: data/ui/editor-window.blp:1028 src/ui/editor/panel.rs:1682
+#: data/ui/editor-window.blp:1035 src/ui/editor/panel.rs:1682
 msgid "Azure"
 msgstr ""
 
-#: data/ui/editor-window.blp:1033 src/ui/editor/panel.rs:1683
+#: data/ui/editor-window.blp:1040 src/ui/editor/panel.rs:1683
 msgid "Violet"
 msgstr ""
 
-#: data/ui/editor-window.blp:1038 src/ui/editor/panel.rs:1684
+#: data/ui/editor-window.blp:1045 src/ui/editor/panel.rs:1684
 msgid "Ink"
 msgstr ""
 
-#: data/ui/editor-window.blp:1047
+#: data/ui/editor-window.blp:1054
 msgid "Transparent"
 msgstr ""
 
-#: data/ui/editor-window.blp:1052 src/ui/editor/panel.rs:1685
+#: data/ui/editor-window.blp:1059 src/ui/editor/panel.rs:1685
 msgid "Paper"
 msgstr ""
 
-#: data/ui/editor-window.blp:1057 src/ui/editor/panel.rs:1163
+#: data/ui/editor-window.blp:1064 src/ui/editor/panel.rs:1163
 #: src/ui/editor/theme_editor.rs:782
 msgid "Custom Colour"
 msgstr ""
 
-#: data/ui/editor-window.blp:1063
+#: data/ui/editor-window.blp:1070
 msgid "Pick Colour From Image"
 msgstr ""
 
-#: data/ui/editor-window.blp:1069
+#: data/ui/editor-window.blp:1076
 msgid "Drag a canvas edge to add space around the image."
 msgstr ""
 
-#: data/ui/editor-window.blp:1077
+#: data/ui/editor-window.blp:1084
 msgid "Space around the image (px)"
 msgstr ""
 
-#: data/ui/editor-window.blp:1097
+#: data/ui/editor-window.blp:1104
 msgctxt "canvas side"
 msgid "Left"
 msgstr ""
 
-#: data/ui/editor-window.blp:1109
+#: data/ui/editor-window.blp:1116
 msgid "Space left of the image"
 msgstr ""
 
-#: data/ui/editor-window.blp:1123
+#: data/ui/editor-window.blp:1130
 msgctxt "canvas side"
 msgid "Top"
 msgstr ""
 
-#: data/ui/editor-window.blp:1135
+#: data/ui/editor-window.blp:1142
 msgid "Space above the image"
 msgstr ""
 
-#: data/ui/editor-window.blp:1149
+#: data/ui/editor-window.blp:1156
 msgctxt "canvas side"
 msgid "Right"
 msgstr ""
 
-#: data/ui/editor-window.blp:1161
+#: data/ui/editor-window.blp:1168
 msgid "Space right of the image"
 msgstr ""
 
-#: data/ui/editor-window.blp:1175
+#: data/ui/editor-window.blp:1182
 msgctxt "canvas side"
 msgid "Bottom"
 msgstr ""
 
-#: data/ui/editor-window.blp:1187
+#: data/ui/editor-window.blp:1194
 msgid "Space below the image"
 msgstr ""
 
-#: data/ui/editor-window.blp:1196
+#: data/ui/editor-window.blp:1203
 msgid "Objects"
 msgstr ""
 
-#: data/ui/editor-window.blp:1200
+#: data/ui/editor-window.blp:1207
 msgid "Ctrl+; · hold Alt to suspend"
 msgstr ""
 
-#: data/ui/editor-window.blp:1243 data/ui/editor-window.blp:3495
+#: data/ui/editor-window.blp:1250 data/ui/editor-window.blp:3502
 msgctxt "arrange"
 msgid "X"
 msgstr ""
 
-#: data/ui/editor-window.blp:1254
+#: data/ui/editor-window.blp:1261
 msgid "Crop X position"
 msgstr ""
 
-#: data/ui/editor-window.blp:1268 data/ui/editor-window.blp:3520
+#: data/ui/editor-window.blp:1275 data/ui/editor-window.blp:3527
 msgctxt "arrange"
 msgid "Y"
 msgstr ""
 
-#: data/ui/editor-window.blp:1279
+#: data/ui/editor-window.blp:1286
 msgid "Crop Y position"
 msgstr ""
 
-#: data/ui/editor-window.blp:1293 data/ui/editor-window.blp:3545
+#: data/ui/editor-window.blp:1300 data/ui/editor-window.blp:3552
 msgctxt "arrange"
 msgid "W"
 msgstr ""
 
-#: data/ui/editor-window.blp:1304
+#: data/ui/editor-window.blp:1311
 msgid "Crop width"
 msgstr ""
 
-#: data/ui/editor-window.blp:1318 data/ui/editor-window.blp:3570
+#: data/ui/editor-window.blp:1325 data/ui/editor-window.blp:3577
 msgctxt "arrange"
 msgid "H"
 msgstr ""
 
-#: data/ui/editor-window.blp:1329
+#: data/ui/editor-window.blp:1336
 msgid "Crop height"
 msgstr ""
 
-#: data/ui/editor-window.blp:1340 data/ui/editor-window.blp:1357
+#: data/ui/editor-window.blp:1347 data/ui/editor-window.blp:1364
 msgid "Aspect ratio"
 msgstr ""
 
-#: data/ui/editor-window.blp:1348
+#: data/ui/editor-window.blp:1355
 msgctxt "aspect ratio"
 msgid "Free"
 msgstr ""
 
-#: data/ui/editor-window.blp:1349
+#: data/ui/editor-window.blp:1356
 msgctxt "aspect ratio"
 msgid "Original"
 msgstr ""
 
-#: data/ui/editor-window.blp:1372
+#: data/ui/editor-window.blp:1379
 msgid ""
 "Annotations keep their position on the image. Objects outside the crop stay "
 "in the document and can be brought back with Undo."
 msgstr ""
 
-#: data/ui/editor-window.blp:1437
+#: data/ui/editor-window.blp:1444
 msgid "Quick Styles"
 msgstr ""
 
-#: data/ui/editor-window.blp:1446 data/ui/editor-window.blp:1453
-#: data/ui/editor-window.blp:1505 src/ui/editor/theme_editor.rs:1125
+#: data/ui/editor-window.blp:1453 data/ui/editor-window.blp:1460
+#: data/ui/editor-window.blp:1512 src/ui/editor/theme_editor.rs:1125
 msgid "Theme"
 msgstr ""
 
-#: data/ui/editor-window.blp:1497
+#: data/ui/editor-window.blp:1504
 msgid "Manage Themes…"
 msgstr ""
 
-#: data/ui/editor-window.blp:1523
+#: data/ui/editor-window.blp:1530
 msgid "Theme Quick Styles"
 msgstr ""
 
-#: data/ui/editor-window.blp:1528 data/ui/editor-window.blp:1546
+#: data/ui/editor-window.blp:1535 data/ui/editor-window.blp:1553
 msgid "My Styles"
 msgstr ""
 
-#: data/ui/editor-window.blp:1575
+#: data/ui/editor-window.blp:1582
 msgid "Modified"
 msgstr ""
 
-#: data/ui/editor-window.blp:1620 data/ui/editor-window.blp:1636
+#: data/ui/editor-window.blp:1627 data/ui/editor-window.blp:1643
 msgid "Sequence"
 msgstr ""
 
-#: data/ui/editor-window.blp:1628
+#: data/ui/editor-window.blp:1635
 msgctxt "step sequence"
 msgid "1, 2, 3"
 msgstr ""
 
-#: data/ui/editor-window.blp:1629
+#: data/ui/editor-window.blp:1636
 msgctxt "step sequence"
 msgid "A, B, C"
 msgstr ""
 
-#: data/ui/editor-window.blp:1630
+#: data/ui/editor-window.blp:1637
 msgctxt "step sequence"
 msgid "a, b, c"
 msgstr ""
 
-#: data/ui/editor-window.blp:1631
+#: data/ui/editor-window.blp:1638
 msgctxt "step sequence"
 msgid "I, II, III"
 msgstr ""
 
-#: data/ui/editor-window.blp:1646 data/ui/editor-window.blp:1654
-#: data/ui/editor-window.blp:1706 data/ui/editor-window.blp:1714
-#: data/ui/editor-window.blp:2938 data/ui/editor-window.blp:2946
+#: data/ui/editor-window.blp:1653 data/ui/editor-window.blp:1661
+#: data/ui/editor-window.blp:1713 data/ui/editor-window.blp:1721
+#: data/ui/editor-window.blp:2945 data/ui/editor-window.blp:2953
 msgid "Rectangle"
 msgstr ""
 
-#: data/ui/editor-window.blp:1660 data/ui/editor-window.blp:1668
+#: data/ui/editor-window.blp:1667 data/ui/editor-window.blp:1675
 msgid "Rounded Rectangle"
 msgstr ""
 
-#: data/ui/editor-window.blp:1674 data/ui/editor-window.blp:1682
-#: data/ui/editor-window.blp:1734 data/ui/editor-window.blp:1742
-#: data/ui/editor-window.blp:2952 data/ui/editor-window.blp:2960
+#: data/ui/editor-window.blp:1681 data/ui/editor-window.blp:1689
+#: data/ui/editor-window.blp:1741 data/ui/editor-window.blp:1749
+#: data/ui/editor-window.blp:2959 data/ui/editor-window.blp:2967
 msgid "Ellipse"
 msgstr ""
 
-#: data/ui/editor-window.blp:1688 data/ui/editor-window.blp:1696
+#: data/ui/editor-window.blp:1695 data/ui/editor-window.blp:1703
 msgid "Polygon"
 msgstr ""
 
-#: data/ui/editor-window.blp:1720 data/ui/editor-window.blp:1728
+#: data/ui/editor-window.blp:1727 data/ui/editor-window.blp:1735
 msgid "Rounded"
 msgstr ""
 
-#: data/ui/editor-window.blp:1748 data/ui/editor-window.blp:1756
+#: data/ui/editor-window.blp:1755 data/ui/editor-window.blp:1763
 msgid "Cloud"
 msgstr ""
 
-#: data/ui/editor-window.blp:1776 data/ui/editor-window.blp:1784
+#: data/ui/editor-window.blp:1783 data/ui/editor-window.blp:1791
 msgid "Circle"
 msgstr ""
 
-#: data/ui/editor-window.blp:1804 data/ui/editor-window.blp:1812
+#: data/ui/editor-window.blp:1811 data/ui/editor-window.blp:1819
 msgid "Rounded Square"
 msgstr ""
 
-#: data/ui/editor-window.blp:1818 data/ui/editor-window.blp:1826
+#: data/ui/editor-window.blp:1825 data/ui/editor-window.blp:1833
 msgid "Pin"
 msgstr ""
 
-#: data/ui/editor-window.blp:1837
+#: data/ui/editor-window.blp:1844
 msgid "Type"
 msgstr ""
 
-#: data/ui/editor-window.blp:1847 data/ui/editor-window.blp:1848
-#: data/ui/editor-window.blp:1851
+#: data/ui/editor-window.blp:1854 data/ui/editor-window.blp:1855
+#: data/ui/editor-window.blp:1858
 msgctxt "redaction"
 msgid "Blur"
 msgstr ""
 
-#: data/ui/editor-window.blp:1857 data/ui/editor-window.blp:1858
-#: data/ui/editor-window.blp:1861
+#: data/ui/editor-window.blp:1864 data/ui/editor-window.blp:1865
+#: data/ui/editor-window.blp:1868
 msgctxt "redaction"
 msgid "Pixelate"
 msgstr ""
 
-#: data/ui/editor-window.blp:1867 data/ui/editor-window.blp:1868
-#: data/ui/editor-window.blp:1871
+#: data/ui/editor-window.blp:1874 data/ui/editor-window.blp:1875
+#: data/ui/editor-window.blp:1878
 msgctxt "redaction"
 msgid "Solid"
 msgstr ""
 
-#: data/ui/editor-window.blp:1883 data/ui/editor-window.blp:1888
+#: data/ui/editor-window.blp:1890 data/ui/editor-window.blp:1895
 msgid "Font"
 msgstr ""
 
-#: data/ui/editor-window.blp:1904
+#: data/ui/editor-window.blp:1911
 msgid "Font size"
 msgstr ""
 
-#: data/ui/editor-window.blp:1918
+#: data/ui/editor-window.blp:1925
 msgid "Bold (Ctrl+B)"
 msgstr ""
 
-#: data/ui/editor-window.blp:1921
+#: data/ui/editor-window.blp:1928
 msgid "Bold"
 msgstr ""
 
-#: data/ui/editor-window.blp:1927
+#: data/ui/editor-window.blp:1934
 msgid "Italic (Ctrl+I)"
 msgstr ""
 
-#: data/ui/editor-window.blp:1930
+#: data/ui/editor-window.blp:1937
 msgid "Italic"
 msgstr ""
 
-#: data/ui/editor-window.blp:1936
+#: data/ui/editor-window.blp:1943
 msgid "Underline (Ctrl+U)"
 msgstr ""
 
-#: data/ui/editor-window.blp:1939
+#: data/ui/editor-window.blp:1946
 msgid "Underline"
 msgstr ""
 
-#: data/ui/editor-window.blp:1945 data/ui/editor-window.blp:1948
+#: data/ui/editor-window.blp:1952 data/ui/editor-window.blp:1955
 msgid "Strikethrough"
 msgstr ""
 
-#: data/ui/editor-window.blp:1958 data/ui/editor-window.blp:1961
+#: data/ui/editor-window.blp:1965 data/ui/editor-window.blp:1968
 msgid "Align Left"
 msgstr ""
 
-#: data/ui/editor-window.blp:1968 data/ui/editor-window.blp:1971
+#: data/ui/editor-window.blp:1975 data/ui/editor-window.blp:1978
 msgid "Centre"
 msgstr ""
 
-#: data/ui/editor-window.blp:1978 data/ui/editor-window.blp:1981
+#: data/ui/editor-window.blp:1985 data/ui/editor-window.blp:1988
 msgid "Align Right"
 msgstr ""
 
-#: data/ui/editor-window.blp:1992 data/ui/editor-window.blp:3118
+#: data/ui/editor-window.blp:1999 data/ui/editor-window.blp:3125
 #: src/ui/editor/panel.rs:289
 msgid "Colour"
 msgstr ""
 
-#: data/ui/editor-window.blp:2008 src/ui/editor/panel.rs:285
+#: data/ui/editor-window.blp:2015 src/ui/editor/panel.rs:285
 msgid "Fill"
 msgstr ""
 
-#: data/ui/editor-window.blp:2024 src/ui/editor/panel.rs:286
+#: data/ui/editor-window.blp:2031 src/ui/editor/panel.rs:286
 msgid "Outline"
 msgstr ""
 
-#: data/ui/editor-window.blp:2040 data/ui/editor-window.blp:2060
+#: data/ui/editor-window.blp:2047 data/ui/editor-window.blp:2067
 msgid "Fill opacity"
 msgstr ""
 
-#: data/ui/editor-window.blp:2076 data/ui/editor-window.blp:2093
-#: data/ui/editor-window.blp:3556 data/ui/resize-dialog.blp:44
+#: data/ui/editor-window.blp:2083 data/ui/editor-window.blp:2100
+#: data/ui/editor-window.blp:3563 data/ui/resize-dialog.blp:44
 msgid "Width"
 msgstr ""
 
-#: data/ui/editor-window.blp:2102 data/ui/editor-window.blp:2119
-#: data/ui/editor-window.blp:2130 data/ui/editor-window.blp:2168
-#: data/ui/editor-window.blp:2200 data/ui/editor-window.blp:2238
+#: data/ui/editor-window.blp:2109 data/ui/editor-window.blp:2126
+#: data/ui/editor-window.blp:2137 data/ui/editor-window.blp:2175
+#: data/ui/editor-window.blp:2207 data/ui/editor-window.blp:2245
 msgid "Outline width"
 msgstr ""
 
-#: data/ui/editor-window.blp:2211 data/ui/editor-window.blp:2259
+#: data/ui/editor-window.blp:2218 data/ui/editor-window.blp:2266
 msgid "Padding"
 msgstr ""
 
-#: data/ui/editor-window.blp:2270
+#: data/ui/editor-window.blp:2277
 msgid "Ends"
 msgstr ""
 
-#: data/ui/editor-window.blp:2282
+#: data/ui/editor-window.blp:2289
 msgctxt "arrow end"
 msgid "Start"
 msgstr ""
 
-#: data/ui/editor-window.blp:2293
+#: data/ui/editor-window.blp:2300
 msgctxt "arrow end"
 msgid "End"
 msgstr ""
 
-#: data/ui/editor-window.blp:2305 data/ui/editor-window.blp:2313
+#: data/ui/editor-window.blp:2312 data/ui/editor-window.blp:2320
 msgid "Start Style"
 msgstr ""
 
-#: data/ui/editor-window.blp:2347 data/ui/editor-window.blp:2362
-#: data/ui/editor-window.blp:2570 data/ui/editor-window.blp:2585
+#: data/ui/editor-window.blp:2354 data/ui/editor-window.blp:2369
+#: data/ui/editor-window.blp:2577 data/ui/editor-window.blp:2592
 msgctxt "end style"
 msgid "None"
 msgstr ""
 
-#: data/ui/editor-window.blp:2378 data/ui/editor-window.blp:2393
-#: data/ui/editor-window.blp:2601 data/ui/editor-window.blp:2616
+#: data/ui/editor-window.blp:2385 data/ui/editor-window.blp:2400
+#: data/ui/editor-window.blp:2608 data/ui/editor-window.blp:2623
 msgctxt "end style"
 msgid "Triangle"
 msgstr ""
 
-#: data/ui/editor-window.blp:2409 data/ui/editor-window.blp:2424
-#: data/ui/editor-window.blp:2632 data/ui/editor-window.blp:2647
+#: data/ui/editor-window.blp:2416 data/ui/editor-window.blp:2431
+#: data/ui/editor-window.blp:2639 data/ui/editor-window.blp:2654
 msgctxt "end style"
 msgid "Open"
 msgstr ""
 
-#: data/ui/editor-window.blp:2440 data/ui/editor-window.blp:2455
-#: data/ui/editor-window.blp:2663 data/ui/editor-window.blp:2678
+#: data/ui/editor-window.blp:2447 data/ui/editor-window.blp:2462
+#: data/ui/editor-window.blp:2670 data/ui/editor-window.blp:2685
 msgctxt "end style"
 msgid "Circle"
 msgstr ""
 
-#: data/ui/editor-window.blp:2471 data/ui/editor-window.blp:2486
-#: data/ui/editor-window.blp:2694 data/ui/editor-window.blp:2709
+#: data/ui/editor-window.blp:2478 data/ui/editor-window.blp:2493
+#: data/ui/editor-window.blp:2701 data/ui/editor-window.blp:2716
 msgctxt "end style"
 msgid "Square"
 msgstr ""
 
-#: data/ui/editor-window.blp:2502 data/ui/editor-window.blp:2517
-#: data/ui/editor-window.blp:2725 data/ui/editor-window.blp:2740
+#: data/ui/editor-window.blp:2509 data/ui/editor-window.blp:2524
+#: data/ui/editor-window.blp:2732 data/ui/editor-window.blp:2747
 msgctxt "end style"
 msgid "Bar"
 msgstr ""
 
-#: data/ui/editor-window.blp:2528 data/ui/editor-window.blp:2536
+#: data/ui/editor-window.blp:2535 data/ui/editor-window.blp:2543
 msgid "End Style"
 msgstr ""
 
-#: data/ui/editor-window.blp:2766
+#: data/ui/editor-window.blp:2773
 msgid "Start size"
 msgstr ""
 
-#: data/ui/editor-window.blp:2787
+#: data/ui/editor-window.blp:2794
 msgid "End size"
 msgstr ""
 
-#: data/ui/editor-window.blp:2797
+#: data/ui/editor-window.blp:2804
 msgid "Line style"
 msgstr ""
 
-#: data/ui/editor-window.blp:2807 data/ui/editor-window.blp:2815
+#: data/ui/editor-window.blp:2814 data/ui/editor-window.blp:2822
 #: src/ui/editor/styles.rs:339
 msgid "Solid"
 msgstr ""
 
-#: data/ui/editor-window.blp:2821 data/ui/editor-window.blp:2829
+#: data/ui/editor-window.blp:2828 data/ui/editor-window.blp:2836
 msgid "Dashed"
 msgstr ""
 
-#: data/ui/editor-window.blp:2835 data/ui/editor-window.blp:2843
+#: data/ui/editor-window.blp:2842 data/ui/editor-window.blp:2850
 msgid "Dotted"
 msgstr ""
 
-#: data/ui/editor-window.blp:2854 data/ui/editor-window.blp:2874
+#: data/ui/editor-window.blp:2861 data/ui/editor-window.blp:2881
 msgid "Smoothing"
 msgstr ""
 
-#: data/ui/editor-window.blp:2891 data/ui/editor-window.blp:2911
+#: data/ui/editor-window.blp:2898 data/ui/editor-window.blp:2918
 msgid "Intensity"
 msgstr ""
 
-#: data/ui/editor-window.blp:3001
+#: data/ui/editor-window.blp:3008
 msgid "Value"
 msgstr ""
 
-#: data/ui/editor-window.blp:3006
+#: data/ui/editor-window.blp:3013
 msgid "This marker only"
 msgstr ""
 
-#: data/ui/editor-window.blp:3017
+#: data/ui/editor-window.blp:3024
 msgid "Value of this marker"
 msgstr ""
 
-#: data/ui/editor-window.blp:3026 data/ui/editor-window.blp:3043
+#: data/ui/editor-window.blp:3033 data/ui/editor-window.blp:3050
 msgid "Next value"
 msgstr ""
 
-#: data/ui/editor-window.blp:3049
+#: data/ui/editor-window.blp:3056
 msgid "Restart Sequence"
 msgstr ""
 
-#: data/ui/editor-window.blp:3057 data/ui/editor-window.blp:3077
-#: data/ui/editor-window.blp:3252 data/ui/editor-window.blp:3662
+#: data/ui/editor-window.blp:3064 data/ui/editor-window.blp:3084
+#: data/ui/editor-window.blp:3259 data/ui/editor-window.blp:3669
 msgid "Opacity"
 msgstr ""
 
-#: data/ui/editor-window.blp:3098
+#: data/ui/editor-window.blp:3105
 msgid "Shadow"
 msgstr ""
 
-#: data/ui/editor-window.blp:3139 data/ui/editor-window.blp:3167
+#: data/ui/editor-window.blp:3146 data/ui/editor-window.blp:3174
 msgid "Shadow angle"
 msgstr ""
 
-#: data/ui/editor-window.blp:3149
+#: data/ui/editor-window.blp:3156
 msgid "Angle"
 msgstr ""
 
-#: data/ui/editor-window.blp:3178
+#: data/ui/editor-window.blp:3185
 msgid "Distance"
 msgstr ""
 
-#: data/ui/editor-window.blp:3198
+#: data/ui/editor-window.blp:3205
 msgid "Shadow distance"
 msgstr ""
 
-#: data/ui/editor-window.blp:3215 src/ui/editor/styles.rs:342
+#: data/ui/editor-window.blp:3222 src/ui/editor/styles.rs:342
 #: src/ui/editor/styles.rs:393
 msgid "Blur"
 msgstr ""
 
-#: data/ui/editor-window.blp:3235
+#: data/ui/editor-window.blp:3242
 msgid "Shadow blur"
 msgstr ""
 
-#: data/ui/editor-window.blp:3272
+#: data/ui/editor-window.blp:3279
 msgid "Shadow opacity"
 msgstr ""
 
-#: data/ui/editor-window.blp:3290
+#: data/ui/editor-window.blp:3297
 msgid "Reset Shadow"
 msgstr ""
 
-#: data/ui/editor-window.blp:3304
+#: data/ui/editor-window.blp:3311
 msgid ""
 "Strokes stay editable vector paths. Hold <b>Shift</b> while drawing for a "
 "straight segment."
 msgstr ""
 
-#: data/ui/editor-window.blp:3322
+#: data/ui/editor-window.blp:3329
 msgid ""
 "Click to add a point. <b>Enter</b> or double-click finishes, clicking the "
 "first point closes the shape, <b>Backspace</b> removes the last point, "
 "<b>Esc</b> cancels."
 msgstr ""
 
-#: data/ui/editor-window.blp:3340
+#: data/ui/editor-window.blp:3347
 msgid ""
 "Multiply keeps text under the highlight readable. Drag to mark a rectangle."
 msgstr ""
 
-#: data/ui/editor-window.blp:3349
+#: data/ui/editor-window.blp:3356
 msgid ""
 "Drag + to add a tail. Drag a tail tip onto the body to remove it. The body "
 "grows with the text."
 msgstr ""
 
-#: data/ui/editor-window.blp:3365
+#: data/ui/editor-window.blp:3372
 msgid ""
 "Blur and pixelate can sometimes be reversed. For passwords and personal data "
 "use <b>Solid</b>. Annota asks again before export."
 msgstr ""
 
-#: data/ui/editor-window.blp:3389 data/ui/editor-window.blp:3403
-#: data/ui/editor-window.blp:3467
+#: data/ui/editor-window.blp:3396 data/ui/editor-window.blp:3410
+#: data/ui/editor-window.blp:3474
 msgid "Save as Quick Style"
 msgstr ""
 
-#: data/ui/editor-window.blp:3440 data/ui/editor-window.blp:3818
+#: data/ui/editor-window.blp:3447 data/ui/editor-window.blp:3825
 #: data/ui/theme-editor.blp:174
 msgid "Name"
 msgstr ""
 
-#: data/ui/editor-window.blp:3446 data/ui/editor-window.blp:3876
+#: data/ui/editor-window.blp:3453 data/ui/editor-window.blp:3883
 msgid "Add to Favourites"
 msgstr ""
 
-#: data/ui/editor-window.blp:3476
+#: data/ui/editor-window.blp:3483
 msgid "Arrange"
 msgstr ""
 
-#: data/ui/editor-window.blp:3506
+#: data/ui/editor-window.blp:3513
 msgid "X position"
 msgstr ""
 
-#: data/ui/editor-window.blp:3531
+#: data/ui/editor-window.blp:3538
 msgid "Y position"
 msgstr ""
 
-#: data/ui/editor-window.blp:3581 data/ui/resize-dialog.blp:56
+#: data/ui/editor-window.blp:3588 data/ui/resize-dialog.blp:56
 msgid "Height"
 msgstr ""
 
-#: data/ui/editor-window.blp:3591 data/ui/editor-window.blp:3608
+#: data/ui/editor-window.blp:3598 data/ui/editor-window.blp:3615
 msgid "Rotation"
 msgstr ""
 
-#: data/ui/editor-window.blp:3620
+#: data/ui/editor-window.blp:3627
 msgid "Dragging any member moves the whole group."
 msgstr ""
 
-#: data/ui/editor-window.blp:3644
+#: data/ui/editor-window.blp:3651
 msgid "Saturation and brightness"
 msgstr ""
 
-#: data/ui/editor-window.blp:3653
+#: data/ui/editor-window.blp:3660
 msgid "Hue"
 msgstr ""
 
-#: data/ui/editor-window.blp:3681
+#: data/ui/editor-window.blp:3688
 msgid "Hex colour"
 msgstr ""
 
-#: data/ui/editor-window.blp:3696
+#: data/ui/editor-window.blp:3703
 msgid "Red"
 msgstr ""
 
-#: data/ui/editor-window.blp:3711
+#: data/ui/editor-window.blp:3718
 msgid "Green"
 msgstr ""
 
-#: data/ui/editor-window.blp:3726
+#: data/ui/editor-window.blp:3733
 msgid "Blue"
 msgstr ""
 
-#: data/ui/editor-window.blp:3731
+#: data/ui/editor-window.blp:3738
 msgctxt "colour"
 msgid "Hex"
 msgstr ""
 
-#: data/ui/editor-window.blp:3741
+#: data/ui/editor-window.blp:3748
 msgctxt "colour"
 msgid "R"
 msgstr ""
 
-#: data/ui/editor-window.blp:3751
+#: data/ui/editor-window.blp:3758
 msgctxt "colour"
 msgid "G"
 msgstr ""
 
-#: data/ui/editor-window.blp:3761
+#: data/ui/editor-window.blp:3768
 msgctxt "colour"
 msgid "B"
 msgstr ""
 
-#: data/ui/editor-window.blp:3786 data/ui/theme-editor.blp:329
+#: data/ui/editor-window.blp:3793 data/ui/theme-editor.blp:329
 #: data/ui/theme-editor.blp:332 src/ui/editor/panel.rs:1164
 msgid "Pick From Screen"
 msgstr ""
 
-#: data/ui/editor-window.blp:3809
+#: data/ui/editor-window.blp:3816
 msgid "Rename Quick Style"
 msgstr ""
 
-#: data/ui/editor-window.blp:3831
+#: data/ui/editor-window.blp:3838
 msgid "Rename"
 msgstr ""
 
-#: data/ui/editor-window.blp:3845 src/ui/editor/theme_editor.rs:923
+#: data/ui/editor-window.blp:3852 src/ui/editor/theme_editor.rs:923
 msgid "Apply"
 msgstr ""
 
-#: data/ui/editor-window.blp:3851
+#: data/ui/editor-window.blp:3858
 msgid "Rename…"
 msgstr ""
 
-#: data/ui/editor-window.blp:3860 data/ui/theme-editor.blp:349
+#: data/ui/editor-window.blp:3867 data/ui/theme-editor.blp:349
 msgid "Move Left"
 msgstr ""
 
-#: data/ui/editor-window.blp:3867 data/ui/theme-editor.blp:358
+#: data/ui/editor-window.blp:3874 data/ui/theme-editor.blp:358
 msgid "Move Right"
 msgstr ""
 
-#: data/ui/editor-window.blp:3882
+#: data/ui/editor-window.blp:3889
 msgid "Remove from Favourites"
 msgstr ""
 
-#: data/ui/editor-window.blp:3888
+#: data/ui/editor-window.blp:3895
 msgid "Update from Current Properties"
 msgstr ""
 
@@ -1848,7 +1852,7 @@ msgid "Restore Unsaved Captures?"
 msgstr ""
 
 #. Not "closed unexpectedly": an autosave is also kept when Annota ends without being
-#. able to ask (a logout), which is not a crash.
+#. able to ask (ended with the session), which is not a crash.
 #: data/ui/restore-dialog.blp:31
 msgid ""
 "These documents have changes that are not saved in a file. Annota kept a "
@@ -1867,7 +1871,7 @@ msgstr ""
 msgid "Newer Annota Version Needed"
 msgstr ""
 
-#: data/ui/newer-version-dialog.blp:39 src/ui/editor/mod.rs:1839
+#: data/ui/newer-version-dialog.blp:39 src/ui/editor/mod.rs:1840
 msgid "Show in Files"
 msgstr ""
 
@@ -2423,59 +2427,59 @@ msgstr ""
 msgid "Custom Width…"
 msgstr ""
 
-#: src/ui/editor/mod.rs:677 src/ui/editor/mod.rs:2770
+#: src/ui/editor/mod.rs:678 src/ui/editor/mod.rs:2771
 msgid "Could not open “{name}”: {error}"
 msgstr ""
 
-#: src/ui/editor/mod.rs:935
+#: src/ui/editor/mod.rs:936
 msgid "Pick a colour anywhere on the screen"
 msgstr ""
 
-#: src/ui/editor/mod.rs:1760
+#: src/ui/editor/mod.rs:1761
 msgid "Annota Documents"
 msgstr ""
 
-#: src/ui/editor/mod.rs:1765
+#: src/ui/editor/mod.rs:1766
 msgid "Save As"
 msgstr ""
 
-#: src/ui/editor/mod.rs:2168
+#: src/ui/editor/mod.rs:2169
 msgid "PNG Images"
 msgstr ""
 
-#: src/ui/editor/mod.rs:2173
+#: src/ui/editor/mod.rs:2174
 msgid "Copy to Folder"
 msgstr ""
 
-#: src/ui/editor/mod.rs:2174
+#: src/ui/editor/mod.rs:2175
 msgid "_Copy"
 msgstr ""
 
-#: src/ui/editor/mod.rs:2632
+#: src/ui/editor/mod.rs:2633
 msgid "Picking a colour from the screen needs xdg-desktop-portal"
 msgstr ""
 
-#: src/ui/editor/mod.rs:2635
+#: src/ui/editor/mod.rs:2636
 msgid "Annota may not read colours from the screen"
 msgstr ""
 
-#: src/ui/editor/mod.rs:2639 src/ui/editor/theme_editor.rs:764
+#: src/ui/editor/mod.rs:2640 src/ui/editor/theme_editor.rs:764
 msgid "The colour could not be picked"
 msgstr ""
 
-#: src/ui/editor/mod.rs:2665
+#: src/ui/editor/mod.rs:2666
 msgid "Canvas Colour"
 msgstr ""
 
-#: src/ui/editor/mod.rs:2924
+#: src/ui/editor/mod.rs:2925
 msgid "Could not insert the image"
 msgstr ""
 
-#: src/ui/editor/mod.rs:2935
+#: src/ui/editor/mod.rs:2936
 msgid "Image inserted"
 msgstr ""
 
-#: src/ui/editor/mod.rs:3018
+#: src/ui/editor/mod.rs:3019
 msgid "Could not restore “{name}”: {error}"
 msgstr ""
 
