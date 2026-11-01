@@ -4,9 +4,12 @@ Everything around the system boundaries is covered automatically: unit tests (`s
 `src/ui/editor/{share,saving,export_dialog,redaction_warning}.rs`) and the live-GTK tests
 `export_and_save_on_a_live_display`, `copy_drag_and_share_on_a_live_display`,
 `object_copy_and_paste_on_a_live_display` (task 2.4a), `batch_export_on_a_live_display`
-(task 2.5) and `save_changes_on_a_live_display` (task 2.6) in `src/ui/editor/mod.rs` (`#[ignore]`d; one per process, see below). Those live tests replace the
-portals with a stand-in (`Inner::sharer`), never open a file chooser, and write only to temporary
-folders. What they cannot cover is the other side of each boundary — a real mail app, a real app
+(task 2.5), `save_changes_on_a_live_display` (task 2.6),
+`new_capture_toast_copies_the_current_document_on_a_live_display`,
+`saves_keep_redactions_without_a_warning_on_a_live_display` and
+`typed_names_ask_before_replacing_on_a_live_display` (task 2.8) in `src/ui/editor/mod.rs` (`#[ignore]`d; one per process, see below). Those live tests replace the
+portals and the file chooser with stand-ins (`Inner::sharer`, `Inner::save_chooser`), never open a
+real file chooser, and write only to temporary folders. What they cannot cover is the other side of each boundary — a real mail app, a real app
 chooser, a real drop target, a real paste — which needs the maintainer's real desktop session.
 Nothing here was run against a live xdg-desktop-portal from a development session.
 
@@ -46,3 +49,5 @@ fails and screenshots (`ANNOTA_SHOTS`) do not show Annota's CSS (task 2.5, desig
 | 14 | Quit Annota from GNOME Shell (right-click the dash icon → Quit) with an unsaved capture | The same "Save Changes?" as with Ctrl+Q. |
 | 15 | Change an unsaved capture, wait over 30 s, then log out (or `kill -TERM` Annota) and start Annota again | No alert could be shown; "Restore Unsaved Captures?" offers the capture with that change (the 30 s autosave; changes after the last one are lost, as after any crash). |
 | 16 | On Ubuntu 24.04 (libadwaita 1.5): the alert of 13 | Responses side by side (not stacked), Discard as red text on the neutral fill as in mockup 15. |
+| 17 | Press Ctrl+Shift+S, type `X` in GTK's chooser with `X.annota` in that folder; the same with Share → Copy to Folder…, typing `Shot` with `Shot.png` there; then type a full name that exists | First two: the chooser asks nothing, then the alert "A file with this name already exists" naming the file with its extension (Cancel · Replace; Enter and Esc cancel, the file stays). Full name: only the chooser's own question. |
+| 18 | Take a capture, draw a blur redaction while its toast is shown, press the toast's Copy and paste into another app (Wayland and X11) | "Make Redactions Solid?" with "Copy Anyway"; after either button the pasted image has the redaction (solid or blurred). |

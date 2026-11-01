@@ -51,11 +51,19 @@ A saved document SHALL take its file's name as title, lose its autosave and anno
 - **THEN** a toast says "No permission to write to this folder", the document stays "Not saved" and keeps its autosave
 
 ### Requirement: Clipboard
-`Ctrl+C` and the header's Copy (one action), with no object selected, SHALL copy the flattened image to the clipboard as PNG and confirm with the toast "Image copied to clipboard" (mockup 07, 3 s). Copying SHALL not count as saving the document.
+`Ctrl+C` and the header's Copy (one action), with no object selected, SHALL copy the flattened image to the clipboard as PNG and confirm with the toast "Image copied to clipboard" (mockup 07, 3 s). Copying SHALL not count as saving the document. Copy on a new capture's toast SHALL do the same with that capture as it is when pressed.
 
 #### Scenario: Paste elsewhere
 - **WHEN** the user presses Ctrl+C and pastes into another app
 - **THEN** the annotated image is pasted
+
+#### Scenario: Edited while the new capture's toast is shown
+- **WHEN** the user edits a new capture while its toast is shown and presses the toast's Copy
+- **THEN** the clipboard holds the document with that edit, not the image as it was captured
+
+#### Scenario: New capture closed while its toast is shown
+- **WHEN** the capture was closed and the toast's Copy is pressed
+- **THEN** the clipboard is left as it was and a toast says nothing was copied
 
 ### Requirement: Object copy and paste
 `Ctrl+C` (or the header's Copy) with a selection SHALL put the selected object(s) in a self-contained Annota-specific format and the whole flattened image as PNG on the clipboard, after the redaction warning, and confirm with the toast "Image and object copied to clipboard" ("Image and <n> objects copied to clipboard"). `Ctrl+V` in a document SHALL check for Annota's format first and insert the objects there as one undo step, else fall back to the new-document paste.
@@ -107,6 +115,21 @@ The dropdown of the Export split button (Share, decision D1) SHALL offer `Email�
 #### Scenario: Copy to folder
 - **WHEN** the user chooses Share → Copy to Folder… and confirms a folder and name in the file chooser
 - **THEN** the flattened image is written there as PNG, a toast "Copied as “<name>.png”" offers Show in Files, and the document stays unsaved
+
+### Requirement: File chooser extension
+Save As and Copy to Folder… SHALL add a missing extension (`.annota`, `.png`) to the name the file chooser returned. The chooser only checked the name as typed, so if the extension was added and a file of the resulting name exists, the system SHALL ask "A file with this name already exists" with Cancel and Replace before writing. Enter, Esc and Cancel SHALL write nothing.
+
+#### Scenario: Typed name lands on an existing file
+- **WHEN** the user types "X" in Save As and "X.annota" exists
+- **THEN** the alert names "X.annota", the file is unchanged until the answer, Cancel leaves it unchanged and Replace writes it
+
+#### Scenario: Full name typed
+- **WHEN** the user types "X.annota" in Save As, the file exists and the chooser's own question was confirmed
+- **THEN** the file is written without a second question
+
+#### Scenario: Name is free
+- **WHEN** the user types "Shot" in Copy to Folder… and "Shot.png" does not exist
+- **THEN** "Shot.png" is written without a question
 
 ### Requirement: Batch export
 The tray's Select SHALL let users select several documents — open ones and recent files — and Export <n>… SHALL export them in one format, size, file name pattern and folder ("Export <n> Images", mockup 12). The pattern knows `%name`, `%n` and strftime; names inside one batch never collide, and "If a file exists" adds a number, replaces or skips. A toast SHALL say how many images went to which folder (mockup 13).

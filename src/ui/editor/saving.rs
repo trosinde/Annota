@@ -150,6 +150,35 @@ pub fn with_annota_extension(path: &Path) -> PathBuf {
     }
 }
 
+/// What to do with what a file chooser returned, once its extension is added.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Chosen {
+    /// Write here: the chooser asked about this very path, or nothing is there.
+    Write(PathBuf),
+    /// The chooser asked about a different name: the file at this path is about to be replaced
+    /// and the user was never told.
+    Confirm(PathBuf),
+}
+
+/// `chosen` is the path the file chooser returned (and checked for overwriting), `target` the
+/// path with the extension added ([`with_annota_extension`], `share::with_png_extension`). Only
+/// an added extension that lands on an existing file needs asking; asking about a path the
+/// chooser already asked about would ask twice.
+pub fn chosen_target(chosen: &Path, target: PathBuf, exists: impl Fn(&Path) -> bool) -> Chosen {
+    if target != chosen && exists(&target) {
+        Chosen::Confirm(target)
+    } else {
+        Chosen::Write(target)
+    }
+}
+
+/// The body of "A file with this name already exists" (the export dialog's words; the alert
+/// itself is not drawn): the typed name lacks the extension, so it names the file that goes.
+pub fn replace_body(path: &Path) -> String {
+    gettext("“{name}” is already in this folder. Replacing it overwrites its contents.")
+        .replace("{name}", &file_name(path))
+}
+
 fn file_name(path: &Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -288,6 +317,74 @@ mod tests {
         assert_eq!(
             with_annota_extension(Path::new("/tmp/Report.v2")),
             Path::new("/tmp/Report.v2.annota")
+        );
+    }
+
+    #[test]
+    fn only_an_added_extension_on_an_existing_file_asks() {
+        let there = |p: &Path| p == Path::new("/t/X.annota") || p == Path::new("/t/Shot.png");
+        // Typed without the extension, the file with it exists: GTK asked about "X", if at all.
+        assert_eq!(
+            chosen_target(
+                Path::new("/t/X"),
+                with_annota_extension(Path::new("/t/X")),
+                there
+            ),
+            Chosen::Confirm(PathBuf::from("/t/X.annota"))
+        );
+        // Typed with the extension: GTK's own check covered this path, no second question.
+        assert_eq!(
+            chosen_target(
+                Path::new("/t/X.annota"),
+                with_annota_extension(Path::new("/t/X.annota")),
+                there
+            ),
+            Chosen::Write(PathBuf::from("/t/X.annota"))
+        );
+        // Nothing there.
+        assert_eq!(
+            chosen_target(
+                Path::new("/t/New"),
+                with_annota_extension(Path::new("/t/New")),
+                there
+            ),
+            Chosen::Write(PathBuf::from("/t/New.annota"))
+        );
+        // Copy to Folder…'s extension takes the same way.
+        assert_eq!(
+            chosen_target(
+                Path::new("/t/Shot"),
+                crate::ui::editor::share::with_png_extension(Path::new("/t/Shot")),
+                there
+            ),
+            Chosen::Confirm(PathBuf::from("/t/Shot.png"))
+        );
+        // The file named without the extension says nothing about the one with it.
+        let bare = |p: &Path| p == Path::new("/t/Y");
+        assert_eq!(
+            chosen_target(
+                Path::new("/t/Y"),
+                with_annota_extension(Path::new("/t/Y")),
+                bare
+            ),
+            Chosen::Write(PathBuf::from("/t/Y.annota"))
+        );
+        // A second extension is added, so that name is what must be free.
+        assert_eq!(
+            chosen_target(
+                Path::new("/t/X.v2"),
+                with_annota_extension(Path::new("/t/X.v2")),
+                there
+            ),
+            Chosen::Write(PathBuf::from("/t/X.v2.annota"))
+        );
+    }
+
+    #[test]
+    fn the_alert_names_the_file_that_would_go() {
+        assert_eq!(
+            replace_body(Path::new("/t/X.annota")),
+            "“X.annota” is already in this folder. Replacing it overwrites its contents."
         );
     }
 

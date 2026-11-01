@@ -1,8 +1,12 @@
-//! "Restore Unsaved Captures?" (mockup 14, spec document-format: Autosave and recovery) and
-//! "Newer Annota Version Needed" (mockup 15, spec document-format: Format versions).
+//! "Restore Unsaved Captures?" (mockup 14, spec document-format: Autosave and recovery),
+//! "Newer Annota Version Needed" (mockup 15, spec document-format: Format versions), the question
+//! before an added extension replaces a file (spec export-share: "File chooser extension"), and
+//! the file chooser those questions follow.
 
 use std::f64::consts::{FRAC_PI_2, PI};
-use std::path::Path;
+use std::future::Future;
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::rc::Rc;
 use std::time::UNIX_EPOCH;
 
@@ -13,11 +17,12 @@ use annota::document::archive::FormatVersion;
 use annota::document::autosave::RecoveryEntry;
 use annota::document::bitmap::Bitmap;
 
-use super::text;
+use super::{saving, text};
 use crate::config;
 
 const UI_RESTORE: &str = "/io/github/trosinde/Annota/ui/restore-dialog.ui";
 const UI_NEWER: &str = "/io/github/trosinde/Annota/ui/newer-version-dialog.ui";
+const UI_REPLACE: &str = "/io/github/trosinde/Annota/ui/replace-file-dialog.ui";
 /// Redline: 64 × 40 row thumbnails.
 const ROW_THUMB: (i32, i32) = (64, 40);
 
@@ -32,6 +37,38 @@ macro_rules! obj {
             }
         }
     };
+}
+
+/// Asks for the path to write to (Save As, Copy to Folder…); `None` if cancelled. GTK's file
+/// chooser in Annota, a stand-in in tests, which must never open a real one.
+pub type SaveChooser = Rc<
+    dyn Fn(
+        gtk::FileDialog,
+        adw::ApplicationWindow,
+    ) -> Pin<Box<dyn Future<Output = Option<PathBuf>>>>,
+>;
+
+/// GTK's file chooser (GTK decides whether that is the FileChooser portal).
+pub fn gtk_save_chooser() -> SaveChooser {
+    Rc::new(|dialog, window| {
+        Box::pin(async move {
+            let file = dialog.save_future(Some(&window)).await.ok()?;
+            file.path()
+        })
+    })
+}
+
+/// Whether the file at `path`, which a file chooser never asked about because the user typed
+/// its name without the extension, may be replaced. A broken UI resource answers no: nothing is
+/// overwritten unasked.
+pub async fn ask_replace(parent: &impl IsA<gtk::Widget>, path: &Path) -> bool {
+    let builder = gtk::Builder::from_resource(UI_REPLACE);
+    let Some(dialog) = builder.object::<adw::AlertDialog>("replace_file_dialog") else {
+        eprintln!("annota: replace-file-dialog.ui is missing object 'replace_file_dialog'");
+        return false;
+    };
+    dialog.set_body(&saving::replace_body(path));
+    dialog.choose_future(parent).await == "replace"
 }
 
 /// Name shown for an autosave (the title, else the file it belongs to, else "Untitled").

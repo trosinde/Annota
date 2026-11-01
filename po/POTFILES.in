@@ -17,6 +17,7 @@ data/ui/export-dialog.blp
 data/ui/redaction-warning.blp
 data/ui/batch-export-dialog.blp
 data/ui/save-changes-dialog.blp
+data/ui/replace-file-dialog.blp
 src/application.rs
 src/capture/countdown.rs
 src/capture/delivery.rs

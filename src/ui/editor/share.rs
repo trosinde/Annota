@@ -351,6 +351,11 @@ pub fn copy_failed_toast() -> String {
     gettext("The image could not be copied")
 }
 
+/// Copy on a new capture's toast, after that capture was closed (not drawn).
+pub fn capture_closed_toast() -> String {
+    gettext("The capture was closed, so nothing was copied")
+}
+
 /// The temporary PNG for a drag, Email… or Open With… could not be written.
 pub fn prepare_failed_toast() -> String {
     gettext("The image could not be prepared for sharing")

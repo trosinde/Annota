@@ -118,6 +118,7 @@ use self::session::{LoadError, Loaded, Origin, Session};
 use self::sidebar::{CropInfo, Event, Sidebar};
 use self::styles::Styles;
 use self::tray::{OpenTile, Tray, TrayKey};
+use crate::capture::delivery::ToastOffer;
 use crate::cli::CaptureMode;
 use crate::config;
 use crate::ui::canvas::{Canvas, Done, Notice};
@@ -212,15 +213,6 @@ pub fn open_file(app: &adw::Application, path: &Path, announce: bool) -> bool {
     true
 }
 
-/// What the toast of a new capture offers (add-screen-capture mockups 12, 13).
-pub enum Offer {
-    /// "Copy": put the capture on the clipboard (it went to the editor only).
-    Copy(gdk::Texture),
-    /// "Undo": close the new document again (pasted or opened images).
-    Undo,
-    Nothing,
-}
-
 /// Opens a new capture — a region, window or screen capture, or a pasted image — as a new
 /// document ("Not saved") and announces it with `title` and `offer`. Returns `false` if the
 /// editor window could not be built (the caller then keeps the capture another way).
@@ -233,7 +225,7 @@ pub fn open_capture(
     bitmap: Bitmap,
     name: &str,
     title: &str,
-    offer: Offer,
+    offer: ToastOffer,
 ) -> bool {
     let Some((editor, pending)) = present_editor(app) else {
         return false;
@@ -434,6 +426,8 @@ struct Inner {
     applied_theme: RefCell<Option<Theme>>,
     /// Email… and Open With… (xdg-desktop-portal; a stand-in in tests).
     sharer: RefCell<share::Sharer>,
+    /// The file chooser of Save As and Copy to Folder… (a stand-in in tests).
+    save_chooser: RefCell<dialogs::SaveChooser>,
     /// Where drag-out, Email… and Open With… write their temporary PNG.
     handoff_root: RefCell<PathBuf>,
     /// The document whose next drag-out may go ahead despite blur or pixelate redactions: the
@@ -513,6 +507,7 @@ impl Editor {
             styles,
             applied_theme: RefCell::new(None),
             sharer: RefCell::new(share::portal_sharer()),
+            save_chooser: RefCell::new(dialogs::gtk_save_chooser()),
             handoff_root: RefCell::new(share::handoff_root()),
             drag_consent: Cell::new(None),
             drag_ghost: RefCell::new(None),
@@ -658,7 +653,7 @@ impl Editor {
                         0,
                         0,
                     );
-                    self.announce(uid, &title, Offer::Undo);
+                    self.announce(uid, &title, ToastOffer::Undo);
                 }
             }
             Err(LoadError::Archive(ArchiveError::NewerFormat { found, requires })) => {
@@ -684,24 +679,20 @@ impl Editor {
     }
 
     /// The toast of a new document (add-screen-capture mockups 12, 13).
-    fn announce(&self, uid: u64, title: &str, offer: Offer) {
+    fn announce(&self, uid: u64, title: &str, offer: ToastOffer) {
         let toast = adw::Toast::builder().title(title).build();
         toast.set_use_markup(false);
         match offer {
-            Offer::Copy(texture) => {
+            ToastOffer::Copy => {
                 toast.set_button_label(Some(&gettext("Copy")));
-                let window = self.inner.w.window.downgrade();
+                let weak = self.downgrade();
                 toast.connect_button_clicked(move |_| {
-                    let app = window
-                        .upgrade()
-                        .and_then(|w| w.application())
-                        .and_then(|a| a.downcast::<adw::Application>().ok());
-                    if let Some(app) = app {
-                        crate::capture::delivery::copy_to_clipboard(&app, &texture);
+                    if let Some(editor) = weak.upgrade() {
+                        editor.copy_announced(uid);
                     }
                 });
             }
-            Offer::Undo => {
+            ToastOffer::Undo => {
                 toast.set_button_label(Some(&gettext("Undo")));
                 let weak = self.downgrade();
                 toast.connect_button_clicked(move |_| {
@@ -710,9 +701,36 @@ impl Editor {
                     }
                 });
             }
-            Offer::Nothing => {}
+            ToastOffer::Nothing => {}
         }
         self.inner.w.toast_overlay.add_toast(toast);
+    }
+
+    /// Copy on the toast of a new capture: the document as it is now, whatever happened since
+    /// the toast appeared, by the same path and behind the same warning as `Ctrl+C` with nothing
+    /// selected. It is that capture's image, even if another document has been opened
+    /// meanwhile; the warning then concerns the capture, so it is shown behind its alert (as
+    /// "Save Changes?" does). If the capture was closed there is nothing left to copy, and a
+    /// toast says so rather than leaving the clipboard as it was without a word.
+    fn copy_announced(&self, uid: u64) {
+        if self.inner.w.window.visible_dialog().is_some() {
+            return;
+        }
+        let Some(session) = self.session(uid) else {
+            self.toast_now(&share::capture_closed_toast());
+            return;
+        };
+        session.canvas.finish_text();
+        let found = session
+            .canvas
+            .with_document(redactions::reversible)
+            .unwrap_or_default();
+        if !found.is_empty() {
+            self.switch_to(uid);
+        }
+        self.guard_redactions_of(session.canvas.clone(), Purpose::Copy, move |editor| {
+            editor.copy_now(uid);
+        });
     }
 
     /// Closes one document. `discard`: it is dropped on purpose (the Undo of a new capture,
@@ -1562,6 +1580,17 @@ impl Editor {
         let Some(canvas) = self.current_canvas() else {
             return;
         };
+        self.guard_redactions_of(canvas, purpose, proceed);
+    }
+
+    /// [`Editor::guard_redactions`] for the document of `canvas`, current or not (the toast of
+    /// a new capture stays clickable after another document was opened).
+    fn guard_redactions_of(
+        &self,
+        canvas: Canvas,
+        purpose: Purpose,
+        proceed: impl FnOnce(&Editor) + 'static,
+    ) {
         let found = canvas
             .with_document(redactions::reversible)
             .unwrap_or_default();
@@ -1771,15 +1800,52 @@ impl Editor {
         if folder.is_dir() {
             builder = builder.initial_folder(&gio::File::for_path(&folder));
         }
-        let chooser = builder.build();
+        self.choose_path(builder.build(), move |editor, chosen| {
+            editor.write_chosen(
+                chosen,
+                saving::with_annota_extension(chosen),
+                move |editor, path| {
+                    editor.save_to(uid, path);
+                },
+            );
+        });
+    }
+
+    /// Shows the file chooser and hands on the path it returned, if any.
+    fn choose_path(&self, dialog: gtk::FileDialog, chosen: impl FnOnce(&Editor, &Path) + 'static) {
+        let chooser = self.inner.save_chooser.borrow().clone();
+        let call = chooser(dialog, self.inner.w.window.clone());
+        let weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let path = call.await;
+            if let (Some(editor), Some(path)) = (weak.upgrade(), path) {
+                chosen(&editor, &path);
+            }
+        });
+    }
+
+    /// Writes with `write` to `target`, what the file chooser returned as `chosen` with its
+    /// extension added. If the extension lands on an existing file the chooser never asked about
+    /// it ([`saving::chosen_target`]), so this asks first; Cancel writes nothing.
+    fn write_chosen(
+        &self,
+        chosen: &Path,
+        target: PathBuf,
+        write: impl FnOnce(&Editor, &Path) + 'static,
+    ) {
+        let path = match saving::chosen_target(chosen, target, Path::exists) {
+            saving::Chosen::Write(path) => {
+                write(self, &path);
+                return;
+            }
+            saving::Chosen::Confirm(path) => path,
+        };
         let window = self.inner.w.window.clone();
         let weak = self.downgrade();
         glib::spawn_future_local(async move {
-            let Ok(file) = chooser.save_future(Some(&window)).await else {
-                return;
-            };
-            if let (Some(editor), Some(path)) = (weak.upgrade(), file.path()) {
-                editor.save_to(uid, &saving::with_annota_extension(&path));
+            let replace = dialogs::ask_replace(&window, &path).await;
+            if let (true, Some(editor)) = (replace, weak.upgrade()) {
+                write(&editor, &path);
             }
         });
     }
@@ -2180,16 +2246,14 @@ impl Editor {
         if folder.is_dir() {
             builder = builder.initial_folder(&gio::File::for_path(&folder));
         }
-        let chooser = builder.build();
-        let window = self.inner.w.window.clone();
-        let weak = self.downgrade();
-        glib::spawn_future_local(async move {
-            let Ok(file) = chooser.save_future(Some(&window)).await else {
-                return;
-            };
-            if let (Some(editor), Some(path)) = (weak.upgrade(), file.path()) {
-                editor.copy_to_folder_now(uid, &share::with_png_extension(&path));
-            }
+        self.choose_path(builder.build(), move |editor, chosen| {
+            editor.write_chosen(
+                chosen,
+                share::with_png_extension(chosen),
+                move |editor, path| {
+                    editor.copy_to_folder_now(uid, path);
+                },
+            );
         });
     }
 
@@ -3452,7 +3516,7 @@ mod tests {
             Bitmap::filled(400, 300, palette::LIME).unwrap(),
             "Capture 2026-10-31 09-00-00",
             "Region captured · 400 × 300",
-            Offer::Nothing,
+            ToastOffer::Nothing,
         ));
         pump(300);
         let editor = Editor {
@@ -3495,7 +3559,7 @@ mod tests {
             Bitmap::filled(200, 100, palette::CORAL).unwrap(),
             "Capture 2026-10-31 09-05-00",
             "Region captured · 200 × 100",
-            Offer::Nothing,
+            ToastOffer::Nothing,
         ));
         pump(200);
         assert!(w.window.visible_dialog().is_none(), "offered once");
@@ -4052,7 +4116,7 @@ mod tests {
             Bitmap::filled(400, 300, palette::LIME).unwrap(),
             "Capture 2026-10-30 14-22-08",
             "Region captured · 400 × 300",
-            Offer::Nothing,
+            ToastOffer::Nothing,
         ));
         pump(100);
         // Nothing was left to recover when the editor opened, so no dialog (S2).
@@ -5099,6 +5163,119 @@ mod tests {
         window_done(&w.window);
     }
 
+    /// add-style-system reviewer finding B1: closing a style tile's context menu puts the focus
+    /// back on the tile (`QuickStyles::new`'s `connect_closed`), so the next Delete stays with
+    /// the grid instead of deleting the selected canvas object. Checked for Escape (or a click
+    /// outside: both are a popdown) and for each menu item that leaves focus to the handler.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn style_menu_returns_focus_on_a_live_display() {
+        use annota::document::geometry::Point;
+
+        let tmp = TempDir(
+            std::env::temp_dir().join(format!("annota-style-focus-test-{}", std::process::id())),
+        );
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        let editor = styles_editor(&tmp.0);
+        let w = &editor.inner.w;
+        let canvas = editor.current_canvas().unwrap();
+        canvas.grab_focus();
+        let none = gdk::ModifierType::empty();
+        let quick = &editor.inner.sidebar.quick;
+        let focus = || gtk::prelude::GtkWindowExt::focus(&w.window);
+        let objects = || canvas.with_document(|d| d.scene().len()).unwrap();
+
+        // A canvas object, selected: what a stray Delete would remove.
+        assert!(editor.key_pressed(gdk::Key::a, none));
+        pump(50);
+        let at = |x: f64, y: f64| canvas.view_point(Point::new(x, y)).unwrap();
+        canvas.pointer_pressed(at(400.0, 300.0), Default::default());
+        canvas.pointer_moved(at(900.0, 500.0), Default::default());
+        canvas.pointer_released();
+        pump(30);
+        let selected = canvas.selection();
+        assert_eq!(selected.len(), 1);
+        let count = objects();
+        // Two user styles, so that the full menu's items have somewhere to move.
+        for width in [12.0, 4.0] {
+            canvas.set_property("width", PropertyValue::Number(width));
+            pump(30);
+            quick.open_save();
+            pump(30);
+            quick.save();
+            pump(50);
+        }
+        assert_eq!(quick.tiles().len(), 10);
+        // The focus is observable here: the window is active and the canvas holds it.
+        canvas.grab_focus();
+        pump(30);
+        assert!(w.window.is_active());
+        assert!(focus().is_some_and(|f| f.is_ancestor(&w.canvas_stack)));
+
+        // The focused tile keeps Delete; the canvas object stays selected and in place.
+        let delete_stays_with_the_grid = |what: &str| {
+            assert!(
+                !editor.key_pressed(gdk::Key::Delete, none),
+                "{what}: Delete went to the canvas (focus on {:?})",
+                focus().map(|f| f.type_().name())
+            );
+            pump(30);
+            assert_eq!(objects(), count, "{what}: the canvas object was deleted");
+            assert_eq!(canvas.selection(), selected, "{what}: selection kept");
+        };
+
+        // Escape or a click outside. The menu really takes the focus while open, or this would
+        // prove nothing.
+        let tile = quick.tile_widget(1).unwrap();
+        assert!(quick.open_menu_on(1));
+        pump(100);
+        let in_menu = focus().unwrap();
+        assert_ne!(in_menu, tile, "the open menu holds the focus");
+        assert!(!in_menu.is_ancestor(&w.canvas_stack));
+        quick.close_menu();
+        pump(100);
+        assert_eq!(focus().as_ref(), Some(&tile), "focus is back on the tile");
+        assert!(tile.has_focus());
+        delete_stays_with_the_grid("closed");
+
+        // The menu items, each started with the focus elsewhere: from the canvas, as after the
+        // user worked there and right-clicked a tile.
+        let tooltip = |w: &gtk::Widget| w.tooltip_text().map(|t| t.to_string());
+        for (index, action, to) in [
+            (2, "apply", 2),
+            (2, "star", 2),
+            (2, "unstar", 2),
+            (9, "update", 9),
+            (8, "move-right", 9),
+            (9, "move-left", 8),
+        ] {
+            canvas.grab_focus();
+            pump(30);
+            let before = tooltip(&quick.tile_widget(index).unwrap());
+            assert!(quick.menu_action(index, action), "{action} is enabled");
+            pump(100);
+            let moved = quick.tile_widget(to).unwrap();
+            assert_eq!(
+                focus().as_ref(),
+                Some(&moved),
+                "{action}: focus on the tile"
+            );
+            if action != "update" && action != "apply" {
+                assert_eq!(tooltip(&moved), before, "{action}: the same style");
+            }
+            delete_stays_with_the_grid(action);
+        }
+
+        // The control: with the focus on the canvas the same key does delete the object, so the
+        // checks above can fail.
+        canvas.grab_focus();
+        pump(30);
+        assert!(editor.key_pressed(gdk::Key::Delete, none));
+        pump(30);
+        assert_eq!(objects(), count - 1);
+        window_done(&w.window);
+    }
+
     /// add-style-system tasks 2.3, 2.4: the theme editor, managed themes, import/export.
     #[test]
     #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
@@ -6125,8 +6302,14 @@ mod tests {
             .canvas
             .run(|doc, _| ops::add(doc, redaction(100.0, RedactionKind::Blur)));
         assert!(editor.drag_prepare().is_none());
-        pump(150);
-        let alert = dialog().expect("asked again after an edit");
+        // Not a fixed wait: with all CPUs busy this alert's buttons were mapped some 20-40 ms
+        // after the 150 ms that used to be pumped here.
+        assert!(wait_for(|| dialog().is_some()), "asked again after an edit");
+        let alert = dialog().unwrap();
+        let convert = "Convert to Solid";
+        assert!(wait_for(
+            || find_button(alert.upcast_ref(), convert).is_some()
+        ));
         assert!(click_button(alert.upcast_ref(), "Convert to Solid"));
         pump(300);
         assert!(session
@@ -6247,6 +6430,569 @@ mod tests {
             assert!(dialog().is_none(), "{name}: Cancel shares nothing");
         }
         assert_eq!(calls.borrow().len(), 3, "no portal call after Cancel");
+        window_done(&w.window);
+    }
+
+    /// Runs the main loop until `ready` holds, at most 10 s; whether it did. For what depends on
+    /// the machine's load, such as a dialog's buttons being mapped.
+    fn wait_for(ready: impl Fn() -> bool) -> bool {
+        let start = std::time::Instant::now();
+        while start.elapsed() < Duration::from_secs(10) {
+            if ready() {
+                return true;
+            }
+            pump(10);
+        }
+        ready()
+    }
+
+    /// The shown button labelled `text` on a toast (the header bar has a Copy of its own, under
+    /// the same overlay).
+    fn toast_button(root: &gtk::Widget, text: &str) -> Option<gtk::Button> {
+        if root.type_().name() == "AdwToastWidget" {
+            return find_button(root, text);
+        }
+        let mut child = root.first_child();
+        while let Some(c) = child {
+            if let Some(found) = toast_button(&c, text) {
+                return Some(found);
+            }
+            child = c.next_sibling();
+        }
+        None
+    }
+
+    /// Vertical stripes, so that a blur or pixelate redaction changes the pixels under it.
+    fn striped(width: i32, height: i32) -> Bitmap {
+        let stride = width * 4;
+        let mut data = Vec::new();
+        for _ in 0..height {
+            for x in 0..width {
+                let v = if (x / 6) % 2 == 0 { 0x20 } else { 0xE0 };
+                data.extend_from_slice(&[v, v, v, 0xFF]);
+            }
+        }
+        Bitmap::from_argb32(width, height, stride as usize, data).unwrap()
+    }
+
+    /// Asserts that the clipboard holds exactly `expected`'s pixels.
+    fn assert_clipboard_shows(clipboard: &gdk::Clipboard, expected: &Bitmap) {
+        let pasted = glib::MainContext::default()
+            .block_on(clipboard.read_texture_future())
+            .unwrap()
+            .expect("an image on the clipboard");
+        assert_eq!(
+            (pasted.width(), pasted.height()),
+            (expected.width(), expected.height())
+        );
+        let mut downloader = gdk::TextureDownloader::new(&pasted);
+        downloader.set_format(gdk::MemoryFormat::R8g8b8a8);
+        let (bytes, stride) = downloader.download_bytes();
+        for y in 0..expected.height() {
+            for x in 0..expected.width() {
+                let i = y as usize * stride + x as usize * 4;
+                let p = expected.pixel(x, y).unwrap();
+                assert_eq!(bytes[i..i + 4], [p.r, p.g, p.b, p.a], "pixel {x},{y}");
+            }
+        }
+    }
+
+    /// Reviewer follow-up: Copy on a new capture's toast copies the document as it is when
+    /// pressed, behind the redaction warning — also after an edit made while the toast is up,
+    /// with another document current, and with the capture gone. The clipboard is Xvfb's.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn new_capture_toast_copies_the_current_document_on_a_live_display() {
+        use annota::document::annotation::Annotation;
+        use annota::document::geometry::Rect;
+        use annota::tools::redaction::{Redaction, RedactionKind};
+
+        let tmp = TempDir(
+            std::env::temp_dir().join(format!("annota-toast-copy-test-{}", std::process::id())),
+        );
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(&tmp.0).unwrap();
+        let app = environment(&tmp.0);
+        let editor = Editor::build(
+            &app,
+            Store::new(tmp.0.join("autosave")),
+            style_paths(&tmp.0),
+        )
+        .unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let clipboard = gdk::Display::default().unwrap().clipboard();
+        let dialog = || w.window.visible_dialog();
+        let toasts = || w.toast_overlay.clone().upcast::<gtk::Widget>();
+        let capture = |name: &str, width: i32| {
+            editor.add_session(
+                Loaded {
+                    document: Document::with_title(striped(width, 200), name),
+                    source: None,
+                    path: None,
+                    name: name.into(),
+                },
+                Origin::New,
+                AutosaveId::generate(),
+            )
+        };
+        let redact = |uid: u64, kind: RedactionKind| {
+            let mut r = Redaction::new(Rect::new(20.0, 20.0, 80.0, 60.0));
+            r.kind = kind;
+            let object: Box<dyn Annotation> = Box::new(r);
+            editor
+                .session(uid)
+                .unwrap()
+                .canvas
+                .run(|doc, _| ops::add(doc, object))
+                .unwrap();
+            pump(30);
+        };
+        let flat = |uid: u64| {
+            editor
+                .session(uid)
+                .unwrap()
+                .canvas
+                .with_document(|doc| render::flatten(doc, 1.0).unwrap())
+                .unwrap()
+        };
+        let announce = |uid: u64| {
+            dismiss_toasts(&w.toast_overlay);
+            pump(50);
+            editor.announce(uid, "Region captured · 400 × 200", ToastOffer::Copy);
+            pump(150);
+            assert!(shows_label(&toasts(), "Region captured · 400 × 200"));
+        };
+        let press_copy = || {
+            toast_button(&toasts(), "Copy")
+                .expect("the toast's Copy")
+                .emit_clicked();
+            pump(150);
+        };
+        let copied = "Image copied to clipboard";
+
+        // Untouched: the capture, and the same toast as Ctrl+C says so.
+        let plain = capture("Plain", 400);
+        let original = flat(plain);
+        announce(plain);
+        press_copy();
+        assert!(dialog().is_none());
+        assert_clipboard_shows(&clipboard, &original);
+        assert!(shows_label(&toasts(), copied));
+
+        // Edited after the toast appeared: the clipboard gets the edit, not the capture as it
+        // was. A solid redaction needs no warning.
+        announce(plain);
+        redact(plain, RedactionKind::Solid);
+        let edited = flat(plain);
+        assert_ne!(edited.pixel(40, 40), original.pixel(40, 40));
+        press_copy();
+        assert!(dialog().is_none(), "nothing to warn about");
+        assert_clipboard_shows(&clipboard, &edited);
+        // The image only, even though the new redaction is selected: "Copy" offers the capture.
+        assert!(!clipboard
+            .formats()
+            .contain_mime_type(annota::document::clipboard::MIME_TYPE));
+
+        // A blur drawn while the toast is up: the warning, naming Copy; Cancel copies nothing.
+        let blurred = capture("Blurred", 400);
+        announce(blurred);
+        redact(blurred, RedactionKind::Blur);
+        let with_blur = flat(blurred);
+        let before_convert = editor.session(blurred).unwrap().canvas.history_info();
+        press_copy();
+        let alert = dialog().expect("the redaction warning before the toast's Copy");
+        assert!(find_button(alert.upcast_ref(), "Copy Anyway").is_some());
+        assert!(shows_label(
+            alert.upcast_ref(),
+            "1 redaction uses blur. Blurred text can sometimes be reconstructed. Solid boxes hide it for good."
+        ));
+        assert!(click_button(alert.upcast_ref(), "Cancel"));
+        pump(300);
+        assert_clipboard_shows(&clipboard, &edited);
+        // Copy Anyway: the blur as it is, the document unchanged.
+        announce(blurred);
+        press_copy();
+        let alert = dialog().unwrap();
+        assert!(click_button(alert.upcast_ref(), "Copy Anyway"));
+        pump(300);
+        assert_clipboard_shows(&clipboard, &with_blur);
+        assert_eq!(
+            editor
+                .session(blurred)
+                .unwrap()
+                .canvas
+                .history_info()
+                .revision,
+            before_convert.revision
+        );
+        // Convert to Solid: one undo step, and the clipboard shows it solid.
+        announce(blurred);
+        press_copy();
+        let alert = dialog().unwrap();
+        assert!(click_button(alert.upcast_ref(), "Convert to Solid"));
+        pump(300);
+        let session = editor.session(blurred).unwrap();
+        assert_eq!(
+            session.canvas.history_info().undo_label.as_deref(),
+            Some("Convert Redaction to Solid")
+        );
+        let solid = flat(blurred);
+        assert_ne!(solid.pixel(40, 40), with_blur.pixel(40, 40));
+        assert_clipboard_shows(&clipboard, &solid);
+
+        // Another document is current. A blur in the toast's capture is warned about, with that
+        // capture shown behind the alert, and it is that capture that gets copied.
+        let wide = capture("Wide", 300);
+        announce(wide);
+        redact(wide, RedactionKind::Pixelate);
+        let other = capture("Other", 200);
+        assert_eq!(editor.inner.current.get(), Some(other));
+        press_copy();
+        assert_eq!(editor.inner.current.get(), Some(wide), "behind its alert");
+        let alert = dialog().expect("the capture's own redaction is warned about");
+        assert!(click_button(alert.upcast_ref(), "Copy Anyway"));
+        pump(300);
+        assert_clipboard_shows(&clipboard, &flat(wide));
+        // A blur only in the current document is not the toast's business: no warning, nothing
+        // converted, the view stays where it is.
+        let clean = capture("Clean", 250);
+        announce(clean);
+        let current = capture("Current", 200);
+        redact(current, RedactionKind::Blur);
+        let current_revision = editor
+            .session(current)
+            .unwrap()
+            .canvas
+            .history_info()
+            .revision;
+        press_copy();
+        assert!(dialog().is_none());
+        assert_eq!(editor.inner.current.get(), Some(current));
+        assert_clipboard_shows(&clipboard, &flat(clean));
+        assert_eq!(
+            editor
+                .session(current)
+                .unwrap()
+                .canvas
+                .history_info()
+                .revision,
+            current_revision
+        );
+
+        // The capture was closed: nothing to copy, and the toast says so.
+        let gone = capture("Gone", 150);
+        announce(gone);
+        let before_close = flat(clean);
+        editor.close_session(gone, true);
+        pump(50);
+        press_copy();
+        assert!(dialog().is_none());
+        assert_clipboard_shows(&clipboard, &before_close);
+        assert!(shows_label(
+            &toasts(),
+            "The capture was closed, so nothing was copied"
+        ));
+        window_done(&w.window);
+    }
+
+    /// The chooser's stand-in: answers from `answers` in turn, records (title, initial name) of
+    /// what it was asked. No real file chooser opens.
+    fn stand_in_chooser(
+        editor: &Editor,
+        answers: Vec<Option<PathBuf>>,
+    ) -> Rc<RefCell<Vec<(String, String)>>> {
+        let asked: Rc<RefCell<Vec<(String, String)>>> = Rc::default();
+        let answers = RefCell::new(std::collections::VecDeque::from(answers));
+        editor.inner.save_chooser.replace({
+            let asked = asked.clone();
+            Rc::new(move |dialog, _| {
+                asked.borrow_mut().push((
+                    dialog.title().to_string(),
+                    dialog.initial_name().unwrap_or_default().to_string(),
+                ));
+                let answer = answers
+                    .borrow_mut()
+                    .pop_front()
+                    .expect("an expected question");
+                Box::pin(std::future::ready(answer))
+            })
+        });
+        asked
+    }
+
+    /// Spec annotation-tools "No warning before a save": Ctrl+S and Ctrl+Shift+S on a document
+    /// with reversible redactions show no alert and the file keeps them as they are. The file
+    /// chooser of Save As is a stand-in; everything before and after it is the real path.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn saves_keep_redactions_without_a_warning_on_a_live_display() {
+        use annota::document::annotation::Annotation;
+        use annota::document::geometry::Rect;
+        use annota::tools::redaction::{Redaction, RedactionKind};
+
+        let tmp = TempDir(
+            std::env::temp_dir().join(format!("annota-save-blur-test-{}", std::process::id())),
+        );
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(&tmp.0).unwrap();
+        let captures = tmp.0.join("captures");
+        let app = environment(&tmp.0);
+        let editor = Editor::build(
+            &app,
+            Store::new(tmp.0.join("autosave")),
+            style_paths(&tmp.0),
+        )
+        .unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        editor
+            .inner
+            .settings
+            .set_string("save-folder", &captures.to_string_lossy())
+            .unwrap();
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let dialog = || w.window.visible_dialog();
+        let toasts = || w.toast_overlay.clone().upcast::<gtk::Widget>();
+        assert_eq!(app.accels_for_action("win.save"), ["<Control>s"]);
+        assert_eq!(app.accels_for_action("win.save-as"), ["<Shift><Control>s"]);
+
+        let uid = editor.add_session(
+            Loaded {
+                document: Document::with_title(striped(400, 250), "Chat with Jonas"),
+                source: None,
+                path: None,
+                name: "Chat with Jonas".into(),
+            },
+            Origin::New,
+            AutosaveId::generate(),
+        );
+        let session = editor.session(uid).unwrap();
+        let mut blur = Redaction::new(Rect::new(10.0, 10.0, 80.0, 40.0));
+        blur.kind = RedactionKind::Blur;
+        let object: Box<dyn Annotation> = Box::new(blur);
+        session.canvas.run(|doc, _| ops::add(doc, object)).unwrap();
+        let revision = session.canvas.history_info().revision;
+        let still_blur = |doc: &Document| {
+            let found = redactions::reversible(doc);
+            assert_eq!((found.blur, found.pixelate), (1, 0));
+        };
+
+        // Ctrl+S: no alert, written at once, the redaction still blur in the file and open.
+        WidgetExt::activate_action(&w.window, "win.save", None).unwrap();
+        pump(150);
+        assert!(dialog().is_none(), "no warning before Ctrl+S");
+        let saved: Vec<PathBuf> = std::fs::read_dir(&captures)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        assert_eq!(saved.len(), 1, "{saved:?}");
+        still_blur(&annota::document::archive::load(&saved[0]).unwrap());
+        session.canvas.with_document(still_blur).unwrap();
+        assert_eq!(
+            session.canvas.history_info().revision,
+            revision,
+            "nothing converted"
+        );
+        assert_eq!(session.status(), text::Status::Clean);
+        let name = saved[0].file_name().unwrap().to_string_lossy().into_owned();
+        assert!(shows_label(&toasts(), &format!("Saved as “{name}”")));
+
+        // Ctrl+Shift+S: no alert before the chooser, which is asked at once. Cancelled there:
+        // nothing happens.
+        let copy = tmp.0.join("Kept blur");
+        let asked = stand_in_chooser(&editor, vec![None, Some(copy.clone())]);
+        WidgetExt::activate_action(&w.window, "win.save-as", None).unwrap();
+        pump(150);
+        assert!(dialog().is_none(), "no warning before Ctrl+Shift+S");
+        assert_eq!(
+            asked.borrow().as_slice(),
+            [("Save As".to_string(), name.clone())]
+        );
+        assert_eq!(session.status(), text::Status::Clean);
+        assert_eq!(std::fs::read_dir(&captures).unwrap().count(), 1);
+        // A name chosen: no alert after it either, the redaction still blur in the new file.
+        WidgetExt::activate_action(&w.window, "win.save-as", None).unwrap();
+        pump(150);
+        assert!(dialog().is_none(), "no warning after the chooser");
+        assert_eq!(asked.borrow().len(), 2);
+        still_blur(&annota::document::archive::load(&tmp.0.join("Kept blur.annota")).unwrap());
+        session.canvas.with_document(still_blur).unwrap();
+        assert_eq!(session.canvas.history_info().revision, revision);
+        assert_eq!(w.title.title(), "Kept blur");
+        window_done(&w.window);
+    }
+
+    /// Reviewer follow-up: Save As and Copy to Folder… add the extension after the chooser's
+    /// overwrite check, so a typed name that lands on an existing file asks first. The chooser
+    /// is a stand-in returning what GTK's would; the alert and the writes are real, in a
+    /// temporary folder.
+    #[test]
+    #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
+    fn typed_names_ask_before_replacing_on_a_live_display() {
+        use annota::document::annotation::Annotation;
+        use annota::document::geometry::Rect;
+        use annota::tools::redaction::{Redaction, RedactionKind};
+
+        let tmp = TempDir(
+            std::env::temp_dir().join(format!("annota-replace-test-{}", std::process::id())),
+        );
+        let _ = std::fs::remove_dir_all(&tmp.0);
+        std::fs::create_dir_all(&tmp.0).unwrap();
+        let app = environment(&tmp.0);
+        let editor = Editor::build(
+            &app,
+            Store::new(tmp.0.join("autosave")),
+            style_paths(&tmp.0),
+        )
+        .unwrap();
+        EDITOR.with(|e| e.replace(Some(editor.inner.clone())));
+        let w = &editor.inner.w;
+        w.window.set_default_size(1280, 800);
+        w.window.present();
+        pump(200);
+        let dialog = || w.window.visible_dialog();
+        let uid = editor.add_session(
+            Loaded {
+                document: Document::with_title(striped(400, 250), "Report"),
+                source: None,
+                path: None,
+                name: "Report".into(),
+            },
+            Origin::New,
+            AutosaveId::generate(),
+        );
+        let session = editor.session(uid).unwrap();
+        let heading = "A file with this name already exists";
+        let run = |action: &str| {
+            WidgetExt::activate_action(&w.window, action, None).unwrap();
+            pump(200);
+        };
+
+        // ---- Save As ----
+        let taken = tmp.0.join("X.annota");
+        std::fs::write(&taken, b"old").unwrap();
+        stand_in_chooser(
+            &editor,
+            vec![
+                Some(tmp.0.join("X")),
+                Some(tmp.0.join("X")),
+                Some(tmp.0.join("Fresh")),
+                Some(taken.clone()),
+            ],
+        );
+        // "X" typed, X.annota there: asked, the extended name in the body; Cancel is what Enter
+        // and Esc do, and it writes nothing.
+        run("win.save-as");
+        let alert = dialog().expect("asked before replacing");
+        assert!(shows_label(alert.upcast_ref(), heading));
+        assert!(shows_label(
+            alert.upcast_ref(),
+            "“X.annota” is already in this folder. Replacing it overwrites its contents."
+        ));
+        let responses = alert.clone().downcast::<adw::AlertDialog>().unwrap();
+        assert_eq!(responses.default_response().as_deref(), Some("cancel"));
+        assert_eq!(responses.close_response(), "cancel");
+        shot(&w.window, "es-replace-file");
+        assert_eq!(
+            std::fs::read(&taken).unwrap(),
+            b"old",
+            "not before the answer"
+        );
+        assert!(click_response(&alert, "_Cancel"));
+        pump(300);
+        assert!(dialog().is_none());
+        assert_eq!(
+            std::fs::read(&taken).unwrap(),
+            b"old",
+            "Cancel writes nothing"
+        );
+        assert_eq!(session.status(), text::Status::NotSaved);
+        // Asked again, Replace: written, and the document belongs to that file.
+        run("win.save-as");
+        let alert = dialog().expect("asked again");
+        assert!(click_response(&alert, "_Replace"));
+        pump(300);
+        assert!(dialog().is_none());
+        assert!(annota::document::archive::load(&taken).is_ok(), "replaced");
+        assert_eq!(session.status(), text::Status::Clean);
+        assert_eq!(w.title.title(), "X");
+        // Nothing of that name there: no question.
+        run("win.save-as");
+        assert!(dialog().is_none());
+        assert!(annota::document::archive::load(&tmp.0.join("Fresh.annota")).is_ok());
+        // The chooser returned the full name: it asked itself, so no second question.
+        std::fs::write(&taken, b"old again").unwrap();
+        run("win.save-as");
+        assert!(dialog().is_none());
+        assert!(annota::document::archive::load(&taken).is_ok());
+
+        // ---- Copy to Folder… ----
+        let shot_png = tmp.0.join("Shot.png");
+        std::fs::write(&shot_png, b"old").unwrap();
+        let status = session.status();
+        let asked = stand_in_chooser(
+            &editor,
+            vec![
+                Some(tmp.0.join("Shot")),
+                Some(tmp.0.join("Shot")),
+                Some(tmp.0.join("Other")),
+                Some(shot_png.clone()),
+            ],
+        );
+        run("win.share-copy-to-folder");
+        assert_eq!(asked.borrow().len(), 1);
+        assert_eq!(asked.borrow()[0].0, "Copy to Folder");
+        let alert = dialog().expect("asked before replacing");
+        assert!(shows_label(
+            alert.upcast_ref(),
+            "“Shot.png” is already in this folder. Replacing it overwrites its contents."
+        ));
+        assert!(click_response(&alert, "_Cancel"));
+        pump(300);
+        assert_eq!(std::fs::read(&shot_png).unwrap(), b"old");
+        run("win.share-copy-to-folder");
+        let alert = dialog().expect("asked again");
+        assert!(click_response(&alert, "_Replace"));
+        pump(300);
+        assert_eq!(
+            std::fs::read(&shot_png).unwrap(),
+            png_after_convert(&session)
+        );
+        run("win.share-copy-to-folder");
+        assert!(dialog().is_none());
+        assert_eq!(png_size_of(&tmp.0.join("Other.png")), (400, 250));
+        std::fs::write(&shot_png, b"old again").unwrap();
+        run("win.share-copy-to-folder");
+        assert!(dialog().is_none());
+        assert_eq!(
+            std::fs::read(&shot_png).unwrap(),
+            png_after_convert(&session)
+        );
+        assert_eq!(session.status(), status, "copying is not saving");
+
+        // Behind the redaction warning the chooser opens only after the answer, and the question
+        // comes after that.
+        let mut blur = Redaction::new(Rect::new(10.0, 10.0, 80.0, 40.0));
+        blur.kind = RedactionKind::Blur;
+        let object: Box<dyn Annotation> = Box::new(blur);
+        session.canvas.run(|doc, _| ops::add(doc, object)).unwrap();
+        let asked = stand_in_chooser(&editor, vec![Some(tmp.0.join("Shot"))]);
+        run("win.share-copy-to-folder");
+        assert!(asked.borrow().is_empty(), "the warning first");
+        let alert = dialog().unwrap();
+        assert!(click_button(alert.upcast_ref(), "Share Anyway"));
+        pump(300);
+        assert_eq!(asked.borrow().len(), 1);
+        let alert = dialog().expect("then the question");
+        assert!(shows_label(alert.upcast_ref(), heading));
+        assert!(click_response(&alert, "_Cancel"));
+        pump(300);
         window_done(&w.window);
     }
 

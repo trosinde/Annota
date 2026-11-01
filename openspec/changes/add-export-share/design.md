@@ -929,3 +929,54 @@ change — since a plain window close asks now.
   action (the same one `Ctrl+Q` already activates), so it goes through the same "Save Changes?"
   path with no further wiring needed. German "_Beenden" (po/de.po), mnemonic kept the way
   `_Preferences`/`_Keyboard Shortcuts`/`_About Annota` already do in the same menu.
+
+### Decided during apply (2026-11-01: reviewer follow-ups)
+- **Copy on a new capture's toast copies the document as it is when pressed** (maintainer
+  decision: fix now). It used to copy a texture made when the document was created, so a redaction
+  drawn while the toast was up did not reach the clipboard and no warning appeared.
+  `Editor::copy_announced(uid)` finishes typed text, then takes `guard_redactions` →
+  `copy_now`, with `copy_now`'s toast; there was no confirmation before. The texture is gone, and
+  with it `ui::editor::Offer`, which then only repeated `delivery::ToastOffer`: the editor takes
+  `ToastOffer` directly.
+  - *The toast outlives the current document.* `guard_redactions` looks at the current document,
+    which may not be the toast's by then: it would warn about the wrong one and convert the wrong
+    one. `guard_redactions_of(canvas, …)` is the same check for a given document;
+    `guard_redactions` calls it. When the toast's capture has reversible redactions it is switched
+    to first, so the alert sits over what it talks about (as "Save Changes?" does); without
+    them there is no switch, the copy just happens.
+  - *Always the image, never the selection.* A redaction just drawn stays selected, but the
+    button offers the capture, so this is `copy_now`, not `copy`'s object branch.
+  - *Capture closed meanwhile:* a toast "The capture was closed, so nothing was copied", clipboard
+    untouched. Not drawn. The alternative, dismissing the toast with its document, needs the
+    editor to keep track of live toasts for a corner case.
+  - `delivery::save_instead`'s Copy keeps its texture: there is no document to edit on that path.
+- **Asking before an added extension replaces a file.** `saving::with_annota_extension` and
+  `share::with_png_extension` run after GTK's chooser did its overwrite check, so typing `X` when
+  `X.annota` exists replaced that file unasked. `saving::chosen_target` is the pure decision: only
+  an extension that was added and lands on an existing file asks. A name typed in full was
+  covered by the chooser and is not asked about twice. `dialogs::ask_replace` shows
+  `data/ui/replace-file-dialog.blp`. **No mockup draws this alert**: it reuses the export dialog's
+  words (mockup 04: "A file with this name already exists", Replace) in the shape of "Save
+  Changes?" (mockup 15: AdwAlertDialog, 372 px, no icon, horizontal responses, destructive
+  Replace). Cancel is the default response and the close response, unlike mockup 15's suggested
+  Save, because here a stray Enter would destroy a file. The body names the file ("“X.annota” is
+  already in this folder. Replacing it overwrites its contents."), since that is not the name the
+  user typed. After Cancel the chooser does not reopen; the command can be repeated. Scenarios:
+  spec export-share "File chooser extension".
+- **`Inner::save_chooser`, a stand-in for the file chooser in tests** (`dialogs::SaveChooser`, like
+  `Inner::sharer` and `Inner::screen_picker`). Save As and Copy to Folder… now run end to end in
+  live tests, with the real `win.save-as` / `win.share-copy-to-folder`, warning, alert and write,
+  and no chooser ever opened. What it cannot show is GTK's own dialog; `manual-checks.md` row 17.
+- **Test coverage for "No warning before a save"**: `export_and_save_on_a_live_display` only saved
+  after Convert to Solid. `saves_keep_redactions_without_a_warning_on_a_live_display` covers Ctrl+S
+  and Ctrl+Shift+S on a blur redaction: no alert before or after the chooser, nothing converted,
+  the reloaded file still blur.
+- **Spec deltas**: export-share "Clipboard" (toast Copy, two scenarios), new "File chooser
+  extension"; annotation-tools "Redaction export warning" (one scenario).
+- **`copy_drag_and_share_on_a_live_display` failing now and then** has two causes, both seen:
+  with all CPUs busy, the alert after "An edit takes Drag Anyway back" had its buttons mapped 20-40
+  ms after the fixed 150 ms wait (7 of 9 runs that compiled failed there; now it waits for the
+  button, 10 of 10 pass under the same load); and `/tmp` is a tmpfs with a user quota that parallel
+  builds in the scratchpad can fill, which fails the test's writes with "Disk quota exceeded" (2 of
+  20 runs, in `copy_to_folder_now`; a test's stderr names it). The second is the machine, not
+  Annota. Which of them caused the original uncaptured failure is not known.

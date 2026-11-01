@@ -2721,6 +2721,18 @@ msgstr "Ihre E-Mail-App wird mit „{name}“ im Anhang geöffnet …"
 msgid "Copied as “{name}”"
 msgstr "Kopiert als „{name}“"
 
+#: data/ui/replace-file-dialog.blp:19
+msgid "_Replace"
+msgstr "_Ersetzen"
+
+#: src/ui/editor/saving.rs:178
+msgid "“{name}” is already in this folder. Replacing it overwrites its contents."
+msgstr "„{name}“ liegt bereits in diesem Ordner. Beim Ersetzen wird ihr Inhalt überschrieben."
+
+#: src/ui/editor/share.rs:356
+msgid "The capture was closed, so nothing was copied"
+msgstr "Die Aufnahme wurde geschlossen, daher wurde nichts kopiert"
+
 #: src/ui/editor/share.rs:311
 msgid "Drag image to another app"
 msgstr "Bild in eine andere App ziehen"

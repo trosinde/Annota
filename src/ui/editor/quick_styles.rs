@@ -427,8 +427,12 @@ impl QuickStyles {
                     q.apply(&t, place);
                 }
             });
-            add(group, "star", |q, style, _| q.set_favourite(style, true));
-            add(group, "unstar", |q, style, _| q.set_favourite(style, false));
+            add(group, "star", |q, style, place| {
+                q.set_favourite(style, true, place)
+            });
+            add(group, "unstar", |q, style, place| {
+                q.set_favourite(style, false, place)
+            });
         }
         let full = &self.full_actions;
         add(full, "rename", |q, style, place| {
@@ -757,9 +761,14 @@ impl QuickStyles {
         }
     }
 
-    fn set_favourite(self: &Rc<Self>, style: &StyleRef, on: bool) {
+    fn set_favourite(self: &Rc<Self>, style: &StyleRef, on: bool, place: Place) {
         self.styles.change(|l| l.set_favourite(style, on));
         self.refresh_stars();
+        // The change rebuilt the grid under the tile the closed menu focused (reviewer finding
+        // B1 of add-style-system): its new tile takes the focus, not the grid's first one.
+        if let Some(t) = self.find_tile(style, place) {
+            t.child.grab_focus();
+        }
     }
 
     fn refresh_stars(&self) {
@@ -794,6 +803,7 @@ impl QuickStyles {
         self.last_applied.replace(Some(style.clone()));
         self.styles.change(|l| l.update(id, &current));
         self.refresh_now();
+        self.focus_tile(style);
     }
 
     fn delete_style(self: &Rc<Self>, style: &StyleRef) {
@@ -1220,6 +1230,28 @@ impl QuickStyles {
         let colour = find(self.menu.upcast_ref(), label).map(|w| w.color());
         self.menu.popdown();
         colour
+    }
+
+    /// Focuses tile `index` and opens its context menu, as the Menu key on it does. Whether it
+    /// is open.
+    #[cfg(test)]
+    pub fn open_menu_on(self: &Rc<Self>, index: usize) -> bool {
+        self.press_on(index, gdk::Key::Menu, gdk::ModifierType::empty()) && self.menu.is_visible()
+    }
+
+    /// Closes the context menu the way Escape or a click outside does.
+    #[cfg(test)]
+    pub fn close_menu(&self) {
+        self.menu.popdown();
+    }
+
+    /// The tile (a `GtkFlowBoxChild`) at `index` of the tool grids.
+    #[cfg(test)]
+    pub fn tile_widget(&self, index: usize) -> Option<gtk::Widget> {
+        self.tiles
+            .borrow()
+            .get(index)
+            .map(|t| t.child.clone().upcast())
     }
 
     /// Whether the context menu is open; closes it.

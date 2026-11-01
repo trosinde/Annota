@@ -22,6 +22,10 @@ Before a document that contains blur or pixelate redactions is exported (in a ba
 - **WHEN** a document with a blur redaction is copied with Ctrl+C, with or without objects selected (Copy with a selection puts the flattened image on the clipboard too)
 - **THEN** "Make Redactions Solid?" offers Cancel, Copy Anyway and Convert to Solid before anything is put on the clipboard
 
+#### Scenario: Warning before the Copy of a new capture's toast
+- **WHEN** a blur redaction is drawn on a new capture while its toast is shown and the toast's Copy is pressed, with that capture or another document current
+- **THEN** "Make Redactions Solid?" offers Cancel, Copy Anyway and Convert to Solid for that capture before anything is put on the clipboard
+
 #### Scenario: Warning before a drag
 - **WHEN** the user starts dragging the title area of a document with a pixelate redaction
 - **THEN** no drag starts and "Make Redactions Solid?" offers Cancel, Drag Anyway and Convert to Solid

@@ -196,9 +196,22 @@ are separate surfaces the widget snapshot does not capture and were checked stru
   tile — breaking "Delete on a tile never deletes the selection." Fixed with a
   `connect_closed` handler on the style menu's `PopoverMenu` that re-focuses the tile
   `menu_target` pointed at, unless the rename popover is placing its own focus. See
-  `manual-checks.md` — this needs a real window manager to verify, not bare `xvfb-run`.
+  `manual-checks.md`. (Corrected 2026-11-01: this does not need a real window manager; see below.)
 - **N1 (non-blocking):** `Library::fresh_id` only checked known styles' ids, not
   `unknown_styles` (styles a newer Annota wrote that this version can't read, kept verbatim
   for forward compatibility), so a newly saved style could collide with one of those on the
   next write. Fixed by also checking `unknown_styles`' `id` fields; regression test
   `fresh_ids_skip_collisions_with_unknown_styles` in `src/styles/library.rs`.
+
+### Regression test for B1 (2026-11-01, from add-export-share's reviewer)
+`style_menu_returns_focus_on_a_live_display`: focus is observable under Xvfb without a window
+manager, and the test fails with the `connect_closed` handler removed. Without the handler the focus
+went to the sidebar's `GtkScrolledWindow` here, not the canvas, and `Delete` still reached the
+canvas object: `routes_to_canvas` sends the key there from anywhere that is not a dialog, text
+field or style grid.
+- **The test found the fix incomplete.** Add to Favourites, Remove from Favourites and Update
+  change the library, which rebuilds the grid synchronously after the handler has focused the old
+  tile. The focus then fell to the first tile of the grid: never the canvas, so the selected object
+  was safe, but not the tile the menu was for, and a following `Delete` could hit a different user
+  style (Undo in its toast brings it back). `set_favourite` and `update_style` now focus the rebuilt
+  tile, as `move_style` already did.

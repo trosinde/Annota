@@ -132,7 +132,9 @@ pub fn document_name(source: Source, pattern_name: &str) -> String {
 
 /// What the toast of a new document in the editor offers (mockups 12, 13): pasted and opened
 /// images can be dropped again with Undo; a capture that went to the editor only can still be
-/// copied; with "Both" it is on the clipboard already.
+/// copied, as the document is when the button is pressed (`Editor::copy_announced`), so edits
+/// made meanwhile are in the image and the redaction warning applies; with "Both" it is on the
+/// clipboard already.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ToastOffer {
     Undo,
@@ -250,11 +252,7 @@ pub fn deliver(app: &adw::Application, frame: Frame, source: Source, window_was_
     } else {
         heading.clone()
     };
-    let offer = match toast_offer(source, plan) {
-        ToastOffer::Undo => crate::ui::editor::Offer::Undo,
-        ToastOffer::Copy => crate::ui::editor::Offer::Copy(texture.clone()),
-        ToastOffer::Nothing => crate::ui::editor::Offer::Nothing,
-    };
+    let offer = toast_offer(source, plan);
     let bitmap = annota::document::bitmap::Bitmap::from_argb32(
         frame.width(),
         frame.height(),

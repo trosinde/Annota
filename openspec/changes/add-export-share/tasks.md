@@ -116,6 +116,14 @@
       step and in a recent file's exported copy only), through `Editor::ask_redactions`, the
       alert half of `guard_redactions`; scenario "Warning before batch export". See design.md,
       task 2.5.
+- [x] 2.8 Reviewer follow-ups (2026-11-01): the new-capture toast's Copy takes the document as it
+      is when pressed, behind the redaction warning (it used to copy the capture as it arrived,
+      unwarned); Save As and Copy to Folder… ask before an added extension replaces a file (not
+      drawn; `data/ui/replace-file-dialog.blp`, spec "File chooser extension"); live tests
+      `new_capture_toast_copies_the_current_document_on_a_live_display`,
+      `saves_keep_redactions_without_a_warning_on_a_live_display` and
+      `typed_names_ask_before_replacing_on_a_live_display`. See design.md "Decided during apply
+      (2026-11-01: reviewer follow-ups)".
 - [x] 2.9 PDF Size only sets the resolution (maintainer decision 2026-11-01): the page depends only
       on the canvas pixels and `Metadata::scale_factor`, spec scenario "PDF Size sets the
       resolution, not the page". See design.md "Decided during apply (2026-11-01: PDF Size only
@@ -130,5 +138,5 @@
       Built, lintian-clean and installed 2026-11-01 on the maintainer's Ubuntu 26.04 machine with
       cargo 1.93 only; cargo 1.85 is not installed there, and the new crates' MSRV (`libwebp-sys`
       needs exactly 1.85) has only been read, not built. Needs the ubuntu-24.04 CI job.
-- [x] 3.4 German translation updated — `msgfmt --statistics po/de.po`: 770 translated, 0
+- [x] 3.4 German translation updated — `msgfmt --statistics po/de.po`: 774 translated, 0
       fuzzy/untranslated

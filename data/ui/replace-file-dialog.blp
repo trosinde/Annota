@@ -1,0 +1,21 @@
+using Gtk 4.0;
+using Adw 1;
+
+// Asked when Save As or Copy to Folder… adds the extension to a typed name and the resulting file
+// exists: GTK's chooser only checked the name as typed. No mockup draws this; it reuses the export
+// dialog's words (mockup 04: "A file with this name already exists", Replace) in the shape of
+// "Save Changes?" (mockup 15): an AdwAlertDialog, no icon, horizontal responses. Cancel is the
+// default, so Enter or Esc never overwrites. src/ui/editor/saving.rs words the body.
+
+Adw.AlertDialog replace_file_dialog {
+  // The kit's `.dialog.alert` width (372 px), as in save-changes-dialog.blp.
+  width-request: 372;
+  heading: _("A file with this name already exists");
+  default-response: "cancel";
+  close-response: "cancel";
+
+  responses [
+    cancel: _("_Cancel"),
+    replace: _("_Replace") destructive,
+  ]
+}

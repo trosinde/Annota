@@ -2641,6 +2641,18 @@ msgstr ""
 msgid "Copied as “{name}”"
 msgstr ""
 
+#: data/ui/replace-file-dialog.blp:19
+msgid "_Replace"
+msgstr ""
+
+#: src/ui/editor/saving.rs:178
+msgid "“{name}” is already in this folder. Replacing it overwrites its contents."
+msgstr ""
+
+#: src/ui/editor/share.rs:356
+msgid "The capture was closed, so nothing was copied"
+msgstr ""
+
 #: src/ui/editor/share.rs:311
 msgid "Drag image to another app"
 msgstr ""
