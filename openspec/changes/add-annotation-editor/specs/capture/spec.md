@@ -22,12 +22,12 @@ The system SHALL create a new capture from an image in the clipboard (`Ctrl+Shif
 - **THEN** that document becomes the current one instead of a duplicate being created
 
 ### Requirement: After-capture destination
-The system SHALL deliver every capture per the `after-capture` preference: "Copy to Clipboard" puts it on the clipboard and opens no window; "Open in Editor" opens it in the editor as a new document (add-screen-capture mockup 12); "Both" does both. A new capture is autosaved like any unsaved document (`document-format`) until saved or exported (add-export-share).
+The system SHALL deliver every capture per the `after-capture` preference: "Copy to Clipboard" puts it on the clipboard and opens no window, apart from the first-use permission question; "Open in Editor" opens it in the editor as a new document (add-screen-capture mockup 12); "Both" does both. A new capture is autosaved like any unsaved document (`document-format`) until saved or exported (add-export-share).
 
 #### Scenario: Copy to clipboard
 - **WHEN** the after-capture preference is "Copy to Clipboard" and the user captures a region with the global shortcut while no Annota window is open
 - **THEN** the image is on the clipboard
-- **AND** no window opens
+- **AND** no window opens, except the one for the first-use permission question, which is gone before the capture
 
 #### Scenario: Editor destination
 - **WHEN** the after-capture preference is "Open in Editor" and the user captures a 400×300 region

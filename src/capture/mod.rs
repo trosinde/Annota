@@ -76,19 +76,20 @@ pub fn start(app: &adw::Application, request: Request) {
     // glib can decide to quit before an async-block `app.hold()` ever gets a chance to run.
     let hold = app.hold();
     glib::spawn_future_local(async move {
-        let open_before = visible_windows(&app);
-        let result = with_permission(&app, request, &open_before).await;
+        let result = with_permission(&app, request).await;
         BUSY.with(|busy| busy.set(false));
 
         match result {
             Ok(Some((frame, source))) => {
-                delivery::deliver(&app, frame, source, !open_before.is_empty());
+                // What is on the screen now is what the user had open: `run_hidden` brought those
+                // windows back, and a window opened only for the question is gone.
+                delivery::deliver(&app, frame, source, !visible_windows(&app).is_empty());
             }
             Ok(None) | Err(CaptureError::Cancelled) => {}
             Err(CaptureError::PermissionDenied) => permission::present(&app),
             Err(err) => {
                 eprintln!("annota: capture failed: {err}");
-                let window = application::present_window(&app);
+                let window = application::present_for_message(&app);
                 let text = match err {
                     CaptureError::PortalUnavailable => {
                         gettext("Capturing needs xdg-desktop-portal, which is not running")
@@ -115,25 +116,42 @@ fn visible_windows(app: &adw::Application) -> Vec<gtk::Window> {
 /// Runs the capture and sorts out the screenshot permission around it.
 ///
 /// With no stored answer the portal asks on the first frozen grab, so a window stays on the screen
-/// for that request ([`ask_with_window`]). "Allow" stores the answer and the capture itself then
-/// starts as always, with the windows hidden, so no capture ever shows Annota's own window.
+/// for that request ([`window_for_question`]). "Allow" stores the answer and the capture itself
+/// then starts as always, with the windows hidden, so no capture ever shows Annota's own window.
+/// A stored "no" ends here: the portal would refuse, so no window hides and no countdown runs.
 async fn with_permission(
     app: &adw::Application,
     request: Request,
-    open_before: &[gtk::Window],
 ) -> Result<Option<(Frame, Source)>, CaptureError> {
     let store = permission::read_store().await;
-    let mut ask = permission::first_step(request.mode, store) == FirstStep::Ask;
+    let mut ask = match permission::first_step(request.mode, store) {
+        FirstStep::Denied => return Err(CaptureError::PermissionDenied),
+        FirstStep::Ask => true,
+        FirstStep::Grab => false,
+    };
     let mut asked = false;
+    // The window opened only for the question, if one was.
+    let mut question_window = None;
     loop {
         let answer = if ask {
             asked = true;
-            ask_with_window(app).await
+            let (window, created) = window_for_question(app).await;
+            if created {
+                question_window = Some(window.clone());
+            }
+            portal::ask_permission(&window).await
         } else {
             Ok(())
         };
         let result = match answer {
-            Ok(()) => run_hidden(app, request, open_before).await,
+            Ok(()) => run_hidden(app, request, question_window.take()).await,
+            Err(CaptureError::Cancelled) => {
+                // Nothing will use it: no capture follows and nothing is said.
+                if let Some(window) = question_window.take() {
+                    window.destroy();
+                }
+                Err(CaptureError::Cancelled)
+            }
             Err(err) => Err(err),
         };
         if !matches!(result, Err(CaptureError::Refused)) {
@@ -153,29 +171,32 @@ async fn with_permission(
     }
 }
 
-/// Asks for the permission over the window in use, or a new one if a shortcut or
-/// `annota --capture` started the capture with none open.
-async fn ask_with_window(app: &adw::Application) -> Result<(), CaptureError> {
+/// The window the permission question is asked over: the one in use, or a new one if a shortcut
+/// or `annota --capture` started the capture with none open. `true`: it was opened for this.
+async fn window_for_question(app: &adw::Application) -> (gtk::Window, bool) {
+    let existing = app.windows();
     let window = app
         .active_window()
         .filter(|w| w.is_visible())
         .or_else(|| visible_windows(app).into_iter().next())
         .unwrap_or_else(|| application::present_window(app).upcast());
+    let created = !existing.contains(&window);
     window.present();
     let start = std::time::Instant::now();
     while !window.is_active() && start.elapsed() < FOCUS_WAIT {
         glib::timeout_future(FOCUS_POLL).await;
     }
-    portal::ask_permission(&window).await
+    (window, created)
 }
 
-/// One attempt at the capture with Annota's windows off the screen. Afterwards the windows of
-/// `open_before` are back; one opened only for the permission question is gone, as a capture
-/// from a shortcut opens no window of its own.
+/// One attempt at the capture with Annota's windows off the screen. Afterwards the windows that
+/// were hidden are back, except `question_window`, which is gone, as a capture from a shortcut
+/// opens no window of its own. The question can take long, so a window opened meanwhile is kept
+/// and a window closed meanwhile stays closed.
 async fn run_hidden(
     app: &adw::Application,
     request: Request,
-    open_before: &[gtk::Window],
+    question_window: Option<gtk::Window>,
 ) -> Result<Option<(Frame, Source)>, CaptureError> {
     let visible = visible_windows(app);
     for window in &visible {
@@ -184,11 +205,13 @@ async fn run_hidden(
     if !visible.is_empty() {
         glib::timeout_future(HIDE_SETTLE).await;
     }
-    for window in visible.iter().filter(|w| !open_before.contains(w)) {
+    if let Some(window) = &question_window {
         window.destroy();
     }
     let result = run(app, request).await;
-    for window in open_before {
+    // Anything can have closed one of them by now, and showing a destroyed window is not safe.
+    let open = app.windows();
+    for window in visible.iter().filter(|w| open.contains(w)) {
         window.set_visible(true);
     }
     result

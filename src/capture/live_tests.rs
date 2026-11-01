@@ -33,6 +33,11 @@ const PORTAL_XML: &str = r#"<node>
     </method>
     <property name="version" type="u" access="read"/>
   </interface>
+  <interface name="org.freedesktop.host.portal.Registry">
+    <method name="Register">
+      <arg type="s" direction="in"/><arg type="a{sv}" direction="in"/>
+    </method>
+  </interface>
   <interface name="org.freedesktop.impl.portal.PermissionStore">
     <method name="Lookup">
       <arg type="s" direction="in"/><arg type="s" direction="in"/>
@@ -49,9 +54,14 @@ const PORTAL_XML: &str = r#"<node>
 enum Question {
     Allow,
     Deny,
+    /// Closes the question without an answer (response code 1); nothing is stored.
+    Dismiss,
     /// Even with a parent window the question is not shown; nothing is stored.
     CannotShow,
 }
+
+/// The user's answer to the open question.
+type OpenQuestion = Rc<RefCell<Option<Box<dyn FnOnce()>>>>;
 
 /// One Screenshot call as the portal saw it.
 #[derive(Clone, Debug)]
@@ -65,6 +75,9 @@ struct Call {
 /// `xdg-permission-store`'s error for a table or entry that doesn't exist.
 const NOT_FOUND: &str = "org.freedesktop.portal.Error.NotFound";
 
+const COULD_NOT_ASK: &str =
+    "GNOME could not ask for screen access. Click this window and try again.";
+
 struct Portal {
     /// The `screenshot` entry of the `screenshot` table: the answer per app ID.
     store: Rc<RefCell<HashMap<String, &'static str>>>,
@@ -77,6 +90,17 @@ struct Portal {
     /// How long `DeletePermission` takes to answer.
     delete_time: Rc<Cell<Duration>>,
     calls: Rc<RefCell<Vec<Call>>>,
+    /// The question stays open until [`Scene::answer`], so things can happen during it.
+    hold_question: Rc<Cell<bool>>,
+    /// The same for a request nobody is asked about: the portal is busy with the grab.
+    hold_grab: Rc<Cell<bool>>,
+    /// The user's answer, while the question is open.
+    open_question: OpenQuestion,
+    /// `Register` answers only when the test says so.
+    hold_registration: Rc<Cell<bool>>,
+    /// Calls of `Register`, and the one being held.
+    registrations: Rc<Cell<usize>>,
+    open_registration: Rc<RefCell<Option<gio::DBusMethodInvocation>>>,
 }
 
 struct Scene {
@@ -208,9 +232,43 @@ fn start_portal(
         .build()
         .unwrap();
 
+    let hold_registration = Rc::new(Cell::new(false));
+    let registrations = Rc::new(Cell::new(0));
+    let open_registration = Rc::new(RefCell::new(None));
+    let (hold, count, open) = (
+        hold_registration.clone(),
+        registrations.clone(),
+        open_registration.clone(),
+    );
+    connection
+        .register_object(
+            "/org/freedesktop/portal/desktop",
+            &info
+                .lookup_interface("org.freedesktop.host.portal.Registry")
+                .unwrap(),
+        )
+        .method_call(move |_, _, _, _, _, _, invocation| {
+            count.set(count.get() + 1);
+            if hold.get() {
+                open.replace(Some(invocation));
+            } else {
+                invocation.return_value(None);
+            }
+        })
+        .build()
+        .unwrap();
+
+    let hold_question = Rc::new(Cell::new(false));
+    let hold_grab = Rc::new(Cell::new(false));
+    let open_question: OpenQuestion = Rc::new(RefCell::new(None));
     let (portal_store, portal_calls) = (store.clone(), Rc::clone(&calls));
+    let (hold, hold_any, open) = (
+        hold_question.clone(),
+        hold_grab.clone(),
+        open_question.clone(),
+    );
     let (app, dir) = (app.clone(), dir.to_path_buf());
-    let counter = Cell::new(0);
+    let counter = Rc::new(Cell::new(0));
     connection
         .register_object(
             "/org/freedesktop/portal/desktop",
@@ -233,55 +291,65 @@ fn start_portal(
 
             // `check_non_interactive_permission_in_thread` and GNOME's access dialog.
             let stored = portal_store.borrow().get(config::APP_ID).copied();
-            let granted = interactive
-                || match stored {
-                    Some("yes") => true,
-                    Some(_) => false,
-                    // No parent: GNOME Shell's "Only the focused app …", with Annota's windows
-                    // hidden the focus is on another app. Nothing is stored.
-                    None if parent.is_empty() || question == Question::CannotShow => false,
-                    None => {
-                        let allow = question == Question::Allow;
-                        let answer = if allow { "yes" } else { "no" };
-                        portal_store
-                            .borrow_mut()
-                            .insert(config::APP_ID.to_string(), answer);
-                        allow
-                    }
-                };
-
-            let file = granted.then(|| {
-                counter.set(counter.get() + 1);
-                let path = dir.join(format!("portal-{}.png", counter.get()));
-                write_png(&path);
-                path
-            });
+            // No parent: GNOME Shell's "Only the focused app …", with Annota's windows hidden the
+            // focus is on another app. Nothing is stored.
+            let asks = !interactive
+                && stored.is_none()
+                && !parent.is_empty()
+                && question != Question::CannotShow;
+            let index = portal_calls.borrow().len();
             portal_calls.borrow_mut().push(Call {
                 parent,
                 interactive,
                 visible_windows: super::visible_windows(&app).len(),
-                file: file.clone(),
+                file: None,
             });
 
             let unique = sender.trim_start_matches(':').replace('.', "_");
             let handle = format!("/org/freedesktop/portal/desktop/request/{unique}/{token}");
             let path = glib::variant::ObjectPath::try_from(handle.clone()).unwrap();
             invocation.return_value(Some(&(path,).to_variant()));
-            let mut results: HashMap<String, glib::Variant> = HashMap::new();
-            if let Some(file) = &file {
-                let uri = gio::File::for_path(file).uri().to_string();
-                results.insert(String::from("uri"), uri.to_variant());
+
+            let (store, calls) = (portal_store.clone(), portal_calls.clone());
+            let (dir, counter, connection) = (dir.clone(), counter.clone(), connection.clone());
+            let answer = move || {
+                let code = match (asks, question) {
+                    (true, Question::Allow) => {
+                        store.borrow_mut().insert(config::APP_ID.to_string(), "yes");
+                        0u32
+                    }
+                    (true, Question::Deny) => {
+                        store.borrow_mut().insert(config::APP_ID.to_string(), "no");
+                        2
+                    }
+                    (true, _) => 1,
+                    (false, _) if interactive || stored == Some("yes") => 0,
+                    (false, _) => 2,
+                };
+                let mut results: HashMap<String, glib::Variant> = HashMap::new();
+                if code == 0 {
+                    counter.set(counter.get() + 1);
+                    let file = dir.join(format!("portal-{}.png", counter.get()));
+                    write_png(&file);
+                    let uri = gio::File::for_path(&file).uri().to_string();
+                    results.insert(String::from("uri"), uri.to_variant());
+                    calls.borrow_mut()[index].file = Some(file);
+                }
+                connection
+                    .emit_signal(
+                        Some(&sender),
+                        &handle,
+                        "org.freedesktop.portal.Request",
+                        "Response",
+                        Some(&(code, results).to_variant()),
+                    )
+                    .unwrap();
+            };
+            if (asks && hold.get()) || hold_any.get() {
+                open.replace(Some(Box::new(answer)));
+            } else {
+                answer();
             }
-            let code = if granted { 0u32 } else { 2u32 };
-            connection
-                .emit_signal(
-                    Some(&sender),
-                    &handle,
-                    "org.freedesktop.portal.Request",
-                    "Response",
-                    Some(&(code, results).to_variant()),
-                )
-                .unwrap();
         })
         .property(|_, _, _, _, _| 2u32.to_variant())
         .build()
@@ -293,6 +361,12 @@ fn start_portal(
         delete_error,
         delete_time,
         calls,
+        hold_question,
+        hold_grab,
+        open_question,
+        hold_registration,
+        registrations,
+        open_registration,
     }
 }
 
@@ -341,21 +415,58 @@ fn scene(name: &str, stored: Option<&'static str>, question: Question) -> Scene 
 
 impl Scene {
     fn capture(&self, mode: CaptureMode) {
+        self.start_capture(mode, 0);
+        self.capture_ends();
+    }
+
+    /// Starts a capture and returns while it runs.
+    fn start_capture(&self, mode: CaptureMode, delay: u32) {
         start(
             &self.app,
             Request {
                 mode,
-                delay: 0,
+                delay,
                 include_pointer: false,
             },
         );
-        let end = Instant::now() + Duration::from_secs(20);
         pump(10);
+    }
+
+    fn capture_ends(&self) {
+        let end = Instant::now() + Duration::from_secs(20);
         while BUSY.with(Cell::get) {
             assert!(Instant::now() < end, "the capture did not end");
             pump(20);
         }
         pump(300);
+    }
+
+    /// Waits until GNOME's question is open (the stand-in holds it).
+    fn question_opens(&self) {
+        let end = Instant::now() + Duration::from_secs(10);
+        while self.portal.open_question.borrow().is_none() {
+            assert!(Instant::now() < end, "no question");
+            pump(20);
+        }
+    }
+
+    /// The user answers the open question.
+    fn answer(&self) {
+        let answer = self.portal.open_question.borrow_mut().take();
+        answer.expect("an open question")();
+    }
+
+    /// Opens the editor with an image, as `annota --open` does.
+    fn open_editor(&self) -> gtk::Window {
+        let image = self.dir.join("opened.png");
+        write_png(&image);
+        assert!(crate::ui::editor::open_file(&self.app, &image, false));
+        pump(200);
+        self.app
+            .windows()
+            .into_iter()
+            .find(|w| w.has_css_class("annota-editor"))
+            .expect("the editor window")
     }
 
     fn calls(&self) -> Vec<Call> {
@@ -394,6 +505,17 @@ impl Scene {
             pump(20);
         }
         self.dialog().is_none()
+    }
+
+    /// Whether `window` shows a toast with this text.
+    fn shows_toast(&self, window: &gtk::Window, text: &str) -> bool {
+        holds(window.upcast_ref(), &|toast| {
+            toast.type_().name() == "AdwToastWidget"
+                && holds(toast, &|w| {
+                    w.downcast_ref::<gtk::Label>()
+                        .is_some_and(|l| l.text() == text)
+                })
+        })
     }
 
     /// A toast on any window.
@@ -545,7 +667,7 @@ fn ask_again_removes_only_annotas_entry_and_closes() {
         .borrow_mut()
         .insert(String::from("org.other.App"), "no");
     let denied = scene.denied_dialog();
-    assert_eq!(scene.calls().len(), 1);
+    assert!(scene.calls().is_empty());
     denied.ask_again.emit_clicked();
     assert!(scene.dialog_closes(), "Ask Again closes the dialog");
     assert_eq!(
@@ -563,7 +685,7 @@ fn ask_again_removes_only_annotas_entry_and_closes() {
         "another app's answer stays"
     );
     pump(300);
-    assert_eq!(scene.calls().len(), 1, "nothing is captured");
+    assert!(scene.calls().is_empty(), "nothing is captured");
     assert!(!scene.has_toast(), "no toast on success");
 }
 
@@ -581,11 +703,11 @@ fn a_capture_after_ask_again_asks_again() {
     assert!(scene.dialog_closes());
     scene.capture(CaptureMode::Screen);
     let calls = scene.calls();
-    assert_eq!(calls.len(), 3, "refused, asked, captured: {calls:?}");
-    assert!(calls[1].parent.starts_with("x11:"), "{calls:?}");
-    assert_eq!(calls[1].visible_windows, 1, "{calls:?}");
+    assert_eq!(calls.len(), 2, "asked, captured: {calls:?}");
+    assert!(calls[0].parent.starts_with("x11:"), "{calls:?}");
+    assert_eq!(calls[0].visible_windows, 1, "{calls:?}");
     assert_eq!(
-        (calls[2].parent.as_str(), calls[2].visible_windows),
+        (calls[1].parent.as_str(), calls[1].visible_windows),
         ("", 0)
     );
     assert_eq!(scene.portal.stored(), Some("yes"));
@@ -654,8 +776,7 @@ fn close_keeps_the_answer() {
     assert_eq!(scene.portal.stored(), Some("no"));
 
     let denied = scene.denied_dialog();
-    assert_eq!(scene.calls().len(), 2, "no question: the answer is kept");
-    assert!(scene.calls()[1].parent.is_empty());
+    assert!(scene.calls().is_empty(), "no question: the answer is kept");
     // What libadwaita's Esc binding calls. A real key press can't be sent from here.
     denied.dialog.close();
     assert!(scene.dialog_closes(), "Esc closes the dialog");
@@ -729,6 +850,14 @@ fn the_german_dialog_fits() {
         "equal width"
     );
     assert_eq!(content_width(), 372, "420 px less the margins");
+    for button in [&denied.ask_again, &denied.close] {
+        let bounds = button.compute_bounds(button).expect("on the screen");
+        assert_eq!(
+            bounds.height(),
+            40.0,
+            "the redline's height, padding included"
+        );
+    }
     shot(&denied.dialog, "permission-denied-de");
 
     scene
@@ -748,23 +877,80 @@ fn the_german_dialog_fits() {
     shot(&denied.dialog, "permission-reset-failed-de");
 }
 
-/// A stored "no": no question, no window for one, the denied dialog.
+/// A stored "no": no request, no question, no window hidden, the denied dialog.
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
 fn stored_no_is_denied_without_asking() {
     let scene = scene("stored-no", Some("no"), Question::Allow);
+    let window = crate::application::present_window(&scene.app);
+    pump(100);
+    let hidden = Rc::new(Cell::new(false));
+    let seen = hidden.clone();
+    window.connect_hide(move |_| seen.set(true));
     scene.capture(CaptureMode::Screen);
-    let calls = scene.calls();
-    assert_eq!(calls.len(), 1, "{calls:?}");
-    assert_eq!(
-        (calls[0].parent.as_str(), calls[0].visible_windows),
-        ("", 0)
-    );
+    assert!(scene.calls().is_empty(), "{:?}", scene.calls());
+    assert!(!hidden.get(), "nothing is captured, so nothing hides");
     assert_eq!(scene.portal.stored(), Some("no"));
     assert!(scene.dialog().is_some());
 }
 
-/// The bug report: response code 2 with nothing stored is not "denied".
+/// A stored "no" with a capture delay: the dialog comes at once, no countdown first.
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn stored_no_shows_the_dialog_without_the_delay() {
+    let scene = scene("stored-no-delay", Some("no"), Question::Allow);
+    let started = Instant::now();
+    scene.start_capture(CaptureMode::Region, 5);
+    while scene.dialog().is_none() {
+        assert!(started.elapsed() < Duration::from_secs(2), "it waited");
+        pump(20);
+    }
+    assert!(!BUSY.with(Cell::get), "the capture is over");
+    assert!(scene.calls().is_empty());
+    assert_eq!(
+        scene.visible().len(),
+        1,
+        "no countdown beside the window with the dialog"
+    );
+}
+
+/// With only the editor open, the dialog is over the editor (mockup 08): no launcher window.
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn the_denied_dialog_uses_the_open_editor() {
+    let scene = scene("denied-editor", Some("no"), Question::Allow);
+    let editor = scene.open_editor();
+    scene.capture(CaptureMode::Screen);
+    assert_eq!(
+        scene.app.windows().as_slice(),
+        std::slice::from_ref(&editor),
+        "no new window"
+    );
+    let editor: adw::ApplicationWindow = editor.downcast().unwrap();
+    assert!(editor.visible_dialog().is_some(), "over the editor");
+    shot(&editor, "permission-denied-editor");
+}
+
+/// A capture shortcut with the dialog open: still one dialog, raised, and one Close ends it.
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_second_capture_does_not_stack_a_second_dialog() {
+    let scene = scene("no-stack", Some("no"), Question::Allow);
+    let denied = scene.denied_dialog();
+    scene.capture(CaptureMode::Region);
+    assert_eq!(
+        scene.dialog().as_ref(),
+        Some(&denied.dialog),
+        "the same one"
+    );
+    denied.close.emit_clicked();
+    assert!(scene.dialog_closes(), "nothing is left behind it");
+    // Closed, it can come back.
+    let again = scene.denied_dialog();
+    assert_ne!(again.dialog, denied.dialog);
+}
+
+/// The bug report: response code 2 with nothing stored is not "denied", and the toast says so.
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
 fn a_question_that_cannot_be_shown_is_not_a_denial() {
@@ -777,7 +963,147 @@ fn a_question_that_cannot_be_shown_is_not_a_denial() {
     assert!(scene.dialog().is_none(), "no \"Screen Access Denied\"");
     let window = scene.visible();
     assert_eq!(window.len(), 1, "the window with the toast stays");
+    assert!(scene.shows_toast(&window[0], COULD_NOT_ASK));
     shot(&window[0], "could-not-ask");
+}
+
+/// With only the editor open, the question is asked over it and the toast is on it.
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn could_not_ask_uses_the_open_editor() {
+    let scene = scene("cannot-ask-editor", None, Question::CannotShow);
+    let editor = scene.open_editor();
+    scene.capture(CaptureMode::Screen);
+    assert_eq!(
+        scene.app.windows().as_slice(),
+        std::slice::from_ref(&editor),
+        "no new window"
+    );
+    assert!(scene.shows_toast(&editor, COULD_NOT_ASK));
+}
+
+/// A window opened while GNOME asks is not the question's window: it is hidden for the grab like
+/// the others and comes back, so an edited document can't vanish without "Save Changes?".
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_window_opened_during_the_question_survives() {
+    let scene = scene("opened-during", None, Question::Allow);
+    set_after_capture_to_clipboard();
+    scene.portal.hold_question.set(true);
+    scene.start_capture(CaptureMode::Screen, 0);
+    scene.question_opens();
+    let question_window = scene.visible();
+    assert_eq!(question_window.len(), 1, "the window opened to ask");
+    let editor = scene.open_editor();
+    assert_eq!(scene.visible().len(), 2);
+    scene.answer();
+    scene.capture_ends();
+
+    let calls = scene.calls();
+    assert_eq!(calls.len(), 2, "{calls:?}");
+    assert_eq!(
+        (calls[1].parent.as_str(), calls[1].visible_windows),
+        ("", 0),
+        "out of the picture like every other window"
+    );
+    assert_eq!(
+        scene.app.windows().as_slice(),
+        std::slice::from_ref(&editor),
+        "the asking one is gone"
+    );
+    assert!(editor.is_visible(), "the editor is back");
+    assert!(
+        scene.shows_toast(&editor, "Screen captured · 64 × 48 · Copied to clipboard"),
+        "a window is open, so the copy is confirmed there"
+    );
+}
+
+/// A window closed while GNOME asks: the answer is safe, and it doesn't come back.
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn closing_the_parent_during_the_question_is_safe() {
+    let scene = scene("closed-during", None, Question::Allow);
+    set_after_capture_to_clipboard();
+    let window = crate::application::present_window(&scene.app);
+    pump(100);
+    scene.portal.hold_question.set(true);
+    scene.start_capture(CaptureMode::Screen, 0);
+    scene.question_opens();
+    window.destroy();
+    pump(50);
+    scene.answer();
+    scene.capture_ends();
+    assert_eq!(scene.calls().len(), 2, "{:?}", scene.calls());
+    assert!(!window.is_visible(), "a destroyed window stays closed");
+    assert!(scene.visible().is_empty());
+    assert!(scene.app.windows().is_empty());
+
+    // And while the grab runs, with the window hidden: it isn't brought back from the dead.
+    let window = crate::application::present_window(&scene.app);
+    pump(100);
+    scene.portal.hold_grab.set(true);
+    scene.start_capture(CaptureMode::Screen, 0);
+    scene.question_opens();
+    assert!(!window.is_visible(), "hidden for the grab");
+    window.destroy();
+    scene.answer();
+    scene.capture_ends();
+    assert!(!window.is_visible(), "a destroyed window stays closed");
+    assert!(scene.app.windows().is_empty());
+}
+
+/// The X11 half of the Wayland panic: the identifier goes with the window, before the surface.
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn the_parent_handle_goes_with_the_window() {
+    let scene = scene("handle", None, Question::Allow);
+    let window = crate::application::present_window(&scene.app);
+    pump(100);
+    glib::MainContext::default().block_on(super::portal::held_until_the_window_closes(
+        window.upcast_ref(),
+    ));
+}
+
+/// The question closed without an answer: the window opened for it goes, one in use stays.
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_dismissed_question_leaves_no_window_of_its_own() {
+    let scene = scene("dismissed", None, Question::Dismiss);
+    scene.capture(CaptureMode::Screen);
+    assert_eq!(scene.calls().len(), 1, "no capture follows");
+    assert!(scene.app.windows().is_empty(), "the asking window is gone");
+    assert!(!scene.has_toast() && scene.dialog().is_none());
+
+    let window = crate::application::present_window(&scene.app);
+    pump(100);
+    scene.capture(CaptureMode::Screen);
+    assert_eq!(scene.calls().len(), 2, "{:?}", scene.calls());
+    assert!(window.is_visible(), "a window in use stays");
+    assert_eq!(scene.app.windows().len(), 1);
+}
+
+/// A cold `--capture`: the shortcut setup is registering Annota's ID, and the grab waits for it.
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_grab_waits_for_the_registration() {
+    let scene = scene("registration", Some("yes"), Question::Allow);
+    set_after_capture_to_clipboard();
+    scene.portal.hold_registration.set(true);
+    glib::spawn_future_local(super::portal::ensure_registered());
+    let end = Instant::now() + Duration::from_secs(5);
+    while scene.portal.registrations.get() == 0 {
+        assert!(Instant::now() < end, "no registration");
+        pump(20);
+    }
+    scene.start_capture(CaptureMode::Screen, 0);
+    pump(800);
+    assert!(scene.calls().is_empty(), "it overtook the registration");
+    assert!(BUSY.with(Cell::get));
+    let held = scene.portal.open_registration.borrow_mut().take();
+    held.expect("the held registration").return_value(None);
+    scene.capture_ends();
+    assert_eq!(scene.calls().len(), 1, "{:?}", scene.calls());
+    assert_eq!(scene.portal.registrations.get(), 1, "once per process");
 }
 
 /// A stored "yes": exactly one grab, Annota's windows hidden from the start.

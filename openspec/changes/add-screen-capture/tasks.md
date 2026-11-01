@@ -21,6 +21,10 @@
 - [x] 2.6 Ask Again in the "Screen Access Denied" dialog deletes Annota's own stored answer, with the
       copied command removed (`src/capture/permission.rs`, `data/ui/permission-dialog.blp`). See
       design.md "Ask Again". Tested against a stand-in store only (`src/capture/live_tests.rs`).
+- [x] 2.7 Review follow-ups (2026-11-01): only the question's own window is destroyed, a closed parent
+      can't panic, a dismissed question cleans up, a stored "no" shows the dialog without a request or
+      countdown, messages use the open editor, one denied dialog, a grab waits for the registration.
+      See design.md "Review follow-ups". Tested against a stand-in portal on X11 only.
 - [ ] 2.5 Maintainer: run the "Screenshot permission" steps in `manual-checks.md` on a real desktop
 
 ## 3. Overlay

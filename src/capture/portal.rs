@@ -4,13 +4,15 @@
 //! Written against `ashpd` 0.11's documented API. Not exercised against a live portal in the
 //! development environment (it is the maintainer's real desktop); see `manual-checks.md`.
 
-use std::cell::Cell;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use ashpd::desktop::screenshot::Screenshot;
 use ashpd::desktop::ResponseError;
 use ashpd::zbus;
 use ashpd::{PortalError, WindowIdentifier};
-use gtk::{gdk, gio, prelude::*};
+use futures_util::future::{FutureExt, LocalBoxFuture, Shared};
+use gtk::{gdk, gio, glib, prelude::*};
 
 use super::frame::Frame;
 use super::texture;
@@ -121,20 +123,97 @@ impl GrabOptions {
 }
 
 thread_local! {
-    static HOST_REGISTERED: Cell<bool> = const { Cell::new(false) };
+    static REGISTRATION: RefCell<Option<Shared<LocalBoxFuture<'static, ()>>>> =
+        const { RefCell::new(None) };
 }
 
 /// Registers Annota's app ID with xdg-desktop-portal (≥ 1.19) once per process, so that
 /// the access dialog and the stored permission refer to Annota rather than "unknown app".
 /// Older portals don't have the registry; that's fine and ignored.
+///
+/// Every caller waits for the one registration to finish. A request overtaking it would reach
+/// the portal without Annota's ID: at startup the shortcut setup registers while a cold
+/// `annota --capture` is already on its way to its first grab.
 pub async fn ensure_registered() {
-    if HOST_REGISTERED.with(|done| done.replace(true)) {
-        return;
-    }
+    let registration = REGISTRATION.with(|slot| {
+        slot.borrow_mut()
+            .get_or_insert_with(|| register().boxed_local().shared())
+            .clone()
+    });
+    registration.await;
+}
+
+async fn register() {
     if let Ok(app_id) = ashpd::AppID::try_from(config::APP_ID) {
         // Older portals (before 1.19) have no registry; nothing to do then.
         let _ = ashpd::register_host_app(app_id).await;
     }
+}
+
+/// The parent of a portal request, for as long as the request runs.
+///
+/// `ashpd` 0.11.1's identifier unexports a Wayland handle on drop and unwraps the window's surface
+/// for that, so it panics if the window has been closed. A request can run for as long as the user
+/// leaves GNOME's question open, so the request gets a plain copy of the handle
+/// ([`ParentWindow::for_request`]) and this keeps the real identifier, which goes when the request
+/// ends or, before the surface does, when the window closes.
+struct ParentWindow {
+    window: gtk::Window,
+    identifier: Rc<RefCell<Option<WindowIdentifier>>>,
+    on_unrealize: Option<glib::SignalHandlerId>,
+}
+
+impl ParentWindow {
+    async fn new(window: &gtk::Window) -> Self {
+        let identifier = WindowIdentifier::from_native(window).await;
+        let identifier = Rc::new(RefCell::new(identifier));
+        // Runs ahead of GTK's own handler, which destroys the surface.
+        let on_unrealize = window.connect_unrealize({
+            let identifier = identifier.clone();
+            move |window| release(&identifier, window)
+        });
+        Self {
+            window: window.clone(),
+            identifier,
+            on_unrealize: Some(on_unrealize),
+        }
+    }
+
+    fn for_request(&self) -> Option<WindowIdentifier> {
+        self.identifier.borrow().as_ref().and_then(plain_copy)
+    }
+
+    #[cfg(test)]
+    fn is_held(&self) -> bool {
+        self.identifier.borrow().is_some()
+    }
+}
+
+impl Drop for ParentWindow {
+    fn drop(&mut self) {
+        if let Some(handler) = self.on_unrealize.take() {
+            self.window.disconnect(handler);
+        }
+        release(&self.identifier, &self.window);
+    }
+}
+
+/// Gives up the identifier. Without a surface, which only happens if the window was closed while
+/// `from_native` waited for the compositor, its drop would panic. Forgetting it leaks one reference
+/// to a closed window, and the export went with the surface.
+fn release(identifier: &RefCell<Option<WindowIdentifier>>, window: &gtk::Window) {
+    let Some(identifier) = identifier.borrow_mut().take() else {
+        return;
+    };
+    if window.surface().is_none() {
+        std::mem::forget(identifier);
+    }
+}
+
+/// The same handle without `ashpd`'s drop. The `X11` variant holds either kind of handle.
+fn plain_copy(identifier: &WindowIdentifier) -> Option<WindowIdentifier> {
+    let handle = identifier.to_string().parse().ok()?;
+    Some(WindowIdentifier::X11(handle))
 }
 
 /// One Screenshot request; the answer is the file the portal wrote.
@@ -161,11 +240,13 @@ async fn request_file(
 /// focused app. On "Allow" the portal grabs the screen at once, with `window` in the picture, so
 /// that image is thrown away unread and `capture` grabs again with its windows hidden.
 pub async fn ask_permission(window: &gtk::Window) -> Result<(), CaptureError> {
-    let parent = WindowIdentifier::from_native(window).await;
-    if parent.is_none() {
+    let parent = ParentWindow::new(window).await;
+    let identifier = parent.for_request();
+    if identifier.is_none() {
         eprintln!("annota: no parent window handle for the screenshot permission dialog");
     }
-    let file = request_file(parent, GrabOptions::FROZEN).await?;
+    let file = request_file(identifier, GrabOptions::FROZEN).await?;
+    drop(parent);
     discard_portal_file(&file);
     Ok(())
 }
@@ -210,6 +291,25 @@ fn discard_portal_file(file: &gio::File) {
     if is_regular && file.is_native() {
         let _ = file.delete(gio::Cancellable::NONE);
     }
+}
+
+/// The parent handle's lifetime on a live display, for `live_tests`.
+#[cfg(test)]
+pub(super) async fn held_until_the_window_closes(window: &gtk::Window) {
+    let parent = ParentWindow::new(window).await;
+    assert!(parent.is_held());
+    assert!(parent.for_request().is_some());
+    let surface_at_release = Rc::new(std::cell::Cell::new(false));
+    let seen = surface_at_release.clone();
+    window.connect_unrealize(move |window| seen.set(window.surface().is_some()));
+    window.destroy();
+    assert!(!parent.is_held(), "gone with the window, not at the answer");
+    assert!(window.surface().is_none());
+    assert!(
+        surface_at_release.get(),
+        "the release must come while the surface still exists"
+    );
+    drop(parent);
 }
 
 #[cfg(test)]
@@ -264,6 +364,14 @@ mod tests {
     fn other_errors_keep_their_message() {
         let err = map_portal_error(&ashpd::Error::NoResponse);
         assert!(matches!(err, CaptureError::Failed(msg) if msg.contains("no response")));
+    }
+
+    #[test]
+    fn a_plain_copy_keeps_the_handle() {
+        let x11 = WindowIdentifier::from_xid(1024);
+        assert_eq!(plain_copy(&x11).unwrap().to_string(), "x11:0x400");
+        let wayland = WindowIdentifier::X11("wayland:abc".parse().unwrap());
+        assert_eq!(plain_copy(&wayland).unwrap().to_string(), "wayland:abc");
     }
 
     #[test]

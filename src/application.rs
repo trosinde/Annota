@@ -170,6 +170,24 @@ pub fn present_window(app: &adw::Application) -> adw::ApplicationWindow {
     window
 }
 
+/// Raises the window a message about a capture goes to: the editor if it is on the screen (as
+/// add-screen-capture mockup 08 draws it, and where the capture would have gone), else the main
+/// window.
+pub fn present_for_message(app: &adw::Application) -> adw::ApplicationWindow {
+    let editor = app
+        .windows()
+        .into_iter()
+        .filter(|w| w.has_css_class(EDITOR_WINDOW_CLASS) && w.is_visible())
+        .find_map(|w| w.downcast::<adw::ApplicationWindow>().ok());
+    match editor {
+        Some(editor) => {
+            editor.present();
+            editor
+        }
+        None => present_window(app),
+    }
+}
+
 /// Fills `container` with one keycap per key of `accel` ("Alt" "Print").
 fn fill_keycaps(container: &gtk::Box, accel: &str) {
     while let Some(child) = container.first_child() {

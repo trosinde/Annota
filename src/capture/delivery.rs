@@ -230,7 +230,7 @@ pub fn deliver(app: &adw::Application, frame: Frame, source: Source, window_was_
 
     if !plan.open {
         if window_was_open {
-            let window = application::present_window(app);
+            let window = application::present_for_message(app);
             let text = format!("{heading} · {}", gettext("Copied to clipboard"));
             application::show_toast(&window, &adw::Toast::builder().title(text).build());
         }

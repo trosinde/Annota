@@ -38,8 +38,25 @@ only Annota chrome follows the style.
 | Cursor inclusion / Include cursor | 01, 03 (pointer toggle), 09 | Default off. Pointer presence in image *verified by test*. |
 | Image from clipboard / Paste | 01 (menu item), 13 | Shift+Ctrl+V; new tab becomes current in tray "Open". |
 | Image from file (open / drop) | 01 (Open Image… Ctrl+O), 14 | Drop zone covers canvas only. |
+| Portal permission handling / First capture, user allows | no screen | GNOME's own question over an Annota window; Annota draws nothing. |
+| Portal permission handling / First capture with no window open | no screen | The main window, unchanged, is the question's parent. |
+| Portal permission handling / A window opened during the question | no screen | Behaviour only. |
+| Portal permission handling / A window closed during the question | no screen | Behaviour only. |
+| Portal permission handling / Question dismissed | no screen | Nothing is shown. |
+| Portal permission handling / User chooses Deny | 08 | The same dialog as a stored "no". |
 | Portal permission handling / Permission denied | 08 | Alert dialog, "Ask Again" is the suggested, focused action. It names no Settings switch, because GNOME shows that switch only for Flatpak and Snap apps. |
+| Portal permission handling / Denied with only the editor open | 08 | As drawn, over the editor. |
+| Portal permission handling / Denied dialog already open | 08 | No second dialog. |
+| Portal permission handling / Ask Again | 08 | The dialog closes, no toast. |
+| Portal permission handling / Asked again after the reset | no screen | GNOME's own question again. |
+| Portal permission handling / Close keeps the answer | 08 | The dialog closes. |
+| Portal permission handling / The answer cannot be reset | 08, not drawn | One more line, text under "Open questions". |
+| Portal permission handling / The entry is already gone | 08 | As Ask Again. |
+| Portal permission handling / Ask Again while it is running | 08 | Buttons insensitive, no new state drawn. |
 | Portal permission handling / GNOME could not ask | no mockup, redline below | Standard toast, text under "Permission alert (08)". No dialog. |
+| Portal permission handling / Permission exists | no screen | Behaviour only. |
+| Portal permission handling / Window mode is not checked | 05 | The desktop's picker, no question. |
+| Portal permission handling / Store cannot be read | no screen | As the first capture, after one refusal. |
 
 ## Redlines
 
@@ -79,7 +96,7 @@ only Annota chrome follows the style.
 - **Close response:** Close. Esc does the same as the Close button: the dialog closes and the stored answer stays.
 - **Ask Again:** removes Annota's own entry from the permission store (`DeletePermission` on table `screenshot`, id `screenshot`, app `io.github.trosinde.Annota`), and no other app's entry. The dialog closes and nothing is captured, no capture starts and no access is granted. No toast is drawn for success. The next region or screen capture finds nothing stored, so GNOME shows its own question. Window mode never asks, because the portal doesn't check it.
 
-**Toast "GNOME could not ask"** — approved by the maintainer. Standard `AdwToast` on an Annota window the user can retry from, no button. No "Screen Access Denied" dialog in this case.
+**Toast "GNOME could not ask"** — approved by the maintainer. Standard `AdwToast` on an Annota window the user can retry from (the editor if it is open), no button. No "Screen Access Denied" dialog in this case.
 - English: "GNOME could not ask for screen access. Click this window and try again."
 - German: "GNOME konnte nicht nach dem Bildschirmzugriff fragen. Klicken Sie in dieses Fenster und versuchen Sie es erneut."
 

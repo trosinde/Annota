@@ -36,6 +36,11 @@ const STORE_DELETE_TIMEOUT: Duration = Duration::from_secs(5);
 /// The store's error for a table or entry that doesn't exist yet.
 const STORE_NOT_FOUND: &str = "org.freedesktop.portal.Error.NotFound";
 
+thread_local! {
+    /// The "Screen Access Denied" dialog while it is open, so a second capture doesn't stack another.
+    static OPEN_DIALOG: glib::WeakRef<adw::Dialog> = glib::WeakRef::new();
+}
+
 /// What the permission store says about Annota and screenshots.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StoreState {
@@ -119,6 +124,9 @@ pub enum FirstStep {
     Grab,
     /// The portal will ask: keep a window on screen for the question first.
     Ask,
+    /// A stored "no": the portal would refuse, so the dialog comes at once. No window hides, no
+    /// countdown runs.
+    Denied,
 }
 
 /// Window mode is an interactive request, which the portal never checks. An unreadable store
@@ -126,6 +134,7 @@ pub enum FirstStep {
 pub fn first_step(mode: CaptureMode, store: StoreState) -> FirstStep {
     match (mode, store) {
         (CaptureMode::Region | CaptureMode::Screen, StoreState::NotDecided) => FirstStep::Ask,
+        (CaptureMode::Region | CaptureMode::Screen, StoreState::Denied) => FirstStep::Denied,
         _ => FirstStep::Grab,
     }
 }
@@ -179,8 +188,16 @@ async fn forget_answer() -> Result<(), glib::Error> {
     }
 }
 
+/// Shows the "Screen Access Denied" dialog, or raises it if it is already open.
 pub fn present(app: &adw::Application) {
-    let window = application::present_window(app);
+    let open = OPEN_DIALOG.with(glib::WeakRef::upgrade);
+    if let Some(window) = open.and_then(|dialog| dialog.root()) {
+        if let Ok(window) = window.downcast::<gtk::Window>() {
+            window.present();
+            return;
+        }
+    }
+    let window = application::present_for_message(app);
     let builder = gtk::Builder::from_resource(UI_PERMISSION);
     let (Some(dialog), Some(close), Some(ask_again), Some(failed)) = (
         builder.object::<adw::Dialog>("permission_dialog"),
@@ -214,6 +231,8 @@ pub fn present(app: &adw::Application) {
     ));
     dialog.set_default_widget(Some(&ask_again));
     dialog.set_focus(Some(&ask_again));
+    OPEN_DIALOG.with(|open| open.set(Some(&dialog)));
+    dialog.connect_closed(|_| OPEN_DIALOG.with(|open| open.set(None::<&adw::Dialog>)));
     dialog.present(Some(&window));
     // The mockup draws the focus ring. GTK would keep it back until the first key press.
     window.set_focus_visible(true);
@@ -309,11 +328,11 @@ mod tests {
         use StoreState::*;
         assert_eq!(first_step(Region, NotDecided), FirstStep::Ask);
         assert_eq!(first_step(Screen, NotDecided), FirstStep::Ask);
-        // Once permission exists, or was denied, no Annota window stays on the screen.
+        // Once permission exists no Annota window stays on the screen; a "no" needs no grab.
         for mode in [Region, Screen] {
             assert_eq!(first_step(mode, Allowed), FirstStep::Grab);
-            assert_eq!(first_step(mode, Denied), FirstStep::Grab);
             assert_eq!(first_step(mode, Unreadable), FirstStep::Grab);
+            assert_eq!(first_step(mode, Denied), FirstStep::Denied);
         }
         // The window picker is never checked by the portal.
         for store in [Allowed, Denied, NotDecided, Unreadable] {

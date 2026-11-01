@@ -23,7 +23,7 @@ pub fn is_supported_image(path: &Path) -> bool {
 }
 
 fn toast(app: &adw::Application, text: &str) {
-    let window = application::present_window(app);
+    let window = application::present_for_message(app);
     let toast = adw::Toast::builder().title(text).build();
     toast.set_use_markup(false);
     application::show_toast(&window, &toast);

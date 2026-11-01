@@ -91,7 +91,11 @@ journalctl --user -f -g 'portal|access dialog'
 
 **C. Stored "no"**
 1. After a Deny (B, steps 1 and 2, without Ask Again), quit Annota, start it again and capture a region.
-2. Expected: the window hides, no question appears, the window returns with the dialog.
+2. Expected: no question, the window doesn't hide, the dialog appears at once, also with a capture
+   delay set in the launcher.
+3. With only an editor window open, capture a region. Expected: the dialog is over the editor and no
+   main window opens.
+4. With the dialog open, press the capture shortcut. Expected: still one dialog; one Close ends it.
 
 **D. Cold start with no window, from a shortcut**
 1. Quit Annota so that `pgrep annota` finds nothing. Reset.
@@ -112,6 +116,18 @@ journalctl --user -f -g 'portal|access dialog'
 Only if a step above ends in the toast "GNOME could not ask for screen access. …": `Lookup` must show
 no entry, and there must be no "Screen Access Denied" dialog. Note the journal lines around it. That
 result means the fix did not work on this desktop.
+
+**G. Things happening during the question** (only a real session runs the Wayland path)
+1. Reset, open Annota, start a region capture and leave GNOME's question open. Close Annota's window
+   with Alt+F4 or from the overview. Record what GNOME does with its question, then answer it if it's
+   still there. Expected: Annota doesn't crash (`journalctl --user -b | grep annota` shows no panic).
+2. Reset, start a capture with no window open, and open an editor window from the dock or with
+   `annota --open <file>` while the question is open, then edit the image. Choose Allow. Expected: the
+   editor hides for the grab and comes back with the edit, and the window opened to ask is gone.
+3. Reset, and close the question without answering (Esc), if GNOME offers it. Expected: the window
+   opened to ask is gone, `Lookup` has no entry.
+4. Cold start: `annota --capture region` with nothing stored. Expected: the dialog says "Annota", not
+   an unknown app, and `Lookup` lists `io.github.trosinde.Annota`.
 
 **G. Ubuntu 24.04 (GNOME 46, portal 1.18)**
 Run A and B. Also check under which ID the answer is stored. If it is `''` rather than

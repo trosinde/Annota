@@ -96,12 +96,12 @@ The system SHALL create a new capture from an image in the clipboard (`Ctrl+Shif
 - **THEN** no capture is created and a toast says which formats can be opened
 
 ### Requirement: After-capture destination
-The system SHALL deliver every region, window and screen capture according to the `after-capture` preference: "Copy to Clipboard" puts the image on the clipboard and opens no window; "Open in Editor" opens it in the editor; "Both" does both. Until `add-annotation-editor` exists, "Open in Editor" instead saves the capture as PNG into the save folder, never overwriting a file, and shows a toast naming it.
+The system SHALL deliver every region, window and screen capture according to the `after-capture` preference: "Copy to Clipboard" puts the image on the clipboard and opens no window, apart from the first-use permission question; "Open in Editor" opens it in the editor; "Both" does both. Until `add-annotation-editor` exists, "Open in Editor" instead saves the capture as PNG into the save folder, never overwriting a file, and shows a toast naming it.
 
 #### Scenario: Copy to clipboard
 - **WHEN** the after-capture preference is "Copy to Clipboard" and the user captures a region with the global shortcut while no Annota window is open
 - **THEN** the image is on the clipboard
-- **AND** no window opens
+- **AND** no window opens, except the one for the first-use permission question, which is gone before the capture
 
 #### Scenario: Editor destination
 - **WHEN** the after-capture preference is "Open in Editor" and the user captures a 400×300 region
@@ -125,14 +125,35 @@ When the portal's permission store holds no answer for Annota, the system SHALL 
 - **THEN** a window opens for the question
 - **AND** it is gone before the capture, so a capture that opens no window leaves none behind
 
+#### Scenario: A window opened during the question
+- **WHEN** the user opens an Annota window while GNOME's question is open, and then allows
+- **THEN** that window is hidden for the capture and comes back with its documents
+- **AND** only the window opened for the question is gone
+
+#### Scenario: A window closed during the question
+- **WHEN** the user closes the question's parent window while GNOME's question is open, and then answers
+- **THEN** Annota keeps running and that window does not come back
+
+#### Scenario: Question dismissed
+- **WHEN** GNOME's question is closed without an answer
+- **THEN** nothing is captured, nothing is shown, and a window opened only for the question is gone
+
 #### Scenario: User chooses Deny
 - **WHEN** no answer is stored and the user chooses Deny in GNOME's question
 - **THEN** no further request is made and the "Screen Access Denied" dialog is shown
 
 #### Scenario: Permission denied
 - **WHEN** the permission store holds "no" for Annota and the user starts a region or screen capture
-- **THEN** no Annota window stays on screen for the request, and the "Screen Access Denied" dialog is shown
+- **THEN** no request is made and no countdown runs, and the "Screen Access Denied" dialog is shown at once
 - **AND** the dialog names no control that does not exist, and Ask Again is its default action with the initial focus
+
+#### Scenario: Denied with only the editor open
+- **WHEN** the permission store holds "no" for Annota and only the editor window is open
+- **THEN** the dialog is shown over the editor and no other window opens
+
+#### Scenario: Denied dialog already open
+- **WHEN** the "Screen Access Denied" dialog is open and the user starts another capture
+- **THEN** no second dialog is shown
 
 #### Scenario: Ask Again
 - **WHEN** the "Screen Access Denied" dialog is open and the user chooses Ask Again
@@ -163,7 +184,7 @@ When the portal's permission store holds no answer for Annota, the system SHALL 
 #### Scenario: GNOME could not ask
 - **WHEN** the portal refuses a request with a window on screen and nothing is stored
 - **THEN** no "Screen Access Denied" dialog is shown
-- **AND** a toast says that GNOME could not ask, on an Annota window the user can retry from
+- **AND** a toast says that GNOME could not ask, on an Annota window the user can retry from: the editor if it is open
 
 #### Scenario: Permission exists
 - **WHEN** the permission store holds "yes" for Annota and the user starts a capture

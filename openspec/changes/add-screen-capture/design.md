@@ -99,7 +99,7 @@ installed; its binary has the row).
   Annota's window in the picture, so that file is deleted. The capture is a second request with the
   windows hidden, now without a question. The question comes before any countdown.
 - **A window opened only to ask is destroyed** before the capture, so `window_was_open` and
-  "Copy to clipboard opens no window" keep their meaning.
+  "Copy to clipboard opens no window" keep their meaning. Only that window: see "Review follow-ups".
 - **Only the store decides what code 2 means.** `map_portal_error` gives `CaptureError::Refused`;
   `permission::after_refusal` sorts it by a fresh `Lookup` into denied (stored `no`), ask once more,
   could not ask, or plain failure. Window mode is always a plain failure, since the portal doesn't
@@ -132,7 +132,46 @@ command to copy: GNOME Settings shows no such switch for an unsandboxed app.
 - Decided during apply: `Window::set_focus_visible` shows the focus ring mockup 08 draws, which GTK
   otherwise holds back until the first key press.
 
+**Review follow-ups (2026-11-01), after an independent review.**
+- **The question can take long, so the windows are looked at when it ends.** The window opened to ask
+  is remembered by `with_permission`, and `run_hidden` destroys that one and nothing else. An editor
+  opened during the question used to be destroyed as "not open at the start", skipping "Save
+  Changes?". Now it hides for the grab and comes back. What comes back is what was hidden, if it still
+  exists, so a window closed meanwhile isn't shown again. `window_was_open` is whatever is on the
+  screen after that.
+- **The question dismissed without an answer** (response code 1) also destroys the window opened for
+  it. After a cold-start Deny it stays open, as built: that is with the maintainer as a separate
+  question. A toast's window stays too, because the toast is on it.
+- **A closed parent can't panic.** `ashpd` 0.11.1's `Gtk4WindowIdentifier::drop` unwraps
+  `native.surface()` when it exported a Wayland handle, and the request builder keeps the identifier
+  until the response, so closing the window during the question would have panicked on the answer.
+  `portal::ParentWindow` keeps the identifier itself and hands the request a plain copy of the handle
+  (the `WindowIdentifier::X11` variant, public but `doc(hidden)`, holds either kind; check this when
+  updating `ashpd`). The identifier is released on `unrealize`, ahead of GTK's handler that destroys
+  the surface, or when the request ends, which keeps the export alive for as long as the portal needs
+  it. If the window closed while `from_native` waited for the compositor there is no surface and no
+  signal to come: the identifier is forgotten, leaking one reference to a closed window.
+- **A stored "no" makes no request.** The portal would refuse, so `FirstStep::Denied` shows the dialog
+  at once: no countdown first, and no window hides and returns. If the store says `no` under Annota's
+  ID, the portal reads the same entry. Other refusals still go through `after_refusal`.
+- **Messages go to the editor when it is on the screen** (`application::present_for_message`), as
+  mockup 08 draws it: the denied dialog, the could-not-ask and failure toasts, and two toasts the
+  review didn't name but which had the same bug (the clipboard confirmation of a capture, and
+  `import`'s messages). If main window and editor are both open it's the editor, even if the main
+  window started the capture, because that's where the capture would have gone.
+- **One denied dialog.** `permission::present` raises the open one instead of stacking another.
+- **A grab waits for the registration.** `ensure_registered` set its flag before `register_host_app`
+  finished, so a cold `--capture` could overtake the startup's registration and reach the portal
+  without Annota's ID. It's now one shared future everybody awaits. A registry that never answers
+  would hold the capture, as would a Screenshot request that never answers: neither has a timeout.
+
 **Known limits.**
+- The Wayland branch of `ParentWindow` has not run at all: `live_tests` run on X11, where `ashpd`'s
+  drop does nothing. They prove the identifier is released on `unrealize` while the surface exists, and
+  that the flow survives the closed window. They don't prove the export, GNOME's reaction to a parent
+  that goes away during its question, or what it answers then. See `manual-checks.md`, G.
+- An unreadable store with a capture delay counts down, is refused, asks, and counts down again. Not
+  changed: the store is only unreadable in a sandbox, and Annota isn't shipped in one.
 - Nothing here has run against a real portal or store. The tests in `src/capture/live_tests.rs` use
   a stand-in written from the sources above, so they can't show a misreading of them. That includes
   `DeletePermission`, whose stand-in follows `handle_delete_permission` from memory of
