@@ -38,13 +38,12 @@
 
 ## 4. Overlay preview
 
-- [ ] 4.1 Implement the preview in `data/ui/region-overlay.blp` and `src/capture/overlay.rs`
-      exactly as approved in 1.3 — **built except the two icons**: the chip and the hint
-      segment reference `annota-pointer-included-symbolic` and
-      `annota-pointer-excluded-symbolic`, which do not exist yet. `tools/build-icons.py`
-      named by D8 was never written, and icon artwork is the `designer` agent's (CLAUDE.md
-      §9), so the two SVGs are delegated there. Until they land GTK draws a missing-image
-      placeholder in the chip
+- [x] 4.1 Implement the preview in `data/ui/region-overlay.blp` and `src/capture/overlay.rs`
+      exactly as approved in 1.3. The two icons (`annota-pointer-included-symbolic`,
+      `annota-pointer-excluded-symbolic`) were drawn by the `designer` agent (CLAUDE.md §9) and
+      registered in `data/resources.gresource.xml`; `gresource list` confirms both are embedded.
+      `tools/build-icons.py` named by D8 does not exist, so like every other icon in
+      `data/icons/` these are authored files; the kit addition stays a D8 follow-up
 - [x] 4.2 The preview is driven by the same inside/outside test as task 3.1, so preview and
       result cannot disagree (design.md D3)
 - [x] 4.3 The preview updates on pointer motion and on selection move/resize, and is absent while
@@ -55,12 +54,17 @@
 
 ## 5. Verify
 
-- [ ] 5.1 Every scenario of both requirements has a test or a documented manual check; live-only
+- [x] 5.1 Every scenario of both requirements has a test or a documented manual check; live-only
       checks go into `manual-checks.md` with what the automated tests do and do not cover
-- [ ] 5.2 `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `meson test -C _build` green
-- [ ] 5.3 Delayed region capture still places the pointer after the countdown (design.md D4) —
-      regression check, since this change rewrites the position's source
-- [ ] 5.4 Screen and window modes unchanged — `screen()` keeps the pointer it draws today
+- [x] 5.2 `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `meson test -C _build` green
+- [x] 5.3 Delayed region capture still places the pointer after the countdown (design.md D4) —
+      verified by reading `region()`: with a delay the position still comes from a fresh
+      `probe_pointer` after the countdown, untouched by the `Session::pointer` rework. The only
+      difference is that the probed position now passes the `contains` guard, which removes just
+      the case that was invisible anyway (drawn outside the crop, clipped by cairo). Live check 8
+      in `manual-checks.md`
+- [x] 5.4 Screen and window modes unchanged — `screen()` keeps the pointer it draws today;
+      verified: `git diff` over this change's commits shows no line in `screen()` added or removed
 - [ ] 5.5 `reviewer` agent (fresh context, did not write the code): specs, mockup fidelity,
       tests, quality gates
 - [ ] 5.6 `.deb` builds via `build-aux/make-deb.sh`, `lintian -I --pedantic` clean
