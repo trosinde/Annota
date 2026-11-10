@@ -2,15 +2,15 @@
 
 ## 1. Design gate
 
-- [ ] 1.1 `designer` agent: mockups for the region overlay's pointer preview in
+- [x] 1.1 `designer` agent: mockups for the region overlay's pointer preview in
       `docs/design/fix-region-pointer-inclusion/` (light + dark, 1x + 2x) covering all four
       scenarios of the "Pointer preview in the region overlay" requirement. Brief: the overlay
       already draws the selection, its handles, the loupe near the pointer and the snapping
       guides — the preview must not compete with those for the same screen area (design.md D3).
       It must also make the working gesture discoverable: select the region, move the pointer
       inside it, press `Enter`.
-- [ ] 1.2 Link each mockup to its spec scenario in design.md's "Mockups" table
-- [ ] 1.3 Maintainer approval recorded in design.md (`Design approved: <date>`)
+- [x] 1.2 Link each mockup to its spec scenario in design.md's "Mockups" table
+- [x] 1.3 Maintainer approval recorded in design.md (`Design approved: 2026-11-10`)
 
 ## 2. Pointer position at confirmation
 
