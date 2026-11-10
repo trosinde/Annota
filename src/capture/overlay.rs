@@ -11,10 +11,11 @@ use futures_channel::oneshot;
 use gettextrs::gettext;
 use gtk::{cairo, gdk, gio, glib, prelude::*};
 
-use super::frame::{Frame, Rgb};
+use super::frame::{self, Frame, Rgb};
 use super::geometry::{
-    bounding_box, image_scale, loupe_position, monitor_crop, size_chip_position, toolbar_position,
-    Direction, FRect, Handle, IRect, Selection, HANDLE_DIAMETER, LOUPE_DIAMETER, LOUPE_ZOOM,
+    bounding_box, image_scale, loupe_position, monitor_crop, pointer_chip_position,
+    size_chip_position, toolbar_position, Direction, FRect, Handle, IRect, Selection,
+    HANDLE_DIAMETER, LOUPE_DIAMETER, LOUPE_ZOOM,
 };
 use super::snap::{self, Axis, Edge};
 use crate::cli::CaptureMode;
@@ -101,6 +102,20 @@ impl Desktop {
         };
         Desktop { full, monitors }
     }
+}
+
+/// The preview arrow's glyph box in logical px (`frame::pointer_path`: 15 wide, 22 tall).
+const PREVIEW_GLYPH: (f64, f64) = (15.0, 22.0);
+
+/// What the pointer preview draws this frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Preview {
+    /// Hot spot in this monitor's logical px.
+    pointer: (f64, f64),
+    /// The capture would contain the pointer.
+    inside: bool,
+    /// Outside, but within 1 image px of the selection's border.
+    on_edge: bool,
 }
 
 /// Pointer position: monitor index and logical coordinates on that monitor.
@@ -205,6 +220,24 @@ impl Session {
     }
 }
 
+/// The pointer segment prepended to one of the three hint boxes. Only the box belonging to the
+/// current phase is on screen, so all three carry the same text and the visible one shows it.
+struct PointerHint {
+    box_: gtk::Box,
+    glyph: gtk::Image,
+    label: gtk::Label,
+}
+
+impl PointerHint {
+    fn load(b: &gtk::Builder, suffix: &str) -> Option<Self> {
+        Some(Self {
+            box_: object(b, &format!("pointer_hint_{suffix}"))?,
+            glyph: object(b, &format!("pointer_glyph_{suffix}"))?,
+            label: object(b, &format!("pointer_label_{suffix}"))?,
+        })
+    }
+}
+
 struct Widgets {
     window: gtk::Window,
     overlay: gtk::Overlay,
@@ -217,6 +250,11 @@ struct Widgets {
     loupe_hex: gtk::Label,
     loupe_coordinates: gtk::Label,
     snap_chip: gtk::Box,
+    pointer_chip: gtk::Box,
+    pointer_chip_glyph: gtk::Image,
+    pointer_chip_label: gtk::Label,
+    pointer_chip_suffix: gtk::Label,
+    pointer_hints: [PointerHint; 3],
     toolbar: gtk::Box,
     width_text: gtk::Text,
     height_text: gtk::Text,
@@ -231,6 +269,14 @@ struct Widgets {
     mode_screen_button: gtk::ToggleButton,
     cancel_button: gtk::Button,
     capture_button: gtk::Button,
+}
+
+fn set_class(widget: &impl IsA<gtk::Widget>, class: &str, on: bool) {
+    if on {
+        widget.add_css_class(class);
+    } else {
+        widget.remove_css_class(class);
+    }
 }
 
 fn object<T: IsA<glib::Object>>(builder: &gtk::Builder, name: &str) -> Option<T> {
@@ -256,6 +302,15 @@ impl Widgets {
             loupe_hex: object(&b, "loupe_hex")?,
             loupe_coordinates: object(&b, "loupe_coordinates")?,
             snap_chip: object(&b, "snap_chip")?,
+            pointer_chip: object(&b, "pointer_chip")?,
+            pointer_chip_glyph: object(&b, "pointer_chip_glyph")?,
+            pointer_chip_label: object(&b, "pointer_chip_label")?,
+            pointer_chip_suffix: object(&b, "pointer_chip_suffix")?,
+            pointer_hints: [
+                PointerHint::load(&b, "drag")?,
+                PointerHint::load(&b, "snap")?,
+                PointerHint::load(&b, "adjust")?,
+            ],
             toolbar: object(&b, "toolbar")?,
             width_text: object(&b, "width_text")?,
             height_text: object(&b, "height_text")?,
@@ -592,8 +647,50 @@ impl MonitorOverlay {
         self.w.hint_drag.set_visible(!snapped && !adjusting);
         self.w.hint_adjust.set_visible(adjusting);
 
+        self.update_pointer_preview();
+
         self.w.overlay.queue_allocate();
         self.w.canvas.queue_draw();
+    }
+
+    /// Chip and hint segment of the pointer preview (redlines, "Pointer chip" and "Hint bar").
+    /// All three hint segments carry the same text; only the box of the current phase is on
+    /// screen, so the visible one shows it.
+    fn update_pointer_preview(&self) {
+        let preview = self.preview_state();
+        self.w.pointer_chip.set_visible(preview.is_some());
+        let Some(preview) = preview else {
+            for hint in &self.w.pointer_hints {
+                hint.box_.set_visible(false);
+            }
+            return;
+        };
+        let (glyph, chip_text, hint_text) = if preview.inside {
+            (
+                "annota-pointer-included-symbolic",
+                gettext("Pointer in capture"),
+                gettext("Pointer in capture"),
+            )
+        } else {
+            (
+                "annota-pointer-excluded-symbolic",
+                gettext("Pointer not in capture"),
+                gettext("Move the pointer into the selection to include it"),
+            )
+        };
+        self.w.pointer_chip_glyph.set_icon_name(Some(glyph));
+        self.w.pointer_chip_label.set_text(&chip_text);
+        self.w.pointer_chip_suffix.set_visible(preview.on_edge);
+        if preview.on_edge {
+            self.w.pointer_chip_suffix.set_text(&gettext("on the edge"));
+        }
+        set_class(&self.w.pointer_chip, "annota-pointer-in", preview.inside);
+        for hint in &self.w.pointer_hints {
+            hint.box_.set_visible(true);
+            hint.glyph.set_icon_name(Some(glyph));
+            hint.label.set_text(&hint_text);
+            set_class(&hint.box_, "annota-pointer-in", preview.inside);
+        }
     }
 
     /// Positions of the floating chips and the toolbar (redlines 02–04).
@@ -633,6 +730,14 @@ impl MonitorOverlay {
                 ly + LOUPE_DIAMETER + LOUPE_CHIP_GAP,
             );
             return Some(rect_at(pos, size));
+        }
+        if child == self.w.pointer_chip.upcast_ref::<gtk::Widget>() {
+            let size = natural(child);
+            let preview = self.preview_state()?;
+            return Some(rect_at(
+                pointer_chip_position(preview.pointer, size, area),
+                size,
+            ));
         }
         if child == self.w.snap_chip.upcast_ref::<gtk::Widget>() {
             let size = natural(child);
@@ -746,6 +851,86 @@ impl MonitorOverlay {
             let origin = loupe_position(pointer, (width, height), chip_height + LOUPE_CHIP_GAP);
             self.draw_loupe(cr, origin, pointer)?;
         }
+
+        // Last, so it sits above the dim and the selection border. The system cursor is drawn by
+        // the compositor and stays on top of everything here.
+        if let Some(preview) = self.preview_state() {
+            self.draw_preview_pointer(cr, preview)?;
+        }
+        Ok(())
+    }
+
+    /// What the pointer preview shows right now, or `None` while nothing is drawn: Include
+    /// Pointer off, or no pointer on this monitor's frozen image (spec: Pointer preview in the
+    /// region overlay).
+    fn preview_state(&self) -> Option<Preview> {
+        if !self.w.pointer_button.is_active() {
+            return None;
+        }
+        let session = self.session()?;
+        let at = session
+            .pointer
+            .get()
+            .filter(|at| at.monitor == self.index)?;
+        let pointer = (at.x, at.y);
+        let rect = self.state.borrow().selection.rect();
+        // The very test the capture applies (`capture::region_pointer`), so the preview cannot
+        // promise what the image will not contain.
+        let inside = rect.is_some_and(|r| r.pointer_inside(pointer, self.scale).is_some());
+        Some(Preview {
+            pointer,
+            inside,
+            on_edge: !inside && rect.is_some_and(|r| self.is_on_edge(r, pointer)),
+        })
+    }
+
+    /// Within 1 image px of the selection's border — the trap after releasing a drag, where the
+    /// hot spot sits exactly on the edge the user just dragged to.
+    fn is_on_edge(&self, rect: IRect, pointer: (f64, f64)) -> bool {
+        let (x, y) = (pointer.0 * self.scale, pointer.1 * self.scale);
+        let near = |v: f64, lo: i32, hi: i32| v >= f64::from(lo) - 1.0 && v <= f64::from(hi) + 1.0;
+        near(x, rect.x, rect.right()) && near(y, rect.y, rect.bottom())
+    }
+
+    /// The preview arrow at the hot spot: solid white when it will be captured, ghosted and
+    /// slashed when it will not. Never carried by colour alone (redlines, "Preview arrow").
+    fn draw_preview_pointer(
+        &self,
+        cr: &cairo::Context,
+        preview: Preview,
+    ) -> Result<(), cairo::Error> {
+        cr.save()?;
+        cr.translate(preview.pointer.0, preview.pointer.1);
+        frame::pointer_path(cr);
+        if preview.inside {
+            cr.set_line_width(2.8);
+            cr.set_source_rgba(0.0, 0.0, 0.024, 1.0);
+            cr.stroke_preserve()?;
+            cr.set_source_rgb(1.0, 1.0, 1.0);
+            cr.fill()?;
+        } else {
+            cr.set_line_width(3.0);
+            cr.set_source_rgba(0.0, 0.0, 0.024, 0.6);
+            cr.stroke_preserve()?;
+            cr.set_source_rgba(0.0, 0.0, 0.024, 0.45);
+            cr.fill_preserve()?;
+            cr.set_source_rgba(1.0, 1.0, 1.0, 0.48);
+            cr.fill_preserve()?;
+            cr.set_line_width(1.5);
+            cr.set_source_rgb(1.0, 1.0, 1.0);
+            cr.stroke()?;
+            // Slash across the glyph box, lower left to upper right. Kept inside the box so it
+            // cannot merge with the overlay's own crosshair cursor.
+            cr.move_to(0.0, PREVIEW_GLYPH.1);
+            cr.line_to(PREVIEW_GLYPH.0, 0.0);
+            cr.set_line_width(4.4);
+            cr.set_source_rgba(0.0, 0.0, 0.024, 0.75);
+            cr.stroke_preserve()?;
+            cr.set_line_width(2.1);
+            cr.set_source_rgb(1.0, 1.0, 1.0);
+            cr.stroke()?;
+        }
+        cr.restore()?;
         Ok(())
     }
 
@@ -980,6 +1165,16 @@ fn connect(overlay: &Rc<MonitorOverlay>) {
         ));
     }
 
+    // Include Pointer decides whether the preview is drawn at all, so it has to repaint.
+    w.pointer_button.connect_toggled(glib::clone!(
+        #[strong]
+        weak,
+        move |_| {
+            if let Some(this) = weak.upgrade() {
+                this.update_ui();
+            }
+        }
+    ));
     w.cancel_button.connect_clicked(glib::clone!(
         #[strong]
         weak,

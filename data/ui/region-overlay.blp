@@ -106,6 +106,26 @@ Window overlay_window {
     }
 
     [overlay]
+    Box pointer_chip {
+      visible: false;
+      halign: start;
+      valign: start;
+      spacing: 6;
+      styles ["annota-chip", "annota-pointer-chip"]
+
+      Image pointer_chip_glyph {
+        icon-name: "annota-pointer-included-symbolic";
+      }
+
+      Label pointer_chip_label {}
+
+      Label pointer_chip_suffix {
+        visible: false;
+        styles ["annota-chip-dim"]
+      }
+    }
+
+    [overlay]
     Box snap_chip {
       visible: false;
       halign: start;
@@ -289,6 +309,22 @@ Window overlay_window {
       spacing: 6;
       styles ["annota-hint"]
 
+      Box pointer_hint_drag {
+        visible: false;
+        spacing: 6;
+
+        Image pointer_glyph_drag {
+          icon-name: "annota-pointer-included-symbolic";
+        }
+
+        Label pointer_label_drag {}
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+      }
+
       Label {
         label: _("Drag to select");
       }
@@ -345,6 +381,22 @@ Window overlay_window {
       spacing: 6;
       styles ["annota-hint"]
 
+      Box pointer_hint_snap {
+        visible: false;
+        spacing: 6;
+
+        Image pointer_glyph_snap {
+          icon-name: "annota-pointer-included-symbolic";
+        }
+
+        Label pointer_label_snap {}
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+      }
+
       Label {
         label: _("Edges snap within 8 px");
       }
@@ -386,6 +438,22 @@ Window overlay_window {
       margin-bottom: 36;
       spacing: 6;
       styles ["annota-hint"]
+
+      Box pointer_hint_adjust {
+        visible: false;
+        spacing: 6;
+
+        Image pointer_glyph_adjust {
+          icon-name: "annota-pointer-included-symbolic";
+        }
+
+        Label pointer_label_adjust {}
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+      }
 
       Label {
         label: C_("keyboard key", "Enter");

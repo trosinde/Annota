@@ -39,14 +39,19 @@
 ## 4. Overlay preview
 
 - [ ] 4.1 Implement the preview in `data/ui/region-overlay.blp` and `src/capture/overlay.rs`
-      exactly as approved in 1.3
-- [ ] 4.2 The preview is driven by the same inside/outside test as task 3.1, so preview and
+      exactly as approved in 1.3 — **built except the two icons**: the chip and the hint
+      segment reference `annota-pointer-included-symbolic` and
+      `annota-pointer-excluded-symbolic`, which do not exist yet. `tools/build-icons.py`
+      named by D8 was never written, and icon artwork is the `designer` agent's (CLAUDE.md
+      §9), so the two SVGs are delegated there. Until they land GTK draws a missing-image
+      placeholder in the chip
+- [x] 4.2 The preview is driven by the same inside/outside test as task 3.1, so preview and
       result cannot disagree (design.md D3)
-- [ ] 4.3 The preview updates on pointer motion and on selection move/resize, and is absent while
+- [x] 4.3 The preview updates on pointer motion and on selection move/resize, and is absent while
       include-cursor is off
-- [ ] 4.4 Unit test: the preview's verdict equals the drawing guard's verdict for the same
+- [x] 4.4 Unit test: the preview's verdict equals the drawing guard's verdict for the same
       selection and pointer position
-- [ ] 4.5 German translation updated in the same commit (CLAUDE.md §7) for any new string
+- [x] 4.5 German translation updated in the same commit (CLAUDE.md §7) for any new string
 
 ## 5. Verify
 

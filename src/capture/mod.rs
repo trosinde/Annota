@@ -371,6 +371,24 @@ mod tests {
     }
 
     #[test]
+    fn the_preview_and_the_capture_cannot_disagree() {
+        // Task 4.2: the overlay's preview and `region` must reach the same verdict for the same
+        // selection and pointer. They share `IRect::pointer_inside`, so this sweeps the whole
+        // neighbourhood of a selection and asserts the two never diverge. The only thing
+        // `region_pointer` adds is the monitor filter.
+        let rect = IRect::new(140, 212, 400, 300);
+        for step in 0..=60 {
+            let x = 120.0 + f64::from(step) * 8.0;
+            for step_y in 0..=50 {
+                let y = 190.0 + f64::from(step_y) * 8.0;
+                let preview = rect.pointer_inside((x, y), 1.0);
+                let capture = region_pointer(Some(at(0, x, y)), 0, rect, 1.0);
+                assert_eq!(preview, capture, "disagree at {x}, {y}");
+            }
+        }
+    }
+
+    #[test]
     fn a_pointer_on_another_monitor_is_not_drawn() {
         // Scenario "Pointer outside the selection", multi-monitor case: the selection lives on
         // one monitor and the pointer may be on another. The monitor filter runs before the

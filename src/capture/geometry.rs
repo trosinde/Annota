@@ -395,6 +395,31 @@ pub fn loupe_position(pointer: (f64, f64), area: (f64, f64), extra_below: f64) -
     (x.max(0.0), y.max(0.0))
 }
 
+/// Gap between the pointer's hot spot and the preview chip (redlines, "Pointer chip").
+pub const POINTER_CHIP_GAP: f64 = 30.0;
+
+/// The pointer preview chip: `POINTER_CHIP_GAP` right of the hot spot, vertically centred on it,
+/// flipped to the left when it would leave the monitor.
+///
+/// Centring on the hot spot is what keeps it clear of the loupe, which starts at
+/// `LOUPE_OFFSET` below and right of the same point: the chip's band always ends above it.
+pub fn pointer_chip_position(
+    pointer: (f64, f64),
+    size: (f64, f64),
+    area: (f64, f64),
+) -> (f64, f64) {
+    let right = pointer.0 + POINTER_CHIP_GAP;
+    let x = if right + size.0 <= area.0 {
+        right
+    } else {
+        pointer.0 - POINTER_CHIP_GAP - size.0
+    };
+    (
+        x.clamp(0.0, (area.0 - size.0).max(0.0)),
+        (pointer.1 - size.1 / 2.0).clamp(0.0, (area.1 - size.1).max(0.0)),
+    )
+}
+
 /// Bounding box of all monitors in the logical layout.
 pub fn bounding_box(monitors: &[IRect]) -> Option<IRect> {
     monitors.iter().copied().reduce(|a, b| a.union(b))
@@ -441,6 +466,35 @@ pub fn screen_capture_rect(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_pointer_chip_sits_beside_the_hot_spot_and_clears_the_loupe() {
+        // Redline: 30 px right of the hot spot, vertically centred on it. The loupe starts at
+        // +26 / +26 from the same point, so the chip's band always ends above it.
+        let area = (1920.0, 1080.0);
+        let size = (180.0, 26.0);
+        let (x, y) = pointer_chip_position((400.0, 500.0), size, area);
+        assert_eq!((x, y), (430.0, 487.0));
+        let (_, loupe_y) = loupe_position((400.0, 500.0), area, 0.0);
+        assert!(
+            y + size.1 <= loupe_y,
+            "chip bottom {} vs loupe top {loupe_y}",
+            y + size.1
+        );
+    }
+
+    #[test]
+    fn the_pointer_chip_flips_at_the_right_edge() {
+        let area = (1920.0, 1080.0);
+        let size = (180.0, 26.0);
+        // Fits on the right.
+        assert_eq!(pointer_chip_position((1700.0, 500.0), size, area).0, 1730.0);
+        // Would leave the monitor: flips to the left of the hot spot.
+        assert_eq!(pointer_chip_position((1750.0, 500.0), size, area).0, 1540.0);
+        // Vertically clamped into the monitor at the very top and bottom.
+        assert_eq!(pointer_chip_position((400.0, 2.0), size, area).1, 0.0);
+        assert_eq!(pointer_chip_position((400.0, 1078.0), size, area).1, 1054.0);
+    }
 
     #[test]
     fn the_pointer_is_drawn_only_inside_the_selection() {

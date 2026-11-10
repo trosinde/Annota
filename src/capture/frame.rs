@@ -199,7 +199,10 @@ impl Frame {
 }
 
 /// Outline of a classic arrow pointer, hot spot at the origin, 22 logical px tall.
-fn pointer_path(cr: &cairo::Context) {
+///
+/// Shared with the region overlay's preview (`capture::overlay`): both draw this one path,
+/// so what the preview shows and what the capture composites cannot diverge.
+pub(super) fn pointer_path(cr: &cairo::Context) {
     let points = [
         (0.0, 0.0),
         (0.0, 17.0),

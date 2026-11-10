@@ -21,6 +21,22 @@ window.annota-overlay {
   color: @accent_fg_color;
 }
 
+/* Pointer preview chip (fix-region-pointer-inclusion). The leading keyline carries the state
+   together with the glyph and the wording — never colour alone. */
+.annota-chip.annota-pointer-chip {
+  padding: 4px 10px 4px 12px;
+  border-left: 3px solid rgba(255, 255, 255, 0.6);
+}
+
+.annota-chip.annota-pointer-chip.annota-pointer-in {
+  border-left-color: #ff5a4e; /* --annota-coral */
+}
+
+.annota-chip.annota-pointer-chip.annota-pointer-in image,
+.annota-hint .annota-pointer-in image {
+  color: #ff5a4e;
+}
+
 .annota-chip.annota-snap-chip {
   background-color: #8b5cf6; /* --annota-violet */
 }
