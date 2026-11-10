@@ -81,5 +81,5 @@
       one-test-per-process rule is documented but not enforced in code, nudge-history
       coalescing, the German-keyboard z-order shortcut, unknown-member groups hiding known
       content.
-- [ ] 5.6 Archive add-screen-capture first: this change's `specs/capture/spec.md` and
+- [x] 5.6 Archive add-screen-capture first (archived 2026-11-10): this change's `specs/capture/spec.md` and
       `specs/app-shell/spec.md` build on its specs

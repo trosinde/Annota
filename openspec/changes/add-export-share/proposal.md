@@ -31,10 +31,12 @@ Annotated images must reach documents, chats and tickets in one step.
   (no way out of Annota existed yet); this change makes it the real warning (mockup 10, D7) on
   every way out it builds. Archive add-core-annotation-tools before this change: the MODIFIED
   delta needs its `annotation-tools` spec to exist.
-- `document-format` — "Autosave and recovery", "Closing keeps autosaves" and "Recovery dialog"
-  (add-annotation-editor) modified, "Save changes before closing" added (task 2.6): now that
-  Annota can save, closing asks and an autosave goes only when its document is saved or
-  discarded. Archive add-annotation-editor before this change: the MODIFIED delta needs its
+- `document-format` — "Autosave and recovery" and "Recovery dialog" (add-annotation-editor)
+  modified; "Closing keeps autosaves" removed and replaced by "Autosaves when Annota ends",
+  because its scenario promised that closing the window alone keeps the autosave and a MODIFIED
+  block cannot drop a scenario; "Save changes before closing" added (task 2.6). Now that Annota
+  can save, closing asks and an autosave goes only when its document is saved or discarded.
+  Archive add-annotation-editor before this change: the MODIFIED delta needs its
   `document-format` spec to exist.
 
 ## Impact

@@ -75,8 +75,10 @@
       redlines in `docs/design/add-export-share/index.md` — one alert per unsaved document, tray
       Open order), then revert closing to "an autosave is removed when its document is saved or
       the user discards it" — in the code (`Session::close`, `Editor::close_all`,
-      `editor::shut_down`) and as a MODIFIED delta of `document-format` ("Autosave and recovery",
-      "Closing keeps autosaves", "Recovery dialog").
+      `editor::shut_down`) and as a delta of `document-format`: MODIFIED "Autosave and recovery"
+      and "Recovery dialog", REMOVED "Closing keeps autosaves" (its scenario promised that closing
+      alone keeps the autosave, which "Save Changes?" ends, and a MODIFIED block cannot drop a
+      scenario), ADDED "Autosaves when Annota ends" and "Save changes before closing".
       **Built (2026-10-31):** `src/ui/editor/closing.rs`, `data/ui/save-changes-dialog.blp`
       (AdwAlertDialog, 372 px), `Editor::confirm_close` on the window's close request and on
       `app.quit` (`editor::quit`); Save = quick save then close, a failed save or Cancel stops

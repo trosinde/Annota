@@ -21,17 +21,6 @@ Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files 
 - **WHEN** a document that has an autosave is closed with Discard in "Save Changes?"
 - **THEN** its autosave is removed and not offered at the next start
 
-### Requirement: Closing keeps autosaves
-Closing the editor window (`Ctrl+W`, its close button) or quitting Annota SHALL remove a document's autosave only when the user saves or discards that document in "Save Changes?". When Annota ends without asking (it crashes, is killed, the session ends), its autosaves SHALL be kept and offered at the next start; if it still shuts down normally, it SHALL first write a last autosave of every document with unsaved changes. A new capture or pasted image counts as unsaved from the start, an image opened from a file only once it is changed.
-
-#### Scenario: Ended without asking keeps the autosave
-- **WHEN** Annota shuts down without having asked "Save Changes?" while a document has unsaved changes, some of them made after the last 30 s autosave
-- **THEN** the document's autosave is kept, contains those changes, and is offered in "Restore Unsaved Captures?" at the next start
-
-#### Scenario: Closed after saving or discarding
-- **WHEN** the editor window closes after every unsaved document was saved or discarded in "Save Changes?"
-- **THEN** none of these documents has an autosave left, and nothing is offered at the next start
-
 ### Requirement: Recovery dialog
 When Annota starts and autosaves of a previous run are left — after a crash, or whenever Annota ended without asking "Save Changes?" — it SHALL show "Restore Unsaved Captures?" with one checked row per autosave. Its text SHALL say that these documents have changes not saved in a file and that Annota kept a copy of each — not that Annota crashed. Restore SHALL open the checked ones in the editor, Discard SHALL delete them; unchecked ones, or all if the dialog is closed otherwise, SHALL be kept and offered again.
 
@@ -43,7 +32,24 @@ When Annota starts and autosaves of a previous run are left — after a crash, o
 - **WHEN** the dialog lists an autosave and the user presses Discard
 - **THEN** the autosave is deleted and not offered again
 
+## REMOVED Requirements
+
+### Requirement: Closing keeps autosaves
+**Reason**: Its scenario "Closed document keeps its autosave" promised that simply closing the editor window keeps a document's autosave. This change replaces that with the "Save Changes?" alert, after which a saved or discarded document has no autosave left, so the scenario is no longer true. A MODIFIED block replaces the whole requirement and cannot drop a scenario.
+**Migration**: Replaced by the ADDED requirement "Autosaves when Annota ends" below, which keeps the part that still holds (an end without asking keeps the autosave, a normal shutdown writes a last one first), together with "Save changes before closing", which governs when an autosave is removed. A new name because a requirement cannot be both removed and added in one delta.
+
 ## ADDED Requirements
+
+### Requirement: Autosaves when Annota ends
+Annota SHALL remove a document's autosave only when the user saves or discards that document in "Save Changes?". When Annota ends without asking (it crashes, is killed, the session ends), its autosaves SHALL be kept and offered at the next start; if it still shuts down normally, it SHALL first write a last autosave of every document with unsaved changes. A new capture or pasted image counts as unsaved from the start, an image opened from a file only once it is changed.
+
+#### Scenario: Ended without asking keeps the autosave
+- **WHEN** Annota shuts down without having asked "Save Changes?" while a document has unsaved changes, some of them made after the last 30 s autosave
+- **THEN** the document's autosave is kept, contains those changes, and is offered in "Restore Unsaved Captures?" at the next start
+
+#### Scenario: Closed after saving or discarding
+- **WHEN** the editor window closes after every unsaved document was saved or discarded in "Save Changes?"
+- **THEN** none of these documents has an autosave left, and nothing is offered at the next start
 
 ### Requirement: Save changes before closing
 Closing the editor window (`Ctrl+W`, its close button) or quitting Annota (`Ctrl+Q`) SHALL ask "Save Changes?" (mockup 15) for each document with unsaved changes, one after the other in the tray's Open order, each document shown behind its alert: Save does what `Ctrl+S` does and closes it, Discard closes it without saving, Cancel stops the whole close or quit, and so does a save that fails. Documents without unsaved changes SHALL close silently.
