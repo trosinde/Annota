@@ -107,66 +107,80 @@ annota/
 
 ## 4. Project status and build
 
-**Status (2026-11-01)**
-- `add-screen-capture`: the screenshot permission flow rebuilt 2026-11-01 has had independent review
-  but no real-desktop run; it has only run against a stand-in portal on X11. See its
-  `manual-checks.md`, "Screenshot permission".
-- `add-export-share`: all implementation tasks built and reviewed; 3.3 (Ubuntu 24.04) and the
-  maintainer checks in `manual-checks.md` are open. Archive it after `add-annotation-editor` and
-  `add-core-annotation-tools`, whose specs its MODIFIED deltas need. `add-capture-library` is the
-  last MVP change not started.
-- Roadmap: 18 OpenSpec changes in `openspec/changes/`, all validated. `bootstrap-app-shell` is
-  archived. `add-screen-capture`, `add-annotation-editor`, `add-core-annotation-tools` and
-  `add-style-system` are all **fully implemented and reviewer-verified, but not archived yet** —
-  the first three need live testing against a real xdg-desktop-portal/GNOME session (screenshot/
-  window capture, global shortcuts, the Print-key takeover; `add-core-annotation-tools` adds one
-  more such check, the eyedropper's PickColor call) that was deliberately left to the maintainer
-  rather than run from a dev session; see `openspec/changes/add-screen-capture/manual-checks.md`
-  (covers the eyedropper row too) and `add-core-annotation-tools/manual-checks.md`.
-  `add-style-system/manual-checks.md` lists what its focus regression test does not exercise
-  (a real right-click and Escape). **Archive
-  order: add-screen-capture, then add-annotation-editor** (its spec deltas build on the first —
-  task 5.6 in its `tasks.md`); `add-core-annotation-tools` has no technical ordering dependency on
-  either (new `annotation-tools` capability only) but logically assumes the editor exists, so
-  archive it third; `add-style-system` has no technical ordering dependency on any of the three
-  either, archive it fourth. `add-screen-capture` task 4.6 (a first-launch Print-key-takeover
-  prompt) also still needs a designer mockup before it can be built. The other 14 MVP/P2/P3
-  changes have no implementation yet.
-- Design: kit in `docs/design/kit/`, mockups for all 18 changes (267 screens) in `docs/design/<change>/`,
-  cross-change decisions in `docs/design/decisions.md`. **The 7 MVP (0.1) changes are
-  design-approved** (bootstrap-app-shell, add-screen-capture, add-annotation-editor,
-  add-core-annotation-tools, add-style-system, add-export-share, add-capture-library);
-  P2/P3 changes stay `_pending_`. All cross-change decisions (D1–D13) are settled; none block
-  implementation.
-- Code: `bootstrap-app-shell` (archived) — AdwApplication, CLI, GSettings-backed preferences
-  dialog, keyboard shortcuts window, About dialog. `add-screen-capture` — `src/capture/`:
-  Screenshot-portal access, the region overlay (selection, handles, loupe, snapping, nudging),
-  window/screen/delayed capture, the GlobalShortcuts portal and GNOME-custom-keybinding fallback
-  (D9 Print-key takeover, GNOME-keybinding path only). `add-annotation-editor` — `src/document/`,
-  `src/render/`, `src/editing/`, `src/tools/image.rs`+`group.rs`, `src/ui/editor/`: full scene
-  graph, undo/redo, `.annota` format with forward-compatible unknown-data preservation, a
-  viewport-sized canvas, selection/handles/rotation/snapping/grouping, the real editor window
-  (header bar, sidebar, tray, zoom, autosave/recovery), crop/resize/rotate/flip/canvas-extension/
-  flatten. `--open <file>` and captures/paste/drop now really open in this editor (the previous
-  PNG-quick-save and placeholder-toast stand-ins are gone). `add-core-annotation-tools` —
+**Status (2026-11-10)**
+- Archived: `bootstrap-app-shell` and `add-signed-apt-repo` (2026-10-30); `add-screen-capture`,
+  `add-annotation-editor`, `add-core-annotation-tools` and `add-style-system` (2026-11-10). Their
+  deltas are merged into `openspec/specs/`: `app-shell` (7 requirements), `capture` (10),
+  `annotation-tools` (16), `document-format` (11), `editor-canvas` (31), `style-system` (11),
+  `debian-packaging` (7). `openspec validate --all --strict` passes.
+- **First real-desktop run, 2026-11-10** (GNOME Shell 50.1, Wayland, xdg-desktop-portal 1.21.1):
+  the screenshot permission flow, region capture and full-screen capture work; the permission
+  store now holds `yes` for Annota. The "Screen Access Denied" dialog seen before that came from a
+  stale `/usr/local/bin/annota` predating the 2026-11-01 permission rework — GNOME had refused to
+  *show* the question ("Only the focused app is allowed to show a system access dialog"), which
+  the old binary mistook for a denial. Most rows of each archived change's `manual-checks.md` are
+  still unrun; they moved into the archive with their change.
+- `add-export-share`: 18/19 tasks. Open: 3.3 (`.deb` on Ubuntu 24.04 — `libwebp-sys` needs exactly
+  Rust 1.85, so far only read, never built) and all 18 maintainer live checks in its
+  `manual-checks.md`. Its last reviewer pass ended conditionally — the toast-placement blocker was
+  fixed in `b2a151c` without a further pass, and mockups 11 and 13 are known stale.
+- `fix-region-pointer-inclusion` (proposed 2026-11-10): with "include pointer" on, a region
+  capture never shows the pointer, although the `capture` spec requires it for region *and* screen
+  captures. The overlay keeps only the first pointer position it sees, so the arrow is drawn
+  outside the crop and cairo clips it away silently. Direction A of three, chosen by the
+  maintainer; design gate open.
+- `add-capture-library` is the last MVP change not started (18 tasks, design-approved). The other
+  P2/P3 changes have no implementation.
+- `add-screen-capture` task 4.6 (the first-launch Print-key-takeover prompt, D9) was archived
+  **unbuilt** — it never had a mockup. Delivering D9 now needs its own change. On GNOME >= 48, the
+  maintainer's own machine included, the GlobalShortcuts portal path applies and there is no
+  takeover at all.
+- **A defect class found twice on 2026-11-10, worth checking for:** a change that writes a
+  MODIFIED delta against a capability whose main spec does not exist yet cannot be validated, and
+  tends to carry a placeholder scenario that becomes false the moment it ships. `openspec archive`
+  then refuses it. Both instances were in `add-export-share` (on `document-format` and on
+  `annotation-tools`) and were fixed with REMOVED + ADDED, the pattern `add-annotation-editor`
+  already used for "Command-line interface". Before archiving a change that creates a new main
+  spec, check which active changes carry MODIFIED or RENAMED deltas on that capability.
+- Design: kit in `docs/design/kit/`, mockups for all 18 earlier changes (267 screens) in
+  `docs/design/<change>/`, cross-change decisions in `docs/design/decisions.md`. **The 7 MVP (0.1)
+  changes are design-approved**; P2/P3 changes stay `_pending_`, as does
+  `fix-region-pointer-inclusion` until its mockups are approved. All cross-change decisions
+  (D1-D13) are settled; none block implementation.
+- Code: `bootstrap-app-shell` - AdwApplication, CLI, GSettings-backed preferences dialog, keyboard
+  shortcuts window, About dialog. `add-screen-capture` - `src/capture/`: Screenshot-portal access,
+  the region overlay (selection, handles, loupe, snapping, nudging), window/screen/delayed
+  capture, the GlobalShortcuts portal and GNOME-custom-keybinding fallback (D9 Print-key takeover,
+  GNOME-keybinding path only). `add-annotation-editor` - `src/document/`, `src/render/`,
+  `src/editing/`, `src/tools/image.rs`+`group.rs`, `src/ui/editor/`: full scene graph, undo/redo,
+  `.annota` format with forward-compatible unknown-data preservation, a viewport-sized canvas,
+  selection/handles/rotation/snapping/grouping, the real editor window (header bar, sidebar, tray,
+  zoom, autosave/recovery), crop/resize/rotate/flip/canvas-extension/flatten. `--open <file>` and
+  captures/paste/drop really open in this editor. `add-core-annotation-tools` -
   `src/tools/{arrow,pen,shape,text,callout,step,highlighter,redaction}.rs`: all 9 concrete
   annotation types against the `Annotation` trait, single-key tool shortcuts, a property sidebar
-  per type, a colour picker with a real-portal eyedropper, a shadow editor. `add-style-system` —
+  per type, a colour picker with a real-portal eyedropper, a shadow editor. `add-style-system` -
   `src/styles/`, `src/ui/editor/{quick_styles,theme_editor,styles}.rs`: quick styles (save/
   rename/move/delete, applied through the same property path the sidebar uses), favourites, a
-  theme editor + generator (2-8 colours + fonts → 8 quick styles per tool), import/export and the
-  system theme directory. Each of these four changes took multiple implementation phases and
-  review rounds — see each change's `design.md` "Decided during apply" history before touching
-  its code again, it's long for a reason.
+  theme editor + generator (2-8 colours + fonts -> 8 quick styles per tool), import/export and the
+  system theme directory. Each of these changes took multiple implementation phases and review
+  rounds - see each change's `design.md` "Decided during apply" history before touching its code
+  again, it's long for a reason.
 - Packaging: `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean, verified only on
-  the maintainer's Ubuntu 26.04 desktop (cargo/rustc 1.93, not the pinned 1.85; never on 24.04 —
-  several real bugs surfaced and got fixed here regardless, see each change's `tasks.md`). CI should be green (its known step-order bug is fixed) but hasn't been confirmed
-  on an actual ubuntu-24.04 runner — check the Actions tab before trusting it blindly.
-- Next step: the maintainer runs the live portal/hotkey/focus checks tracked across
-  `add-screen-capture/manual-checks.md`, `add-core-annotation-tools/manual-checks.md` and
-  `add-style-system/manual-checks.md`, then all four changes archive in order (screen-capture,
-  annotation-editor, core-annotation-tools, style-system), then `add-export-share`.
-  `add-capture-library` is the remaining MVP change.
+  the maintainer's Ubuntu 26.04 desktop (cargo/rustc 1.93, not the pinned 1.85; never on 24.04 -
+  several real bugs surfaced and got fixed here regardless, see each change's `tasks.md`). CI
+  should be green (its known step-order bug is fixed) but hasn't been confirmed on an actual
+  ubuntu-24.04 runner - check the Actions tab before trusting it blindly.
+- **Telling builds apart:** the version is `0.1.0` until the next release, so it never identifies a
+  build. A development build (`PROFILE=debug`) therefore carries its commit and build time, from
+  `build.rs` through `application::version_string()` into `annota --version` and the About dialog;
+  a release build and the `.deb` carry the bare version. If About shows `0.1.0` alone on a
+  locally installed binary, it predates 2026-11-10 and is stale. A locally installed Annota also
+  has to be quit before reinstalling, or the D-Bus single instance forwards every new launch into
+  the old process.
+- Next step: the reviewer pass on `add-export-share`'s unreviewed fixes, then archive it; the
+  design gate for `fix-region-pointer-inclusion`; then `add-capture-library`, the remaining MVP
+  change. The maintainer's live checks in the archived changes' `manual-checks.md` stay open.
 
 **Build dependencies (Ubuntu 24.04)**
 ```bash
