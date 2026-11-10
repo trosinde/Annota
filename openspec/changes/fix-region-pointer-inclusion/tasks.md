@@ -67,6 +67,9 @@
       verified: `git diff` over this change's commits shows no line in `screen()` added or removed
 - [ ] 5.5 `reviewer` agent (fresh context, did not write the code): specs, mockup fidelity,
       tests, quality gates
-- [ ] 5.6 `.deb` builds via `build-aux/make-deb.sh`, `lintian -I --pedantic` clean
+- [x] 5.6 `.deb` builds via `build-aux/make-deb.sh`, `lintian -I --pedantic` clean —
+      `../annota_0.1.0~dev1_amd64.deb` (2.4 MB, 2026-11-10), lintian silent. Built on the
+      maintainer's Ubuntu 26.04 with cargo 1.93, not the pinned 1.85; the 24.04 gap is the
+      CI job's, shared with every other change
 - [ ] 5.7 Maintainer: live check on a real desktop — region capture with include-cursor on,
       pointer inside the selection, confirmed with `Enter`; and the same with the pointer outside
