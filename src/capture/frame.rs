@@ -198,7 +198,8 @@ impl Frame {
     }
 }
 
-/// Outline of a classic arrow pointer, hot spot at the origin, 22 logical px tall.
+/// Outline of a classic arrow pointer, hot spot at the origin; its bounding box is
+/// 12.6 x 19.5 logical px.
 ///
 /// Shared with the region overlay's preview (`capture::overlay`): both draw this one path,
 /// so what the preview shows and what the capture composites cannot diverge.

@@ -120,6 +120,31 @@ spot in the band above the loupe, and a segment prepended to the hint bar that t
 
 Design approved: 2026-11-10
 
+## Review findings, resolved during apply (2026-11-10)
+
+**B1, blocking — `pointer_left` cleared the position but never repainted.** The canvas keeps its
+cached render node and the `GtkOverlay` only re-runs `child_position` on `queue_allocate`, so
+moving the pointer onto the toolbar, onto the hint bar or to another monitor left the arrow and
+the chip frozen where they were. In one reachable case that made the preview state the opposite of
+the truth: `geometry::toolbar_position` has a third branch that puts the toolbar *inside* the
+selection when it fits neither below nor above (reachable after `Ctrl+A`), so moving from inside
+the selection onto that toolbar left the chip reading "Pointer in capture" while the capture would
+have contained none — exactly the disagreement D3 claims is structural. Fixed by calling
+`update_ui()` at the end of `pointer_left`.
+
+Hiding behind the same function: `update_pointer_preview` hid all three hint segments whenever
+there was no position, while the redlines require the segment to **stay** and keep teaching the
+gesture. The chip now follows the position and the hint segment follows the toggle.
+
+**Deliberate deviations from the redlines, left as built:**
+- The in-capture arrow has no drop shadow (redline `0 1px 2px rgb(0 0 6 / 45 %)`). Cairo has no
+  cheap blur, and the 2.8 px halo it is stroked on already carries the contrast the shadow was for.
+- The chip has no `box-shadow` (redline `0 1px 4px rgb(0 0 6 / 35 %)`). `.annota-chip` carries
+  none, so this is a kit-level gap shared with the size, loupe and snap chips, not something this
+  change should fix alone.
+- Mockup 05 is stale, not the code: it shows the chip without the "on the edge" suffix at the same
+  hot-spot-on-the-corner geometry where mockup 06 shows it. The code shows it in both.
+
 ## Risks / Trade-offs
 
 - **Releasing the drag leaves the pointer on the selection edge, so the common gesture still

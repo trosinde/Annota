@@ -104,7 +104,8 @@ impl Desktop {
     }
 }
 
-/// The preview arrow's glyph box in logical px (`frame::pointer_path`: 15 wide, 22 tall).
+/// The glyph box the slash spans, in logical px. Deliberately larger than the arrow's own
+/// bounding box (12.6 x 19.5), so the slash overshoots it at both ends as the mockups show.
 const PREVIEW_GLYPH: (f64, f64) = (15.0, 22.0);
 
 /// What the pointer preview draws this frame.
@@ -116,6 +117,42 @@ struct Preview {
     inside: bool,
     /// Outside, but within 1 image px of the selection's border.
     on_edge: bool,
+}
+
+/// What the preview shows, from nothing but values — so it is testable without a display and
+/// provably reaches the same verdict as `capture::region_pointer`.
+///
+/// `None` means no arrow and no chip: Include Pointer is off, the pointer is on another monitor,
+/// or there is no position at all (over the toolbar or the hint bar, or confirmed from the
+/// keyboard). The hint-bar segment does *not* follow this — it stays whenever Include Pointer is
+/// on, because that is exactly when the user needs to be told how to get the pointer into the
+/// image (redlines, "Not drawn on purpose").
+fn preview_for(
+    include_pointer: bool,
+    pointer: Option<PointerAt>,
+    monitor: usize,
+    rect: Option<IRect>,
+    scale: f64,
+) -> Option<Preview> {
+    if !include_pointer {
+        return None;
+    }
+    let at = pointer.filter(|at| at.monitor == monitor)?;
+    let pointer = (at.x, at.y);
+    let inside = rect.is_some_and(|r| r.pointer_inside(pointer, scale).is_some());
+    Some(Preview {
+        pointer,
+        inside,
+        on_edge: !inside && rect.is_some_and(|r| on_edge(r, pointer, scale)),
+    })
+}
+
+/// Within 1 image px of the selection's border — the trap after releasing a drag, where the hot
+/// spot sits exactly on the edge the user just dragged to.
+fn on_edge(rect: IRect, pointer: (f64, f64), scale: f64) -> bool {
+    let (x, y) = (pointer.0 * scale, pointer.1 * scale);
+    let near = |v: f64, lo: i32, hi: i32| v >= f64::from(lo) - 1.0 && v <= f64::from(hi) + 1.0;
+    near(x, rect.x, rect.right()) && near(y, rect.y, rect.bottom())
 }
 
 /// Pointer position: monitor index and logical coordinates on that monitor.
@@ -476,6 +513,12 @@ impl MonitorOverlay {
         if let Some(session) = self.session() {
             session.clear_pointer(self.index);
         }
+        // Without this the arrow and the chip stay on screen exactly as they were: the canvas
+        // keeps its cached render node and the overlay never re-runs `child_position`. With the
+        // toolbar inside the selection (`geometry::toolbar_position`'s third branch, reachable
+        // after Ctrl+A) the frozen chip would still read "Pointer in capture" while the capture
+        // no longer contains one.
+        self.update_ui();
     }
 
     fn motion(&self, x: f64, y: f64) {
@@ -657,15 +700,23 @@ impl MonitorOverlay {
     /// All three hint segments carry the same text; only the box of the current phase is on
     /// screen, so the visible one shows it.
     fn update_pointer_preview(&self) {
+        let on = self.w.pointer_button.is_active();
         let preview = self.preview_state();
         self.w.pointer_chip.set_visible(preview.is_some());
-        let Some(preview) = preview else {
-            for hint in &self.w.pointer_hints {
-                hint.box_.set_visible(false);
-            }
+        // The segment stays while Include Pointer is on, even with the pointer over Annota's own
+        // chrome or on another monitor — that is when the gesture needs teaching most. Only the
+        // toggle takes it away (mockup 04).
+        for hint in &self.w.pointer_hints {
+            hint.box_.set_visible(on);
+        }
+        if !on {
             return;
-        };
-        let (glyph, chip_text, hint_text) = if preview.inside {
+        }
+        // No position — over the toolbar, on another monitor, keyboard only — counts as outside:
+        // no arrow, no chip, and the hint keeps its "outside" wording.
+        let inside = preview.is_some_and(|p| p.inside);
+        let on_edge = preview.is_some_and(|p| p.on_edge);
+        let (glyph, chip_text, hint_text) = if inside {
             (
                 "annota-pointer-included-symbolic",
                 gettext("Pointer in capture"),
@@ -680,16 +731,15 @@ impl MonitorOverlay {
         };
         self.w.pointer_chip_glyph.set_icon_name(Some(glyph));
         self.w.pointer_chip_label.set_text(&chip_text);
-        self.w.pointer_chip_suffix.set_visible(preview.on_edge);
-        if preview.on_edge {
+        self.w.pointer_chip_suffix.set_visible(on_edge);
+        if on_edge {
             self.w.pointer_chip_suffix.set_text(&gettext("on the edge"));
         }
-        set_class(&self.w.pointer_chip, "annota-pointer-in", preview.inside);
+        set_class(&self.w.pointer_chip, "annota-pointer-in", inside);
         for hint in &self.w.pointer_hints {
-            hint.box_.set_visible(true);
             hint.glyph.set_icon_name(Some(glyph));
             hint.label.set_text(&hint_text);
-            set_class(&hint.box_, "annota-pointer-in", preview.inside);
+            set_class(&hint.box_, "annota-pointer-in", inside);
         }
     }
 
@@ -864,32 +914,13 @@ impl MonitorOverlay {
     /// Pointer off, or no pointer on this monitor's frozen image (spec: Pointer preview in the
     /// region overlay).
     fn preview_state(&self) -> Option<Preview> {
-        if !self.w.pointer_button.is_active() {
-            return None;
-        }
-        let session = self.session()?;
-        let at = session
-            .pointer
-            .get()
-            .filter(|at| at.monitor == self.index)?;
-        let pointer = (at.x, at.y);
-        let rect = self.state.borrow().selection.rect();
-        // The very test the capture applies (`capture::region_pointer`), so the preview cannot
-        // promise what the image will not contain.
-        let inside = rect.is_some_and(|r| r.pointer_inside(pointer, self.scale).is_some());
-        Some(Preview {
-            pointer,
-            inside,
-            on_edge: !inside && rect.is_some_and(|r| self.is_on_edge(r, pointer)),
-        })
-    }
-
-    /// Within 1 image px of the selection's border — the trap after releasing a drag, where the
-    /// hot spot sits exactly on the edge the user just dragged to.
-    fn is_on_edge(&self, rect: IRect, pointer: (f64, f64)) -> bool {
-        let (x, y) = (pointer.0 * self.scale, pointer.1 * self.scale);
-        let near = |v: f64, lo: i32, hi: i32| v >= f64::from(lo) - 1.0 && v <= f64::from(hi) + 1.0;
-        near(x, rect.x, rect.right()) && near(y, rect.y, rect.bottom())
+        preview_for(
+            self.w.pointer_button.is_active(),
+            self.session().and_then(|s| s.pointer.get()),
+            self.index,
+            self.state.borrow().selection.rect(),
+            self.scale,
+        )
     }
 
     /// The preview arrow at the hot spot: solid white when it will be captured, ghosted and
@@ -903,11 +934,17 @@ impl MonitorOverlay {
         cr.translate(preview.pointer.0, preview.pointer.1);
         frame::pointer_path(cr);
         if preview.inside {
+            // Redline: white fill, a 1 px outline on a 2.8 px halo — the same path stroked
+            // twice. No drop shadow: cairo has no cheap blur and the halo already carries the
+            // contrast the shadow was there for (recorded in design.md).
             cr.set_line_width(2.8);
             cr.set_source_rgba(0.0, 0.0, 0.024, 1.0);
             cr.stroke_preserve()?;
             cr.set_source_rgb(1.0, 1.0, 1.0);
-            cr.fill()?;
+            cr.fill_preserve()?;
+            cr.set_line_width(1.0);
+            cr.set_source_rgba(0.0, 0.0, 0.024, 1.0);
+            cr.stroke()?;
         } else {
             cr.set_line_width(3.0);
             cr.set_source_rgba(0.0, 0.0, 0.024, 0.6);
@@ -1463,6 +1500,76 @@ mod tests {
 
     fn at(monitor: usize, x: f64, y: f64) -> PointerAt {
         PointerAt { monitor, x, y }
+    }
+
+    #[test]
+    fn the_preview_is_off_while_include_pointer_is_off() {
+        // Scenario "No indication when excluded": nothing at all, whatever the pointer does.
+        let rect = Some(IRect::new(0, 0, 400, 300));
+        assert_eq!(
+            preview_for(false, Some(at(0, 100.0, 100.0)), 0, rect, 1.0),
+            None
+        );
+    }
+
+    #[test]
+    fn the_preview_has_no_state_without_a_position_on_this_monitor() {
+        // Over the toolbar or the hint bar, on another monitor, or confirmed from the keyboard.
+        // All three give no arrow and no chip; the hint segment is driven by the toggle instead,
+        // so it keeps teaching the gesture.
+        let rect = Some(IRect::new(0, 0, 400, 300));
+        assert_eq!(
+            preview_for(true, None, 0, rect, 1.0),
+            None,
+            "no position at all"
+        );
+        assert_eq!(
+            preview_for(true, Some(at(1, 100.0, 100.0)), 0, rect, 1.0),
+            None,
+            "pointer on another monitor"
+        );
+    }
+
+    #[test]
+    fn the_preview_reaches_the_captures_verdict() {
+        // Task 4.2, for real this time: the preview's own decision path, not just the shared
+        // predicate, is swept against what `capture::region_pointer` would draw.
+        let rect = IRect::new(140, 212, 400, 300);
+        for sx in 0..=60 {
+            let x = 120.0 + f64::from(sx) * 8.0;
+            for sy in 0..=50 {
+                let y = 190.0 + f64::from(sy) * 8.0;
+                let preview = preview_for(true, Some(at(0, x, y)), 0, Some(rect), 1.0);
+                let drawn = super::super::region_pointer(Some(at(0, x, y)), 0, rect, 1.0);
+                assert_eq!(
+                    preview.is_some_and(|p| p.inside),
+                    drawn.is_some(),
+                    "preview and capture disagree at {x}, {y}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_edge_suffix_fires_only_just_outside() {
+        // The chip's "on the edge" sub-state, which names the trap after releasing a drag.
+        let rect = IRect::new(0, 0, 800, 600);
+        let edge = preview_for(true, Some(at(0, 800.0, 600.0)), 0, Some(rect), 1.0).unwrap();
+        assert!(!edge.inside && edge.on_edge, "released on the corner");
+        let far = preview_for(true, Some(at(0, 900.0, 300.0)), 0, Some(rect), 1.0).unwrap();
+        assert!(
+            !far.inside && !far.on_edge,
+            "well outside is not 'on the edge'"
+        );
+        let inside = preview_for(true, Some(at(0, 400.0, 300.0)), 0, Some(rect), 1.0).unwrap();
+        assert!(inside.inside && !inside.on_edge);
+    }
+
+    #[test]
+    fn without_a_selection_nothing_is_in_capture() {
+        // Phase Idle: the overlay is up but nothing is selected yet.
+        let p = preview_for(true, Some(at(0, 100.0, 100.0)), 0, None, 1.0).unwrap();
+        assert!(!p.inside && !p.on_edge);
     }
 
     #[test]
