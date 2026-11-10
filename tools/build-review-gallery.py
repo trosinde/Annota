@@ -26,6 +26,7 @@ TEMPLATE = ROOT / "tools/design-gen/review-gallery/template.html"
 ORDER = [
     ("bootstrap-app-shell", "App-Grundgerüst & Paket", "MVP"),
     ("add-screen-capture", "Bildschirm aufnehmen", "MVP"),
+    ("fix-region-pointer-inclusion", "Zeiger in der Bereichsaufnahme", "MVP"),
     ("add-annotation-editor", "Editor & Dateiformat", "MVP"),
     ("add-core-annotation-tools", "Kern-Werkzeuge", "MVP"),
     ("add-style-system", "Stilvorlagen & Themes", "MVP"),

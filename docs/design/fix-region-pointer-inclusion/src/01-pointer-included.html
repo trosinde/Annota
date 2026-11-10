@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1920x1080">
+<title>Annota — Region overlay – pointer will be included</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+.keys{display:inline-flex;gap:4px;align-items:center}
+kbd.okey{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:5px;background:var(--osd-fill-hover);color:var(--osd-fg);font-family:var(--font-ui);font-size:var(--fs-caption);font-weight:var(--fw-bold)}
+/* ---------- overlay (identical to add-screen-capture 02-04) ---------- */
+.ov{position:relative;width:1920px;height:1080px;overflow:hidden;background:#000}
+.desk{position:absolute;inset:0;background-size:1920px 1080px;background-repeat:no-repeat}
+.selr{position:absolute;border:1px solid #ffffff;box-shadow:0 0 0 1px rgb(0 0 6 / 40%),0 0 0 9999px rgb(0 0 6 / 48%)}
+.selr.live{box-shadow:0 0 0 1px rgb(0 0 6 / 40%),0 0 0 9999px rgb(0 0 6 / 32%)}
+.selr .h{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#ffffff;border:2px solid var(--accent-bg);box-shadow:0 1px 3px rgb(0 0 6 / 35%)}
+.ochip{position:absolute;display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:var(--radius-s);background:var(--osd-bg-solid);color:var(--osd-fg);font-size:var(--fs-small);font-weight:var(--fw-bold);font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:0 1px 4px rgb(0 0 6 / 35%)}
+.ochip .icon{width:14px;height:14px}
+.ochip.accent{background:var(--accent-bg);color:var(--accent-fg)}
+.ochip .sw{width:14px;height:14px;border-radius:3px;box-shadow:inset 0 0 0 1px rgb(255 255 255 / 45%)}
+.ochip .dimt{opacity:.7;font-weight:var(--fw-regular)}
+.hint{position:absolute;left:50%;transform:translateX(-50%);display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:var(--radius-pill);background:var(--osd-bg);color:var(--osd-fg);font-size:var(--fs-small);white-space:nowrap;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:var(--shadow-osd)}
+.hint .dot{opacity:.5}
+.otb{position:absolute;left:50%;transform:translateX(-50%);display:inline-flex;align-items:center;gap:6px;padding:7px;border-radius:var(--radius-xl);background:var(--osd-bg);color:var(--osd-fg);box-shadow:var(--shadow-osd);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.otb .btn{background:transparent;color:inherit}
+.otb .btn.active{background:var(--osd-fill-active)}
+.otb .btn.suggested-action{background:var(--accent-bg);color:var(--accent-fg)}
+.otb .sep{width:1px;height:24px;background:rgb(255 255 255 / 20%);margin:0 4px}
+.otb .tg{display:inline-flex;gap:3px;padding:3px;border-radius:var(--radius-m);background:var(--osd-fill)}
+.otb .tg .btn{min-height:30px;border-radius:var(--radius-s);padding:0 10px;font-size:var(--fs-small)}
+.otb .tg .btn.image-button{width:34px;padding:0}
+.otb .tg .btn.active{background:var(--osd-fill-active)}
+.otb .oentry{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 8px;border-radius:var(--radius-s);background:var(--osd-fill);font-variant-numeric:tabular-nums;min-width:74px;outline:2px solid transparent;outline-offset:-2px}
+.otb .oentry .k{opacity:.6;font-size:var(--fs-small)}
+.otb .times{opacity:.6}
+.otb .lbl{font-size:var(--fs-small);padding:0 4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.otb .odrop{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 8px 0 10px;border-radius:var(--radius-s);font-weight:var(--fw-bold);font-size:var(--fs-small)}
+.otb .odrop:after{content:"";width:16px;height:16px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.3 5.8a1 1 0 0 1 1.4 0L8 9.1l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z'/%3E%3C/svg%3E") center/16px no-repeat}
+.loupe{position:absolute;width:136px;height:136px;border-radius:50%;overflow:hidden;image-rendering:pixelated;background-repeat:no-repeat;box-shadow:0 0 0 2px #ffffff,0 0 0 3px rgb(0 0 6 / 35%),0 8px 22px rgb(0 0 6 / 45%)}
+.loupe:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgb(0 0 6 / 9%) 0 1px,transparent 1px 8px),repeating-linear-gradient(0deg,rgb(0 0 6 / 9%) 0 1px,transparent 1px 8px)}
+.loupe .cx{position:absolute;left:64px;top:64px;width:8px;height:8px;outline:2px solid #ffffff;box-shadow:0 0 0 3px rgb(0 0 6 / 55%)}
+.loupe .lv{position:absolute;left:67px;width:2px;background:rgb(255 90 78 / 85%)}
+.loupe .lh{position:absolute;top:67px;height:2px;background:rgb(255 90 78 / 85%)}
+.ptr{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px}
+/* ---------- pointer preview (new in this change) ---------- */
+.pprev{position:absolute;width:20px;height:28px;margin:-1.4px 0 0 -1.4px;overflow:visible;filter:drop-shadow(0 1px 2px rgb(0 0 6 / 45%))}
+.pchip{position:absolute;transform:translateY(-50%);display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 12px;border-radius:var(--radius-s);background:var(--osd-bg-solid);color:var(--osd-fg);font-size:var(--fs-small);font-weight:var(--fw-bold);white-space:nowrap;box-shadow:0 1px 4px rgb(0 0 6 / 35%),inset 3px 0 0 rgb(255 255 255 / 60%)}
+.pchip.in{box-shadow:0 1px 4px rgb(0 0 6 / 35%),inset 3px 0 0 var(--annota-coral)}
+.pchip .g{width:14px;height:14px;flex:none}
+.pchip.in .g{color:var(--annota-coral)}
+.pchip .dimt{opacity:.7;font-weight:var(--fw-regular)}
+.hint .g{width:14px;height:14px;flex:none}
+.hint .pseg{display:inline-flex;align-items:center;gap:6px}
+.hint .pseg.in .g{color:var(--annota-coral)}
+
+.desk,.loupe{background-image:url(../../add-screen-capture/src/assets/desk-a-light@1x.png)}
+:root[data-theme="dark"] .desk,:root[data-theme="dark"] .loupe{background-image:url(../../add-screen-capture/src/assets/desk-a-dark@1x.png)}
+</style>
+</head>
+<body class="mock-frame flush">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="g-pointer" viewBox="0 0 16 16"><path fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" d="M4.4 2.75 L4.4 12.25 L6.8 10.05 L8.4 13.25 L9.9 12.55 L8.3 9.35 L11.6 9.15 Z"/></symbol>
+<symbol id="g-pointer-off" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" d="M5.3 3.5 L5.3 12.4 L7.5 10.3 L9 13.4 L10.4 12.7 L8.9 9.7 L12 9.5 Z"/><path fill="none" stroke="rgb(0 0 6 / 70%)" stroke-width="3.2" stroke-linecap="round" d="M2.2 14 L13.8 2.4"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M2.2 14 L13.8 2.4"/></symbol>
+</defs></svg>
+<div class="ov"><div class="desk"></div><div class="selr" style="left:140px;top:212px;width:800px;height:560px"><span class="h" style="left:-1px;top:-1px"></span><span class="h" style="left:399px;top:-1px"></span><span class="h" style="left:799px;top:-1px"></span><span class="h" style="left:799px;top:279px"></span><span class="h" style="left:799px;top:559px"></span><span class="h" style="left:399px;top:559px"></span><span class="h" style="left:-1px;top:559px"></span><span class="h" style="left:-1px;top:279px"></span></div><div class="ochip accent" style="left:140px;top:178px">800 × 560 <span class="dimt">at 140, 212</span></div><div class="otb" style="left:140px;top:786px;transform:none">
+  <div class="tg"><button class="btn image-button active" title="Region (Print)"><svg class="icon"><use href="#i-capture-region"/></svg></button><button class="btn image-button" title="Window (Alt+Print)"><svg class="icon"><use href="#i-capture-window"/></svg></button><button class="btn image-button" title="Screen (Shift+Print)"><svg class="icon"><use href="#i-capture-screen"/></svg></button></div>
+  <span class="sep"></span>
+  <span class="oentry" title="Width"><span class="k">W</span>800</span><span class="times">×</span><span class="oentry" title="Height"><span class="k">H</span>560</span>
+  <span class="lbl" style="opacity:.7">px</span>
+  <span class="sep"></span>
+  <button class="btn image-button active" title="Include Pointer"><svg class="icon"><use href="#i-cursor"/></svg></button>
+  <span class="odrop" title="Delay"><svg class="icon"><use href="#i-timer"/></svg>Off</span>
+  <span class="sep"></span>
+  <button class="btn text-button" title="Cancel (Esc)">Cancel</button>
+  <button class="btn text-button suggested-action" title="Capture (Enter)"><svg class="icon"><use href="#i-camera"/></svg>Capture</button>
+</div><svg class="pprev" viewBox="0 0 20 28" style="left:310px;top:488px"><path d="M1.4 1.4 L1.4 21.9 L6.9 16.8 L10.1 24 L13.3 22.6 L10.2 15.5 L16.2 15.3 Z" fill="#ffffff" stroke="#000006" stroke-width="2.8" stroke-linejoin="round"/><path d="M1.4 1.4 L1.4 21.9 L6.9 16.8 L10.1 24 L13.3 22.6 L10.2 15.5 L16.2 15.3 Z" fill="#ffffff" stroke="#000006" stroke-width="1" stroke-linejoin="round"/></svg><div class="pchip in" style="left:340px;top:488px"><svg class="g"><use href="#g-pointer"/></svg>Pointer in capture</div><svg class="ptr" viewBox="0 0 24 24" style="left:310px;top:488px"><path d="M12 2.6 V21.4 M2.6 12 H21.4 M12 2.6 L9.2 5.6 M12 2.6 L14.8 5.6 M12 21.4 L9.2 18.4 M12 21.4 L14.8 18.4 M2.6 12 L5.6 9.2 M2.6 12 L5.6 14.8 M21.4 12 L18.4 9.2 M21.4 12 L18.4 14.8" fill="none" stroke="#000006" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 2.6 V21.4 M2.6 12 H21.4 M12 2.6 L9.2 5.6 M12 2.6 L14.8 5.6 M12 21.4 L9.2 18.4 M12 21.4 L14.8 18.4 M2.6 12 L5.6 9.2 M2.6 12 L5.6 14.8 M21.4 12 L18.4 9.2 M21.4 12 L18.4 14.8" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="hint" style="bottom:36px"><span class="pseg in"><svg class="g"><use href="#g-pointer"/></svg>Pointer in capture</span><span class="dot">·</span><span class="keys"><kbd class="okey">Enter</kbd></span> Capture<span class="dot">·</span><span class="keys"><kbd class="okey">Esc</kbd></span> Cancel<span class="dot">·</span><span class="keys"><kbd class="okey">←</kbd><kbd class="okey">↑</kbd><kbd class="okey">→</kbd><kbd class="okey">↓</kbd></span> Nudge 1 px<span class="dot">·</span><span class="keys"><kbd class="okey">Shift</kbd></span> ×10<span class="dot">·</span><span class="keys"><kbd class="okey">Space</kbd></span> Move selection</div></div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

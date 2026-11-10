@@ -85,16 +85,20 @@ later refactor cannot drop it silently.
 
 ## Mockups
 
-To be produced by the `designer` agent in `docs/design/fix-region-pointer-inclusion/`
-(light + dark, 1x + 2x) and linked here with a scenario map before implementation starts
-(CLAUDE.md §5). Scenarios needing a screen:
+`docs/design/fix-region-pointer-inclusion/index.md` — 7 screens, light + dark, 1x + 2x, with the full
+scenario map, the redlines and the EN/DE strings. The preview is three parts on existing anchors: a
+preview arrow at the hot spot (the same `frame::pointer_path` outline), a chip 30 px right of the hot
+spot in the band above the loupe, and a segment prepended to the hint bar that teaches
+*move the pointer inside → `Enter`*.
 
 | Spec scenario | Mockup |
 |---|---|
-| Pointer preview — Pointer will be included | _pending_ |
-| Pointer preview — Pointer will not be included | _pending_ |
-| Pointer preview — Indication follows the selection | _pending_ |
-| Pointer preview — No indication when excluded | _pending_ |
+| Pointer preview — Pointer will be included | [01-pointer-included](../../../docs/design/fix-region-pointer-inclusion/png/01-pointer-included-light@1x.png) |
+| Pointer preview — Pointer will not be included | [02-pointer-not-included](../../../docs/design/fix-region-pointer-inclusion/png/02-pointer-not-included-light@1x.png) |
+| Pointer preview — Indication follows the selection | [03-indication-follows-selection](../../../docs/design/fix-region-pointer-inclusion/png/03-indication-follows-selection-light@1x.png) |
+| Pointer preview — No indication when excluded | [04-pointer-excluded-no-indication](../../../docs/design/fix-region-pointer-inclusion/png/04-pointer-excluded-no-indication-light@1x.png) |
+| Cursor inclusion — Pointer on the selection edge | [05-drag-pointer-on-edge](../../../docs/design/fix-region-pointer-inclusion/png/05-drag-pointer-on-edge-light@1x.png), [06-released-on-edge](../../../docs/design/fix-region-pointer-inclusion/png/06-released-on-edge-light@1x.png) |
+| Implementation redlines (sizes, colours, strings, states) | [07-preview-states-redlines](../../../docs/design/fix-region-pointer-inclusion/png/07-preview-states-redlines-light@1x.png) |
 
 Design approved: _pending_
 
