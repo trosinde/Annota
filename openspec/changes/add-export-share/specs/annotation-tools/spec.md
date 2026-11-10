@@ -1,9 +1,15 @@
 # Spec Delta
 
-## MODIFIED Requirements
+## REMOVED Requirements
 
 ### Requirement: Redaction export warning
-Before a document that contains blur or pixelate redactions is exported (in a batch export once for the whole selection), copied, dragged out or shared, the system SHALL warn that these may be reversible and offer to convert them to solid (decision D7; add-export-share mockup 10). Redactions count at any depth, members of groups included. The alert "Make Redactions Solid?" SHALL name how many redactions use blur or pixelate and offer Cancel, a button that continues as it is ("Export Anyway", "Copy Anyway", etc., named after the way out) and Convert to Solid (suggested). Convert to Solid SHALL turn every blur and pixelate redaction into a solid one as one undo step and then continue; Cancel SHALL write nothing and leave the document unchanged; continuing as it is SHALL leave the document unchanged. The warning does not apply to saving the document as `.annota` (quick save, Save As): that format keeps the original image under every redaction regardless of this choice, so the warning would not be true there. A document without blur or pixelate redactions SHALL continue without the warning.
+**Reason**: Its only scenario, "No way out of Annota yet", states that no export, copy, drag or share path exists to warn on because this change had not shipped. This change ships them, so the scenario is false from here on. A MODIFIED block replaces the whole requirement and cannot drop a scenario.
+**Migration**: Replaced by the ADDED requirement "Reversible redaction warning" below, which carries the full warning behaviour over every way out of Annota (decision D7, mockup 10). A new name because a requirement cannot be both removed and added in one delta.
+
+## ADDED Requirements
+
+### Requirement: Reversible redaction warning
+Before a document with blur or pixelate redactions leaves Annota — export, copy, drag out or share — the system SHALL warn that these may be reversible and offer to convert them to solid (D7, mockup 10). Redactions count at any depth, groups included. The alert "Make Redactions Solid?" SHALL name how many are blur or pixelate and offer Cancel, Convert to Solid (suggested) and a button that continues unconverted, named after the way out. Saving as `.annota` is not a way out and SHALL NOT warn.
 
 #### Scenario: Warning before export
 - **WHEN** a document with one pixelate redaction at the top level and one inside a group is exported with Ctrl+E
@@ -17,6 +23,11 @@ Before a document that contains blur or pixelate redactions is exported (in a ba
 #### Scenario: Cancel
 - **WHEN** the user chooses Cancel in that alert
 - **THEN** nothing is exported and the document is unchanged
+
+#### Scenario: Continue unconverted
+- **WHEN** the user chooses the button that continues as it is ("Export Anyway", or whatever the way out names it)
+- **THEN** the export, copy, drag or share continues with the redactions as they are
+- **AND** the document is left unchanged
 
 #### Scenario: Warning before copy
 - **WHEN** a document with a blur redaction is copied with Ctrl+C, with or without objects selected (Copy with a selection puts the flattened image on the clipboard too)

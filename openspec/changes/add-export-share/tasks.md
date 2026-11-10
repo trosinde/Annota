@@ -93,7 +93,8 @@
       redactions (`annota::tools::redaction::Redaction`) but has no way out of Annota to guard;
       its requirement "Redaction export warning" (spec annotation-tools, decision D7) is only a
       placeholder scenario there (no export path exists yet when that change archives) —
-      completed here as a `## MODIFIED Requirements` delta on the `annotation-tools` capability
+      completed here by REMOVING it and ADDING "Reversible redaction warning" on the
+      `annotation-tools` capability (a MODIFIED block may not drop the placeholder scenario)
       (`specs/annotation-tools/spec.md`), full requirement block copied from the archived spec
       per the project's established MODIFIED-delta convention. Before Export (and, once built,
       Copy, drag-out, Share and batch export — not quick save or Save As, see below) of a

@@ -27,10 +27,12 @@ Annotated images must reach documents, chats and tickets in one step.
 - `export-share`
 
 ### Modified Capabilities
-- `annotation-tools` — "Redaction export warning": add-core-annotation-tools left it a placeholder
-  (no way out of Annota existed yet); this change makes it the real warning (mockup 10, D7) on
-  every way out it builds. Archive add-core-annotation-tools before this change: the MODIFIED
-  delta needs its `annotation-tools` spec to exist.
+- `annotation-tools` — "Redaction export warning" removed and replaced by "Reversible redaction
+  warning": add-core-annotation-tools left the old one a placeholder whose only scenario states
+  that no way out of Annota exists yet, which this change makes false, and a MODIFIED block cannot
+  drop a scenario. The replacement is the real warning (mockup 10, D7) on every way out this
+  change builds. Archive add-core-annotation-tools before this change: the delta needs its
+  `annotation-tools` spec to exist.
 - `document-format` — "Autosave and recovery" and "Recovery dialog" (add-annotation-editor)
   modified; "Closing keeps autosaves" removed and replaced by "Autosaves when Annota ends",
   because its scenario promised that closing the window alone keeps the autosave and a MODIFIED

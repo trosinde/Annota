@@ -278,7 +278,7 @@ A4/Letter.
 - Closing still keeps autosaves (add-annotation-editor 2b-ii) until task 2.6; a document saved
   and unchanged has none to keep.
 
-**Redaction warning** (task 2.7, in part; spec annotation-tools "Redaction export warning",
+**Redaction warning** (task 2.7, in part; spec annotation-tools "Reversible redaction warning",
 `specs/annotation-tools/spec.md`).
 - *One entry point*, `Editor::guard_redactions(purpose, proceed)`: counts the current document's
   blur and pixelate redactions (`annota::editing::redactions::reversible`, at any depth through
@@ -309,9 +309,12 @@ A4/Letter.
   (2.4), batch export (2.5) — they are to call `guard_redactions` too (batch: per document, or
   once for the selection — to decide with 2.5). Task 2.7 stays unticked until then.
 
-**Spec deltas.** `specs/annotation-tools/spec.md` MODIFIES "Redaction export warning" — copied
-from add-core-annotation-tools' delta (that change is not archived, so there is no
-`openspec/specs/annotation-tools/` yet) and rewritten as the real requirement with five
+**Spec deltas.** `specs/annotation-tools/spec.md` REMOVES "Redaction export warning" and ADDS
+"Reversible redaction warning" in its place. Originally written as a MODIFIED delta while
+add-core-annotation-tools was unarchived and `openspec/specs/annotation-tools/` did not exist yet;
+once that spec existed (2026-11-10) the validator showed that a MODIFIED block may not drop the
+placeholder's only scenario, "No way out of Annota yet", which this change makes false. Same
+behaviour either way — rewritten as the real requirement with five
 scenarios. **Archive order: add-core-annotation-tools before add-export-share** (`openspec
 validate` notes that archiving would refuse a MODIFIED delta without the base spec, the same
 situation as add-annotation-editor's deltas on add-screen-capture). `specs/export-share/spec.md`:
@@ -975,7 +978,7 @@ change — since a plain window close asks now.
   and Ctrl+Shift+S on a blur redaction: no alert before or after the chooser, nothing converted,
   the reloaded file still blur.
 - **Spec deltas**: export-share "Clipboard" (toast Copy, two scenarios), new "File chooser
-  extension"; annotation-tools "Redaction export warning" (one scenario).
+  extension"; annotation-tools "Reversible redaction warning" (one scenario).
 - **`copy_drag_and_share_on_a_live_display` failing now and then** has two causes, both seen:
   with all CPUs busy, the alert after "An edit takes Drag Anyway back" had its buttons mapped 20-40
   ms after the fixed 150 ms wait (7 of 9 runs that compiled failed there; now it waits for the
