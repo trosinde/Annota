@@ -14,26 +14,26 @@
 
 ## 2. Pointer position at confirmation
 
-- [ ] 2.1 Replace `Session::first_pointer` / `note_pointer` (`src/capture/overlay.rs:156`, `:190`,
+- [x] 2.1 Replace `Session::first_pointer` / `note_pointer` (`src/capture/overlay.rs:156`, `:190`,
       read at `:512`) with the active overlay's current `state.pointer` at the moment the outcome
       is built (design.md D1). No `probe_pointer` call on this path.
-- [ ] 2.2 No position at all (`state.pointer` is `None`, e.g. `Enter` straight after a keyboard
+- [x] 2.2 No position at all (`state.pointer` is `None`, e.g. `Enter` straight after a keyboard
       nudge) is treated as "outside": no pointer drawn, no fallback to a stale position
-- [ ] 2.3 Unit test: the position reported for a confirmed selection is the one at confirmation,
+- [x] 2.3 Unit test: the position reported for a confirmed selection is the one at confirmation,
       not the first one the overlay saw — this is the regression test for the reported defect
-- [ ] 2.4 Unit test: a keyboard-only region capture reports no pointer position
+- [x] 2.4 Unit test: a keyboard-only region capture reports no pointer position
 
 ## 3. Draw only inside the selection
 
-- [ ] 3.1 Add the `contains` guard to `region()` (`src/capture/mod.rs`), mirroring `screen()`:
+- [x] 3.1 Add the `contains` guard to `region()` (`src/capture/mod.rs`), mirroring `screen()`:
       the pointer is drawn only when its hot spot lies inside the selection rectangle
       (design.md D2)
-- [ ] 3.2 Unit test: hot spot inside → the pointer is in the frame (assert the pixel, as
+- [x] 3.2 Unit test: hot spot inside → the pointer is in the frame (assert the pixel, as
       `frame::pointer_is_visible_after_drawing` does); hot spot outside → the frame is byte-identical
       to the un-drawn crop
-- [ ] 3.3 Unit test: hot spot one pixel inside the lower-right corner still draws (the guard tests
+- [x] 3.3 Unit test: hot spot one pixel inside the lower-right corner still draws (the guard tests
       the hot spot, not the whole arrow), and a release exactly on the edge does not
-- [ ] 3.4 Unit test: the existing multi-monitor filter still rejects a pointer on another monitor
+- [x] 3.4 Unit test: the existing multi-monitor filter still rejects a pointer on another monitor
       before the guard sees it
 
 ## 4. Overlay preview

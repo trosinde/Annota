@@ -153,7 +153,10 @@ struct Session {
     sender: RefCell<Option<oneshot::Sender<Outcome>>>,
     overlays: RefCell<Vec<Rc<MonitorOverlay>>>,
     active: Cell<Option<usize>>,
-    first_pointer: Cell<Option<PointerAt>>,
+    /// Where the pointer is now, across all monitors, or `None` while it is not over any
+    /// overlay's frozen image. `confirm` hands this to the capture, so the pointer is drawn
+    /// where it stands when the user takes the shot (spec: Cursor inclusion).
+    pointer: Cell<Option<PointerAt>>,
 }
 
 impl Session {
@@ -188,8 +191,16 @@ impl Session {
     }
 
     fn note_pointer(&self, at: PointerAt) {
-        if self.first_pointer.get().is_none() {
-            self.first_pointer.set(Some(at));
+        self.pointer.set(Some(at));
+    }
+
+    /// The pointer left `monitor`'s frozen image — onto the toolbar, the hint bar or another
+    /// monitor. Only clears a position that still belongs to that monitor: GTK does not
+    /// guarantee that the old surface's leave arrives before the new one's enter, and clearing
+    /// unconditionally would throw away the position the next monitor just reported.
+    fn clear_pointer(&self, monitor: usize) {
+        if self.pointer.get().is_some_and(|at| at.monitor == monitor) {
+            self.pointer.set(None);
         }
     }
 }
@@ -402,6 +413,16 @@ impl MonitorOverlay {
         self.w.canvas.grab_focus();
     }
 
+    /// The pointer left this monitor's frozen image. The controller sits on the canvas, so this
+    /// also fires when it moves onto the toolbar or the hint bar — Annota's own chrome, which is
+    /// not in the frozen image. Either way there is no honest position to capture, so the
+    /// session forgets it rather than keeping the last one over the canvas.
+    fn pointer_left(&self) {
+        if let Some(session) = self.session() {
+            session.clear_pointer(self.index);
+        }
+    }
+
     fn motion(&self, x: f64, y: f64) {
         if let Some(session) = self.session() {
             session.note_pointer(PointerAt {
@@ -509,7 +530,11 @@ impl MonitorOverlay {
             return;
         };
         if let Some(session) = self.session() {
-            let pointer = session.first_pointer.get();
+            // The position at this moment, not the first one the overlay ever saw. `None` —
+            // confirmed from the keyboard without the pointer over any frozen image — stays
+            // `None`; there is no stale position to fall back to (spec: Pointer outside the
+            // selection).
+            let pointer = session.pointer.get();
             session.finish(Outcome::Region {
                 monitor: self.index,
                 rect,
@@ -900,6 +925,15 @@ fn connect(overlay: &Rc<MonitorOverlay>) {
             }
         }
     ));
+    motion.connect_leave(glib::clone!(
+        #[strong]
+        weak,
+        move |_| {
+            if let Some(this) = weak.upgrade() {
+                this.pointer_left();
+            }
+        }
+    ));
     w.canvas.add_controller(motion);
 
     let keys = gtk::EventControllerKey::new();
@@ -1093,7 +1127,7 @@ pub async fn select_region(
         sender: RefCell::new(Some(sender)),
         overlays: RefCell::new(Vec::new()),
         active: Cell::new(None),
-        first_pointer: Cell::new(None),
+        pointer: Cell::new(None),
     });
 
     for (index, shot) in desktop.monitors.iter().enumerate() {
@@ -1220,5 +1254,58 @@ mod tests {
     fn delay_texts() {
         assert_eq!(delay_text(0), "Off");
         assert_eq!(delay_text(5), "5 s");
+    }
+
+    /// A session with no overlays: enough for what `confirm` reads out of it.
+    fn session() -> Session {
+        Session {
+            sender: RefCell::new(None),
+            overlays: RefCell::new(Vec::new()),
+            active: Cell::new(None),
+            pointer: Cell::new(None),
+        }
+    }
+
+    fn at(monitor: usize, x: f64, y: f64) -> PointerAt {
+        PointerAt { monitor, x, y }
+    }
+
+    #[test]
+    fn the_pointer_is_the_one_at_confirmation_not_the_first_seen() {
+        // The reported defect: the overlay kept only the *first* position it ever saw — where
+        // the mouse stood when the overlay opened, in practice over the capture button — so the
+        // arrow was drawn outside the region the user then dragged and cairo clipped it away.
+        let session = session();
+        session.note_pointer(at(0, 12.0, 8.0));
+        session.note_pointer(at(0, 310.0, 488.0));
+        assert_eq!(session.pointer.get(), Some(at(0, 310.0, 488.0)));
+    }
+
+    #[test]
+    fn a_keyboard_only_capture_has_no_pointer_position() {
+        // Confirmed with Enter without the pointer ever being over a frozen image. Treated as
+        // "outside": no pointer drawn, and no stale position to fall back to.
+        assert_eq!(session().pointer.get(), None);
+    }
+
+    #[test]
+    fn leaving_the_frozen_image_forgets_the_position() {
+        // Onto the toolbar or the hint bar: that chrome is not in the frozen image, so no
+        // honest position is left.
+        let session = session();
+        session.note_pointer(at(0, 310.0, 488.0));
+        session.clear_pointer(0);
+        assert_eq!(session.pointer.get(), None);
+    }
+
+    #[test]
+    fn a_late_leave_does_not_erase_the_next_monitors_position() {
+        // GTK does not guarantee that the old surface's leave arrives before the new surface's
+        // enter, so the leave must only clear a position that is still its own monitor's.
+        let session = session();
+        session.note_pointer(at(0, 10.0, 10.0));
+        session.note_pointer(at(1, 20.0, 20.0));
+        session.clear_pointer(0);
+        assert_eq!(session.pointer.get(), Some(at(1, 20.0, 20.0)));
     }
 }

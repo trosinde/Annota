@@ -45,6 +45,19 @@ the first position seen and is the direct cause of the defect. It is replaced by
 active overlay's current `state.pointer` when the outcome is built, converted to image coordinates
 the same way the selection rectangle is.
 
+**Corrected during apply (2026-11-10).** D1 said to read "the active overlay's current
+`state.pointer`". That is wrong: `Session::active` is set only from `drag_begin` and `select_all`,
+so it names the monitor holding the *selection*, never the one the pointer is on, and
+`state.pointer` is never cleared once set. Reading it would have used a stale position from the
+selection's monitor and stamped `monitor: self.index` on it, so the existing monitor filter in
+`region()` could never reject it. What was built instead: `Session::first_pointer` became
+`Session::pointer`, which `note_pointer` overwrites on every motion, so it is session-wide and
+always carries the monitor the pointer last moved on. A `leave` handler on each canvas clears it
+(`Session::clear_pointer`), which also covers the pointer moving onto the toolbar or the hint bar
+— chrome that is not in the frozen image, so no honest position is left. The clear only applies to
+a position still belonging to that monitor, because GTK does not order the old surface's leave
+before the new surface's enter.
+
 *Alternative considered — keep `first_pointer` and re-probe with `probe_pointer` at confirmation:*
 rejected. The overlay is on screen and already receives motion events, so mapping another
 fullscreen window per monitor would cost ~100–300 ms per capture and could fail its timeout, for a
@@ -58,6 +71,11 @@ maintainer chose this direction instead. Recorded here because the trade-off bel
 `region()` draws unconditionally and lets cairo clip. The guard makes the rule explicit and gives
 the tests something to assert. The guard is evaluated against the selection rectangle in image
 coordinates, matching `screen()`'s `rect.contains(...)` on the crop.
+
+**Built as a shared decision (2026-11-10).** Rather than inlining the test in `region()`, it is
+`IRect::pointer_inside(logical, scale) -> Option<(f64, f64)>` in `capture::geometry`, wrapped by
+`capture::region_pointer`, which applies the monitor filter first. Task 4.2 requires preview and
+result to agree; sharing one function makes that structural instead of a thing to keep in step.
 
 The hot spot alone decides. The arrow extends right and down from it, so a hot spot one pixel
 inside the lower-right corner still produces a nearly fully clipped arrow — accepted, because any

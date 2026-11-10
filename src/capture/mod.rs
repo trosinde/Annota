@@ -294,16 +294,27 @@ async fn region(
         .crop(rect)
         .ok_or_else(|| CaptureError::Failed(String::from("empty selection")))?;
     if include_pointer {
-        if let Some(at) = pointer.filter(|p| p.monitor == monitor) {
-            draw_pointer(
-                &mut frame,
-                at.x * shot.scale - f64::from(rect.x),
-                at.y * shot.scale - f64::from(rect.y),
-                shot.scale,
-            );
+        if let Some((x, y)) = region_pointer(pointer, monitor, rect, shot.scale) {
+            draw_pointer(&mut frame, x, y, shot.scale);
         }
     }
     Ok(frame)
+}
+
+/// Where the pointer is drawn in a region capture, relative to the selection's origin — or
+/// `None` when it is on another monitor, or its hot spot lies outside the selection.
+///
+/// The same decision the overlay's preview shows the user before confirming, so what was
+/// promised and what the image contains cannot disagree. Without it the arrow was handed to
+/// cairo outside the crop and clipped away with nothing to show for it.
+fn region_pointer(
+    pointer: Option<PointerAt>,
+    monitor: usize,
+    rect: geometry::IRect,
+    scale: f64,
+) -> Option<(f64, f64)> {
+    let at = pointer.filter(|p| p.monitor == monitor)?;
+    rect.pointer_inside((at.x, at.y), scale)
 }
 
 /// Screen mode: the monitor under the pointer, or every monitor with `capture-all-monitors`.
@@ -347,5 +358,60 @@ async fn screen(
 fn draw_pointer(frame: &mut Frame, x: f64, y: f64, scale: f64) {
     if let Err(err) = frame.draw_pointer(x, y, scale) {
         eprintln!("annota: could not draw the pointer: {err}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use geometry::IRect;
+
+    fn at(monitor: usize, x: f64, y: f64) -> PointerAt {
+        PointerAt { monitor, x, y }
+    }
+
+    #[test]
+    fn a_pointer_on_another_monitor_is_not_drawn() {
+        // Scenario "Pointer outside the selection", multi-monitor case: the selection lives on
+        // one monitor and the pointer may be on another. The monitor filter runs before the
+        // hot-spot test, so a position that would land inside this selection by coordinate is
+        // still rejected.
+        let rect = IRect::new(0, 0, 800, 600);
+        assert_eq!(
+            region_pointer(Some(at(0, 100.0, 100.0)), 0, rect, 1.0),
+            Some((100.0, 100.0))
+        );
+        assert_eq!(
+            region_pointer(Some(at(1, 100.0, 100.0)), 0, rect, 1.0),
+            None,
+            "other monitor"
+        );
+    }
+
+    #[test]
+    fn no_pointer_position_draws_nothing() {
+        // Scenario "Pointer outside the selection": confirmed from the keyboard, or the pointer
+        // was over the toolbar. There is no stale position to fall back to.
+        let rect = IRect::new(0, 0, 800, 600);
+        assert_eq!(region_pointer(None, 0, rect, 1.0), None);
+    }
+
+    #[test]
+    fn the_selections_origin_is_subtracted() {
+        // The capture is the crop, so the drawn position is relative to its top-left corner.
+        let rect = IRect::new(140, 212, 800, 560);
+        assert_eq!(
+            region_pointer(Some(at(0, 340.0, 412.0)), 0, rect, 1.0),
+            Some((200.0, 200.0))
+        );
+        // Inside the monitor but left of and above the selection.
+        assert_eq!(
+            region_pointer(Some(at(0, 139.0, 412.0)), 0, rect, 1.0),
+            None
+        );
+        assert_eq!(
+            region_pointer(Some(at(0, 340.0, 211.0)), 0, rect, 1.0),
+            None
+        );
     }
 }

@@ -56,6 +56,22 @@ impl IRect {
         x >= self.x && x < self.right() && y >= self.y && y < self.bottom()
     }
 
+    /// Where a pointer at `logical` (this monitor's logical px) is drawn inside this rectangle,
+    /// in image px relative to its origin — or `None` when its hot spot lies outside.
+    ///
+    /// The hot spot alone decides. The arrow extends right and down from it, so a hot spot just
+    /// inside the lower-right corner still draws and is almost entirely clipped; requiring the
+    /// whole arrow to fit would suppress legible pointers, and nudging it inwards would draw it
+    /// where it never was.
+    ///
+    /// The capture (`capture::region`) and the overlay's preview both go through this, so what
+    /// the preview promises and what the image contains cannot disagree.
+    pub fn pointer_inside(&self, logical: (f64, f64), scale: f64) -> Option<(f64, f64)> {
+        let (x, y) = (logical.0 * scale, logical.1 * scale);
+        self.contains(x as i32, y as i32)
+            .then(|| (x - f64::from(self.x), y - f64::from(self.y)))
+    }
+
     pub fn intersect(&self, other: IRect) -> Option<IRect> {
         let x0 = self.x.max(other.x);
         let y0 = self.y.max(other.y);
@@ -425,6 +441,55 @@ pub fn screen_capture_rect(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_pointer_is_drawn_only_inside_the_selection() {
+        // Scenario "Pointer inside the selection" / "Pointer outside the selection".
+        let rect = IRect::new(100, 200, 400, 300); // x 100..500, y 200..500
+                                                   // Inside, scale 1: relative to the crop's origin.
+        assert_eq!(rect.pointer_inside((150.0, 250.0), 1.0), Some((50.0, 50.0)));
+        // Outside on every side.
+        assert_eq!(rect.pointer_inside((99.0, 250.0), 1.0), None);
+        assert_eq!(rect.pointer_inside((150.0, 199.0), 1.0), None);
+        assert_eq!(rect.pointer_inside((500.0, 250.0), 1.0), None);
+        assert_eq!(rect.pointer_inside((150.0, 500.0), 1.0), None);
+    }
+
+    #[test]
+    fn the_hot_spot_decides_not_the_whole_arrow() {
+        // Redline: a hot spot one pixel inside the lower-right corner still draws, even though
+        // the arrow body (right and down, 22 x 15 px) is then almost entirely clipped.
+        let rect = IRect::new(0, 0, 800, 600);
+        assert_eq!(
+            rect.pointer_inside((799.0, 599.0), 1.0),
+            Some((799.0, 599.0))
+        );
+        // Scenario "Pointer on the selection edge": released exactly on the corner, nothing.
+        assert_eq!(rect.pointer_inside((800.0, 600.0), 1.0), None);
+        assert_eq!(rect.pointer_inside((800.0, 300.0), 1.0), None);
+    }
+
+    #[test]
+    fn the_pointer_is_scaled_into_image_pixels() {
+        // The overlay reports logical px; the crop is image px. At 125 % a logical 2084.16
+        // lands on image 2605 (the maintainer's 4K monitor, measured 2026-11-10).
+        let rect = IRect::new(0, 0, 3840, 2160);
+        let (x, y) = rect.pointer_inside((2084.15625, 415.4375), 1.25).unwrap();
+        assert!((x - 2605.1953125).abs() < 1e-9, "{x}");
+        assert!((y - 519.296875).abs() < 1e-9, "{y}");
+        // A logical position inside the monitor but outside a small selection is rejected
+        // after scaling, not before.
+        let small = IRect::new(0, 0, 100, 100);
+        assert_eq!(
+            small.pointer_inside((80.0, 80.0), 1.25),
+            None,
+            "80 x 1.25 = 100"
+        );
+        assert_eq!(
+            small.pointer_inside((79.0, 79.0), 1.25),
+            Some((98.75, 98.75))
+        );
+    }
 
     #[test]
     fn drag_400_by_300() {
