@@ -72,10 +72,20 @@ fn add_options(app: &adw::Application) {
     );
 }
 
+/// The version for the user: `0.1.0`, and for a development build the commit and build time it
+/// was made from (`build.rs`). The release version stays bare. Not the document format's version
+/// — that one is `config::VERSION` and must keep comparing as a plain version.
+fn version_string() -> String {
+    match option_env!("ANNOTA_BUILD_ID") {
+        Some(id) if !id.is_empty() => format!("{} ({id})", config::VERSION),
+        _ => String::from(config::VERSION),
+    }
+}
+
 /// Runs in the launching process: validate arguments before forwarding them.
 fn handle_local_options(_app: &adw::Application, options: &glib::VariantDict) -> i32 {
     if options.contains("version") {
-        println!("annota {}", config::VERSION);
+        println!("annota {}", version_string());
         return 0;
     }
     if let Some(mode) = options.lookup::<String>("capture").ok().flatten() {
@@ -545,7 +555,7 @@ fn show_about(app: &adw::Application) {
     let about = adw::AboutDialog::builder()
         .application_name("Annota")
         .application_icon(config::APP_ID)
-        .version(config::VERSION)
+        .version(version_string())
         .developer_name("The Annota Contributors")
         .developers(vec!["Thorsten Rosin"])
         .website("https://github.com/trosinde/Annota")
@@ -557,6 +567,29 @@ fn show_about(app: &adw::Application) {
         ))
         .build();
     about.present(app.active_window().as_ref());
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::{config, version_string};
+
+    #[test]
+    fn the_version_starts_with_the_release_version() {
+        let shown = version_string();
+        assert!(
+            shown.starts_with(config::VERSION),
+            "{shown} must stay recognisable as {}",
+            config::VERSION
+        );
+        // A development build adds its build id in brackets; a release build adds nothing.
+        match option_env!("ANNOTA_BUILD_ID") {
+            Some(id) if !id.is_empty() => {
+                assert_eq!(shown, format!("{} ({id})", config::VERSION));
+                assert!(shown.ends_with(')'));
+            }
+            _ => assert_eq!(shown, config::VERSION),
+        }
+    }
 }
 
 #[cfg(test)]
