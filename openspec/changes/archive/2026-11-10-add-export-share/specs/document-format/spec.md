@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Autosave and recovery
-Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files in `~/.cache/annota/autosave/` (only the user can read it), each recording the file it belongs to; nothing is written while a document does not change. An autosave SHALL be removed when its document is saved or back at its saved state, or discarded — in "Restore Unsaved Captures?" or in "Save Changes?" when it is closed. Autosaves left by a previous run SHALL be offered for recovery with name, autosave time, object count and thumbnail.
+Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files in `~/.cache/annota/autosave/` (user-readable only), each recording its document's file; nothing is written while a document does not change. An autosave SHALL be removed when its document is saved, is back at its saved state, or is discarded in "Restore Unsaved Captures?" or "Save Changes?". Autosaves left by a previous run SHALL be offered for recovery with name, autosave time, object count and thumbnail.
 
 #### Scenario: Crash recovery
 - **WHEN** Annota is killed with an unsaved document and restarted
@@ -22,7 +22,7 @@ Documents with unsaved changes SHALL be autosaved every 30 s as `.annota` files 
 - **THEN** its autosave is removed and not offered at the next start
 
 ### Requirement: Recovery dialog
-When Annota starts and autosaves of a previous run are left — after a crash, or whenever Annota ended without asking "Save Changes?" — it SHALL show "Restore Unsaved Captures?" with one checked row per autosave. Its text SHALL say that these documents have changes not saved in a file and that Annota kept a copy of each — not that Annota crashed. Restore SHALL open the checked ones in the editor, Discard SHALL delete them; unchecked ones, or all if the dialog is closed otherwise, SHALL be kept and offered again.
+When autosaves of a previous run are left — after a crash, or whenever Annota ended without asking "Save Changes?" — Annota SHALL show "Restore Unsaved Captures?" at the next start, with one checked row per autosave. Its text SHALL say these documents have changes not saved in a file and that Annota kept a copy of each — not that Annota crashed. Restore SHALL open the checked ones, Discard SHALL delete them; unchecked ones, or all if closed otherwise, SHALL be kept and offered again.
 
 #### Scenario: Restore
 - **WHEN** the dialog lists an autosave and the user presses Restore

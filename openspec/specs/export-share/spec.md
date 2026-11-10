@@ -1,0 +1,152 @@
+# export-share Specification
+
+## Purpose
+Gets finished images out of Annota into files, the clipboard and other applications.
+
+## Requirements
+
+### Requirement: Export formats
+The system SHALL export the flattened document to PNG, JPG (quality 1–100), WebP (lossless/lossy) and PDF, and save editable `.annota`. Export output SHALL be pixel-identical to the canvas at 100 % zoom.
+
+#### Scenario: WYSIWYG
+- **WHEN** a document is exported to PNG
+- **THEN** the PNG matches the canvas rendering at 100 % pixel by pixel
+
+#### Scenario: PDF Size sets the resolution, not the page
+- **WHEN** a document is exported to PDF at 100 % and at 200 %, with the same Page size
+- **THEN** both files have the same page size, with the image in the same place at the same physical size, which depend only on the canvas pixels and the capture's device scale
+- **AND** the bitmap layer of the 200 % file has twice the pixels per side
+
+### Requirement: Export dialog
+`Ctrl+E` SHALL open "Export Image" (mockups 02–05) with file name, folder (`export-folder` preference), format (`default-export-format` preference), the format's settings and a size. Before anything is written it SHALL show a banner when the folder is not writable or a file of that name exists, and keep Export disabled until that is resolved.
+
+#### Scenario: Folder not writable
+- **WHEN** the export dialog's folder is one the user may not write to
+- **THEN** the banner "No permission to write to this folder" with Choose Folder… is shown and Export is disabled
+
+#### Scenario: File exists
+- **WHEN** a file with the dialog's file name and the format's extension already exists in its folder
+- **THEN** the banner "A file with this name already exists" with Replace is shown, Export is disabled, and Replace writes over the file
+
+### Requirement: Quick save
+`Ctrl+S` SHALL save the document as an editable `.annota` file without a dialog: over its own `.annota` file if it has one, otherwise into the default folder (`save-folder` preference) named after the filename pattern (`filename-pattern` preference, default `Annota %Y-%m-%d %H-%M-%S`), never replacing another file. `Ctrl+Shift+S` SHALL open Save As.
+
+#### Scenario: Pattern
+- **WHEN** the user presses Ctrl+S on a new capture
+- **THEN** a file named after the pattern is created in the default folder
+
+#### Scenario: Saved over its file
+- **WHEN** the user edits a document that was saved before and presses Ctrl+S
+- **THEN** its `.annota` file is replaced and no new file is created
+
+### Requirement: Saved document
+A saved document SHALL take its file's name as title, lose its autosave and announce the file in a toast with Show in Files (mockup 06). If saving fails, the document SHALL stay open and unsaved and a toast SHALL say why.
+
+#### Scenario: Saved
+- **WHEN** a new capture is saved with Ctrl+S
+- **THEN** the window title is the file's name, the subtitle "<folder> · Saved", its autosave is removed, and the toast "Saved as “<file name>”" offers Show in Files
+
+#### Scenario: Save fails
+- **WHEN** the user presses Ctrl+S on a new capture and the default folder cannot be written
+- **THEN** a toast says "No permission to write to this folder", the document stays "Not saved" and keeps its autosave
+
+### Requirement: Clipboard
+`Ctrl+C` and the header's Copy (one action), with no object selected, SHALL copy the flattened image to the clipboard as PNG and confirm with the toast "Image copied to clipboard" (mockup 07, 3 s). Copying SHALL not count as saving the document. Copy on a new capture's toast SHALL do the same with that capture as it is when pressed.
+
+#### Scenario: Paste elsewhere
+- **WHEN** the user presses Ctrl+C and pastes into another app
+- **THEN** the annotated image is pasted
+
+#### Scenario: Edited while the new capture's toast is shown
+- **WHEN** the user edits a new capture while its toast is shown and presses the toast's Copy
+- **THEN** the clipboard holds the document with that edit, not the image as it was captured
+
+#### Scenario: New capture closed while its toast is shown
+- **WHEN** the capture was closed and the toast's Copy is pressed
+- **THEN** the clipboard is left as it was and a toast says nothing was copied
+
+### Requirement: Object copy and paste
+`Ctrl+C` (or the header's Copy) with a selection SHALL put the selected object(s) in a self-contained Annota-specific format and the whole flattened image as PNG on the clipboard, after the redaction warning, and confirm with the toast "Image and object copied to clipboard" ("Image and <n> objects copied to clipboard"). `Ctrl+V` in a document SHALL check for Annota's format first and insert the objects there as one undo step, else fall back to the new-document paste.
+
+#### Scenario: Copy and paste into the same document
+- **WHEN** the user selects an arrow, presses Ctrl+C, then Ctrl+V in the same document
+- **THEN** a second arrow appears, offset from the first, as one undo step
+
+#### Scenario: Paste the copied selection into another app
+- **WHEN** the user draws an arrow (it stays selected), presses Ctrl+C and pastes into another app
+- **THEN** the whole annotated image is pasted there, exactly as after Ctrl+C with nothing selected
+
+#### Scenario: Warning before copying a selection
+- **WHEN** an object is selected in a document with a pixelate redaction and Ctrl+C is pressed
+- **THEN** "Make Redactions Solid?" offers Cancel, Copy Anyway and Convert to Solid before anything is put on the clipboard
+- **AND** after Convert to Solid both the copied objects and the copied image show the redactions solid
+
+#### Scenario: Paste into a different document
+- **WHEN** an object copied from one document is pasted with Ctrl+V into a different open document
+- **THEN** it is inserted there, even though it was copied elsewhere
+
+#### Scenario: Paste after the source document closes
+- **WHEN** the source document is closed after the copy and Ctrl+V is pressed in another document
+- **THEN** the object still pastes, unaffected by the source closing
+
+#### Scenario: Plain image still opens as a new document
+- **WHEN** the clipboard holds an ordinary image, not Annota's object format, and Ctrl+V is pressed
+- **THEN** it opens as a new document, exactly as before object copy existed
+
+### Requirement: Drag and drop
+Dragging the window title area (the header bar's title and subtitle, decision D1) SHALL provide the flattened image to other applications as a PNG file named after the document (`text/uri-list`) and as `image/png` data. Hovering the title area SHALL show the tooltip "Drag image to another app" (mockup 08); the drag image is a thumbnail with a "PNG" badge (mockup 09).
+
+#### Scenario: Drop into file manager
+- **WHEN** the user drags the title area of "Checkout flow" into a Files window
+- **THEN** a PNG file "Checkout flow.png" with the flattened image is created there
+
+### Requirement: Share
+The dropdown of the Export split button (Share, decision D1) SHALL offer `Email…` (portal Email, the flattened PNG attached), `Open With…` (portal OpenURI with the system's app chooser) and `Copy to Folder…` (a file chooser, then the flattened PNG written there). The PNG is named after the document. Cancelling a portal's own dialog SHALL not be reported as an error.
+
+#### Scenario: Email
+- **WHEN** the user chooses Share → Email
+- **THEN** the default mail client opens with the PNG attached
+- **AND** while the mail app is being asked, the toast "Opening your mail app with “<name>.png” attached…" is shown (mockup 14)
+
+#### Scenario: Open with
+- **WHEN** the user chooses Share → Open With… and picks an app in the system's app chooser
+- **THEN** that app opens the PNG
+
+#### Scenario: Copy to folder
+- **WHEN** the user chooses Share → Copy to Folder… and confirms a folder and name in the file chooser
+- **THEN** the flattened image is written there as PNG, a toast "Copied as “<name>.png”" offers Show in Files, and the document stays unsaved
+
+### Requirement: File chooser extension
+Save As and Copy to Folder… SHALL add a missing extension (`.annota`, `.png`) to the name the file chooser returned. The chooser only checked the name as typed, so if the extension was added and a file of the resulting name exists, the system SHALL ask "A file with this name already exists" with Cancel and Replace before writing. Enter, Esc and Cancel SHALL write nothing.
+
+#### Scenario: Typed name lands on an existing file
+- **WHEN** the user types "X" in Save As and "X.annota" exists
+- **THEN** the alert names "X.annota", the file is unchanged until the answer, Cancel leaves it unchanged and Replace writes it
+
+#### Scenario: Full name typed
+- **WHEN** the user types "X.annota" in Save As, the file exists and the chooser's own question was confirmed
+- **THEN** the file is written without a second question
+
+#### Scenario: Name is free
+- **WHEN** the user types "Shot" in Copy to Folder… and "Shot.png" does not exist
+- **THEN** "Shot.png" is written without a question
+
+### Requirement: Batch export
+The tray's Select SHALL let users select several documents — open ones and recent files — and Export <n>… SHALL export them in one format, size, file name pattern and folder ("Export <n> Images", mockup 12). The pattern knows `%name`, `%n` and strftime; names inside one batch never collide, and "If a file exists" adds a number, replaces or skips. A toast SHALL say how many images went to which folder (mockup 13).
+
+#### Scenario: Batch
+- **WHEN** three documents are selected and exported as JPG
+- **THEN** three JPG files are written
+- **AND** the toast "3 images exported to <folder name>" offers Show in Files and the tray leaves selection mode
+
+#### Scenario: Selection mode
+- **WHEN** the user presses Select in the tray and clicks tiles
+- **THEN** the tiles are selected (accent ring and check) instead of opened, the bar shows "<n> Selected" and Export <n>…, and Cancel or Esc leaves selection mode
+
+#### Scenario: File name pattern
+- **WHEN** three documents are exported with the pattern `%n %name`
+- **THEN** their files are named "1 <name>", "2 <name>", "3 <name>" in tray order, and the dialog shows each name before anything is written
+
+#### Scenario: File exists
+- **WHEN** a file with a document's output name is already in the folder
+- **THEN** "Add a number" writes "<name> 2", "Replace" writes over the file, and "Skip" leaves it and exports the other documents
