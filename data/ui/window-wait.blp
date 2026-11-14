@@ -1,0 +1,77 @@
+using Gtk 4.0;
+
+// Waiting OSD of a window capture (fix-window-capture-screencast, sheet 02). Shown from the
+// ScreenCast portal's Start until the desktop's window chooser answers, and the chooser's parent
+// window. Placed like the countdown OSD (countdown.blp): a transparent, maximised window with the
+// OSD centred in it. Only the OSD takes pointer input (window_wait.rs); nothing is dimmed.
+
+Window wait_window {
+  title: _("Capture Window");
+  decorated: false;
+  styles ["annota-window-wait-window"]
+
+  child: Box wait_box {
+    halign: center;
+    valign: center;
+    width-request: 300;
+    orientation: vertical;
+    spacing: 18;
+    accessible-role: alert;
+    styles ["annota-window-wait"]
+
+    accessibility {
+      labelled-by: wait_label;
+    }
+
+    Overlay {
+      halign: center;
+
+      child: DrawingArea ring {
+        content-width: 72;
+        content-height: 72;
+      };
+
+      [overlay]
+      Image {
+        icon-name: "annota-capture-window-symbolic";
+        pixel-size: 32;
+        halign: center;
+        valign: center;
+        accessible-role: presentation;
+      }
+    }
+
+    Label wait_label {
+      label: _("Waiting for a window…");
+      wrap: true;
+      justify: center;
+      styles ["annota-window-wait-message"]
+    }
+
+    Box {
+      orientation: vertical;
+      spacing: 12;
+
+      Button cancel_button {
+        label: _("Cancel");
+        halign: center;
+        styles ["annota-osd-pill"]
+      }
+
+      Box {
+        halign: center;
+        spacing: 8;
+        styles ["annota-window-wait-hint"]
+
+        Label {
+          label: C_("keyboard key", "Esc");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Cancel");
+        }
+      }
+    }
+  };
+}

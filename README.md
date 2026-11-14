@@ -59,8 +59,9 @@ Annota has no release yet, so you build it from source. On Ubuntu 24.04:
 
 ```bash
 sudo apt install -y meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
-  libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext desktop-file-utils \
-  appstream libglib2.0-bin
+  libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  blueprint-compiler gettext desktop-file-utils \
+  appstream libglib2.0-bin gstreamer1.0-pipewire
 git clone https://github.com/trosinde/Annota.git && cd Annota
 export PATH=/usr/lib/rust-1.85/bin:$PATH
 meson setup _build -Dprofile=development && meson compile -C _build

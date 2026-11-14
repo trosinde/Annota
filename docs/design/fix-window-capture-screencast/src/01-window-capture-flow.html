@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="3192x1416">
+<title>Annota — Window capture flow (ScreenCast chooser)</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+/* ---------- sheet ---------- */
+body.mock-frame{display:block;background:var(--window-bg);color:var(--window-fg);font-family:var(--font-ui)}
+.sheet{width:3192px;padding:30px 36px 36px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px}
+.sheet-head h1{font-size:var(--fs-title-2);font-weight:var(--fw-bold);margin:0 0 6px}
+.sheet-head p{max-width:1900px;font-size:var(--fs-body);color:var(--dim-label);margin:0;line-height:1.45}
+.sheet-head p b{color:var(--window-fg)}
+code{font-family:var(--font-mono);font-size:13px;padding:1px 5px;border-radius:4px;background:var(--fill-1)}
+
+.flow{position:relative;display:grid;grid-template-columns:repeat(5,576px);column-gap:60px;padding-top:54px}
+.step{display:flex;flex-direction:column;gap:12px;min-width:0}
+.step-head{display:flex;align-items:center;gap:12px;height:30px}
+.step-head .lt{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--accent-bg);color:var(--accent-fg);font-weight:var(--fw-bold);font-size:var(--fs-body);flex:none}
+.step-head .lt.sys{background:var(--fill-3);color:var(--window-fg)}
+.step-head .t{font-size:var(--fs-heading);font-weight:var(--fw-bold)}
+.step-head .who{margin-left:auto;font-size:var(--fs-caption);font-weight:var(--fw-bold);padding:3px 9px;border-radius:var(--radius-pill);background:var(--accent-a12);color:var(--accent)}
+.step-head .who.sys{background:var(--fill-1);color:var(--window-fg)}
+.step-head .who.cond{background:rgb(139 92 246 / 14%);color:var(--annota-violet)}
+
+.frame{position:relative;width:576px;height:360px;border-radius:var(--radius-l);overflow:hidden;box-shadow:0 0 0 1px var(--borders),var(--shadow-card);background:var(--desktop-bg)}
+.frame>.native{position:absolute;left:0;top:0;transform-origin:0 0}
+.frame>.native.w{width:1280px;height:800px;transform:scale(.45)}
+.frame>.native.d{width:1920px;height:1200px;transform:scale(.3)}
+.frame .ftag{position:absolute;left:12px;top:12px;z-index:5;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--radius-s);background:var(--osd-bg-solid);color:var(--osd-fg);font-size:var(--fs-caption);font-weight:var(--fw-bold);box-shadow:var(--shadow-osd)}
+.frame .ftag .icon{width:14px;height:14px}
+.frame .ftag.dashed{background:var(--view-bg);color:var(--window-fg);box-shadow:0 0 0 2px var(--sch-line) inset;border-radius:var(--radius-s)}
+.trig{font-size:var(--fs-small);color:var(--dim-label);height:18px;margin-top:-6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trig b{color:var(--window-fg);font-weight:var(--fw-bold)}
+.scale-note{font-size:var(--fs-caption);color:var(--dim-label);margin-top:-6px}
+
+.detail{background:var(--card-bg);border-radius:var(--radius-l);box-shadow:var(--shadow-card);padding:12px 18px 18px;display:flex;flex-direction:column;gap:12px;height:336px;box-sizing:border-box}
+.detail .dl{font-size:var(--fs-caption);font-weight:var(--fw-bold);color:var(--dim-label);text-transform:none;display:flex;gap:6px;align-items:center}
+.detail .stage{flex:1;display:flex;align-items:center;justify-content:center;gap:18px;border-radius:var(--radius-m);position:relative}
+.detail .stage.desk{background:var(--desktop-bg)}
+
+.scen{display:flex;flex-direction:column;gap:6px}
+.scen .sh{font-size:var(--fs-caption);font-weight:var(--fw-bold);color:var(--dim-label)}
+.chip{display:inline-flex;align-self:flex-start;align-items:center;gap:6px;padding:3px 10px;border-radius:var(--radius-pill);background:var(--accent-a12);color:var(--accent);font-size:var(--fs-small);font-weight:var(--fw-bold)}
+.chip.pk{background:var(--fill-1);color:var(--window-fg)}
+.scen ul{margin:0;padding-left:18px;font-size:var(--fs-small);line-height:1.5}
+.scen li{margin:0 0 2px}
+
+.conn{position:absolute;width:60px;height:60px;display:flex;align-items:center;justify-content:center}
+.conn svg{width:44px;height:24px;color:var(--window-fg);opacity:.7}
+.clabel{position:absolute;width:150px;transform:translateX(-50%);text-align:center;font-size:var(--fs-caption);line-height:1.35;color:var(--dim-label);background:var(--window-bg);padding:3px 0}
+.skip{position:absolute;left:0;top:0;width:100%;height:54px;pointer-events:none}
+.skip-label{position:absolute;top:6px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:var(--radius-pill);background:var(--window-bg);box-shadow:inset 0 0 0 2px var(--annota-violet);color:var(--annota-violet);font-size:var(--fs-small);font-weight:var(--fw-bold);white-space:nowrap}
+
+.branches{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}
+.bcard{background:var(--card-bg);border-radius:var(--radius-l);box-shadow:var(--shadow-card);padding:18px;display:flex;flex-direction:column;gap:12px}
+.bcard h3{margin:0;font-size:var(--fs-heading);font-weight:var(--fw-bold);display:flex;gap:9px;align-items:center}
+.bcard h3 .icon{flex:none}
+.bcard p{margin:0;font-size:var(--fs-small);line-height:1.5;color:var(--window-fg)}
+.bcard p.dim{color:var(--dim-label)}
+.bcard .chip{margin-top:auto}
+
+/* ---------- desktop (native 1920 × 1200) ---------- */
+.desk{position:absolute;inset:0;background:radial-gradient(1400px 900px at 25% 15%,rgb(255 255 255 / 22%),transparent 60%),var(--desktop-bg)}
+.topbar{position:absolute;left:0;right:0;top:0;height:32px;background:#000006;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+.topbar .ind{position:absolute;right:20px;top:5px;height:22px;padding:0 10px;border-radius:11px;border:2px dashed rgb(255 255 255 / 75%);display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#fff}
+.topbar .ind i{width:8px;height:8px;border-radius:50%;background:#fff;display:block}
+.dwin{position:absolute;overflow:hidden;border-radius:12px 12px 0 0;box-shadow:0 0 0 1px rgb(0 0 6 / 12%),0 6px 22px rgb(0 0 6 / 28%),0 18px 44px rgb(0 0 6 / 14%)}
+.dwin>img{display:block;width:100%;height:100%}
+.dwin.harbor>img{position:absolute;width:1200px;height:750px;left:-187.5px;top:-90px}
+
+/* ---------- schematic chooser (placeholder, not GNOME's dialog) ---------- */
+:root{--sch-bg:#ececef;--sch-bar:rgb(0 0 6 / 16%);--sch-line:#8e8e96;--sch-sel:#55555d;--sch-fg:#3a3a40}
+:root[data-theme="dark"]{--sch-bg:#2e2e33;--sch-bar:rgb(255 255 255 / 20%);--sch-line:#8e8e96;--sch-sel:#c4c4cc;--sch-fg:#e4e4ea}
+.sch{position:absolute;left:120px;top:200px;width:660px;height:800px;box-sizing:border-box;border-radius:18px;background:repeating-linear-gradient(135deg,transparent 0 22px,rgb(128 128 136 / 7%) 22px 24px),var(--sch-bg);border:4px dashed var(--sch-line);box-shadow:0 12px 48px rgb(0 0 6 / 38%);padding:30px 36px;display:flex;flex-direction:column;gap:18px;color:var(--sch-fg)}
+.sch .lbl{font-size:30px;font-weight:800;line-height:1.2}
+.sch .lbl small{display:block;font-size:24px;font-weight:600;opacity:.75}
+.sch .bar{height:22px;border-radius:11px;background:var(--sch-bar)}
+.sch .rows{display:flex;flex-direction:column;gap:18px;margin-top:6px}
+.sch .r{display:flex;align-items:center;gap:24px;padding:12px;border-radius:12px;border:4px solid transparent}
+.sch .r.sel{border-color:var(--sch-sel)}
+.sch .r .th{width:208px;height:130px;flex:none;border-radius:6px;overflow:hidden;position:relative;box-shadow:0 0 0 2px var(--sch-bar)}
+.sch .r .th img{width:100%;height:100%;object-fit:cover;object-position:top left;filter:grayscale(1) contrast(.85);opacity:.8;display:block}
+.sch .r .th.harbor img{width:300px;height:188px;position:absolute;left:-47px;top:-22px;object-fit:fill}
+.sch .r .tx{flex:1;display:flex;flex-direction:column;gap:14px}
+.sch .r .mk{width:40px;height:40px;border-radius:50%;flex:none;border:4px solid var(--sch-line);box-sizing:border-box}
+.sch .r.sel .mk{background:var(--sch-sel);border-color:var(--sch-sel)}
+.sch .btns{margin-top:auto;display:flex;justify-content:flex-end;gap:18px}
+.sch .btns span{width:170px;height:56px;border-radius:12px;box-sizing:border-box;border:4px solid var(--sch-line)}
+.sch .btns span.pri{background:var(--sch-sel);border-color:var(--sch-sel)}
+
+/* ---------- countdown OSD (from add-screen-capture 07) ---------- */
+.keys{display:inline-flex;gap:4px;align-items:center}
+kbd.okey{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:5px;background:var(--osd-fill-hover);color:var(--osd-fg);font-family:var(--font-ui);font-size:var(--fs-caption);font-weight:var(--fw-bold)}
+.cd{display:flex;flex-direction:column;align-items:center;gap:14px;padding:28px 36px 22px;border-radius:30px;background:var(--osd-bg);color:#fff;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:var(--shadow-osd)}
+.cd.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.cd .ring{position:relative;width:148px;height:148px}.cd .ring svg{position:absolute;inset:0}
+.cd .num{position:absolute;inset:0;display:grid;place-items:center;font-size:72px;font-weight:800;font-variant-numeric:tabular-nums}
+.cd .t{font-size:var(--fs-body);font-weight:700}.cd .s{display:flex;gap:10px;align-items:center;font-size:var(--fs-small);opacity:.85}
+
+/* ---------- waiting OSD (sheet 02) ---------- */
+.wosd{display:flex;flex-direction:column;align-items:center;gap:18px;width:300px;box-sizing:border-box;padding:30px 36px 24px;border-radius:30px;background:var(--osd-bg);color:#fff;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:var(--shadow-osd)}
+.wosd.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.wosd .wring{position:relative;width:72px;height:72px}
+.wosd .wring svg.r{position:absolute;inset:0}
+.wosd .wring .icon{position:absolute;left:20px;top:20px;width:32px;height:32px;color:#fff}
+.wosd .t{font-size:var(--fs-body);font-weight:700}
+.wosd .obtn{display:inline-flex;align-items:center;justify-content:center;min-width:120px;height:34px;padding:0 18px;border-radius:var(--radius-pill);background:var(--osd-fill-hover);color:#fff;font-size:var(--fs-body);font-weight:700;box-sizing:border-box}
+.wosd .obtn.focus{outline:2px solid rgb(120 174 237 / 80%);outline-offset:1px}
+.wosd .s{display:flex;gap:8px;align-items:center;font-size:var(--fs-small);opacity:.85;margin-top:-6px}
+.ends{width:100%;border-collapse:collapse;font-size:var(--fs-small);line-height:1.45}
+.ends td{padding:7px 0;border-bottom:1px solid var(--separator);vertical-align:top}
+.ends td:first-child{width:190px;padding-right:12px;font-weight:var(--fw-bold)}
+/* ---------- welcome (from bootstrap-app-shell 01) ---------- */
+.welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--window-bg)}
+.welcome .app-icon{width:128px;height:128px;margin-bottom:24px}
+.welcome .status-title{font-size:var(--fs-title-1);font-weight:var(--fw-heavy);margin-bottom:12px}
+.welcome .status-description{max-width:460px;text-align:center;margin-bottom:30px}
+.mode-row{display:flex;gap:12px}
+.welcome .mode-row{margin-bottom:30px}
+.mode-card{width:156px;height:108px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border-radius:var(--radius-l);font-weight:var(--fw-bold)}
+.kbd-row{display:inline-flex;gap:4px}
+.mode-card .kbd-row{font-weight:var(--fw-regular)}
+.mode-card.focus{outline:2px solid var(--accent-a50);outline-offset:1px}
+.mode-card.pressed{background-image:linear-gradient(var(--row-active),var(--row-active))}
+.whint{display:flex;align-items:center;gap:6px;font-size:var(--fs-small)}
+
+/* ---------- editor (as add-export-share 07, decision D1) ---------- */
+.tool-strip{width:52px;flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;background:var(--window-bg);box-shadow:inset -1px 0 var(--separator);position:relative}
+.tool-strip .btn{width:40px;min-height:40px}
+.tool-strip .separator-h{width:28px;margin:4px 0}
+.props .scroll{padding:18px 12px;display:flex;flex-direction:column;gap:18px}
+.props .hint2{font-size:var(--fs-small);opacity:var(--dim-opacity);line-height:1.35;padding:0 2px}
+.editor-col{flex:1;min-height:0;display:flex;flex-direction:column}
+.editor-col>.split-view{flex:1}
+.content-pane{position:relative}
+.tray{flex:none;height:132px;background:var(--window-bg);box-shadow:inset 0 1px var(--separator);display:flex;flex-direction:column}
+.tray-bar{height:38px;display:flex;align-items:center;gap:6px;padding:0 12px}
+.tray-items{display:flex;gap:12px;padding:0 12px}
+.tray-item{width:120px;display:flex;flex-direction:column;gap:4px;position:relative}
+.tray-item .thumb{width:120px;height:68px;border-radius:var(--radius-s);overflow:hidden;box-shadow:0 0 0 1px var(--borders);background:var(--view-bg)}
+.tray-item .thumb img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.tray-item .name{font-size:var(--fs-caption);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.tray-item.open .thumb{box-shadow:0 0 0 2px var(--borders-strong)}
+.toast-overlay.over-canvas{left:52px;right:300px}
+.toast-overlay.over-canvas.with-tray{bottom:156px}
+.split-button{display:inline-flex}
+.split-button>.btn.split-arrow{width:26px;min-width:26px;padding:0}
+.headerbar .title-widget.drag-title{min-height:34px;border-radius:var(--radius-s)}
+.canvas-area>.canvas-image.win>img{border-radius:7px 7px 0 0}
+
+/* corner zoom (detail d) */
+.zoom{width:150px;height:150px;border-radius:var(--radius-m);overflow:hidden;position:relative;box-shadow:0 0 0 1px var(--borders);background:var(--canvas-bg);flex:none}
+.zoom .img{position:absolute;left:36px;top:36px;width:240px;height:240px;background-color:var(--canvas-checker-a);background-image:linear-gradient(45deg,var(--canvas-checker-b) 25%,transparent 25%,transparent 75%,var(--canvas-checker-b) 75%),linear-gradient(45deg,var(--canvas-checker-b) 25%,transparent 25%,transparent 75%,var(--canvas-checker-b) 75%);background-size:16px 16px;background-position:0 0,8px 8px}
+.zoom .img i{position:absolute;inset:0;border-radius:48px 0 0 0;background:url(../../kit/sample-content/png/b-lumen-checkout.png) 0 0/5120px 3200px no-repeat;image-rendering:pixelated}
+.zoom .edge{position:absolute;left:35px;top:35px;right:0;bottom:0;border-left:1px dashed var(--annota-coral);border-top:1px dashed var(--annota-coral)}
+.zl{display:flex;flex-direction:column;gap:6px;font-size:var(--fs-small);line-height:1.45;max-width:200px}
+.zl b{font-weight:var(--fw-bold)}
+.sw-coral{display:inline-block;width:18px;border-top:2px dashed var(--annota-coral);vertical-align:middle;margin-right:4px}
+
+/* params (detail b) */
+.params{font-family:var(--font-mono);font-size:13px;line-height:1.7;background:var(--fill-flat-hover);border-radius:var(--radius-m);padding:12px 14px;align-self:stretch;flex:1}
+.params .k{color:var(--dim-label)}
+.params .c{color:var(--dim-label)}
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="sheet">
+
+<div class="sheet-head">
+  <h1>Window capture — flow</h1>
+  <p><b>fix-window-capture-screencast</b> · window mode picks its window in the desktop's window chooser for screen sharing (ScreenCast portal), takes one frame and closes the session. While the chooser is open, Annota shows its own waiting OSD (sheet 02), which is the chooser's parent. Replaces add-screen-capture 05 as the reference for window mode.
+  Panels are scaled (Annota windows 45 %, monitor 1920 × 1200 at 30 %, panel b is a 1 : 1 crop); the cards below them are 1 : 1.</p>
+</div>
+
+<div class="flow">
+  <!-- skip branch: c → e over d -->
+  <svg class="skip" viewBox="0 0 3120 54" preserveAspectRatio="none">
+    <path d="M1287 54 L1287 30 Q1287 18 1299 18 L2547 18 Q2559 18 2559 30 L2559 46" fill="none" stroke="var(--annota-violet)" stroke-width="2" stroke-dasharray="6 5"/>
+    <path d="M2552 40 L2559 52 L2566 40" fill="none" stroke="var(--annota-violet)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>
+  <span class="skip-label" style="left:1923px">No delay → skip d, the frame is taken at once</span>
+
+  <!-- connectors between the frames (frame centre = 54 + 42 + 180) -->
+  <div class="conn" style="left:576px;top:270px"><svg viewBox="0 0 44 24"><path d="M2 12 H38 M30 4 L40 12 L30 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div class="conn" style="left:1212px;top:270px"><svg viewBox="0 0 44 24"><path d="M2 12 H38 M30 4 L40 12 L30 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div class="conn" style="left:1848px;top:270px"><svg viewBox="0 0 44 24"><path d="M2 12 H38 M30 4 L40 12 L30 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div class="conn" style="left:2484px;top:270px"><svg viewBox="0 0 44 24"><path d="M2 12 H38 M30 4 L40 12 L30 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+  <!-- ===================== a ===================== -->
+  <div class="step">
+    <div class="step-head"><span class="lt">a</span><span class="t">Start window mode</span><span class="who">Annota</span></div>
+    <div class="trig"><b>Starts with:</b> the Window card, or launcher, shortcut and command line alike</div>
+    <div class="frame">
+      <div class="native w">
+        <div class="window maximized" style="width:1280px;height:800px">
+          <div class="headerbar"><div class="start"><button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button></div><div class="title-widget"><span class="title">Annota</span></div><div class="end"><button class="btn flat image-button"><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+          <div class="welcome">
+            <img class="app-icon" src="../../kit/app-icon/annota.svg" alt="">
+            <div class="status-title">Capture Anything</div>
+            <div class="status-description">Pick what to capture. The capture opens here, ready to mark up. Every annotation stays editable until you export.</div>
+            <div class="mode-row">
+              <div class="card activatable mode-card"><svg class="icon large"><use href="#i-capture-region"/></svg><span>Region</span><span class="kbd-row"><kbd class="key">Print</kbd></span></div>
+              <div class="card activatable mode-card focus pressed"><svg class="icon large"><use href="#i-capture-window"/></svg><span>Window</span><span class="kbd-row"><kbd class="key">Alt</kbd><kbd class="key">Print</kbd></span></div>
+              <div class="card activatable mode-card"><svg class="icon large"><use href="#i-capture-screen"/></svg><span>Screen</span><span class="kbd-row"><kbd class="key">Shift</kbd><kbd class="key">Print</kbd></span></div>
+            </div>
+            <div class="whint dim-label"><svg class="icon"><use href="#i-folder"/></svg><span>or open an image or .annota file with</span><kbd class="key">Ctrl</kbd><kbd class="key">O</kbd><span>— or drop it here</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="detail">
+      <span class="dl">1 : 1 · Window card activated (keyboard focus + pressed)</span>
+      <div class="stage" style="background:var(--window-bg);box-shadow:inset 0 0 0 1px var(--borders)">
+        <div class="mode-row">
+          <div class="card activatable mode-card"><svg class="icon large"><use href="#i-capture-region"/></svg><span>Region</span><span class="kbd-row"><kbd class="key">Print</kbd></span></div>
+          <div class="card activatable mode-card focus pressed"><svg class="icon large"><use href="#i-capture-window"/></svg><span>Window</span><span class="kbd-row"><kbd class="key">Alt</kbd><kbd class="key">Print</kbd></span></div>
+          <div class="card activatable mode-card"><svg class="icon large"><use href="#i-capture-screen"/></svg><span>Screen</span><span class="kbd-row"><kbd class="key">Shift</kbd><kbd class="key">Print</kbd></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="scen">
+      <span class="sh">Scenarios</span>
+      <span class="chip">Window mode from the welcome page</span>
+      <span class="chip">Window on Wayland</span>
+      <ul>
+        <li>Unchanged UI. The same flow starts from the launcher's <b>Window</b> mode, the Window shortcut and <code>annota --capture window</code>.</li>
+        <li>On activation Annota hides its windows, as for every capture. No screenshot UI with "Selection" opens.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================== b ===================== -->
+  <div class="step">
+    <div class="step-head"><span class="lt">b</span><span class="t">Waiting for a window</span><span class="who">Annota</span></div>
+    <div class="trig"><b>Shown:</b> from <code>Start</code> until the chooser answers · sheet 02</div>
+    <div class="frame">
+      <div class="native" style="width:1920px;height:1200px;left:-672px;top:-420px">
+        <div class="desk"></div>
+        <div class="dwin" style="left:1040px;top:96px;width:800px;height:500px"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div>
+        <div class="dwin" style="left:120px;top:120px;width:1280px;height:800px"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt=""></div>
+        <div class="sch" style="padding:0"></div>
+        <div class="wosd center"><div class="wring"><svg class="r" viewBox="0 0 72 72"><circle cx="36" cy="36" r="32" fill="none" stroke="rgb(255 255 255 / 18%)" stroke-width="6"/><circle cx="36" cy="36" r="32" fill="none" stroke="var(--annota-coral)" stroke-width="6" stroke-linecap="round" stroke-dasharray="50 151" transform="rotate(-30 36 36)"/></svg><svg class="icon"><use href="#i-capture-window"/></svg></div><span class="t">Waiting for a window…</span><span class="obtn focus">Cancel</span><span class="s"><span class="keys"><kbd class="okey">Esc</kbd></span> Cancel</span></div>
+      </div>
+      <span class="ftag">1 : 1 crop · centred like countdown 07</span>
+    </div>
+    <div class="detail">
+      <span class="dl">How the OSD ends</span>
+      <table class="ends">
+        <tr><td>A window is chosen</td><td>OSD goes. Then d (only with a delay) and e.</td></tr>
+        <tr><td>Cancel or <kbd class="key">Esc</kbd></td><td>OSD goes, screen-sharing session closed, no image, no message. The next capture starts normally.</td></tr>
+        <tr><td>Chooser closed, reported</td><td>Same as Cancel. If GNOME never reports it, the OSD stays until the user cancels.</td></tr>
+        <tr><td>Chooser never appears</td><td>The OSD is all there is; Cancel ends the attempt (measured, design.md D6).</td></tr>
+        <tr><td>Second window request</td><td>Raises this OSD, starts nothing new.</td></tr>
+      </table>
+    </div>
+    <div class="scen">
+      <span class="sh">Scenarios</span>
+      <span class="chip">Waiting for the chooser</span>
+      <span class="chip">Cancel while waiting</span>
+      <span class="chip">Chooser closed</span>
+      <ul>
+        <li>Annota's own top-level window and the chooser's parent, so a chooser opens even from a shortcut with no Annota window open.</li>
+        <li>Non-modal; nothing is dimmed. Not listed in the chooser.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================== c ===================== -->
+  <div class="step">
+    <div class="step-head"><span class="lt sys">c</span><span class="t">Choose the window</span><span class="who sys">GNOME</span></div>
+    <div class="trig"><b>Opens:</b> together with b, before any countdown</div>
+    <div class="frame">
+      <div class="native d">
+        <div class="desk"></div>
+        <div class="topbar">Sat 14 Nov 10:42</div>
+        <div class="dwin" style="left:1040px;top:96px;width:800px;height:500px"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div>
+        <div class="dwin harbor" style="left:960px;top:560px;width:825px;height:570px"><img src="../../kit/sample-content/png/a-harbor-backup.png" alt=""></div>
+        <div class="dwin" style="left:120px;top:120px;width:1280px;height:800px"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt=""></div>
+        <div class="sch">
+          <div class="lbl">Desktop window chooser<small>(GNOME, not drawn by Annota)</small></div>
+          <div class="bar" style="width:300px"></div>
+          <div class="rows">
+            <div class="r sel"><span class="th"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt=""></span><span class="tx"><span class="bar" style="width:240px"></span><span class="bar" style="width:150px;height:16px"></span></span><span class="mk"></span></div>
+            <div class="r"><span class="th harbor"><img src="../../kit/sample-content/png/a-harbor-backup.png" alt=""></span><span class="tx"><span class="bar" style="width:200px"></span><span class="bar" style="width:120px;height:16px"></span></span><span class="mk"></span></div>
+            <div class="r"><span class="th"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></span><span class="tx"><span class="bar" style="width:260px"></span><span class="bar" style="width:170px;height:16px"></span></span><span class="mk"></span></div>
+          </div>
+          <div class="btns"><span></span><span class="pri"></span></div>
+        </div>
+        <div class="wosd center"><div class="wring"><svg class="r" viewBox="0 0 72 72"><circle cx="36" cy="36" r="32" fill="none" stroke="rgb(255 255 255 / 18%)" stroke-width="6"/><circle cx="36" cy="36" r="32" fill="none" stroke="var(--annota-coral)" stroke-width="6" stroke-linecap="round" stroke-dasharray="50 151" transform="rotate(-30 36 36)"/></svg><svg class="icon"><use href="#i-capture-window"/></svg></div><span class="t">Waiting for a window…</span><span class="obtn">Cancel</span><span class="s"><span class="keys"><kbd class="okey">Esc</kbd></span> Cancel</span></div>
+        <svg style="position:absolute;left:672px;top:960px;width:33px;height:45px" viewBox="0 0 22 30"><path d="M2 2v22l6-5.5 4 9 4-1.8-4-8.7h8z" fill="#000006" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="ftag dashed">Desktop window chooser (GNOME, not drawn by Annota)</span>
+    </div>
+    <div class="detail">
+      <span class="dl">What Annota asks for (ScreenCast portal, design.md D1)</span>
+      <div class="params">
+        <div>CreateSession</div>
+        <div>SelectSources <span class="k">types</span> WINDOW <span class="k">multiple</span> false</div>
+        <div>&nbsp;&nbsp;<span class="k">cursor_mode</span> EMBEDDED <span class="c">if pointer on + offered,</span> else HIDDEN</div>
+        <div>&nbsp;&nbsp;<span class="k">persist_mode</span> 0 <span class="c">· no restore token, chooser every time</span></div>
+        <div>Start(parent) <span class="c">→ the chooser above</span></div>
+        <div>OpenPipeWireRemote <span class="c">→ one frame, then session closed</span></div>
+      </div>
+    </div>
+    <div class="scen">
+      <span class="sh">Scenarios</span>
+      <span class="chip">Window on Wayland</span>
+      <span class="chip">Window mode from the welcome page</span>
+      <ul>
+        <li>Drawn as a schematic placeholder on purpose. Look, wording and layout are GNOME's and vary by version; Annota draws nothing here.</li>
+        <li>Annota's waiting OSD (b) stays next to it as its parent. Where GNOME places the chooser is GNOME's choice.</li>
+        <li>Closing it is a cancel once GNOME reports it, see "Chooser closed" below.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================== c ===================== -->
+  <div class="step">
+    <div class="step-head"><span class="lt">d</span><span class="t">Countdown</span><span class="who cond">Only with a delay</span></div>
+    <div class="trig"><b>Runs:</b> after a window is chosen, only if a delay is set</div>
+    <div class="frame">
+      <div class="native d">
+        <div class="desk"></div>
+        <div class="topbar">Sat 14 Nov 10:42<span class="ind"><i></i>indicator</span></div>
+        <div class="dwin" style="left:1040px;top:96px;width:800px;height:500px"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div>
+        <div class="dwin harbor" style="left:960px;top:560px;width:825px;height:570px"><img src="../../kit/sample-content/png/a-harbor-backup.png" alt=""></div>
+        <div class="dwin" style="left:120px;top:120px;width:1280px;height:800px"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt=""></div>
+        <div class="cd center"><div class="ring"><svg viewBox="0 0 148 148"><circle cx="74" cy="74" r="66" fill="none" stroke="rgb(255 255 255 / 18%)" stroke-width="8"/><circle cx="74" cy="74" r="66" fill="none" stroke="var(--annota-coral)" stroke-width="8" stroke-linecap="round" stroke-dasharray="248.8 414.7" transform="rotate(-90 74 74)"/></svg><span class="num">3</span></div>
+          <span class="t">Capturing window in 3 s</span>
+          <span class="s"><span class="keys"><kbd class="okey">Esc</kbd></span> Cancel <span style="opacity:.5">·</span> <span class="keys"><kbd class="okey">Enter</kbd></span> Capture now</span></div>
+      </div>
+      <span class="ftag"><svg class="icon"><use href="#i-timer"/></svg>Delay 3 s</span>
+    </div>
+    <div class="detail">
+      <span class="dl">1 : 1 · Countdown OSD, as add-screen-capture 07 · only the label changes</span>
+      <div class="stage desk">
+        <div class="cd"><div class="ring"><svg viewBox="0 0 148 148"><circle cx="74" cy="74" r="66" fill="none" stroke="rgb(255 255 255 / 18%)" stroke-width="8"/><circle cx="74" cy="74" r="66" fill="none" stroke="var(--annota-coral)" stroke-width="8" stroke-linecap="round" stroke-dasharray="248.8 414.7" transform="rotate(-90 74 74)"/></svg><span class="num">3</span></div>
+          <span class="t">Capturing window in 3 s</span>
+          <span class="s"><span class="keys"><kbd class="okey">Esc</kbd></span> Cancel <span style="opacity:.5">·</span> <span class="keys"><kbd class="okey">Enter</kbd></span> Capture now</span></div>
+      </div>
+    </div>
+    <div class="scen">
+      <span class="sh">Scenarios</span>
+      <span class="chip">Delayed window capture</span>
+      <span class="chip">Countdown cancelled</span>
+      <ul>
+        <li>Order: chooser first, countdown after. The frame is taken when it ends (or on <kbd class="key">Enter</kbd>).</li>
+        <li>The dashed "indicator" stands for GNOME's screen-sharing indicator (not drawn by Annota). It is visible while the session is open.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================== d ===================== -->
+  <div class="step">
+    <div class="step-head"><span class="lt">e</span><span class="t">Window in the editor</span><span class="who">Annota</span></div>
+    <div class="trig"><b>Frame taken:</b> when the countdown ends, or at once without a delay</div>
+    <div class="frame">
+      <div class="native w">
+        <div class="window maximized" style="width:1280px;height:800px">
+          <div class="headerbar"><div class="start"><button class="btn image-button" title="New Capture"><svg class="icon"><use href="#i-capture-region"/></svg></button><div class="linked"><button class="btn image-button disabled"><svg class="icon"><use href="#i-undo"/></svg></button><button class="btn image-button disabled"><svg class="icon"><use href="#i-redo"/></svg></button></div></div><div class="title-widget drag-title" title="Drag image to another app"><span class="title">Capture 2026-11-14 10-42-17</span><span class="subtitle">1280 × 800 · Not saved</span></div><div class="end"><button class="btn flat image-button active" title="Show Properties (F9)"><svg class="icon"><use href="#i-sidebar-show-right"/></svg></button><button class="btn image-button" title="Copy to Clipboard (Ctrl+C)"><svg class="icon"><use href="#i-copy"/></svg></button><div class="linked split-button"><button class="btn text-button suggested-action" title="Export (Ctrl+E)">Export</button><button class="btn suggested-action split-arrow" title="Share"><svg class="icon"><use href="#i-pan-down"/></svg></button></div><button class="btn flat image-button" title="Main Menu"><svg class="icon"><use href="#i-open-menu"/></svg></button><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+          <div class="editor-col">
+            <div class="split-view">
+              <div class="tool-strip">
+                <button class="btn flat active" title="Select (V)"><svg class="icon"><use href="#i-select"/></svg></button>
+                <span class="separator-h"></span>
+                <button class="btn flat" title="Arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg></button>
+                <button class="btn flat" title="Line (L)"><svg class="icon"><use href="#i-line"/></svg></button>
+                <button class="btn flat" title="Pen (P)"><svg class="icon"><use href="#i-pen"/></svg></button>
+                <button class="btn flat" title="Shape (U)"><svg class="icon"><use href="#i-shape"/></svg></button>
+                <button class="btn flat" title="Text (T)"><svg class="icon"><use href="#i-text"/></svg></button>
+                <button class="btn flat" title="Callout (K)"><svg class="icon"><use href="#i-callout"/></svg></button>
+                <button class="btn flat" title="Step (S)"><svg class="icon"><use href="#i-step"/></svg></button>
+                <span class="separator-h"></span>
+                <button class="btn flat" title="Highlighter (H)"><svg class="icon"><use href="#i-highlighter"/></svg></button>
+                <button class="btn flat" title="Redact (B)"><svg class="icon"><use href="#i-blur"/></svg></button>
+                <span class="separator-h"></span>
+                <button class="btn flat" title="Crop (C)"><svg class="icon"><use href="#i-crop"/></svg></button>
+              </div>
+              <div class="content-pane"><div class="canvas-area"><div class="canvas-image win" style="width:794px;height:496px"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt=""></div><div class="osd-toolbar" style="position:absolute;right:18px;bottom:18px"><button class="btn image-button" title="Zoom Out (Ctrl+−)"><svg class="icon"><use href="#i-zoom-out"/></svg></button><span class="label">62 %</span><button class="btn image-button" title="Zoom In (Ctrl++)"><svg class="icon"><use href="#i-zoom-in"/></svg></button></div></div></div>
+              <div class="sidebar-pane end props"><div class="scroll">
+                <div class="preferences-group"><div class="group-header"><div class="text"><span class="heading">Capture</span></div></div>
+                  <div class="boxed-list">
+                    <div class="row property"><div class="text"><span class="title">Size</span><span class="subtitle numeric">1280 × 800 px</span></div></div>
+                    <div class="row property"><div class="text"><span class="title">Source</span><span class="subtitle">Window · scale 1×</span></div></div>
+                    <div class="row property"><div class="text"><span class="title">Captured</span><span class="subtitle">14 Nov 2026, 10:42:17</span></div></div>
+                  </div></div>
+                <span class="hint2">Saved to the library automatically. Pick a tool to start annotating.</span>
+              </div></div>
+            </div>
+            <div class="tray"><div class="tray-bar"><span class="caption-heading dim-label">Recent Captures</span><span class="spacer"></span><button class="btn flat small text-button">Select</button></div><div class="tray-items"><div class="tray-item open"><div class="thumb"><img src="../../kit/sample-content/png/b-lumen-checkout.png" alt=""></div><span class="name">Capture 2026-11-14 10-42-17</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/a-harbor-backup.png" alt=""></div><span class="name">Backup settings</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/c-code-editor.png" alt=""></div><span class="name">Build warning</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div><span class="name">September dashboard</span></div><div class="tray-item"><div class="thumb"><img src="../../kit/sample-content/png/e-relay-chat.png" alt=""></div><span class="name">Chat with Jonas</span></div></div></div>
+          </div>
+          <div class="toast-overlay over-canvas with-tray"><div class="toast"><span class="toast-title">Window captured · 1280 × 800</span><button class="btn flat text-button">Copy</button></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="detail">
+      <span class="dl">1 : 1 · Toast, and the image's top-left corner at 4 ×</span>
+      <div class="stage" style="background:var(--canvas-bg);flex-direction:column;gap:18px">
+        <div class="toast"><span class="toast-title">Window captured · 1280 × 800</span><button class="btn flat text-button">Copy</button></div>
+        <div style="display:flex;gap:18px;align-items:center">
+          <div class="zoom"><div class="img"><i></i></div><div class="edge"></div></div>
+          <div class="zl"><span><span class="sw-coral"></span><b>Image edge = window edge.</b></span><span>No shadow, no transparent margin around it. Transparent rounded corners inside the window stay (D3).</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="scen">
+      <span class="sh">Scenarios</span>
+      <span class="chip">Window on Wayland</span>
+      <span class="chip">Window mode from the welcome page</span>
+      <ul>
+        <li>Same delivery as region and screen captures; only "Window" and the size differ.</li>
+        <li>The session is closed before the editor appears, so GNOME's indicator is gone.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="branches">
+  <div class="bcard">
+    <h3><svg class="icon"><use href="#i-close"/></svg>Cancel while waiting (Cancel or Esc)</h3>
+    <p>The waiting OSD disappears and the screen-sharing session is closed, which also ends GNOME's pending request. No image, no message. The next capture starts normally.</p>
+    <span class="chip">Cancel while waiting</span>
+  </div>
+  <div class="bcard">
+    <h3><svg class="icon"><use href="#i-close"/></svg>Chooser closed → nothing happens (no toast)</h3>
+    <p>Once GNOME reports it: the waiting OSD disappears. No image, no Annota window, no message. Windows that were open come back as they were.</p>
+    <span class="chip">Chooser closed</span>
+  </div>
+  <div class="bcard">
+    <h3><svg class="icon"><use href="#i-warning"/></svg>No frame in 5 s → failure toast</h3>
+    <div class="toast" style="align-self:flex-start;padding-right:18px"><span class="toast-title">The capture failed. Nothing was captured.</span></div>
+    <p class="dim">Also when no stream starts. Session closed, cause logged. Shown in the window Annota presents for messages.</p>
+    <span class="chip">No frame arrives</span>
+  </div>
+  <div class="bcard">
+    <h3><svg class="icon"><use href="#i-timer"/></svg>Countdown cancelled with Esc</h3>
+    <p>No image, no message. The session closes, so GNOME's screen-sharing indicator disappears.</p>
+    <span class="chip">Countdown cancelled</span>
+  </div>
+  <div class="bcard">
+    <h3><svg class="icon"><use href="#i-info"/></svg>No window source → screenshot UI as before</h3>
+    <p>Without a WINDOW source (or without ScreenCast), window mode opens the Screenshot portal's interactive UI, as add-screen-capture 05. Ending there without an image says "Nothing was captured".</p>
+    <span class="chip">No window source</span>
+  </div>
+  <div class="bcard">
+    <h3><svg class="icon"><use href="#i-cursor"/></svg>Include Pointer</h3>
+    <p>On: the stream is asked to embed the pointer, if the portal offers that. Off: asked to hide it. Annota never draws a pointer into a window image itself.</p>
+    <span class="chip">Pointer in a window capture</span>
+    <span class="chip" style="margin-top:0">Cursor excluded</span>
+  </div>
+</div>
+
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

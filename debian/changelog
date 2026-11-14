@@ -1,3 +1,20 @@
+annota (0.1.0) noble; urgency=medium
+
+  * First release.
+  * Capture a region, a window or the whole screen through
+    xdg-desktop-portal, with delay, pointer and multi-monitor options and
+    global shortcuts (GlobalShortcuts portal, or GNOME custom keybindings).
+  * Window stills through the ScreenCast portal's window chooser and
+    GStreamer.
+  * Editor with arrows, shapes, pen, text, callouts, numbered steps,
+    highlighter and redaction; every annotation stays editable, with
+    undo/redo, crop, resize, rotate and the editable .annota format.
+  * Quick styles, themes and tool presets.
+  * Export to PNG, JPG, WebP and PDF, copy to the clipboard and drag out.
+  * English and German.
+
+ -- Thorsten Rosin <thorsten.rosin@gmail.com>  Sat, 14 Nov 2026 23:30:00 +0100
+
 annota (0.1.0~dev1) noble; urgency=medium
 
   * Initial packaging: application shell, desktop integration, AppStream

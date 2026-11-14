@@ -1,0 +1,28 @@
+# Scenario gate configuration, read by tools/scenario_gate.py (CLAUDE.md §5 "Verify").
+# Every test carries `// spec: <capability> / <Requirement> / <Scenario>` directly above it, and
+# every implemented scenario has a green test or a passed manual check with a reason.
+
+test_globs = ["src/**/*.rs", "tests/**/*.rs"]
+test_marker = '^\s*#\[test\]'
+name_regex = 'fn\s+(\w+)'
+comment = "//"
+attribute_regex = '^\s*(#\[|@|\[)'
+manual_checks = ["openspec/changes/**/manual-checks.md"]
+
+# All tests that need no display, in one cargo run (same target dir as `meson test`).
+[[run]]
+name = "unit"
+exclude = '#\[ignore'
+cmd = "cargo test --locked --target-dir _build/target 2>&1"
+result_regex = '^test (?P<name>\S+) \.\.\. (?P<status>\w+)'
+pass = ["ok"]
+
+# Live-GTK tests: one process each, headless X11, isolated config, a private bus on which nothing
+# can be activated (src/ui/mod.rs `test_support`, src/capture/live_tests.rs).
+[[run]]
+name = "live"
+select = '#\[ignore'
+per_test = true
+cmd = "XDG_CONFIG_HOME=$(mktemp -d) GDK_BACKEND=x11 xvfb-run -a dbus-run-session --config-file=tools/no-services-bus.conf -- cargo test --locked --target-dir _build/target --bin annota {name} -- --ignored 2>&1"
+result_regex = '^test (?P<name>\S+) \.\.\. (?P<status>\w+)'
+pass = ["ok"]

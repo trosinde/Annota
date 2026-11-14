@@ -268,6 +268,7 @@ mod tests {
         assert!(frame.crop(IRect::new(200, 200, 10, 10)).is_none());
     }
 
+    // spec: capture / Cursor inclusion / Include cursor
     #[test]
     fn pointer_is_visible_after_drawing() {
         // Scenario "Include cursor": the pointer is visible in the image.

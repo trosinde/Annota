@@ -196,9 +196,24 @@ pub fn present(
                 }
                 Press::Ignore | Press::Navigate => return glib::Propagation::Proceed,
                 Press::Accel(accel) => {
-                    let conflict = shortcuts::find_conflict(&settings, mode, &accel);
+                    let conflict = shortcuts::find_conflict(
+                        &settings,
+                        gio::Application::default()
+                            .and_downcast::<gtk::Application>()
+                            .as_ref(),
+                        mode,
+                        &accel,
+                    );
                     keys.set_accelerator(&accel);
-                    set.set_sensitive(conflict.as_ref().is_none_or(|c| c.takeover));
+                    let free = conflict.as_ref().is_none_or(|c| c.takeover);
+                    set.set_sensitive(free);
+                    // Mockup 04 (fix-portal-shortcut-bindings): a refused combination's keycaps
+                    // get the destructive ring.
+                    if free {
+                        keys.remove_css_class("annota-conflict");
+                    } else {
+                        keys.add_css_class("annota-conflict");
+                    }
                     show_status(conflict.as_ref());
                     pending.replace(Some(accel));
                 }

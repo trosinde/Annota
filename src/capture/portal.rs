@@ -111,14 +111,15 @@ impl GrabOptions {
         interactive: false,
         modal: true,
     };
-    /// The portal's interactive picker (window mode, mockup 05).
+    /// The portal's interactive picker: window mode where the ScreenCast portal offers no window
+    /// source (fix-window-capture-screencast D6; add-screen-capture mockup 05).
     pub const PICKER: GrabOptions = GrabOptions {
         interactive: true,
         modal: true,
     };
 
-    /// Window mode uses the desktop's picker; region and screen freeze the whole desktop
-    /// for Annota's own overlay.
+    /// Window mode's Screenshot-portal fallback uses the desktop's picker; region and screen
+    /// freeze the whole desktop for Annota's own overlay.
     pub fn for_mode(mode: CaptureMode) -> GrabOptions {
         match mode {
             CaptureMode::Window => Self::PICKER,
@@ -162,14 +163,14 @@ async fn register() {
 /// leaves GNOME's question open, so the request gets a plain copy of the handle
 /// ([`ParentWindow::for_request`]) and this keeps the real identifier, which goes when the request
 /// ends or, before the surface does, when the window closes.
-struct ParentWindow {
+pub(super) struct ParentWindow {
     window: gtk::Window,
     identifier: Rc<RefCell<Option<WindowIdentifier>>>,
     on_unrealize: Option<glib::SignalHandlerId>,
 }
 
 impl ParentWindow {
-    async fn new(window: &gtk::Window) -> Self {
+    pub(super) async fn new(window: &gtk::Window) -> Self {
         let identifier = WindowIdentifier::from_native(window).await;
         let identifier = Rc::new(RefCell::new(identifier));
         // Runs ahead of GTK's own handler, which destroys the surface.
@@ -184,7 +185,7 @@ impl ParentWindow {
         }
     }
 
-    fn for_request(&self) -> Option<WindowIdentifier> {
+    pub(super) fn for_request(&self) -> Option<WindowIdentifier> {
         self.identifier.borrow().as_ref().and_then(plain_copy)
     }
 
@@ -381,7 +382,7 @@ mod tests {
 
     #[test]
     fn window_mode_uses_the_interactive_picker() {
-        // Scenario "Window on Wayland": the portal picker is shown.
+        // Scenario "No window source": the fallback shows the portal picker.
         assert!(GrabOptions::for_mode(CaptureMode::Window).interactive);
         assert!(!GrabOptions::for_mode(CaptureMode::Region).interactive);
         assert!(!GrabOptions::for_mode(CaptureMode::Screen).interactive);

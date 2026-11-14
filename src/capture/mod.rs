@@ -11,10 +11,12 @@ mod live_tests;
 pub mod overlay;
 pub mod permission;
 pub mod portal;
+pub mod screencast;
 pub mod shortcut_dialog;
 pub mod shortcuts;
 pub mod snap;
 pub mod texture;
+pub mod window_wait;
 
 use std::cell::Cell;
 use std::time::Duration;
@@ -68,6 +70,10 @@ thread_local! {
 /// is open (`annota --capture` from a shortcut).
 pub fn start(app: &adw::Application, request: Request) {
     if BUSY.with(|busy| busy.replace(true)) {
+        // A window capture waiting for its chooser: raise its OSD, start nothing new.
+        if request.mode == CaptureMode::Window {
+            window_wait::raise();
+        }
         return;
     }
     let app = app.clone();
@@ -234,14 +240,17 @@ async fn run(
     let mut mode = request.mode;
     let mut delay = request.delay;
     loop {
-        if delay > 0 && countdown::run(app, mode, delay).await == countdown::End::Cancelled {
+        // Window mode orders its own countdown (`window_steps`).
+        if mode != CaptureMode::Window
+            && delay > 0
+            && countdown::run(app, mode, delay).await == countdown::End::Cancelled
+        {
             return Ok(None);
         }
         match mode {
             CaptureMode::Window => {
-                // Wayland: the desktop's own picker (mockup 05); Annota draws nothing.
-                let frame = portal::grab(GrabOptions::for_mode(CaptureMode::Window)).await?;
-                return Ok(Some((frame, Source::Window)));
+                let frame = window(app, delay, request.include_pointer).await?;
+                return Ok(frame.map(|frame| (frame, Source::Window)));
             }
             CaptureMode::Screen => {
                 let frame = portal::grab(GrabOptions::for_mode(CaptureMode::Screen)).await?;
@@ -276,6 +285,74 @@ async fn run(
     }
 }
 
+/// One step of a window capture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WindowStep {
+    /// The waiting OSD and the desktop's window chooser (ScreenCast portal).
+    Chooser,
+    /// The capture delay's countdown.
+    Countdown,
+    /// One frame of the chosen window, then the session closes.
+    Frame,
+    /// The Screenshot portal's interactive UI, where ScreenCast offers no window source.
+    ScreenshotUi,
+}
+
+/// The order of a window capture (design.md D4, D6). Through ScreenCast the chooser comes first
+/// and the countdown after it, so the user picks the window and then has the delay to bring it
+/// into shape. The Screenshot-portal fallback keeps today's order: countdown, then its UI.
+fn window_steps(delay: u32, screencast: bool) -> &'static [WindowStep] {
+    use WindowStep::*;
+    match (screencast, delay > 0) {
+        (true, false) => &[Chooser, Frame],
+        (true, true) => &[Chooser, Countdown, Frame],
+        (false, false) => &[ScreenshotUi],
+        (false, true) => &[Countdown, ScreenshotUi],
+    }
+}
+
+/// Window mode. `None`: the countdown was cancelled.
+async fn window(
+    app: &adw::Application,
+    delay: u32,
+    include_pointer: bool,
+) -> Result<Option<Frame>, CaptureError> {
+    let source = screencast::window_source_available().await;
+    // Dropping a chosen window closes its session, on every way out of this function.
+    let mut chosen = None;
+    for step in window_steps(delay, source.is_some()) {
+        match step {
+            WindowStep::Chooser => {
+                let source = source
+                    .as_ref()
+                    .ok_or_else(|| CaptureError::Failed(String::from("no window source")))?;
+                chosen = Some(window_wait::choose(app, source, include_pointer).await?);
+            }
+            WindowStep::Countdown => {
+                if countdown::run(app, CaptureMode::Window, delay).await
+                    == countdown::End::Cancelled
+                {
+                    return Ok(None);
+                }
+            }
+            WindowStep::Frame => {
+                let chosen = chosen
+                    .take()
+                    .ok_or_else(|| CaptureError::Failed(String::from("no window chosen")))?;
+                return chosen.grab_frame().await.map(Some);
+            }
+            WindowStep::ScreenshotUi => {
+                // The desktop's screenshot UI (add-screen-capture mockup 05); Annota draws
+                // nothing, and `with_permission` sorts an ending without an image.
+                return portal::grab(GrabOptions::for_mode(CaptureMode::Window))
+                    .await
+                    .map(Some);
+            }
+        }
+    }
+    Err(CaptureError::Failed(String::from("no window step")))
+}
+
 /// Crops the confirmed region; with a toolbar delay, waits and grabs the screen again first.
 async fn region(
     app: &adw::Application,
@@ -284,17 +361,47 @@ async fn region(
     rect: geometry::IRect,
     include_pointer: bool,
     delay: u32,
-    mut pointer: Option<PointerAt>,
+    pointer: Option<PointerAt>,
 ) -> Result<Frame, CaptureError> {
+    let mut after_countdown = None;
     if delay > 0 {
         if countdown::run(app, CaptureMode::Region, delay).await == countdown::End::Cancelled {
             return Err(CaptureError::Cancelled);
         }
         desktop = Desktop::new(portal::grab(GrabOptions::FROZEN).await?);
         if include_pointer {
-            pointer = overlay::probe_pointer(app, &desktop).await;
+            after_countdown = overlay::probe_pointer(app, &desktop).await;
         }
     }
+    let pointer = capture_pointer(delay, pointer, after_countdown);
+    compose_region(&desktop, monitor, rect, include_pointer, pointer)
+}
+
+/// The pointer position a region capture uses. Without a delay it is the one at confirmation.
+/// With a delay it is the one probed when the countdown ended, because the user may have moved
+/// the pointer into the region during the countdown (spec: Delayed region capture places the
+/// pointer); the position at confirmation is stale by then and never falls back in.
+fn capture_pointer(
+    delay: u32,
+    at_confirmation: Option<PointerAt>,
+    after_countdown: Option<PointerAt>,
+) -> Option<PointerAt> {
+    if delay > 0 {
+        after_countdown
+    } else {
+        at_confirmation
+    }
+}
+
+/// The region image: the selection cut out of `monitor`'s frozen frame, with the pointer drawn
+/// in only when it is included and its hot spot lies inside the selection.
+fn compose_region(
+    desktop: &Desktop,
+    monitor: usize,
+    rect: geometry::IRect,
+    include_pointer: bool,
+    pointer: Option<PointerAt>,
+) -> Result<Frame, CaptureError> {
     let shot = desktop
         .monitors
         .get(monitor)
@@ -341,6 +448,17 @@ async fn screen(
     } else {
         None
     };
+    compose_screen(&desktop, all_monitors, include_pointer, pointer)
+}
+
+/// The screen image: the monitor under the pointer (or every monitor), with the pointer drawn
+/// in only when it is included.
+fn compose_screen(
+    desktop: &Desktop,
+    all_monitors: bool,
+    include_pointer: bool,
+    pointer: Option<PointerAt>,
+) -> Result<Frame, CaptureError> {
     let crops: Vec<geometry::IRect> = desktop.monitors.iter().map(|m| m.crop).collect();
     let rect = geometry::screen_capture_rect(
         &crops,
@@ -380,6 +498,106 @@ mod tests {
         PointerAt { monitor, x, y }
     }
 
+    const GREY: frame::Rgb = frame::Rgb {
+        r: 0x80,
+        g: 0x80,
+        b: 0x80,
+    };
+    const WHITE: frame::Rgb = frame::Rgb {
+        r: 0xff,
+        g: 0xff,
+        b: 0xff,
+    };
+
+    /// One 800 x 600 monitor at scale 1, uniformly grey, so anything drawn on it shows.
+    fn desktop() -> Desktop {
+        let full = Frame::filled(800, 600, GREY).expect("frame");
+        Desktop {
+            monitors: vec![overlay::MonitorShot {
+                monitor: None,
+                crop: full.bounds(),
+                frame: full.clone(),
+                scale: 1.0,
+            }],
+            full,
+        }
+    }
+
+    // spec: capture / Cursor inclusion / Cursor excluded
+    #[test]
+    fn an_excluded_pointer_leaves_the_portal_frame_unmodified() {
+        // The pointer stands well inside the selection, where it would be drawn if included.
+        // Both modes in which Annota draws the pointer itself are compared pixel for pixel with
+        // the plain portal frame of the captured area. Window mode never draws one (the
+        // desktop's picker decides, spec text).
+        let desktop = desktop();
+        let rect = IRect::new(100, 100, 400, 300);
+        let pointer = Some(at(0, 300.0, 250.0));
+        let plain_region = desktop.full.crop(rect).expect("crop");
+
+        let region = compose_region(&desktop, 0, rect, false, pointer).expect("region");
+        assert!(region == plain_region, "region capture was modified");
+        let screen = compose_screen(&desktop, false, false, pointer).expect("screen");
+        assert!(screen == desktop.full, "screen capture was modified");
+
+        // Control: with the pointer included the same captures differ, so the comparison above
+        // is able to fail.
+        let region = compose_region(&desktop, 0, rect, true, pointer).expect("region");
+        assert!(region != plain_region);
+        let screen = compose_screen(&desktop, false, true, pointer).expect("screen");
+        assert!(screen != desktop.full);
+    }
+
+    // spec: capture / Cursor inclusion / Delayed region capture places the pointer
+    #[test]
+    fn a_delayed_region_capture_draws_the_pointer_where_the_countdown_ended() {
+        // Confirmed with the pointer over the toolbar (no position), then moved into the region
+        // during the countdown: the position probed after the countdown is the one drawn.
+        let desktop = desktop();
+        let rect = IRect::new(100, 100, 400, 300);
+        let after = Some(at(0, 300.0, 250.0));
+        let pointer = capture_pointer(3, None, after);
+        assert_eq!(pointer, after);
+        let image = compose_region(&desktop, 0, rect, true, pointer).expect("region");
+        // Hot spot at 200, 150 in the crop; inside the arrow body the fill is white
+        // (same offset as `frame::pointer_is_visible_after_drawing`).
+        assert_eq!(image.pixel(203, 160), Some(WHITE));
+
+        // The position at confirmation is stale after a countdown and never falls back in:
+        // inside at confirmation, outside when the countdown ended, no pointer.
+        let pointer = capture_pointer(3, Some(at(0, 300.0, 250.0)), Some(at(0, 50.0, 50.0)));
+        let image = compose_region(&desktop, 0, rect, true, pointer).expect("region");
+        assert!(image == desktop.full.crop(rect).expect("crop"));
+
+        // Without a delay the position at confirmation counts.
+        let confirmed = Some(at(0, 1.0, 2.0));
+        assert_eq!(capture_pointer(0, confirmed, after), confirmed);
+    }
+
+    // spec: capture / Window capture / Delayed window capture
+    #[test]
+    fn the_chooser_comes_before_the_countdown() {
+        // Task 4.3, scenario "Delayed window capture": chooser, countdown, frame.
+        use WindowStep::*;
+        assert_eq!(window_steps(3, true), [Chooser, Countdown, Frame]);
+        assert_eq!(
+            window_steps(0, true),
+            [Chooser, Frame],
+            "no delay: no countdown"
+        );
+    }
+
+    // spec: capture / Window capture / No window source
+    #[test]
+    fn without_a_window_source_the_screenshot_ui_stays_as_before() {
+        // Scenario "No window source": today's order, countdown first, no waiting OSD.
+        use WindowStep::*;
+        assert_eq!(window_steps(0, false), [ScreenshotUi]);
+        assert_eq!(window_steps(3, false), [Countdown, ScreenshotUi]);
+    }
+
+    // spec: capture / Pointer preview in the region overlay / Pointer will be included
+    // spec: capture / Pointer preview in the region overlay / Pointer will not be included
     #[test]
     fn the_preview_and_the_capture_cannot_disagree() {
         // Task 4.2: the overlay's preview and `region` must reach the same verdict for the same
@@ -398,6 +616,7 @@ mod tests {
         }
     }
 
+    // spec: capture / Cursor inclusion / Pointer outside the selection
     #[test]
     fn a_pointer_on_another_monitor_is_not_drawn() {
         // Scenario "Pointer outside the selection", multi-monitor case: the selection lives on
@@ -416,6 +635,7 @@ mod tests {
         );
     }
 
+    // spec: capture / Cursor inclusion / Pointer outside the selection
     #[test]
     fn no_pointer_position_draws_nothing() {
         // Scenario "Pointer outside the selection": confirmed from the keyboard, or the pointer
@@ -424,6 +644,7 @@ mod tests {
         assert_eq!(region_pointer(None, 0, rect, 1.0), None);
     }
 
+    // spec: capture / Cursor inclusion / Pointer inside the selection
     #[test]
     fn the_selections_origin_is_subtracted() {
         // The capture is the crop, so the drawn position is relative to its top-left corner.

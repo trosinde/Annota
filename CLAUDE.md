@@ -35,11 +35,11 @@ Do not change these without an approved OpenSpec change that says so (record it 
 | UI toolkit | GTK 4 (`gtk4` crate) + libadwaita (`libadwaita` crate), GNOME HIG |
 | Minimum platform | Ubuntu 24.04 LTS (GNOME 46, GTK 4.14, libadwaita 1.5); also Ubuntu 26.04 LTS and Debian 13 |
 | Display server | Wayland first, X11 must keep working |
-| Screen access | Only via **xdg-desktop-portal** (`ashpd` crate): Screenshot portal for stills, ScreenCast portal + PipeWire for video. No X11-only hacks, no root, no compositor-private APIs. |
+| Screen access | Only via **xdg-desktop-portal** (`ashpd` crate): Screenshot portal for region and screen stills, ScreenCast portal + PipeWire for window stills ([ADR 0002](docs/adr/0002-screencast-for-window-stills.md)) and video. No X11-only hacks, no root, no compositor-private APIs. |
 | Global hotkey | GlobalShortcuts portal when available (GNOME ≥ 48); fallback: register a GNOME custom keybinding that runs `annota --capture <mode>` |
 | Rendering | One renderer on **cairo-rs** used for the canvas *and* for export → pixel-identical WYSIWYG |
 | Document format | `.annota` = ZIP: `original.png` + `document.json` (versioned scene graph, schema in `data/schema/`) + `thumbnail.png` |
-| Video | GStreamer (`gstreamer-rs`), output MP4 (H.264) / WebM (VP9); GIF via `gifski` |
+| Video | GStreamer (`gstreamer-rs`), output MP4 (H.264) / WebM (VP9); GIF via `gifski`. GStreamer also takes the single frame of a window still (ADR 0002). |
 | OCR (phase 2) | Tesseract (`tesseract-ocr` package, eng + deu), runs locally, no cloud |
 | Build | Meson + Cargo (GNOME app template layout) |
 | Packaging | Native Debian package (`debian/`, debhelper-compat 13, vendored crates for offline build). Flatpak manifest is secondary. |
@@ -107,7 +107,7 @@ annota/
 
 ## 4. Project status and build
 
-**Status (2026-11-10)**
+**Status (2026-11-14)**
 - Archived: `bootstrap-app-shell` and `add-signed-apt-repo` (2026-10-30); `add-screen-capture`,
   `add-annotation-editor`, `add-core-annotation-tools` and `add-style-system` (2026-11-10). Their
   deltas are merged into `openspec/specs/`: `app-shell` (7 requirements), `capture` (10),
@@ -129,6 +129,20 @@ annota/
   captures. The overlay keeps only the first pointer position it sees, so the arrow is drawn
   outside the crop and cairo clips it away silently. Direction A of three, chosen by the
   maintainer; design gate open.
+- `fix-window-capture-screencast` (2026-11-14, ADR 0002): window mode never delivered a window
+  image. The Screenshot portal has no window mode, and its interactive UI always starts in
+  "Selection", so the Window card showed a region overlay. Window stills now go through the
+  ScreenCast portal's window chooser and one GStreamer frame, with Annota's own "Waiting for a
+  window…" indicator as the chooser's parent. Code, unit and fake-portal tests are done. Open:
+  `.deb` dependencies, the automated live suite (`tools/live-window-capture.py`, AT-SPI +
+  `tools/portal-input.py`), the Rust 1.85 build (CI), review. Defect class: the spec described
+  portal behaviour that no probe had ever measured - see §5 "Assumptions about the portal".
+- `fix-portal-shortcut-bindings` archived 2026-11-14. Every surface shows the triggers the portal
+  reports, never `shortcut-*`; Preferences leaves editing to GNOME Settings (Apps › Annota ›
+  Global Shortcuts). Measured on GNOME 50: GNOME Shell silently refuses a grab on a key its own
+  keybindings hold (`Alt+Print`, `Shift+Print`) while the portal reports it bound - Annota marks
+  such keys "Used by GNOME". GNOME's provider has also been seen to reassign stored triggers on
+  bind (cause unknown). Known limitation: the Preferences row's AT-SPI description stays empty.
 - `add-capture-library` is the last MVP change not started (18 tasks, design-approved). The other
   P2/P3 changes have no implementation.
 - `add-screen-capture` task 4.6 (the first-launch Print-key-takeover prompt, D9) was archived
@@ -185,8 +199,9 @@ annota/
 **Build dependencies (Ubuntu 24.04)**
 ```bash
 sudo apt install -y debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
-  libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext desktop-file-utils \
-  appstream libglib2.0-bin lintian devscripts
+  libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  blueprint-compiler gettext desktop-file-utils \
+  appstream libglib2.0-bin lintian devscripts gstreamer1.0-pipewire
 ```
 
 **Develop**
@@ -239,7 +254,26 @@ Every user-visible feature goes through these gates. No gate may be skipped.
    scenario has a test or a documented manual check, UI matches mockups (screenshot comparison),
    clippy/fmt/tests green, `.deb` builds, lintian clean. Then `/opsx:archive <id>`.
 
-Bugfixes without visible behaviour change skip step 2–3 but still need a test.
+Bugfixes without visible behaviour change skip step 2–3 but still need a test, tagged with the
+scenario the bug violated (add the scenario first if the spec had none).
+
+**Scenario gate (quality gate at the end of every implementation):**
+- **Every test references a scenario.** Directly above each test:
+  `// spec: <capability> / <Requirement> / <Scenario>`, titles exactly as in the spec headings,
+  several tags allowed. A test that proves no scenario is either missing its scenario (add it to
+  the spec first) or is not needed.
+- **No implemented scenario without a test.** Every scenario in `openspec/specs/` and every
+  ADDED/MODIFIED scenario of the change being finished has a green tagged test. Only where
+  automation is impossible: a row in the change's `manual-checks.md`
+  (`Spec | Check | Why not automated | Result | Date`) with Result `pass` and a date. Never invent a
+  result.
+- `python3 tools/scenario_gate.py check` runs in CI (static). `python3 tools/scenario_gate.py
+  verify <change-id>` runs the tagged tests, live-GTK tests included (`openspec/scenario-gate.toml`),
+  is the last step of the Verify task group and writes `openspec/changes/<id>/scenario-report.md`.
+  A change is archived only when it exits 0.
+- `openspec/scenario-baseline.txt` lists the violations that predate the gate (2026-11-14: all 604
+  tests untagged, all 215 scenarios uncovered). It may only shrink; never add entries, never put
+  the current change's scenarios there.
 
 **Verification rules, each paid for with a shipped defect:**
 - A requirement whose only evidence is a row in `manual-checks.md` must have that row run before
@@ -299,7 +333,8 @@ Bugfixes without visible behaviour change skip step 2–3 but still need a test.
 - `debian/copyright` lists all vendored crate licenses; refresh with `build-aux/update-copyright.py`.
 - `lintian -I --pedantic` must show no errors or warnings.
 - Runtime deps from `${shlibs:Depends}` plus `xdg-desktop-portal`, `xdg-desktop-portal-gnome`;
-  add `gstreamer1.0-plugins-good`, `gstreamer1.0-pipewire` with screen recording;
+  add `gstreamer1.0-pipewire`, `gstreamer1.0-plugins-base` for window stills (ADR 0002) and
+  `gstreamer1.0-plugins-good` with screen recording;
   `Recommends: tesseract-ocr`.
 - Install desktop file, metainfo, icons, GSettings schema, locale files; `appstreamcli validate`
   and `desktop-file-validate` pass.

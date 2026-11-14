@@ -16,6 +16,22 @@ concurrency:
 # Everything runs on Ubuntu 24.04 with the distro's Rust 1.85: the oldest platform and the
 # MSRV Annota is packaged for (CLAUDE.md §2), so no separate MSRV job is needed.
 jobs:
+  scenario-gate:
+    name: scenario gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Gate script tests
+        run: python3 -m unittest tools/tests/test_scenario_gate.py
+
+      # Every test tagged with its scenario, every implemented scenario covered (CLAUDE.md §5).
+      - name: Scenario gate
+        run: |
+          python3 tools/scenario_gate.py check --format markdown >> "$GITHUB_STEP_SUMMARY" || true
+          python3 tools/scenario_gate.py check
+
   lint:
     name: fmt + clippy
     runs-on: ubuntu-24.04

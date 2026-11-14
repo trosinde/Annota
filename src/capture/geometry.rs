@@ -467,6 +467,7 @@ pub fn screen_capture_rect(
 mod tests {
     use super::*;
 
+    // spec: capture / Pointer preview in the region overlay / Pointer will be included
     #[test]
     fn the_pointer_chip_sits_beside_the_hot_spot_and_clears_the_loupe() {
         // Redline: 30 px right of the hot spot, vertically centred on it. The loupe starts at
@@ -483,6 +484,7 @@ mod tests {
         );
     }
 
+    // spec: capture / Pointer preview in the region overlay / Pointer will be included
     #[test]
     fn the_pointer_chip_flips_at_the_right_edge() {
         let area = (1920.0, 1080.0);
@@ -496,6 +498,8 @@ mod tests {
         assert_eq!(pointer_chip_position((400.0, 1078.0), size, area).1, 1054.0);
     }
 
+    // spec: capture / Cursor inclusion / Pointer inside the selection
+    // spec: capture / Cursor inclusion / Pointer outside the selection
     #[test]
     fn the_pointer_is_drawn_only_inside_the_selection() {
         // Scenario "Pointer inside the selection" / "Pointer outside the selection".
@@ -509,6 +513,7 @@ mod tests {
         assert_eq!(rect.pointer_inside((150.0, 500.0), 1.0), None);
     }
 
+    // spec: capture / Cursor inclusion / Pointer on the selection edge
     #[test]
     fn the_hot_spot_decides_not_the_whole_arrow() {
         // Redline: a hot spot one pixel inside the lower-right corner still draws, even though
@@ -523,6 +528,7 @@ mod tests {
         assert_eq!(rect.pointer_inside((800.0, 300.0), 1.0), None);
     }
 
+    // spec: capture / Cursor inclusion / Pointer inside the selection
     #[test]
     fn the_pointer_is_scaled_into_image_pixels() {
         // The overlay reports logical px; the crop is image px. At 125 % a logical 2084.16

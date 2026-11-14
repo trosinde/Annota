@@ -15,6 +15,7 @@ rules:
     - Name the benchmark features from docs/feature-catalog.md that this change covers
   specs:
     - Every requirement has at least one testable WHEN/THEN scenario
+    - Scenario titles are test keys - unique within their requirement. Renaming or removing a scenario means updating every `spec:` tag that names it in the same change
     - Keyboard shortcuts, default values and limits are part of the requirement text
   design:
     - Link every mockup in docs/design/<change-id>/ and map it to the spec scenarios
@@ -24,12 +25,18 @@ rules:
     - First task group is always "Design gate" (designer mockups + maintainer approval)
     - Last task group is always "Verify" (reviewer agent, tests, .deb build, lintian)
     - Every new annotation tool needs a golden-image render test
+    - Every implementation task names the scenarios it proves; its tests carry `spec:` tags for them
+    - The last task group "Verify" ends with `python3 tools/scenario_gate.py verify <change-id>` exiting 0 and the generated scenario-report.md committed
 
 operations:
   apply:
     guidance:
       - Do not start implementation while the design gate tasks are open
       - Match mockups exactly; deviations need maintainer approval
+      - "Every test carries a `spec: <capability> / <Requirement> / <Scenario>` comment directly above it. No test without a scenario: if a test proves no scenario, add the missing scenario to the spec first, or drop the test"
+      - "No implemented scenario without a green test. A manual check (manual-checks.md row with Result pass, Date and Why not automated) is allowed only where automation is impossible"
+      - "A task is not done while one of its scenarios lacks a green tagged test. Finish apply by running `python3 tools/scenario_gate.py verify <change-id>`"
   archive:
     guidance:
       - Only archive after the reviewer agent reported no blocking findings
+      - "Refuse to archive unless `python3 tools/scenario_gate.py verify <change-id>` exits 0 on the current HEAD. Never add the change's own scenarios to openspec/scenario-baseline.txt"

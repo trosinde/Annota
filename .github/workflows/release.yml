@@ -40,6 +40,24 @@ jobs:
             || { echo "::error::debian/changelog $deb_version does not match $cargo_version"; exit 1; }
           case "$TAG" in *-*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
 
+      # Users trust packaging/annota-archive-keyring.asc. A secret holding any other key would
+      # publish a repo that apt refuses, so the release stops before anything is published.
+      - name: Signing key matches the published keyring
+        if: steps.version.outputs.prerelease == 'false'
+        env:
+          SIGNING_KEY: ${{ secrets.ANNOTA_RELEASE_SIGNING_KEY }}
+        run: |
+          [ -n "$SIGNING_KEY" ] || { echo "::error::secret ANNOTA_RELEASE_SIGNING_KEY is not set"; exit 1; }
+          export GNUPGHOME=$(mktemp -d)
+          echo "$SIGNING_KEY" | base64 -d | gpg --batch --import 2>/dev/null
+          secret_fpr=$(gpg --with-colons --list-secret-keys | awk -F: '/^fpr/ {print $10; exit}')
+          keyring_fpr=$(gpg --with-colons --show-keys packaging/annota-archive-keyring.asc \
+            | awk -F: '/^fpr/ {print $10; exit}')
+          rm -rf "$GNUPGHOME"
+          echo "secret $secret_fpr, keyring $keyring_fpr"
+          [ -n "$secret_fpr" ] && [ "$secret_fpr" = "$keyring_fpr" ] \
+            || { echo "::error::ANNOTA_RELEASE_SIGNING_KEY ($secret_fpr) is not the key in packaging/annota-archive-keyring.asc ($keyring_fpr)"; exit 1; }
+
       # make-deb.sh runs the test suite (dh_auto_test) and lintian; it decides what ships.
       - name: Build .deb
         run: |

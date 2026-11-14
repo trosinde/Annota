@@ -1,0 +1,786 @@
+# Known violations of the scenario gate. This list may only shrink.
+uncovered-scenario: annotation-tools / Arrow / Curved arrow
+uncovered-scenario: annotation-tools / Arrow / Double-ended
+uncovered-scenario: annotation-tools / Callout / No tails
+uncovered-scenario: annotation-tools / Callout / Two tails
+uncovered-scenario: annotation-tools / Common style properties / Eyedropper
+uncovered-scenario: annotation-tools / Drawing over existing objects / Adjust what was just drawn
+uncovered-scenario: annotation-tools / Drawing over existing objects / Second arrow from an existing arrow
+uncovered-scenario: annotation-tools / Drawing over existing objects / Second highlight inside the selected one
+uncovered-scenario: annotation-tools / Highlighter / Text readable
+uncovered-scenario: annotation-tools / Line / Plain line
+uncovered-scenario: annotation-tools / Pen / Editable stroke
+uncovered-scenario: annotation-tools / Properties sidebar / One undo step per change
+uncovered-scenario: annotation-tools / Properties sidebar / Polygon reachable
+uncovered-scenario: annotation-tools / Properties sidebar / Tool defaults
+uncovered-scenario: annotation-tools / Redaction / Pixelate hides detail
+uncovered-scenario: annotation-tools / Reversible redaction warning / Cancel
+uncovered-scenario: annotation-tools / Reversible redaction warning / Continue unconverted
+uncovered-scenario: annotation-tools / Reversible redaction warning / Convert to solid
+uncovered-scenario: annotation-tools / Reversible redaction warning / No warning before a save
+uncovered-scenario: annotation-tools / Reversible redaction warning / Only solid redactions
+uncovered-scenario: annotation-tools / Reversible redaction warning / Warning before a drag
+uncovered-scenario: annotation-tools / Reversible redaction warning / Warning before batch export
+uncovered-scenario: annotation-tools / Reversible redaction warning / Warning before copy
+uncovered-scenario: annotation-tools / Reversible redaction warning / Warning before export
+uncovered-scenario: annotation-tools / Reversible redaction warning / Warning before share
+uncovered-scenario: annotation-tools / Reversible redaction warning / Warning before the Copy of a new capture's toast
+uncovered-scenario: annotation-tools / Shadow ranges / Shadow out of range
+uncovered-scenario: annotation-tools / Shape / Frame
+uncovered-scenario: annotation-tools / Shape / Polygon
+uncovered-scenario: annotation-tools / Step / Auto-increment
+uncovered-scenario: annotation-tools / Step / Renumber on delete
+uncovered-scenario: annotation-tools / Step / Sequence type for the whole sequence
+uncovered-scenario: annotation-tools / Style exceptions / Shared controls follow the type
+uncovered-scenario: annotation-tools / Text / Edit in place
+uncovered-scenario: annotation-tools / Tool switching / Key switches tool
+uncovered-scenario: annotation-tools / Tool switching / Tool stays active
+uncovered-scenario: app-shell / Command-line options / Invalid mode
+uncovered-scenario: app-shell / Command-line options / Open a file of a newer format
+uncovered-scenario: app-shell / Command-line options / Open file
+uncovered-scenario: app-shell / Command-line options / Open image file
+uncovered-scenario: app-shell / Keyboard shortcuts window / Open shortcuts
+uncovered-scenario: app-shell / Light and dark style / System switches to dark
+uncovered-scenario: app-shell / Local-only operation / No network at all
+uncovered-scenario: app-shell / Local-only operation / No outgoing connections
+uncovered-scenario: app-shell / Preferences / Setting persists
+uncovered-scenario: app-shell / Single application instance / Second launch forwards request
+uncovered-scenario: app-shell / Single application instance / Second launch starts a capture
+uncovered-scenario: capture / After-capture destination / Editor destination
+uncovered-scenario: capture / After-capture destination / Editor unavailable
+uncovered-scenario: capture / Delayed capture / Countdown
+uncovered-scenario: capture / Full-screen capture / Multi-monitor
+uncovered-scenario: capture / Image from clipboard or file / Drop an image file
+uncovered-scenario: capture / Image from clipboard or file / File already open
+uncovered-scenario: capture / Image from clipboard or file / Paste
+uncovered-scenario: capture / Image from clipboard or file / Unsupported file
+uncovered-scenario: capture / Portal permission handling / A window closed during the question
+uncovered-scenario: capture / Portal permission handling / A window opened during the question
+uncovered-scenario: capture / Portal permission handling / Ask Again
+uncovered-scenario: capture / Portal permission handling / Ask Again while it is running
+uncovered-scenario: capture / Portal permission handling / Asked again after the reset
+uncovered-scenario: capture / Portal permission handling / Close keeps the answer
+uncovered-scenario: capture / Portal permission handling / Denied dialog already open
+uncovered-scenario: capture / Portal permission handling / Denied with only the editor open
+uncovered-scenario: capture / Portal permission handling / First capture with no window open
+uncovered-scenario: capture / Portal permission handling / First capture, user allows
+uncovered-scenario: capture / Portal permission handling / GNOME could not ask
+uncovered-scenario: capture / Portal permission handling / Permission denied
+uncovered-scenario: capture / Portal permission handling / Permission exists
+uncovered-scenario: capture / Portal permission handling / Question dismissed
+uncovered-scenario: capture / Portal permission handling / Store cannot be read
+uncovered-scenario: capture / Portal permission handling / The answer cannot be reset
+uncovered-scenario: capture / Portal permission handling / The entry is already gone
+uncovered-scenario: capture / Portal permission handling / User chooses Deny
+uncovered-scenario: capture / Portal permission handling / Window mode is not checked
+uncovered-scenario: capture / Region capture / Cancel
+uncovered-scenario: capture / Region capture / Fixed size
+uncovered-scenario: capture / Region capture / Nudge with the keyboard
+uncovered-scenario: capture / Region capture / Select and confirm
+uncovered-scenario: capture / Region capture / Snap to a window edge
+uncovered-scenario: debian-packaging / Continuous integration / Failing lint blocks
+uncovered-scenario: debian-packaging / Desktop integration / App grid
+uncovered-scenario: debian-packaging / Installable package / Offline build
+uncovered-scenario: debian-packaging / Key rotation and revocation documented / Maintainer rotates the signing key
+uncovered-scenario: debian-packaging / Published signing key / User imports the key before adding the repository
+uncovered-scenario: debian-packaging / Runtime dependencies / Dependencies resolved
+uncovered-scenario: debian-packaging / Signed APT repository / Direct .deb download still available
+uncovered-scenario: debian-packaging / Signed APT repository / Install from the signed repository
+uncovered-scenario: document-format / Autosave and recovery / Crash recovery
+uncovered-scenario: document-format / Autosave and recovery / Discarded when closing
+uncovered-scenario: document-format / Autosave and recovery / Recoverable entry
+uncovered-scenario: document-format / Autosave and recovery / Saved document leaves no autosave
+uncovered-scenario: document-format / Autosaves when Annota ends / Closed after saving or discarding
+uncovered-scenario: document-format / Autosaves when Annota ends / Ended without asking keeps the autosave
+uncovered-scenario: document-format / Documents stay saveable / Invalid change refused
+uncovered-scenario: document-format / Editable document file / Failed save
+uncovered-scenario: document-format / Editable document file / Round trip
+uncovered-scenario: document-format / Format versions / Newer major
+uncovered-scenario: document-format / Forward compatibility / Newer minor
+uncovered-scenario: document-format / Forward compatibility / Unknown nested keys
+uncovered-scenario: document-format / Forward compatibility / Unknown objects are not moved
+uncovered-scenario: document-format / Groups with unknown members / Group with an unknown member
+uncovered-scenario: document-format / Recovery dialog / Discard
+uncovered-scenario: document-format / Recovery dialog / Restore
+uncovered-scenario: document-format / Recovery offered once per run / Started by a capture hotkey
+uncovered-scenario: document-format / Save changes before closing / Cancel
+uncovered-scenario: document-format / Save changes before closing / Discard
+uncovered-scenario: document-format / Save changes before closing / Document saved before
+uncovered-scenario: document-format / Save changes before closing / Never saved
+uncovered-scenario: document-format / Save changes before closing / Save
+uncovered-scenario: document-format / Save changes before closing / Save fails
+uncovered-scenario: document-format / Save changes before closing / Several unsaved documents
+uncovered-scenario: document-format / Unique object ids / Duplicate id refused
+uncovered-scenario: document-format / Unique object ids / Group ids survive saving
+uncovered-scenario: document-format / Unknown values / Unknown background type
+uncovered-scenario: document-format / Unknown values / Unreadable object in a newer minor file
+uncovered-scenario: editor-canvas / Arrange entries / Unchanged Arrange fields
+uncovered-scenario: editor-canvas / Canvas background / Background swatch
+uncovered-scenario: editor-canvas / Canvas extension / Extend for callout
+uncovered-scenario: editor-canvas / Canvas extension from the keyboard / Extend the canvas from the keyboard
+uncovered-scenario: editor-canvas / Canvas extension from the keyboard / Tabbing through the Canvas entries
+uncovered-scenario: editor-canvas / Context menu / Context menu on a selection
+uncovered-scenario: editor-canvas / Context menu / Group from the context menu
+uncovered-scenario: editor-canvas / Crop mode / Crop cancelled
+uncovered-scenario: editor-canvas / Crop result / Nothing to crop
+uncovered-scenario: editor-canvas / Editor layout / Narrow window
+uncovered-scenario: editor-canvas / Flatten / Flatten all
+uncovered-scenario: editor-canvas / Flatten / Flatten is undoable
+uncovered-scenario: editor-canvas / Flatten result / Flattened pixels
+uncovered-scenario: editor-canvas / Header bar / Subtitle shows changes
+uncovered-scenario: editor-canvas / Image operations / Crop
+uncovered-scenario: editor-canvas / Image operations with objects of a newer version / Document with objects of a newer version
+uncovered-scenario: editor-canvas / Image operations with objects of a newer version / Operations return without such objects
+uncovered-scenario: editor-canvas / Main menu / Image operations from the menu
+uncovered-scenario: editor-canvas / Main menu / Save before add-export-share
+uncovered-scenario: editor-canvas / Object manipulation / Keyboard nudge
+uncovered-scenario: editor-canvas / Object manipulation / Rotate snapping
+uncovered-scenario: editor-canvas / Object selection / Add to the selection
+uncovered-scenario: editor-canvas / Object selection / Rubber band
+uncovered-scenario: editor-canvas / Recent captures source / Open image is not recent
+uncovered-scenario: editor-canvas / Recent captures source / Recent capture opens
+uncovered-scenario: editor-canvas / Recent captures tray / Picture in picture
+uncovered-scenario: editor-canvas / Resize image / Resize with annotations
+uncovered-scenario: editor-canvas / Resizing boxes with turned members / Resize a box with a turned member
+uncovered-scenario: editor-canvas / Rotate and flip / Flip mirrors an inserted picture
+uncovered-scenario: editor-canvas / Rotate and flip / Rotate keeps annotations on the image
+uncovered-scenario: editor-canvas / Rounded corners / Rounded corners
+uncovered-scenario: editor-canvas / Select all of a type / Recolour all arrows
+uncovered-scenario: editor-canvas / Select all of a type / Select all images
+uncovered-scenario: editor-canvas / Shared renderer / Only the visible area is drawn
+uncovered-scenario: editor-canvas / Shared renderer / Transparent canvas
+uncovered-scenario: editor-canvas / Shared renderer / WYSIWYG
+uncovered-scenario: editor-canvas / Snapping and guides / Alt suspends snapping
+uncovered-scenario: editor-canvas / Snapping and guides / Centre snap
+uncovered-scenario: editor-canvas / Snapping resize handles / Snapping a ratio-locked resize
+uncovered-scenario: editor-canvas / Snapping switch / Snapping switch
+uncovered-scenario: editor-canvas / Undo and redo / One step per drag
+uncovered-scenario: editor-canvas / Undo and redo / Undo move
+uncovered-scenario: editor-canvas / View control / Fit
+uncovered-scenario: editor-canvas / View control / Fit follows the window
+uncovered-scenario: editor-canvas / View control / Zoom at the pointer
+uncovered-scenario: editor-canvas / Z-order and grouping / Bring to front
+uncovered-scenario: editor-canvas / Z-order and grouping / Group moves together
+uncovered-scenario: editor-canvas / Z-order and grouping / Ungroup restores the objects
+uncovered-scenario: editor-canvas / Zoom OSD / Zoom popover
+uncovered-scenario: export-share / Batch export / Batch
+uncovered-scenario: export-share / Batch export / File exists
+uncovered-scenario: export-share / Batch export / File name pattern
+uncovered-scenario: export-share / Batch export / Selection mode
+uncovered-scenario: export-share / Clipboard / Edited while the new capture's toast is shown
+uncovered-scenario: export-share / Clipboard / New capture closed while its toast is shown
+uncovered-scenario: export-share / Clipboard / Paste elsewhere
+uncovered-scenario: export-share / Drag and drop / Drop into file manager
+uncovered-scenario: export-share / Export dialog / File exists
+uncovered-scenario: export-share / Export dialog / Folder not writable
+uncovered-scenario: export-share / Export formats / PDF Size sets the resolution, not the page
+uncovered-scenario: export-share / Export formats / WYSIWYG
+uncovered-scenario: export-share / File chooser extension / Full name typed
+uncovered-scenario: export-share / File chooser extension / Name is free
+uncovered-scenario: export-share / File chooser extension / Typed name lands on an existing file
+uncovered-scenario: export-share / Object copy and paste / Copy and paste into the same document
+uncovered-scenario: export-share / Object copy and paste / Paste after the source document closes
+uncovered-scenario: export-share / Object copy and paste / Paste into a different document
+uncovered-scenario: export-share / Object copy and paste / Paste the copied selection into another app
+uncovered-scenario: export-share / Object copy and paste / Plain image still opens as a new document
+uncovered-scenario: export-share / Object copy and paste / Warning before copying a selection
+uncovered-scenario: export-share / Quick save / Pattern
+uncovered-scenario: export-share / Quick save / Saved over its file
+uncovered-scenario: export-share / Saved document / Save fails
+uncovered-scenario: export-share / Saved document / Saved
+uncovered-scenario: export-share / Share / Copy to folder
+uncovered-scenario: export-share / Share / Email
+uncovered-scenario: export-share / Share / Open with
+uncovered-scenario: style-system / Applying quick styles / Apply style to a selection
+uncovered-scenario: style-system / Favourites / No favourites
+uncovered-scenario: style-system / Favourites / Use favourite
+uncovered-scenario: style-system / Managed themes / Managed theme
+uncovered-scenario: style-system / Managing quick styles / Delete with undo
+uncovered-scenario: style-system / Managing quick styles / Reorder with the keyboard
+uncovered-scenario: style-system / Quick style persistence / Newer library file
+uncovered-scenario: style-system / Quick styles / Default style
+uncovered-scenario: style-system / Saving quick styles / Save style
+uncovered-scenario: style-system / Theme editor / Colour count
+uncovered-scenario: style-system / Theme exchange / Round trip
+uncovered-scenario: style-system / Theme import errors / Import a theme with too many colours
+uncovered-scenario: style-system / Themes / Apply theme
+untagged-test: src/application.rs::a_message_goes_to_the_active_window_first
+untagged-test: src/application.rs::the_version_starts_with_the_release_version
+untagged-test: src/capture/countdown.rs::counts_down_whole_seconds
+untagged-test: src/capture/countdown.rs::messages_name_the_mode
+untagged-test: src/capture/countdown.rs::osd_is_gone_before_the_grab
+untagged-test: src/capture/countdown.rs::ring_shrinks_to_zero
+untagged-test: src/capture/delivery.rs::after_capture_plans
+untagged-test: src/capture/delivery.rs::editor_documents_are_named_and_announced_like_the_mockups
+untagged-test: src/capture/delivery.rs::imports_always_become_a_new_capture
+untagged-test: src/capture/delivery.rs::setting_values_map_to_enum
+untagged-test: src/capture/delivery.rs::stems_are_sanitised
+untagged-test: src/capture/delivery.rs::titles_carry_the_size
+untagged-test: src/capture/delivery.rs::unique_path_never_overwrites
+untagged-test: src/capture/frame.rs::crop_has_exact_size_and_content
+untagged-test: src/capture/frame.rs::crop_is_clipped_to_the_frame
+untagged-test: src/capture/frame.rs::filled_frame_reports_its_colour
+untagged-test: src/capture/frame.rs::frame_without_pointer_is_untouched
+untagged-test: src/capture/frame.rs::rejects_short_buffers
+untagged-test: src/capture/geometry.rs::arrow_keys_nudge_one_or_ten_px
+untagged-test: src/capture/geometry.rs::click_without_drag_has_no_selection
+untagged-test: src/capture/geometry.rs::drag_400_by_300
+untagged-test: src/capture/geometry.rs::drag_backwards_normalises
+untagged-test: src/capture/geometry.rs::drag_is_clamped_to_monitor
+untagged-test: src/capture/geometry.rs::eight_distinct_handles
+untagged-test: src/capture/geometry.rs::fixed_size_moves_selection_to_fit
+untagged-test: src/capture/geometry.rs::fixed_size_sets_exact_size
+untagged-test: src/capture/geometry.rs::fixed_size_without_selection_starts_top_left
+untagged-test: src/capture/geometry.rs::handle_hit_testing
+untagged-test: src/capture/geometry.rs::handles_resize_their_edges
+untagged-test: src/capture/geometry.rs::hidpi_layout_scales_crop
+untagged-test: src/capture/geometry.rs::layout_with_negative_origin
+untagged-test: src/capture/geometry.rs::loupe_flips_near_edges
+untagged-test: src/capture/geometry.rs::nudge_stops_at_monitor_edge
+untagged-test: src/capture/geometry.rs::shift_drag_is_square
+untagged-test: src/capture/geometry.rs::size_chip_sits_above_or_inside
+untagged-test: src/capture/geometry.rs::toolbar_below_then_above
+untagged-test: src/capture/geometry.rs::two_monitors_map_to_image_halves
+untagged-test: src/capture/import.rs::accepts_png_jpg_webp_only
+untagged-test: src/capture/live_tests.rs::a_capture_after_ask_again_asks_again
+untagged-test: src/capture/live_tests.rs::a_dismissed_question_leaves_no_window_of_its_own
+untagged-test: src/capture/live_tests.rs::a_failing_delete_keeps_the_dialog_with_the_error_line
+untagged-test: src/capture/live_tests.rs::a_grab_waits_for_the_registration
+untagged-test: src/capture/live_tests.rs::a_picker_without_an_image_says_so
+untagged-test: src/capture/live_tests.rs::a_question_that_cannot_be_shown_is_not_a_denial
+untagged-test: src/capture/live_tests.rs::a_second_capture_does_not_stack_a_second_dialog
+untagged-test: src/capture/live_tests.rs::a_window_opened_during_the_question_survives
+untagged-test: src/capture/live_tests.rs::ask_again_removes_only_annotas_entry_and_closes
+untagged-test: src/capture/live_tests.rs::ask_again_runs_once_and_does_not_block
+untagged-test: src/capture/live_tests.rs::close_keeps_the_answer
+untagged-test: src/capture/live_tests.rs::closing_the_parent_during_the_question_is_safe
+untagged-test: src/capture/live_tests.rs::could_not_ask_uses_the_open_editor
+untagged-test: src/capture/live_tests.rs::first_run_allow_over_the_open_window
+untagged-test: src/capture/live_tests.rs::first_run_deny
+untagged-test: src/capture/live_tests.rs::not_found_counts_as_success
+untagged-test: src/capture/live_tests.rs::stored_no_is_denied_without_asking
+untagged-test: src/capture/live_tests.rs::stored_no_shows_the_dialog_without_the_delay
+untagged-test: src/capture/live_tests.rs::stored_yes_grabs_once_with_the_window_hidden
+untagged-test: src/capture/live_tests.rs::the_denied_dialog_uses_the_open_editor
+untagged-test: src/capture/live_tests.rs::the_german_dialog_fits
+untagged-test: src/capture/live_tests.rs::the_parent_handle_goes_with_the_window
+untagged-test: src/capture/live_tests.rs::unreadable_store_asks_after_the_first_refusal
+untagged-test: src/capture/live_tests.rs::window_mode_never_asks_first
+untagged-test: src/capture/overlay.rs::delay_texts
+untagged-test: src/capture/overlay.rs::size_chip_text
+untagged-test: src/capture/permission.rs::closing_the_picker_is_not_a_failure
+untagged-test: src/capture/permission.rs::not_found_is_an_answer_other_errors_are_not
+untagged-test: src/capture/permission.rs::only_a_stored_no_is_a_denial
+untagged-test: src/capture/permission.rs::only_an_undecided_frozen_grab_asks_first
+untagged-test: src/capture/permission.rs::only_not_found_counts_as_already_deleted
+untagged-test: src/capture/permission.rs::the_delete_names_annotas_entry_only
+untagged-test: src/capture/permission.rs::the_store_entry_decides_for_this_app_only
+untagged-test: src/capture/portal.rs::a_plain_copy_keeps_the_handle
+untagged-test: src/capture/portal.rs::cancel_is_silent
+untagged-test: src/capture/portal.rs::missing_portal_is_reported_as_such
+untagged-test: src/capture/portal.rs::other_errors_keep_their_message
+untagged-test: src/capture/portal.rs::response_code_2_is_a_refusal_not_a_denial
+untagged-test: src/capture/portal.rs::window_mode_uses_the_interactive_picker
+untagged-test: src/capture/shortcuts.rs::accelerators_normalise
+untagged-test: src/capture/shortcuts.rs::custom_keybinding_list_is_merged_not_replaced
+untagged-test: src/capture/shortcuts.rs::d9_defaults_are_gnome_print_keys
+untagged-test: src/capture/shortcuts.rs::program_name_prefers_path
+untagged-test: src/capture/shortcuts.rs::takeover_leaves_unrelated_keys_alone
+untagged-test: src/capture/shortcuts.rs::xdg_triggers_for_portal
+untagged-test: src/capture/snap.rs::corner_snaps_on_both_axes
+untagged-test: src/capture/snap.rs::no_snap_beyond_8_px
+untagged-test: src/capture/snap.rs::snaps_within_8_px
+untagged-test: src/capture/snap.rs::text_does_not_snap
+untagged-test: src/cli.rs::delay_limits
+untagged-test: src/cli.rs::invalid_mode_is_rejected
+untagged-test: src/cli.rs::modes_round_trip
+untagged-test: src/cli.rs::valid_modes_parse
+untagged-test: src/document/annotation.rs::box_handles_sit_on_the_rotated_box
+untagged-test: src/document/annotation.rs::corner_resize_keeps_opposite_corner
+untagged-test: src/document/annotation.rs::edge_resize_changes_one_dimension
+untagged-test: src/document/annotation.rs::keep_ratio_scales_both_sides
+untagged-test: src/document/annotation.rs::resize_never_inverts
+untagged-test: src/document/annotation.rs::rotated_resize_keeps_anchor_in_document_space
+untagged-test: src/document/annotation.rs::rotation_follows_pointer_and_snaps
+untagged-test: src/document/annotation.rs::shadows_stay_inside_the_editor_ranges
+untagged-test: src/document/annotation.rs::value_helpers_check_type_and_range
+untagged-test: src/document/archive.rs::archive_layout
+untagged-test: src/document/archive.rs::damaged_files_fail_cleanly
+untagged-test: src/document/archive.rs::failed_save_keeps_the_previous_file
+untagged-test: src/document/archive.rs::format_versions_parse
+untagged-test: src/document/archive.rs::newer_major_file_is_not_changed
+untagged-test: src/document/archive.rs::newer_major_names_the_required_version
+untagged-test: src/document/archive.rs::newer_minor_opens_and_keeps_unknown_data
+untagged-test: src/document/archive.rs::round_trip_keeps_every_object_and_property
+untagged-test: src/document/archive.rs::save_replaces_atomically_and_reads_summary
+untagged-test: src/document/archive.rs::schema_matches_what_is_written
+untagged-test: src/document/archive.rs::unknown_background_type_opens_and_is_kept
+untagged-test: src/document/archive.rs::unknown_nested_keys_survive_a_round_trip
+untagged-test: src/document/archive.rs::unreadable_object_of_a_known_type_is_kept_in_newer_minor_files
+untagged-test: src/document/archive.rs::unused_embedded_images_are_not_saved
+untagged-test: src/document/autosave.rs::autosave_follows_edits
+untagged-test: src/document/autosave.rs::crash_leaves_a_recoverable_entry
+untagged-test: src/document/autosave.rs::default_dir_is_in_the_cache
+untagged-test: src/document/autosave.rs::ids_are_file_name_safe
+untagged-test: src/document/autosave.rs::listing_skips_foreign_and_reports_damaged_files
+untagged-test: src/document/autosave.rs::schedule_writes_only_changes
+untagged-test: src/document/bitmap.rs::argb32_buffers_are_validated
+untagged-test: src/document/bitmap.rs::oversized_png_is_refused_before_decoding
+untagged-test: src/document/bitmap.rs::png_round_trip_keeps_pixels
+untagged-test: src/document/bitmap.rs::translucent_pixels_are_unpremultiplied
+untagged-test: src/document/clipboard.rs::a_payload_outlives_its_document
+untagged-test: src/document/clipboard.rs::damaged_payloads_fail_cleanly
+untagged-test: src/document/clipboard.rs::groups_travel_with_their_members
+untagged-test: src/document/clipboard.rs::newer_major_payload_is_refused
+untagged-test: src/document/clipboard.rs::newer_minor_payload_keeps_what_this_version_does_not_know
+untagged-test: src/document/clipboard.rs::objects_round_trip_like_a_saved_document
+untagged-test: src/document/clipboard.rs::only_the_selected_objects_in_stacking_order
+untagged-test: src/document/color.rs::hex_round_trip
+untagged-test: src/document/color.rs::invalid_colours_are_rejected
+untagged-test: src/document/command.rs::batch_undoes_in_reverse
+untagged-test: src/document/command.rs::canvas_extension_undoes
+untagged-test: src/document/command.rs::dangling_resource_reference_is_rejected
+untagged-test: src/document/command.rs::dirty_tracking_follows_undo_and_redo
+untagged-test: src/document/command.rs::empty_stacks_do_nothing
+untagged-test: src/document/command.rs::failed_batch_drops_the_images_it_added
+untagged-test: src/document/command.rs::failing_batch_rolls_back
+untagged-test: src/document/command.rs::insert_positions_are_validated
+untagged-test: src/document/command.rs::invalid_commands_leave_the_document_alone
+untagged-test: src/document/command.rs::keeps_at_least_200_steps
+untagged-test: src/document/command.rs::keyboard_nudge_moves_ten_pixels
+untagged-test: src/document/command.rs::nan_coordinate_is_rejected
+untagged-test: src/document/command.rs::new_command_clears_redo
+untagged-test: src/document/command.rs::remove_and_undo_restore_stacking_order
+untagged-test: src/document/command.rs::reorder_undoes_to_previous_order
+untagged-test: src/document/command.rs::select_all_recolour_is_one_step
+untagged-test: src/document/command.rs::undo_move_restores_position
+untagged-test: src/document/geometry.rs::degrees_normalise
+untagged-test: src/document/geometry.rs::local_and_document_frames_are_inverse
+untagged-test: src/document/geometry.rs::mirror_negates_angles_and_keeps_sizes
+untagged-test: src/document/geometry.rs::none_rect_never_intersects
+untagged-test: src/document/geometry.rs::quarter_turn_maps_the_image_onto_itself_turned
+untagged-test: src/document/geometry.rs::rotated_bounds_of_square_at_45_degrees
+untagged-test: src/document/geometry.rs::rotation_is_clockwise_on_screen
+untagged-test: src/document/geometry.rs::scaling_scales_boxes_along_their_axes
+untagged-test: src/document/mod.rs::background_json_shape
+untagged-test: src/document/mod.rs::new_document_canvas_is_the_image
+untagged-test: src/document/mod.rs::resource_ids_are_strict
+untagged-test: src/document/registry.rs::every_registered_type_round_trips_with_its_tag
+untagged-test: src/document/registry.rs::malformed_nodes_are_rejected
+untagged-test: src/document/registry.rs::nan_fields_do_not_read_back
+untagged-test: src/document/registry.rs::unknown_containers_report_nested_ids
+untagged-test: src/document/registry.rs::unknown_keys_of_a_known_type_are_preserved
+untagged-test: src/document/registry.rs::unknown_types_are_kept_verbatim
+untagged-test: src/document/registry.rs::unreadable_known_type_is_kept_in_newer_minor_files
+untagged-test: src/document/residual.rs::changed_tag_drops_the_old_variants_keys
+untagged-test: src/document/residual.rs::known_keys_take_the_current_value
+untagged-test: src/document/residual.rs::nothing_lost_means_no_residual
+untagged-test: src/document/residual.rs::rewritten_arrays_drop_element_residuals
+untagged-test: src/document/residual.rs::unknown_keys_survive_at_every_depth
+untagged-test: src/document/scene.rs::ids_are_not_reused
+untagged-test: src/document/scene.rs::index_follows_mutations
+untagged-test: src/document/scene.rs::indexed_and_linear_queries_agree
+untagged-test: src/document/scene.rs::nested_ids_are_never_handed_out
+untagged-test: src/document/scene.rs::reorder_requires_a_permutation
+untagged-test: src/document/scene.rs::select_all_of_a_type
+untagged-test: src/document/scene.rs::topmost_object_wins_the_hit
+untagged-test: src/document/style.rs::line_styles_round_trip_their_keys
+untagged-test: src/document/style.rs::offset_follows_angle
+untagged-test: src/editing/canvas_edit.rs::a_canvas_inside_the_image_can_only_grow
+untagged-test: src/editing/canvas_edit.rs::dragging_the_right_edge_extends_the_canvas
+untagged-test: src/editing/canvas_edit.rs::edges_do_not_cut_into_the_image
+untagged-test: src/editing/canvas_edit.rs::entered_extensions_extend_the_canvas
+untagged-test: src/editing/canvas_edit.rs::grabbers_sit_on_the_edge_midpoints
+untagged-test: src/editing/canvas_edit.rs::radius_handle_sets_rounded_corners
+untagged-test: src/editing/crop.rs::aspect_ratios_fit_inside_the_frame
+untagged-test: src/editing/crop.rs::frame_starts_as_the_canvas_and_grips_resize_it
+untagged-test: src/editing/crop.rs::grips_are_found_in_screen_pixels
+untagged-test: src/editing/drag.rs::a_drag_is_one_undoable_move
+untagged-test: src/editing/drag.rs::axis_aligned_multi_selection_still_resizes_one_axis
+untagged-test: src/editing/drag.rs::centre_snap_and_alt
+untagged-test: src/editing/drag.rs::click_selects_and_empty_click_clears
+untagged-test: src/editing/drag.rs::group_moves_together
+untagged-test: src/editing/drag.rs::hover_and_cursors
+untagged-test: src/editing/drag.rs::multi_selection_rotates_as_one_box
+untagged-test: src/editing/drag.rs::multi_selection_with_a_turned_member_resizes_uniformly
+untagged-test: src/editing/drag.rs::pressing_a_selected_object_moves_the_whole_selection
+untagged-test: src/editing/drag.rs::ratio_locked_resize_never_claims_a_snap_it_does_not_land_on
+untagged-test: src/editing/drag.rs::ratio_locked_resize_snaps_where_the_box_lands
+untagged-test: src/editing/drag.rs::resize_handle_resizes_and_snaps_to_the_canvas_edge
+untagged-test: src/editing/drag.rs::rotate_snapping
+untagged-test: src/editing/drag.rs::rubber_band_selects_live_and_escape_restores
+untagged-test: src/editing/drag.rs::snapping_switched_off
+untagged-test: src/editing/drag.rs::type_handles_snap_only_where_they_land_under_the_pointer
+untagged-test: src/editing/image_ops.rs::canvas_size_background_and_corner_radius_are_undoable
+untagged-test: src/editing/image_ops.rs::crop_into_an_extended_canvas_keeps_the_extension
+untagged-test: src/editing/image_ops.rs::crop_keeps_annotations_on_their_image_position
+untagged-test: src/editing/image_ops.rs::files_without_flip_flags_read_unmirrored
+untagged-test: src/editing/image_ops.rs::flatten_all_burns_objects_into_the_image
+untagged-test: src/editing/image_ops.rs::flatten_selection_keeps_the_rest_and_grows_into_the_extension
+untagged-test: src/editing/image_ops.rs::flips_mirror_image_objects_with_their_content
+untagged-test: src/editing/image_ops.rs::flips_mirror_the_image_and_move_objects
+untagged-test: src/editing/image_ops.rs::grouped_image_objects_mirror_with_the_document
+untagged-test: src/editing/image_ops.rs::grouped_members_follow_a_rotation
+untagged-test: src/editing/image_ops.rs::resize_scales_image_canvas_and_objects
+untagged-test: src/editing/image_ops.rs::resize_with_annotations_scenario
+untagged-test: src/editing/image_ops.rs::rotating_and_resizing_keep_an_image_object_unmirrored
+untagged-test: src/editing/image_ops.rs::rotating_right_turns_image_canvas_and_objects
+untagged-test: src/editing/image_ops.rs::scale_annotations_switch_decides_about_styles
+untagged-test: src/editing/image_ops.rs::unknown_objects_block_the_operations_that_move_every_object
+untagged-test: src/editing/ops.rs::a_quick_style_is_one_step_on_every_selected_object
+untagged-test: src/editing/ops.rs::arrange_places_one_object
+untagged-test: src/editing/ops.rs::arrange_places_several_as_one_box
+untagged-test: src/editing/ops.rs::arranging_a_group_with_a_turned_member_scales_uniformly
+untagged-test: src/editing/ops.rs::copy_and_paste_into_the_same_document
+untagged-test: src/editing/ops.rs::delete_and_undo
+untagged-test: src/editing/ops.rs::duplicate_puts_offset_copies_on_top
+untagged-test: src/editing/ops.rs::duplicating_a_group_gives_its_members_new_ids
+untagged-test: src/editing/ops.rs::group_and_ungroup_select_the_result
+untagged-test: src/editing/ops.rs::inserted_image_is_selected_and_undoable
+untagged-test: src/editing/ops.rs::keyboard_nudge
+untagged-test: src/editing/ops.rs::nothing_to_paste
+untagged-test: src/editing/ops.rs::objects_of_a_newer_annota_paste_and_the_document_still_reopens
+untagged-test: src/editing/ops.rs::paste_into_another_document_after_the_source_closed
+untagged-test: src/editing/ops.rs::paste_matches_duplicate
+untagged-test: src/editing/ops.rs::pasted_groups_get_new_member_ids
+untagged-test: src/editing/ops.rs::pasting_where_the_picture_is_already_shares_it
+untagged-test: src/editing/ops.rs::property_edits_are_one_step_and_only_real_changes
+untagged-test: src/editing/ops.rs::restack_is_one_undo_step_and_noop_is_none
+untagged-test: src/editing/ops.rs::stacking_order
+untagged-test: src/editing/ops.rs::unknown_objects_get_new_ids_and_image_names
+untagged-test: src/editing/redactions.rs::convert_keeps_geometry_and_ids
+untagged-test: src/editing/redactions.rs::convert_to_solid_is_one_undo_step
+untagged-test: src/editing/redactions.rs::counts_blur_and_pixelate_at_any_depth
+untagged-test: src/editing/selection.rs::click_shift_click_and_ctrl_click
+untagged-test: src/editing/selection.rs::frames_for_one_several_and_a_group
+untagged-test: src/editing/selection.rs::handles_are_hit_in_screen_pixels
+untagged-test: src/editing/selection.rs::rubber_band_selects_enclosed_objects
+untagged-test: src/editing/selection.rs::select_all_of_a_type_and_by_predicate
+untagged-test: src/editing/selection.rs::small_boxes_hide_their_edge_handles
+untagged-test: src/editing/selection.rs::sync_drops_vanished_objects_and_follows_reordering
+untagged-test: src/editing/selection.rs::unknown_objects_are_not_selectable
+untagged-test: src/editing/snap.rs::centre_snap
+untagged-test: src/editing/snap.rs::coinciding_lines_all_become_guides
+untagged-test: src/editing/snap.rs::distance_is_six_screen_pixels
+untagged-test: src/editing/snap.rs::dragged_objects_are_not_targets
+untagged-test: src/editing/snap.rs::handles_snap_as_points_on_their_axes
+untagged-test: src/editing/snap.rs::nearest_wins_then_priority
+untagged-test: src/editing/snap.rs::object_edges_and_centres
+untagged-test: src/editing/steps.rs::a_restarted_sequence_keeps_its_own_numbering
+untagged-test: src/editing/steps.rs::changing_the_counting_changes_the_whole_sequence
+untagged-test: src/editing/steps.rs::deleting_marker_2_of_4_renumbers_the_rest
+untagged-test: src/editing/steps.rs::manual_values_and_grouped_markers
+untagged-test: src/editing/steps.rs::three_clicks_make_1_2_3
+untagged-test: src/editing/text_edit.rs::a_callout_is_added_even_without_text
+untagged-test: src/editing/text_edit.rs::a_new_text_is_one_undo_step_and_an_empty_one_nothing
+untagged-test: src/editing/text_edit.rs::clicks_place_the_caret
+untagged-test: src/editing/text_edit.rs::sidebar_changes_while_editing_are_part_of_the_one_step
+untagged-test: src/editing/text_edit.rs::typing_editing_keys_and_selection
+untagged-test: src/editing/tool.rs::a_second_arrow_started_on_an_existing_arrow_is_a_new_arrow
+untagged-test: src/editing/tool.rs::a_second_highlight_started_inside_the_selected_one_is_drawn
+untagged-test: src/editing/tool.rs::an_arrow_is_drawn_end_to_end_as_one_step
+untagged-test: src/editing/tool.rs::boxes_shift_squares_and_tiny_drags
+untagged-test: src/editing/tool.rs::keys_switch_tools
+untagged-test: src/editing/tool.rs::pen_strokes_and_straight_segments
+untagged-test: src/editing/tool.rs::polygons_vertex_by_vertex
+untagged-test: src/editing/tool.rs::shift_constrains_the_arrow_and_shows_the_angle
+untagged-test: src/editing/tool.rs::steps_are_placed_where_released
+untagged-test: src/editing/tool.rs::text_and_callouts_start_editing
+untagged-test: src/editing/tool.rs::text_tools_edit_only_the_selected_text
+untagged-test: src/editing/tool.rs::the_selected_arrow_keeps_its_handles_but_not_its_line
+untagged-test: src/editing/tool.rs::tool_defaults_are_prototypes
+untagged-test: src/export/tests.rs::export_writes_the_file
+untagged-test: src/export/tests.rs::formats_name_their_files
+untagged-test: src/export/tests.rs::handoff_is_the_flattened_png_named_after_the_document
+untagged-test: src/export/tests.rs::handoff_names_are_valid_file_names
+untagged-test: src/export/tests.rs::handoff_reports_an_unwritable_root
+untagged-test: src/export/tests.rs::jpeg_chroma_is_not_subsampled
+untagged-test: src/export/tests.rs::jpeg_puts_transparency_on_white
+untagged-test: src/export/tests.rs::jpeg_quality_is_passed_to_the_encoder
+untagged-test: src/export/tests.rs::jpeg_round_trip_is_close_to_the_canvas
+untagged-test: src/export/tests.rs::layered_pdf_drawing_matches_the_flattened_image
+untagged-test: src/export/tests.rs::old_handoffs_are_removed_by_a_later_one
+untagged-test: src/export/tests.rs::paper_layout_centres_and_only_shrinks
+untagged-test: src/export/tests.rs::paper_layout_divides_by_the_captures_device_scale
+untagged-test: src/export/tests.rs::pdf_bitmap_fills_the_page_when_a_size_rounds
+untagged-test: src/export/tests.rs::pdf_is_one_page_of_the_image_size
+untagged-test: src/export/tests.rs::pdf_keeps_redacted_content_out_of_the_file
+untagged-test: src/export/tests.rs::pdf_keeps_text_as_vectors_unless_switched_off
+untagged-test: src/export/tests.rs::pdf_paper_sizes_follow_the_image_orientation
+untagged-test: src/export/tests.rs::pdf_size_changes_the_resolution_not_the_page
+untagged-test: src/export/tests.rs::pdf_size_keeps_the_images_place_on_paper
+untagged-test: src/export/tests.rs::png_export_matches_the_canvas_at_100_percent
+untagged-test: src/export/tests.rs::png_keeps_translucent_pixels
+untagged-test: src/export/tests.rs::raster_split_covers_everything_below_bitmap_objects
+untagged-test: src/export/tests.rs::save_annota_keeps_the_document_editable
+untagged-test: src/export/tests.rs::saved_files_are_titled_after_their_name
+untagged-test: src/export/tests.rs::scale_sets_the_output_size
+untagged-test: src/export/tests.rs::unwritable_folder_is_a_permission_error
+untagged-test: src/export/tests.rs::webp_lossless_is_pixel_exact
+untagged-test: src/export/tests.rs::webp_lossy_quality_is_passed_to_the_encoder
+untagged-test: src/export/tests.rs::webp_refuses_images_above_its_size_limit
+untagged-test: src/preferences.rs::empty_save_folder_defaults_to_pictures_annota
+untagged-test: src/preferences.rs::filename_pattern_expands
+untagged-test: src/render/blur.rs::argb_blur_mixes_neighbouring_colours
+untagged-test: src/render/blur.rs::blur_spreads_symmetrically_and_keeps_mass
+untagged-test: src/render/blur.rs::radii_grow_with_sigma
+untagged-test: src/render/blur.rs::small_sigma_is_a_no_op
+untagged-test: src/render/mod.rs::canvas_at_100_percent_matches_export
+untagged-test: src/render/mod.rs::coloured_canvas_fills_the_extension
+untagged-test: src/render/mod.rs::export_of_a_plain_capture_is_the_capture
+untagged-test: src/render/mod.rs::only_visible_objects_are_drawn
+untagged-test: src/render/mod.rs::preview_copies_replace_objects_in_their_stacking_place
+untagged-test: src/render/mod.rs::rounded_image_corners_show_the_background
+untagged-test: src/render/mod.rs::thumbnail_fits_the_longer_side
+untagged-test: src/render/mod.rs::transparent_canvas_is_checkered_on_screen_only
+untagged-test: src/render/mod.rs::zoomed_render_scales_the_image
+untagged-test: src/render/overlay.rs::canvas_grabber_and_image_edge
+untagged-test: src/render/overlay.rs::crop_mode_dims_outside_and_draws_frame_and_grips
+untagged-test: src/render/overlay.rs::group_box_is_dashed_and_multi_selection_has_member_boxes
+untagged-test: src/render/overlay.rs::guides_cross_the_canvas_and_beyond
+untagged-test: src/render/overlay.rs::polygon_draft_and_text_editing_aids
+untagged-test: src/render/overlay.rs::rubber_band_is_tinted
+untagged-test: src/render/overlay.rs::single_selection_box_and_handles
+untagged-test: src/render/redact.rs::blur_reads_beyond_the_area_and_is_cached
+untagged-test: src/render/redact.rs::pixelate_averages_blocks
+untagged-test: src/render/shadow.rs::shadow_is_soft_and_offset
+untagged-test: src/render/shadow.rs::shadow_respects_zoom
+untagged-test: src/render/view.rs::extended_canvas_origin_accounts_for_negative_start
+untagged-test: src/render/view.rs::fit_matches_the_mockup
+untagged-test: src/render/view.rs::fit_width_fills_the_width_only
+untagged-test: src/render/view.rs::fitted_canvas_is_visible_and_centred
+untagged-test: src/render/view.rs::presets_are_recognised
+untagged-test: src/render/view.rs::view_origin_follows_the_scroll_position
+untagged-test: src/render/view.rs::zoom_keeps_the_point_under_the_pointer
+untagged-test: src/render/view.rs::zoom_steps_and_range
+untagged-test: src/styles/generate.rs::a_theme_with_brand_colours_colours_every_tool
+untagged-test: src/styles/generate.rs::annota_slot_0_is_every_tools_default
+untagged-test: src/styles/generate.rs::contrast_and_luminance
+untagged-test: src/styles/generate.rs::eight_different_styles_per_tool_even_with_two_colours
+untagged-test: src/styles/generate.rs::every_change_is_accepted_by_its_tool
+untagged-test: src/styles/generate.rs::generation_is_deterministic
+untagged-test: src/styles/library.rs::a_saved_style_goes_to_the_end_of_its_tool
+untagged-test: src/styles/library.rs::favourites_of_user_and_theme_styles
+untagged-test: src/styles/library.rs::fresh_ids_skip_collisions_with_unknown_styles
+untagged-test: src/styles/library.rs::newer_major_and_broken_files
+untagged-test: src/styles/library.rs::rename_move_update_delete_and_undo
+untagged-test: src/styles/library.rs::schema_matches_what_is_written
+untagged-test: src/styles/library.rs::the_file_round_trips_and_keeps_what_it_does_not_know
+untagged-test: src/styles/store.rs::import_export_duplicate_and_delete
+untagged-test: src/styles/store.rs::invalid_imports_say_why
+untagged-test: src/styles/store.rs::library_round_trips_through_its_file
+untagged-test: src/styles/store.rs::managed_themes_appear_read_only
+untagged-test: src/styles/store.rs::newer_and_broken_libraries_are_not_destroyed
+untagged-test: src/styles/theme.rs::a_newer_minor_version_keeps_what_it_added
+untagged-test: src/styles/theme.rs::a_theme_file_round_trips
+untagged-test: src/styles/theme.rs::built_in_themes_are_valid_and_read_only
+untagged-test: src/styles/theme.rs::every_import_error_has_its_reason
+untagged-test: src/styles/theme.rs::schema_matches_what_is_written
+untagged-test: src/styles/tile.rs::every_tile_shows_its_style
+untagged-test: src/styles/tile.rs::oversized_styles_still_fit
+untagged-test: src/styles/value.rs::a_style_matches_values_that_contain_it
+untagged-test: src/styles/value.rs::every_value_kind_round_trips
+untagged-test: src/styles/value.rs::style_keys_leave_out_what_is_not_style
+untagged-test: src/styles/value.rs::unknown_and_refused_values_are_kept_aside
+untagged-test: src/tools/arrow.rs::arrange_maps_the_three_points
+untagged-test: src/tools/arrow.rs::curve_handle_bends_the_line_through_it
+untagged-test: src/tools/arrow.rs::defaults_follow_the_redline
+untagged-test: src/tools/arrow.rs::double_ended_arrow_draws_both_heads
+untagged-test: src/tools/arrow.rs::hit_test_follows_the_curve_and_heads
+untagged-test: src/tools/arrow.rs::properties_round_trip_and_validate
+untagged-test: src/tools/arrow.rs::shift_constrains_ends_to_45_degrees
+untagged-test: src/tools/callout.rs::defaults_follow_the_redline
+untagged-test: src/tools/callout.rs::dragging_the_add_tail_handle_makes_a_second_tail
+untagged-test: src/tools/callout.rs::dropping_a_tip_on_the_body_removes_the_tail_even_the_last
+untagged-test: src/tools/callout.rs::properties_round_trip_and_validate
+untagged-test: src/tools/callout.rs::shapes_render_and_hit
+untagged-test: src/tools/callout.rs::the_body_grows_with_the_text
+untagged-test: src/tools/common.rs::constraint_snaps_to_45_degree_steps
+untagged-test: src/tools/common.rs::points_map_between_boxes
+untagged-test: src/tools/common.rs::polygon_and_segment_distances
+untagged-test: src/tools/group.rs::box_is_the_union_of_the_members
+untagged-test: src/tools/group.rs::files_with_duplicate_member_ids_are_refused
+untagged-test: src/tools/group.rs::group_and_ungroup_keep_ids_order_and_undo
+untagged-test: src/tools/group.rs::group_and_ungroup_never_reuse_or_duplicate_ids
+untagged-test: src/tools/group.rs::group_moves_together
+untagged-test: src/tools/group.rs::group_renders_like_its_members
+untagged-test: src/tools/group.rs::group_with_an_unknown_member_is_kept_verbatim
+untagged-test: src/tools/group.rs::grouping_needs_two_known_objects
+untagged-test: src/tools/group.rs::groups_cannot_take_ids_that_exist
+untagged-test: src/tools/group.rs::json_shape_and_round_trip
+untagged-test: src/tools/group.rs::resizing_a_rotated_group_works_in_its_own_axes
+untagged-test: src/tools/group.rs::resizing_scales_the_members
+untagged-test: src/tools/group.rs::rotating_turns_members_around_the_centre_and_keeps_the_box
+untagged-test: src/tools/group.rs::turned_members_force_uniform_scaling
+untagged-test: src/tools/highlighter.rs::properties_round_trip_and_validate
+untagged-test: src/tools/highlighter.rs::text_stays_legible_through_the_highlight
+untagged-test: src/tools/image.rs::bounds_include_border_and_shadow
+untagged-test: src/tools/image.rs::corner_drag_keeps_ratio_unless_shift
+untagged-test: src/tools/image.rs::hit_test_follows_rotation
+untagged-test: src/tools/image.rs::insert_scales_into_the_canvas_and_is_undoable
+untagged-test: src/tools/image.rs::properties_round_trip_and_validate
+untagged-test: src/tools/image.rs::small_images_are_not_enlarged
+untagged-test: src/tools/pen.rs::a_click_is_a_dot
+untagged-test: src/tools/pen.rs::changing_the_width_re_renders_the_same_path
+untagged-test: src/tools/pen.rs::properties_round_trip_and_validate
+untagged-test: src/tools/pen.rs::resizing_maps_the_points
+untagged-test: src/tools/pen.rs::smoothing_rounds_corners_but_keeps_ends
+untagged-test: src/tools/redaction.rs::canvas_and_export_show_the_same_effect
+untagged-test: src/tools/redaction.rs::defaults_follow_the_redline
+untagged-test: src/tools/redaction.rs::pixelate_blur_and_solid_hide_the_detail
+untagged-test: src/tools/redaction.rs::properties_round_trip_and_validate
+untagged-test: src/tools/shape.rs::a_frame_shows_only_its_outline
+untagged-test: src/tools/shape.rs::corner_radius_handle
+untagged-test: src/tools/shape.rs::defaults_follow_the_redline
+untagged-test: src/tools/shape.rs::ellipse_and_polygon_hit_tests
+untagged-test: src/tools/shape.rs::mirroring_mirrors_polygon_vertices
+untagged-test: src/tools/shape.rs::properties_round_trip_and_validate
+untagged-test: src/tools/step.rs::corner_handles_scale_it_round
+untagged-test: src/tools/step.rs::counting_styles
+untagged-test: src/tools/step.rs::defaults_and_manual_value
+untagged-test: src/tools/step.rs::properties_round_trip_and_validate
+untagged-test: src/tools/step.rs::shapes_render_with_ring_and_label
+untagged-test: src/tools/text.rs::defaults_follow_the_redline
+untagged-test: src/tools/text.rs::document_transforms_keep_the_text_readable
+untagged-test: src/tools/text.rs::editing_geometry
+untagged-test: src/tools/text.rs::multi_line_text_grows_with_its_lines
+untagged-test: src/tools/text.rs::properties_round_trip_and_validate
+untagged-test: src/tools/text.rs::resizing_scales_the_font
+untagged-test: src/tools/text.rs::text_renders_in_its_colour_with_an_outline
+untagged-test: src/ui/canvas.rs::canvas_edges_corner_radius_crop_and_eyedropper_on_a_live_canvas
+untagged-test: src/ui/canvas.rs::drawing_tools_on_a_live_canvas
+untagged-test: src/ui/canvas.rs::records_only_the_viewport_and_keeps_fit_centred
+untagged-test: src/ui/canvas.rs::select_move_snap_nudge_undo_and_group_on_a_live_canvas
+untagged-test: src/ui/editor/batch.rs::if_a_file_exists_adds_a_number_replaces_or_skips
+untagged-test: src/ui/editor/batch.rs::names_inside_a_batch_never_collide
+untagged-test: src/ui/editor/batch.rs::problems_before_writing
+untagged-test: src/ui/editor/batch.rs::stems_are_file_names
+untagged-test: src/ui/editor/batch.rs::texts_follow_mockups_11_to_13
+untagged-test: src/ui/editor/batch.rs::the_form_plans_with_its_format_and_folder
+untagged-test: src/ui/editor/batch.rs::the_pattern_knows_name_number_and_strftime
+untagged-test: src/ui/editor/closing.rs::responses_become_answers
+untagged-test: src/ui/editor/closing.rs::the_body_tells_saved_before_from_never_saved
+untagged-test: src/ui/editor/closing.rs::which_documents_are_asked_about
+untagged-test: src/ui/editor/colour.rs::a_theme_replaces_the_palette_swatches
+untagged-test: src/ui/editor/colour.rs::current_swatch_and_recent_colours
+untagged-test: src/ui/editor/colour.rs::hex_and_channels
+untagged-test: src/ui/editor/colour.rs::hsv_round_trips
+untagged-test: src/ui/editor/colour.rs::portal_colours_are_bytes
+untagged-test: src/ui/editor/colour.rs::rows_offer_the_redline_swatches
+untagged-test: src/ui/editor/dialogs.rs::only_checked_entries_are_restored_or_discarded
+untagged-test: src/ui/editor/dialogs.rs::rows_name_untitled_captures
+untagged-test: src/ui/editor/export_dialog.rs::defaults_follow_the_redline
+untagged-test: src/ui/editor/export_dialog.rs::estimates_use_the_real_encoder
+untagged-test: src/ui/editor/export_dialog.rs::folder_check_looks_at_the_nearest_existing_folder
+untagged-test: src/ui/editor/export_dialog.rs::problems_are_found_before_writing
+untagged-test: src/ui/editor/export_dialog.rs::size_menu_entries_show_pixels
+untagged-test: src/ui/editor/export_dialog.rs::summary_line_and_sizes
+untagged-test: src/ui/editor/export_dialog.rs::the_controls_become_export_settings
+untagged-test: src/ui/editor/export_dialog.rs::the_extension_is_not_part_of_the_name
+untagged-test: src/ui/editor/glyphs.rs::every_glyph_draws_something
+untagged-test: src/ui/editor/glyphs.rs::swatches_show_their_colour_and_the_current_one
+untagged-test: src/ui/editor/glyphs.rs::the_dial_points_where_the_shadow_falls
+untagged-test: src/ui/editor/mod.rs::batch_export_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::copy_drag_and_share_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::editor_window_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::export_and_save_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::first_capture_offers_recovery_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::new_capture_toast_copies_the_current_document_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::newer_objects_block_image_operations_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::nothing_to_offer_still_counts_as_offered
+untagged-test: src/ui/editor/mod.rs::object_copy_and_paste_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::previous_autosaves_are_offered_once_per_process
+untagged-test: src/ui/editor/mod.rs::quick_styles_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::save_changes_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::saves_keep_redactions_without_a_warning_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::style_menu_returns_focus_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::the_selected_segment_is_the_lightest_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::theme_editor_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::toasts_sit_over_the_canvas_column_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::tool_strip_and_tool_keys_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::type_properties_on_a_live_display
+untagged-test: src/ui/editor/mod.rs::typed_names_ask_before_replacing_on_a_live_display
+untagged-test: src/ui/editor/panel.rs::every_row_has_a_widget_name
+untagged-test: src/ui/editor/panel.rs::headings_name_the_mode
+untagged-test: src/ui/editor/panel.rs::multi_selection_edits_are_never_suppressed
+untagged-test: src/ui/editor/panel.rs::picker_pieces_draw
+untagged-test: src/ui/editor/panel.rs::spin_texts_and_shown_values
+untagged-test: src/ui/editor/properties.rs::every_type_has_its_redline_rows
+untagged-test: src/ui/editor/properties.rs::the_step_tool_shows_how_the_current_sequence_counts
+untagged-test: src/ui/editor/properties.rs::tool_defaults_hide_what_belongs_to_one_object
+untagged-test: src/ui/editor/properties.rs::what_the_panel_is_for
+untagged-test: src/ui/editor/redaction_warning.rs::body_names_the_count_and_the_kind
+untagged-test: src/ui/editor/redaction_warning.rs::the_middle_button_names_the_way_out
+untagged-test: src/ui/editor/resize.rs::linked_sizes_keep_the_ratio
+untagged-test: src/ui/editor/resize.rs::percent_unit
+untagged-test: src/ui/editor/saving.rs::errors_become_the_banners_of_mockup_04
+untagged-test: src/ui/editor/saving.rs::names_are_valid_file_names
+untagged-test: src/ui/editor/saving.rs::only_an_added_extension_on_an_existing_file_asks
+untagged-test: src/ui/editor/saving.rs::quick_save_uses_the_pattern_in_the_save_folder
+untagged-test: src/ui/editor/saving.rs::save_as_adds_the_extension
+untagged-test: src/ui/editor/saving.rs::the_alert_names_the_file_that_would_go
+untagged-test: src/ui/editor/saving.rs::toasts_follow_mockup_06
+untagged-test: src/ui/editor/session.rs::annota_files_are_recognised
+untagged-test: src/ui/editor/session.rs::status_by_origin
+untagged-test: src/ui/editor/session.rs::the_same_file_is_recognised_however_it_is_named
+untagged-test: src/ui/editor/session.rs::ticks_write_once_and_remove_when_saved
+untagged-test: src/ui/editor/share.rs::a_cancelled_portal_is_not_an_error_to_tell
+untagged-test: src/ui/editor/share.rs::annota_objects_paste_first_anything_else_opens_as_an_image
+untagged-test: src/ui/editor/share.rs::copy_with_a_selection_offers_the_objects_and_the_whole_image
+untagged-test: src/ui/editor/share.rs::handoffs_are_named_after_the_document
+untagged-test: src/ui/editor/share.rs::handoffs_go_to_the_private_runtime_folder
+untagged-test: src/ui/editor/share.rs::object_copy_and_paste_texts
+untagged-test: src/ui/editor/share.rs::toasts_follow_the_mockups
+untagged-test: src/ui/editor/sidebar.rs::arrange_numbers
+untagged-test: src/ui/editor/sidebar.rs::canvas_entries_only_send_real_changes
+untagged-test: src/ui/editor/sidebar.rs::crop_entries_are_whole_pixels
+untagged-test: src/ui/editor/sidebar.rs::document_state_reports_the_canvas_extensions
+untagged-test: src/ui/editor/sidebar.rs::document_state_without_selection
+untagged-test: src/ui/editor/sidebar.rs::objects_of_a_newer_annota_are_not_editable
+untagged-test: src/ui/editor/sidebar.rs::palette_swatches_name_their_background
+untagged-test: src/ui/editor/sidebar.rs::selection_state_for_one_several_and_a_group
+untagged-test: src/ui/editor/sidebar.rs::swatch_for_each_background
+untagged-test: src/ui/editor/sidebar.rs::tabbing_through_unchanged_fields_is_no_edit
+untagged-test: src/ui/editor/styles.rs::colour_names
+untagged-test: src/ui/editor/styles.rs::descriptions_and_suggested_names
+untagged-test: src/ui/editor/styles.rs::import_errors_name_the_reason
+untagged-test: src/ui/editor/text.rs::autosaved_rows_name_the_day
+untagged-test: src/ui/editor/text.rs::history_tooltips_name_the_step
+untagged-test: src/ui/editor/text.rs::newer_objects_texts
+untagged-test: src/ui/editor/text.rs::newer_version_body_matches_mockup_15
+untagged-test: src/ui/editor/text.rs::selection_headings
+untagged-test: src/ui/editor/text.rs::subtitle_follows_the_redline
+untagged-test: src/ui/editor/text.rs::zoom_label_shows_fit
+untagged-test: src/ui/editor/theme_editor.rs::theme_names_and_file_names
+untagged-test: src/ui/editor/tray.rs::annota_thumbnails_come_from_the_file
+untagged-test: src/ui/editor/tray.rs::payload_round_trip
+untagged-test: src/ui/editor/tray.rs::recent_lists_newest_captures_without_open_ones
+untagged-test: src/ui/editor/tray.rs::thumbnails_cover_the_tile_and_are_never_enlarged
+untagged-test: src/ui/labels.rs::chips_match_the_mockups
+untagged-test: src/ui/labels.rs::drawing_texts_match_the_mockups
+untagged-test: src/ui/labels.rs::image_operation_texts_match_the_mockups
+untagged-test: src/ui/labels.rs::undo_labels_name_the_action
+untagged-test: tests/render/main.rs::annota_theme_quick_styles
+untagged-test: tests/render/main.rs::arrow_and_line_objects
+untagged-test: tests/render/main.rs::arrow_end_and_line_style_matrix
+untagged-test: tests/render/main.rs::arrow_widths_sizes_curves_and_lines
+untagged-test: tests/render/main.rs::brand_theme_quick_styles
+untagged-test: tests/render/main.rs::callout_objects
+untagged-test: tests/render/main.rs::callout_shape_matrix
+untagged-test: tests/render/main.rs::group_object
+untagged-test: tests/render/main.rs::highlighter_colours_and_opacities
+untagged-test: tests/render/main.rs::highlighter_objects
+untagged-test: tests/render/main.rs::image_object
+untagged-test: tests/render/main.rs::image_object_styles
+untagged-test: tests/render/main.rs::pen_objects
+untagged-test: tests/render/main.rs::pen_widths_smoothing_and_opacity
+untagged-test: tests/render/main.rs::redaction_kind_shape_and_intensity_matrix
+untagged-test: tests/render/main.rs::redaction_objects
+untagged-test: tests/render/main.rs::shadow_matrix
+untagged-test: tests/render/main.rs::shape_kind_and_fill_matrix
+untagged-test: tests/render/main.rs::shape_objects
+untagged-test: tests/render/main.rs::step_objects
+untagged-test: tests/render/main.rs::step_shape_and_counting_matrix
+untagged-test: tests/render/main.rs::text_objects
+untagged-test: tests/render/main.rs::text_style_and_alignment_matrix
+untagged-test: tests/render/main.rs::transparent_canvas_on_screen
