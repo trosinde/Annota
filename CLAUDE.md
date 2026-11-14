@@ -239,7 +239,26 @@ Every user-visible feature goes through these gates. No gate may be skipped.
    scenario has a test or a documented manual check, UI matches mockups (screenshot comparison),
    clippy/fmt/tests green, `.deb` builds, lintian clean. Then `/opsx:archive <id>`.
 
-Bugfixes without visible behaviour change skip step 2–3 but still need a test.
+Bugfixes without visible behaviour change skip step 2–3 but still need a test, tagged with the
+scenario the bug violated (add the scenario first if the spec had none).
+
+**Scenario gate (quality gate at the end of every implementation):**
+- **Every test references a scenario.** Directly above each test:
+  `// spec: <capability> / <Requirement> / <Scenario>`, titles exactly as in the spec headings,
+  several tags allowed. A test that proves no scenario is either missing its scenario (add it to
+  the spec first) or is not needed.
+- **No implemented scenario without a test.** Every scenario in `openspec/specs/` and every
+  ADDED/MODIFIED scenario of the change being finished has a green tagged test. Only where
+  automation is impossible: a row in the change's `manual-checks.md`
+  (`Spec | Check | Why not automated | Result | Date`) with Result `pass` and a date. Never invent a
+  result.
+- `python3 tools/scenario_gate.py check` runs in CI (static). `python3 tools/scenario_gate.py
+  verify <change-id>` runs the tagged tests, live-GTK tests included (`openspec/scenario-gate.toml`),
+  is the last step of the Verify task group and writes `openspec/changes/<id>/scenario-report.md`.
+  A change is archived only when it exits 0.
+- `openspec/scenario-baseline.txt` lists the violations that predate the gate (2026-11-14: all 604
+  tests untagged, all 215 scenarios uncovered). It may only shrink; never add entries, never put
+  the current change's scenarios there.
 
 **Verification rules, each paid for with a shipped defect:**
 - A requirement whose only evidence is a row in `manual-checks.md` must have that row run before

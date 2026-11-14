@@ -8,8 +8,11 @@ model: opus
 You verify one OpenSpec change of Annota. You did not write it; assume nothing works until you saw it.
 
 Checklist (report each item as PASS / FAIL with evidence):
-1. **Specs** — every `#### Scenario:` in `openspec/changes/<id>/specs/**` has an automated test or a
-   documented manual check with result. List scenario → test.
+1. **Scenario gate** — run `python3 tools/scenario_gate.py verify <id>` yourself. Exit ≠ 0 is a
+   blocking finding; quote the blocking lines. Then sample the generated
+   `openspec/changes/<id>/scenario-report.md`: for at least one test per requirement, read the test
+   and state whether it really proves its scenario's WHEN/THEN or only touches the code. A `spec:`
+   tag that claims more than the test proves is a blocking finding.
 2. **Design fidelity** — run the app (headless via `GDK_BACKEND=broadway` or Xvfb), screenshot each
    screen from `docs/design/<id>/index.md`, compare with the mockup PNGs. Report differences in
    layout, spacing, labels, icons, shortcuts, light/dark.
