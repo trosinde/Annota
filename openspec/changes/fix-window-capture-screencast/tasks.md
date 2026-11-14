@@ -34,7 +34,7 @@
 
 ## 3. Dependencies
 
-- [ ] 3.1 Add `gstreamer` (+ `gstreamer-app`, `gstreamer-video` if D3 uses crop meta) in the newest
+- [x] 3.1 Add `gstreamer` (+ `gstreamer-app`, `gstreamer-video` if D3 uses crop meta) in the newest Built and tested with Rust 1.85 in CI run 43612609079 (ubuntu-24.04).
       version whose MSRV ≤ 1.85 and whose feature level ≤ `v1_24`. Enable `ashpd` feature
       `screencast`. Verify: `cargo +1.85 build` (or `/usr/lib/rust-1.85/bin/cargo`) succeeds and
       `Cargo.lock` stays 1.85-compatible.
@@ -115,14 +115,14 @@
 
 ## 7. Verify
 
-- [ ] 7.1 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `meson test -C _build`
+- [x] 7.1 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `meson test -C _build`
       green.
 - [ ] 7.2 `openspec validate --all --strict` passes. `fix-region-pointer-inclusion` is archived
       first, or this delta is rebased onto its final "Cursor inclusion".
 - [ ] 7.3 No frame touches disk: reviewer greps `screencast.rs` for file writes and checks that
       no temp file is created during a window capture (`strace -e trace=openat` during one live
       capture, or an equivalent).
-- [ ] 7.4 `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean.
+- [x] 7.4 `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean. CI run 43612609079 (ubuntu-24.04, Rust 1.85): build, tests, .deb + lintian green.
 - [ ] 7.5 `reviewer` agent (fresh context): specs vs. tests, ADR vs. code, no blocking findings.
 
 ## Workflow follow-up
