@@ -11,7 +11,7 @@ only Annota chrome follows the style.
 | 02 | Region overlay – dragging (size, loupe, colour) | [png/02-region-drag-light@1x.png](png/02-region-drag-light@1x.png) |
 | 03 | Region overlay – adjust, fixed size W×H, toolbar | [png/03-region-adjust-fixed-size-light@1x.png](png/03-region-adjust-fixed-size-light@1x.png) |
 | 04 | Region overlay – snap to window edge | [png/04-region-snap-window-edge-light@1x.png](png/04-region-snap-window-edge-light@1x.png) |
-| 05 | Window mode – GNOME portal picker (Wayland, system UI) | [png/05-window-wayland-portal-picker-light@1x.png](png/05-window-wayland-portal-picker-light@1x.png) |
+| 05 | Window mode – GNOME portal picker (Wayland, system UI). **Superseded** by [fix-window-capture-screencast 01](../fix-window-capture-screencast/index.md) as the reference for window mode; still valid only for its "No window source" fallback. | [png/05-window-wayland-portal-picker-light@1x.png](png/05-window-wayland-portal-picker-light@1x.png) |
 | 06 | Window mode – X11 click-to-pick | [png/06-window-x11-hover-light@1x.png](png/06-window-x11-hover-light@1x.png) |
 | 07 | Delay countdown | [png/07-delay-countdown-light@1x.png](png/07-delay-countdown-light@1x.png) |
 | 08 | Permission denied alert | [png/08-permission-denied-light@1x.png](png/08-permission-denied-light@1x.png) |
@@ -30,7 +30,7 @@ only Annota chrome follows the style.
 | Region capture / Cancel | 02, 03 (hint bar, Cancel button) | No UI after Esc: overlay closes, nothing opens — *no further UI, verified by test*. |
 | Region capture / Fixed size | 03 | Typing into W / H sets the selection immediately; focus ring on the edited field. |
 | Region capture (loupe, snap 8 px, arrow nudge) | 02, 04, 03 | Loupe + pixel colour + coordinates; violet snap guide; hint bar lists ←↑→↓ / Shift ×10. |
-| Window capture / Window on Wayland | 05 → 12 | Picker is GNOME Shell UI via portal (`interactive=true`); Annota draws nothing. |
+| Window capture / Window on Wayland | 05 → 12 | Picker is GNOME Shell UI via portal (`interactive=true`); Annota draws nothing. Superseded by [fix-window-capture-screencast 01](../fix-window-capture-screencast/index.md) (ScreenCast window chooser). |
 | Window capture (X11 click) | 06 | Hover highlight + window title chip; Tab cycles windows. |
 | Full-screen capture / Multi-monitor | 01 (Screen mode) | Monitor under the pointer; `capture-all-monitors` switch in 09/10. Choice of monitor itself has *no UI — verified by test*. |
 | Delayed capture / Countdown | 01 (Delay), 07 | Countdown OSD is hidden before the grab; "not in capture" is *verified by test* (pixel check). |

@@ -1202,3 +1202,405 @@ fn a_picker_without_an_image_says_so() {
     assert!(!scene.shows_toast(&windows[0], CAPTURE_FAILED));
     assert!(scene.dialog().is_none());
 }
+
+// --- Window capture through the ScreenCast portal (fix-window-capture-screencast) -----------
+
+const SCREENCAST_XML: &str = r#"<node>
+  <interface name="org.freedesktop.portal.ScreenCast">
+    <method name="CreateSession">
+      <arg type="a{sv}" direction="in"/><arg type="o" direction="out"/>
+    </method>
+    <method name="SelectSources">
+      <arg type="o" direction="in"/><arg type="a{sv}" direction="in"/>
+      <arg type="o" direction="out"/>
+    </method>
+    <method name="Start">
+      <arg type="o" direction="in"/><arg type="s" direction="in"/>
+      <arg type="a{sv}" direction="in"/><arg type="o" direction="out"/>
+    </method>
+    <method name="OpenPipeWireRemote">
+      <arg type="o" direction="in"/><arg type="a{sv}" direction="in"/>
+      <arg type="h" direction="out"/>
+    </method>
+    <property name="AvailableSourceTypes" type="u" access="read"/>
+    <property name="AvailableCursorModes" type="u" access="read"/>
+    <property name="version" type="u" access="read"/>
+  </interface>
+  <interface name="org.freedesktop.portal.Session">
+    <method name="Close"/>
+    <signal name="Closed"><arg type="a{sv}"/></signal>
+    <property name="version" type="u" access="read"/>
+  </interface>
+</node>"#;
+
+/// The ScreenCast half of the stand-in portal, answering as xdg-desktop-portal 1.21 with
+/// xdg-desktop-portal-gnome 50 was measured to (design.md D6).
+struct ScreenCast {
+    /// Every call in order: "CreateSession", "SelectSources", "Start", "OpenPipeWireRemote",
+    /// "Session.Close".
+    log: Rc<RefCell<Vec<String>>>,
+    /// `SelectSources`' options.
+    selected: Rc<RefCell<HashMap<String, glib::Variant>>>,
+    /// `Start`'s parent window.
+    parent: Rc<RefCell<Option<String>>>,
+}
+
+impl ScreenCast {
+    fn calls(&self) -> Vec<String> {
+        self.log.borrow().clone()
+    }
+
+    fn count(&self, call: &str) -> usize {
+        self.log.borrow().iter().filter(|c| *c == call).count()
+    }
+
+    fn option_u32(&self, name: &str) -> Option<u32> {
+        self.selected
+            .borrow()
+            .get(name)
+            .and_then(|v| v.get::<u32>())
+    }
+}
+
+/// Emits a request's `Response`.
+fn respond(
+    connection: &gio::DBusConnection,
+    sender: &str,
+    handle: &str,
+    code: u32,
+    results: HashMap<String, glib::Variant>,
+) {
+    connection
+        .emit_signal(
+            Some(sender),
+            handle,
+            "org.freedesktop.portal.Request",
+            "Response",
+            Some(&(code, results).to_variant()),
+        )
+        .unwrap();
+}
+
+/// The request or session path the portal builds from a token.
+fn portal_path(kind: &str, sender: &str, token: &str) -> String {
+    let unique = sender.trim_start_matches(':').replace('.', "_");
+    format!("/org/freedesktop/portal/desktop/{kind}/{unique}/{token}")
+}
+
+/// Adds `org.freedesktop.portal.ScreenCast` to the scene's portal. `start`: the response code
+/// `Start` answers with once the chooser "closes", or `None` for a chooser that never answers.
+/// The PipeWire remote handed out is `/dev/null`, so a started stream never starts:
+/// `pipewiresrc` waits its own 30 s for it (a hung-up socket was tried too and behaves the same).
+fn add_screencast(scene: &Scene, source_types: u32, start: Option<u32>) -> ScreenCast {
+    let connection = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE).unwrap();
+    let info = gio::DBusNodeInfo::for_xml(SCREENCAST_XML).unwrap();
+    let log = Rc::new(RefCell::new(Vec::new()));
+    let selected = Rc::new(RefCell::new(HashMap::new()));
+    let parent = Rc::new(RefCell::new(None));
+    let session_interface = info
+        .lookup_interface("org.freedesktop.portal.Session")
+        .unwrap();
+    let (calls, options, start_parent) = (log.clone(), selected.clone(), parent.clone());
+    connection
+        .register_object(
+            "/org/freedesktop/portal/desktop",
+            &info
+                .lookup_interface("org.freedesktop.portal.ScreenCast")
+                .unwrap(),
+        )
+        .method_call(
+            move |connection, sender, _, _, method, parameters, invocation| {
+                let sender = sender.unwrap().to_string();
+                calls.borrow_mut().push(method.to_string());
+                let last = parameters.n_children() - 1;
+                let opts: HashMap<String, glib::Variant> =
+                    parameters.child_value(last).get().unwrap();
+                let token = |name: &str| opts.get(name).and_then(|v| v.get::<String>());
+                match method {
+                    "OpenPipeWireRemote" => {
+                        let list = gio::UnixFDList::new();
+                        let null = std::fs::File::open("/dev/null").unwrap();
+                        let index = list.append(null).unwrap();
+                        invocation.return_value_with_unix_fd_list(
+                            Some(&(glib::variant::Handle(index),).to_variant()),
+                            Some(&list),
+                        );
+                    }
+                    "CreateSession" => {
+                        let session = portal_path(
+                            "session",
+                            &sender,
+                            &token("session_handle_token").unwrap(),
+                        );
+                        let closed = calls.clone();
+                        let id = Rc::new(RefCell::new(None));
+                        let own_id = id.clone();
+                        let registration = connection
+                            .register_object(&session, &session_interface)
+                            .method_call(move |connection, _, _, _, _, _, invocation| {
+                                closed.borrow_mut().push(String::from("Session.Close"));
+                                invocation.return_value(None);
+                                if let Some(id) = own_id.borrow_mut().take() {
+                                    let _ = connection.unregister_object(id);
+                                }
+                            })
+                            .property(|_, _, _, _, _| 1u32.to_variant())
+                            .build()
+                            .unwrap();
+                        id.replace(Some(registration));
+                        let handle =
+                            portal_path("request", &sender, &token("handle_token").unwrap());
+                        let path = glib::variant::ObjectPath::try_from(handle.clone()).unwrap();
+                        invocation.return_value(Some(&(path,).to_variant()));
+                        let results =
+                            HashMap::from([(String::from("session_handle"), session.to_variant())]);
+                        respond(&connection, &sender, &handle, 0, results);
+                    }
+                    "SelectSources" | "Start" => {
+                        if method == "SelectSources" {
+                            options.replace(opts.clone());
+                        } else {
+                            let window = parameters.child_value(1).str().unwrap().to_string();
+                            start_parent.replace(Some(window));
+                        }
+                        let handle =
+                            portal_path("request", &sender, &token("handle_token").unwrap());
+                        let path = glib::variant::ObjectPath::try_from(handle.clone()).unwrap();
+                        invocation.return_value(Some(&(path,).to_variant()));
+                        let code = if method == "SelectSources" {
+                            Some(0)
+                        } else {
+                            start
+                        };
+                        let Some(code) = code else {
+                            return; // GNOME's chooser that never shows and never answers.
+                        };
+                        let mut results = HashMap::new();
+                        if method == "Start" && code == 0 {
+                            let stream: HashMap<String, glib::Variant> = HashMap::from([
+                                (String::from("source_type"), 2u32.to_variant()),
+                                (String::from("size"), (3072i32, 1728i32).to_variant()),
+                            ]);
+                            results.insert(
+                                String::from("streams"),
+                                vec![(42u32, stream)].to_variant(),
+                            );
+                        }
+                        respond(&connection, &sender, &handle, code, results);
+                    }
+                    _ => unreachable!(),
+                }
+            },
+        )
+        .property(move |_, _, _, _, name| match name {
+            "AvailableSourceTypes" => source_types.to_variant(),
+            // HIDDEN | EMBEDDED, as GNOME 50 offers (METADATA is not used).
+            "AvailableCursorModes" => 3u32.to_variant(),
+            _ => 5u32.to_variant(),
+        })
+        .build()
+        .unwrap();
+    let _ = &scene.app;
+    ScreenCast {
+        log,
+        selected,
+        parent,
+    }
+}
+
+impl Scene {
+    fn start_with_pointer(&self, mode: CaptureMode, include_pointer: bool) {
+        start(
+            &self.app,
+            Request {
+                mode,
+                delay: 0,
+                include_pointer,
+            },
+        );
+        pump(10);
+    }
+
+    /// Waits until the stand-in portal has seen `count` calls of `call`.
+    fn screencast_reaches(&self, screencast: &ScreenCast, call: &str, count: usize) {
+        let end = Instant::now() + Duration::from_secs(10);
+        while screencast.count(call) < count {
+            assert!(Instant::now() < end, "no {call}: {:?}", screencast.calls());
+            pump(20);
+        }
+    }
+}
+
+/// Scenario "Chooser closed": `Start` answers 1 → no image, no window, no message; the session
+/// is closed and the next capture is free to start (task 4.4).
+// spec: capture / Window capture / Chooser closed
+// spec: capture / Cursor inclusion / Pointer in a window capture
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_closed_chooser_is_a_silent_cancel() {
+    let scene = scene("chooser-closed", Some("yes"), Question::CannotShow);
+    let screencast = add_screencast(&scene, 7, Some(1));
+    scene.start_with_pointer(CaptureMode::Window, true);
+    scene.capture_ends();
+    scene.screencast_reaches(&screencast, "Session.Close", 1);
+    assert_eq!(
+        screencast.calls(),
+        ["CreateSession", "SelectSources", "Start", "Session.Close"]
+    );
+    // design.md D1: one window, no restore token, the pointer embedded when asked for.
+    assert_eq!(screencast.option_u32("types"), Some(2));
+    assert_eq!(screencast.option_u32("persist_mode"), Some(0));
+    assert_eq!(screencast.option_u32("cursor_mode"), Some(2));
+    assert_eq!(
+        screencast
+            .selected
+            .borrow()
+            .get("multiple")
+            .and_then(|v| v.get::<bool>()),
+        Some(false)
+    );
+    // The waiting OSD was the chooser's parent (design.md D8).
+    let parent = screencast.parent.borrow().clone().unwrap();
+    assert!(parent.starts_with("x11:"), "{parent}");
+    assert!(scene.calls().is_empty(), "no Screenshot portal call");
+    assert!(super::window_wait::shown().is_none());
+    assert!(scene.visible().is_empty(), "no window, no message");
+    assert!(!scene.has_toast());
+}
+
+/// Response code 2 from the chooser is a failure, with the failure toast (task 4.4, design.md
+/// D6), and never the Screenshot portal's "Nothing was captured".
+// spec: capture / Window capture / No frame arrives
+// spec: capture / Cursor inclusion / Cursor excluded
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_failed_chooser_says_the_capture_failed() {
+    let scene = scene("chooser-failed", Some("yes"), Question::CannotShow);
+    let screencast = add_screencast(&scene, 7, Some(2));
+    scene.start_with_pointer(CaptureMode::Window, false);
+    scene.capture_ends();
+    scene.screencast_reaches(&screencast, "Session.Close", 1);
+    assert_eq!(
+        screencast.option_u32("cursor_mode"),
+        Some(1),
+        "pointer hidden"
+    );
+    let windows = scene.visible();
+    assert_eq!(windows.len(), 1, "a window to carry the message");
+    assert!(scene.shows_toast(&windows[0], CAPTURE_FAILED));
+    assert!(!scene.shows_toast(&windows[0], NOTHING_CAPTURED));
+    assert!(scene.dialog().is_none(), "not a permission question");
+}
+
+/// Scenarios "Waiting for the chooser" and "Cancel while waiting" (task 4.7): GNOME never
+/// answers `Start`. The OSD is shown, a second window request only raises it, Cancel closes the
+/// session, nothing is said, and the next capture starts normally.
+// spec: capture / Window capture / Waiting for the chooser
+// spec: capture / Window capture / Cancel while waiting
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn cancelling_the_wait_closes_the_session() {
+    let scene = scene("wait-cancel", Some("yes"), Question::CannotShow);
+    let screencast = add_screencast(&scene, 7, None);
+    scene.start_with_pointer(CaptureMode::Window, false);
+    scene.screencast_reaches(&screencast, "Start", 1);
+    let osd = super::window_wait::shown().expect("the waiting OSD");
+    assert!(osd.is_visible());
+    assert!(
+        scene.visible() == std::slice::from_ref(&osd),
+        "the OSD is the only Annota window"
+    );
+    shot(&osd, "window-wait-osd");
+    let cancel: gtk::Button = find(&osd, "cancel_button").expect("Cancel");
+    assert!(cancel.has_focus(), "Cancel has the default focus");
+
+    // A second window-capture request raises the OSD and starts nothing new.
+    scene.start_with_pointer(CaptureMode::Window, false);
+    pump(100);
+    assert_eq!(screencast.count("CreateSession"), 1);
+    assert!(BUSY.with(Cell::get));
+
+    cancel.emit_clicked();
+    scene.capture_ends();
+    scene.screencast_reaches(&screencast, "Session.Close", 1);
+    assert!(!BUSY.with(Cell::get));
+    assert!(super::window_wait::shown().is_none());
+    assert!(scene.visible().is_empty());
+    assert!(!scene.has_toast(), "no message");
+
+    // A following capture starts normally; this time the OSD is closed (as Esc and the
+    // window's close request do).
+    scene.start_with_pointer(CaptureMode::Window, false);
+    scene.screencast_reaches(&screencast, "Start", 2);
+    let osd = super::window_wait::shown().expect("the waiting OSD again");
+    osd.close();
+    scene.capture_ends();
+    scene.screencast_reaches(&screencast, "Session.Close", 2);
+    assert!(!scene.has_toast());
+}
+
+/// Scenario "No window source": a ScreenCast portal that offers only monitors leaves window mode
+/// on the Screenshot portal's interactive UI, with no waiting OSD (design.md D6).
+// spec: capture / Window capture / No window source
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn without_a_window_source_the_screenshot_ui_is_used() {
+    let scene = scene("no-window-source", None, Question::CannotShow);
+    let screencast = add_screencast(&scene, 1, Some(0));
+    set_after_capture_to_clipboard();
+    scene.capture(CaptureMode::Window);
+    assert!(screencast.calls().is_empty(), "{:?}", screencast.calls());
+    let calls = scene.calls();
+    assert_eq!(calls.len(), 1, "{calls:?}");
+    assert!(calls[0].interactive);
+}
+
+/// Scenario "No frame arrives": a window is chosen (code 0) but the stream never starts. The
+/// failure toast comes at the deadline although `pipewiresrc` still blocks its worker thread, so
+/// the main loop never waits for it. The OSD went at the answer, and the session closes at the
+/// deadline too, without waiting for the worker (the one exception to design.md D2's order), so
+/// GNOME's sharing indicator goes with the toast. Measured here with GStreamer 1.28:
+/// `pipewiresrc` waits 30 s for a stream that never starts, sometimes twice; the worker lets go
+/// of the pipeline and the fd only then.
+// spec: capture / Window capture / No frame arrives
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_stream_without_a_frame_fails_without_blocking_annota() {
+    let scene = scene("no-frame", Some("yes"), Question::CannotShow);
+    let screencast = add_screencast(&scene, 7, Some(0));
+    scene.start_with_pointer(CaptureMode::Window, false);
+    scene.screencast_reaches(&screencast, "OpenPipeWireRemote", 1);
+    assert!(
+        super::window_wait::shown().is_none(),
+        "the OSD went at the answer"
+    );
+    let started = Instant::now();
+    scene.capture_ends();
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "{:?}",
+        started.elapsed()
+    );
+    let windows = scene.visible();
+    assert_eq!(windows.len(), 1);
+    assert!(scene.shows_toast(&windows[0], CAPTURE_FAILED));
+    // At the deadline, not 30-60 s later when `pipewiresrc` gives up.
+    let end = Instant::now() + Duration::from_secs(2);
+    while screencast.count("Session.Close") == 0 {
+        assert!(
+            Instant::now() < end,
+            "the session was not closed with the toast"
+        );
+        pump(50);
+    }
+    assert_eq!(
+        screencast.calls(),
+        [
+            "CreateSession",
+            "SelectSources",
+            "Start",
+            "OpenPipeWireRemote",
+            "Session.Close"
+        ]
+    );
+}

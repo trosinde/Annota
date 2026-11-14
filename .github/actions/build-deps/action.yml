@@ -14,7 +14,8 @@ runs:
         sudo apt-get install -y --no-install-recommends \
           build-essential debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
           rustfmt-1.85 rust-1.85-clippy \
-          libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext \
+          libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+          blueprint-compiler gettext \
           desktop-file-utils appstream libglib2.0-bin lintian devscripts \
           fonts-dejavu-core fontconfig
 

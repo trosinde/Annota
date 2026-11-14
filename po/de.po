@@ -851,6 +851,10 @@ msgstr "Auswahl verschieben"
 msgid "Capture Countdown"
 msgstr "Aufnahme-Countdown"
 
+#: data/ui/window-wait.blp:45
+msgid "Waiting for a window…"
+msgstr "Warte auf ein Fenster …"
+
 #: data/ui/countdown.blp:62
 msgid "Capture now"
 msgstr "Jetzt aufnehmen"

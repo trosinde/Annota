@@ -52,7 +52,6 @@ uncovered-scenario: capture / After-capture destination / Both
 uncovered-scenario: capture / After-capture destination / Copy to clipboard
 uncovered-scenario: capture / After-capture destination / Editor destination
 uncovered-scenario: capture / After-capture destination / Editor unavailable
-uncovered-scenario: capture / Cursor inclusion / Include cursor
 uncovered-scenario: capture / Delayed capture / Countdown
 uncovered-scenario: capture / Full-screen capture / Multi-monitor
 uncovered-scenario: capture / Global capture hotkey / Hotkey on GNOME 46
@@ -87,7 +86,6 @@ uncovered-scenario: capture / Region capture / Snap to a window edge
 uncovered-scenario: capture / Reversible takeover of GNOME's screenshot keys / No takeover on the GlobalShortcuts portal path
 uncovered-scenario: capture / Reversible takeover of GNOME's screenshot keys / Shortcut conflict
 uncovered-scenario: capture / Reversible takeover of GNOME's screenshot keys / Takeover is reversible
-uncovered-scenario: capture / Window capture / Window on Wayland
 uncovered-scenario: debian-packaging / Continuous integration / Failing lint blocks
 uncovered-scenario: debian-packaging / Desktop integration / App grid
 uncovered-scenario: debian-packaging / Installable package / Offline build
@@ -231,7 +229,6 @@ untagged-test: src/capture/frame.rs::crop_has_exact_size_and_content
 untagged-test: src/capture/frame.rs::crop_is_clipped_to_the_frame
 untagged-test: src/capture/frame.rs::filled_frame_reports_its_colour
 untagged-test: src/capture/frame.rs::frame_without_pointer_is_untouched
-untagged-test: src/capture/frame.rs::pointer_is_visible_after_drawing
 untagged-test: src/capture/frame.rs::rejects_short_buffers
 untagged-test: src/capture/geometry.rs::arrow_keys_nudge_one_or_ten_px
 untagged-test: src/capture/geometry.rs::click_without_drag_has_no_selection
@@ -250,11 +247,6 @@ untagged-test: src/capture/geometry.rs::loupe_flips_near_edges
 untagged-test: src/capture/geometry.rs::nudge_stops_at_monitor_edge
 untagged-test: src/capture/geometry.rs::shift_drag_is_square
 untagged-test: src/capture/geometry.rs::size_chip_sits_above_or_inside
-untagged-test: src/capture/geometry.rs::the_hot_spot_decides_not_the_whole_arrow
-untagged-test: src/capture/geometry.rs::the_pointer_chip_flips_at_the_right_edge
-untagged-test: src/capture/geometry.rs::the_pointer_chip_sits_beside_the_hot_spot_and_clears_the_loupe
-untagged-test: src/capture/geometry.rs::the_pointer_is_drawn_only_inside_the_selection
-untagged-test: src/capture/geometry.rs::the_pointer_is_scaled_into_image_pixels
 untagged-test: src/capture/geometry.rs::toolbar_below_then_above
 untagged-test: src/capture/geometry.rs::two_monitors_map_to_image_halves
 untagged-test: src/capture/import.rs::accepts_png_jpg_webp_only
@@ -283,21 +275,8 @@ untagged-test: src/capture/live_tests.rs::the_german_dialog_fits
 untagged-test: src/capture/live_tests.rs::the_parent_handle_goes_with_the_window
 untagged-test: src/capture/live_tests.rs::unreadable_store_asks_after_the_first_refusal
 untagged-test: src/capture/live_tests.rs::window_mode_never_asks_first
-untagged-test: src/capture/mod.rs::a_pointer_on_another_monitor_is_not_drawn
-untagged-test: src/capture/mod.rs::no_pointer_position_draws_nothing
-untagged-test: src/capture/mod.rs::the_preview_and_the_capture_cannot_disagree
-untagged-test: src/capture/mod.rs::the_selections_origin_is_subtracted
-untagged-test: src/capture/overlay.rs::a_keyboard_only_capture_has_no_pointer_position
-untagged-test: src/capture/overlay.rs::a_late_leave_does_not_erase_the_next_monitors_position
 untagged-test: src/capture/overlay.rs::delay_texts
-untagged-test: src/capture/overlay.rs::leaving_the_frozen_image_forgets_the_position
 untagged-test: src/capture/overlay.rs::size_chip_text
-untagged-test: src/capture/overlay.rs::the_edge_suffix_fires_only_just_outside
-untagged-test: src/capture/overlay.rs::the_pointer_is_the_one_at_confirmation_not_the_first_seen
-untagged-test: src/capture/overlay.rs::the_preview_has_no_state_without_a_position_on_this_monitor
-untagged-test: src/capture/overlay.rs::the_preview_is_off_while_include_pointer_is_off
-untagged-test: src/capture/overlay.rs::the_preview_reaches_the_captures_verdict
-untagged-test: src/capture/overlay.rs::without_a_selection_nothing_is_in_capture
 untagged-test: src/capture/permission.rs::closing_the_picker_is_not_a_failure
 untagged-test: src/capture/permission.rs::not_found_is_an_answer_other_errors_are_not
 untagged-test: src/capture/permission.rs::only_a_stored_no_is_a_denial

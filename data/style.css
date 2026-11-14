@@ -148,6 +148,57 @@ window.annota-countdown-window {
   font-weight: bold;
 }
 
+/* --- Waiting OSD of a window capture (fix-window-capture-screencast 02) ------------------
+ * The body is the countdown OSD's (07): GTK has no backdrop blur, so the same denser fill
+ * stands in for --osd-bg + blur 16 px. Width 300 is the widget's width-request. */
+
+window.annota-window-wait-window {
+  background: none;
+  box-shadow: none;
+}
+
+.annota-window-wait {
+  background-color: rgba(36, 36, 40, 0.88);
+  color: white;
+  border-radius: 30px;
+  padding: 30px 36px 24px 36px;
+  box-shadow: 0 1px 3px rgba(0, 0, 6, 0.25), 0 4px 16px rgba(0, 0, 6, 0.18); /* --shadow-osd */
+}
+
+.annota-window-wait-message {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.annota-window-wait-hint {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+/* Cancel pill: 34 high, at least 120 wide, --osd-fill-hover → --osd-fill-active. GTK's
+ * min-width is the content box: 84 + 2 × 18 padding = 120. */
+button.annota-osd-pill {
+  min-height: 34px;
+  min-width: 84px;
+  padding: 0 18px;
+  border-radius: 9999px;
+  background-color: rgba(255, 255, 255, 0.17);
+  color: white;
+  font-size: 15px;
+  font-weight: bold;
+  box-shadow: none;
+}
+
+button.annota-osd-pill:hover,
+button.annota-osd-pill:active {
+  background-color: rgba(255, 255, 255, 0.28);
+}
+
+button.annota-osd-pill:focus-visible {
+  outline: 2px solid rgba(120, 174, 237, 0.8);
+  outline-offset: 1px;
+}
+
 /* --- Capture launcher popover (01) ------------------------------------------------------ */
 
 popover.annota-launcher > contents {

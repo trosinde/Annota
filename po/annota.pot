@@ -820,6 +820,10 @@ msgstr ""
 msgid "Capture Countdown"
 msgstr ""
 
+#: data/ui/window-wait.blp:45
+msgid "Waiting for a window…"
+msgstr ""
+
 #: data/ui/countdown.blp:62
 msgid "Capture now"
 msgstr ""

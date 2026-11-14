@@ -7,6 +7,7 @@ blueprints = custom_target(
     'ui/help-overlay.blp',
     'ui/region-overlay.blp',
     'ui/countdown.blp',
+    'ui/window-wait.blp',
     'ui/permission-dialog.blp',
     'ui/shortcut-dialog.blp',
     'ui/editor-window.blp',

@@ -1502,6 +1502,33 @@ mod tests {
         PointerAt { monitor, x, y }
     }
 
+    // spec: capture / Pointer preview in the region overlay / Indication follows the selection
+    #[test]
+    fn the_preview_follows_the_selection_before_confirming() {
+        // The preview is computed from the live selection (`preview_state` reads
+        // `state.selection.rect()`), and every edit of the selection ends in `update_ui`, which
+        // calls `update_pointer_preview`. So moving or resizing the selection flips the verdict
+        // with no confirmation in between. Pointer 5 px inside the selection's right edge.
+        let mut selection = Selection::new(1920, 1080);
+        selection.set_rect(IRect::new(100, 100, 400, 300));
+        let pointer = Some(at(0, 495.0, 250.0));
+        let inside = |s: &Selection| preview_for(true, pointer, 0, s.rect(), 1.0).map(|p| p.inside);
+        assert_eq!(inside(&selection), Some(true));
+
+        // Shift+Left moves the selection 10 px out from under the pointer, Shift+Right back.
+        selection.nudge(Direction::Left, true);
+        assert_eq!(inside(&selection), Some(false), "after moving out");
+        selection.nudge(Direction::Right, true);
+        assert_eq!(inside(&selection), Some(true), "after moving back");
+
+        // Dragging the right handle in past the pointer, then out again.
+        selection.resize(Handle::East, (480, 250));
+        assert_eq!(inside(&selection), Some(false), "after resizing smaller");
+        selection.resize(Handle::East, (520, 250));
+        assert_eq!(inside(&selection), Some(true), "after resizing larger");
+    }
+
+    // spec: capture / Pointer preview in the region overlay / No indication when excluded
     #[test]
     fn the_preview_is_off_while_include_pointer_is_off() {
         // Scenario "No indication when excluded": nothing at all, whatever the pointer does.
@@ -1512,6 +1539,7 @@ mod tests {
         );
     }
 
+    // spec: capture / Pointer preview in the region overlay / Pointer will not be included
     #[test]
     fn the_preview_has_no_state_without_a_position_on_this_monitor() {
         // Over the toolbar or the hint bar, on another monitor, or confirmed from the keyboard.
@@ -1530,6 +1558,8 @@ mod tests {
         );
     }
 
+    // spec: capture / Pointer preview in the region overlay / Pointer will be included
+    // spec: capture / Pointer preview in the region overlay / Pointer will not be included
     #[test]
     fn the_preview_reaches_the_captures_verdict() {
         // Task 4.2, for real this time: the preview's own decision path, not just the shared
@@ -1550,6 +1580,8 @@ mod tests {
         }
     }
 
+    // spec: capture / Pointer preview in the region overlay / Pointer will be included
+    // spec: capture / Pointer preview in the region overlay / Pointer will not be included
     #[test]
     fn the_edge_suffix_fires_only_just_outside() {
         // The chip's "on the edge" sub-state, which names the trap after releasing a drag.
@@ -1565,6 +1597,7 @@ mod tests {
         assert!(inside.inside && !inside.on_edge);
     }
 
+    // spec: capture / Pointer preview in the region overlay / Pointer will not be included
     #[test]
     fn without_a_selection_nothing_is_in_capture() {
         // Phase Idle: the overlay is up but nothing is selected yet.
@@ -1572,6 +1605,7 @@ mod tests {
         assert!(!p.inside && !p.on_edge);
     }
 
+    // spec: capture / Cursor inclusion / Pointer inside the selection
     #[test]
     fn the_pointer_is_the_one_at_confirmation_not_the_first_seen() {
         // The reported defect: the overlay kept only the *first* position it ever saw — where
@@ -1583,6 +1617,7 @@ mod tests {
         assert_eq!(session.pointer.get(), Some(at(0, 310.0, 488.0)));
     }
 
+    // spec: capture / Cursor inclusion / Pointer outside the selection
     #[test]
     fn a_keyboard_only_capture_has_no_pointer_position() {
         // Confirmed with Enter without the pointer ever being over a frozen image. Treated as
@@ -1590,6 +1625,7 @@ mod tests {
         assert_eq!(session().pointer.get(), None);
     }
 
+    // spec: capture / Cursor inclusion / Pointer outside the selection
     #[test]
     fn leaving_the_frozen_image_forgets_the_position() {
         // Onto the toolbar or the hint bar: that chrome is not in the frozen image, so no
@@ -1600,6 +1636,7 @@ mod tests {
         assert_eq!(session.pointer.get(), None);
     }
 
+    // spec: capture / Cursor inclusion / Pointer inside the selection
     #[test]
     fn a_late_leave_does_not_erase_the_next_monitors_position() {
         // GTK does not guarantee that the old surface's leave arrives before the new surface's

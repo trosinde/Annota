@@ -437,4 +437,18 @@ mod tests {
         );
         assert_eq!(title(Source::Clipboard, 1, 1), "New capture from clipboard");
     }
+
+    // spec: capture / Window capture / Window mode from the welcome page
+    #[test]
+    fn a_window_capture_is_delivered_like_region_and_screen() {
+        // fix-window-capture-screencast task 4.3: the ScreenCast frame goes through the same
+        // delivery, opens in the editor with the toast "Window captured · W × H" and Copy.
+        let editor = plan(Source::Window, AfterCapture::Editor);
+        assert_eq!(editor, plan(Source::Region, AfterCapture::Editor));
+        assert_eq!(toast_offer(Source::Window, editor), ToastOffer::Copy);
+        assert_eq!(
+            title(Source::Window, 2248, 2848),
+            "Window captured · 2248 × 2848"
+        );
+    }
 }

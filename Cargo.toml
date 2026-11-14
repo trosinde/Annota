@@ -14,6 +14,7 @@ adw = { package = "libadwaita", version = "0.7", features = ["v1_5"] }
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
 # `gtk4` (gdk4-wayland, gdk4-x11; MIT): the parent window handle for the portal's first-use access
 # dialog (add-screen-capture, "Portal permission handling").
+# `desktop::screencast` (window stills, ADR 0002) is not behind a feature in 0.11.1.
 ashpd = { version = "0.11.1", default-features = false, features = ["async-std", "gtk4"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 thiserror = "2"
@@ -36,6 +37,13 @@ pangocairo = "0.20"
 # Rust 1.87; 0.6 is the last for MSRV 1.85. libwebp-sys compiles its bundled libwebp with `cc`.
 jpeg-encoder = "0.6"
 libwebp-sys = { version = "0.14", default-features = false, features = ["std"] }
+# One frame of a ScreenCast window stream (fix-window-capture-screencast, ADR 0002). 0.23 is the
+# gtk-rs 0.20 generation, so GStreamer shares glib 0.20 with gtk4/libadwaita (0.24 would pull in a
+# second glib, 0.21). No feature flags: nothing above GStreamer 1.14's API is used, and Ubuntu
+# 24.04 ships 1.24. Dynamically linked LGPL GStreamer.
+gstreamer = "0.23"
+gstreamer-app = "0.23"
+gstreamer-video = "0.23"
 
 [profile.release]
 lto = "thin"

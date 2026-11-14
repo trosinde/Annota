@@ -35,11 +35,11 @@ Do not change these without an approved OpenSpec change that says so (record it 
 | UI toolkit | GTK 4 (`gtk4` crate) + libadwaita (`libadwaita` crate), GNOME HIG |
 | Minimum platform | Ubuntu 24.04 LTS (GNOME 46, GTK 4.14, libadwaita 1.5); also Ubuntu 26.04 LTS and Debian 13 |
 | Display server | Wayland first, X11 must keep working |
-| Screen access | Only via **xdg-desktop-portal** (`ashpd` crate): Screenshot portal for stills, ScreenCast portal + PipeWire for video. No X11-only hacks, no root, no compositor-private APIs. |
+| Screen access | Only via **xdg-desktop-portal** (`ashpd` crate): Screenshot portal for region and screen stills, ScreenCast portal + PipeWire for window stills ([ADR 0002](docs/adr/0002-screencast-for-window-stills.md)) and video. No X11-only hacks, no root, no compositor-private APIs. |
 | Global hotkey | GlobalShortcuts portal when available (GNOME ≥ 48); fallback: register a GNOME custom keybinding that runs `annota --capture <mode>` |
 | Rendering | One renderer on **cairo-rs** used for the canvas *and* for export → pixel-identical WYSIWYG |
 | Document format | `.annota` = ZIP: `original.png` + `document.json` (versioned scene graph, schema in `data/schema/`) + `thumbnail.png` |
-| Video | GStreamer (`gstreamer-rs`), output MP4 (H.264) / WebM (VP9); GIF via `gifski` |
+| Video | GStreamer (`gstreamer-rs`), output MP4 (H.264) / WebM (VP9); GIF via `gifski`. GStreamer also takes the single frame of a window still (ADR 0002). |
 | OCR (phase 2) | Tesseract (`tesseract-ocr` package, eng + deu), runs locally, no cloud |
 | Build | Meson + Cargo (GNOME app template layout) |
 | Packaging | Native Debian package (`debian/`, debhelper-compat 13, vendored crates for offline build). Flatpak manifest is secondary. |
@@ -107,7 +107,7 @@ annota/
 
 ## 4. Project status and build
 
-**Status (2026-11-10)**
+**Status (2026-11-14)**
 - Archived: `bootstrap-app-shell` and `add-signed-apt-repo` (2026-10-30); `add-screen-capture`,
   `add-annotation-editor`, `add-core-annotation-tools` and `add-style-system` (2026-11-10). Their
   deltas are merged into `openspec/specs/`: `app-shell` (7 requirements), `capture` (10),
@@ -129,6 +129,16 @@ annota/
   captures. The overlay keeps only the first pointer position it sees, so the arrow is drawn
   outside the crop and cairo clips it away silently. Direction A of three, chosen by the
   maintainer; design gate open.
+- `fix-window-capture-screencast` (2026-11-14, ADR 0002): window mode never delivered a window
+  image. The Screenshot portal has no window mode, and its interactive UI always starts in
+  "Selection", so the Window card showed a region overlay. Window stills now go through the
+  ScreenCast portal's window chooser and one GStreamer frame, with Annota's own "Waiting for a
+  window…" indicator as the chooser's parent. Code, unit and fake-portal tests are done. Open:
+  `.deb` dependencies, the automated live suite (`tools/live-window-capture.py`, AT-SPI +
+  `tools/portal-input.py`), the Rust 1.85 build (CI), review. Defect class: the spec described
+  portal behaviour that no probe had ever measured - see §5 "Assumptions about the portal".
+- `fix-portal-shortcut-bindings` (parked at 2/23): GlobalShortcuts bindings that GNOME keeps from
+  an earlier run do not fire.
 - `add-capture-library` is the last MVP change not started (18 tasks, design-approved). The other
   P2/P3 changes have no implementation.
 - `add-screen-capture` task 4.6 (the first-launch Print-key-takeover prompt, D9) was archived
@@ -318,7 +328,8 @@ scenario the bug violated (add the scenario first if the spec had none).
 - `debian/copyright` lists all vendored crate licenses; refresh with `build-aux/update-copyright.py`.
 - `lintian -I --pedantic` must show no errors or warnings.
 - Runtime deps from `${shlibs:Depends}` plus `xdg-desktop-portal`, `xdg-desktop-portal-gnome`;
-  add `gstreamer1.0-plugins-good`, `gstreamer1.0-pipewire` with screen recording;
+  add `gstreamer1.0-pipewire`, `gstreamer1.0-plugins-base` for window stills (ADR 0002) and
+  `gstreamer1.0-plugins-good` with screen recording;
   `Recommends: tesseract-ocr`.
 - Install desktop file, metainfo, icons, GSettings schema, locale files; `appstreamcli validate`
   and `desktop-file-validate` pass.
