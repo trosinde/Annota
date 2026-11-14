@@ -3,112 +3,84 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
+  workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Everything runs on Ubuntu 24.04 with the distro's Rust 1.85: the oldest platform and the
+# MSRV Annota is packaged for (CLAUDE.md §2), so no separate MSRV job is needed.
 jobs:
-  build-deb:
+  lint:
+    name: fmt + clippy
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
-            rustfmt-1.85 rust-1.85-clippy \
-            libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext \
-            desktop-file-utils appstream libglib2.0-bin lintian devscripts \
-            nodejs npm fonts-dejavu-core fontconfig
-
-      # The golden-image tests set `font_family = "DejaVu Sans"` so that text renders the same
-      # everywhere (tests/render/main.rs). If the runner resolves that to something else, the
-      # glyphs differ and `callout_objects`, `text_objects` and `annota_theme_quick_styles` fail
-      # — which is what they did from 2026-11-01 to 2026-11-14, with `--no-install-recommends`
-      # leaving no DejaVu on the image. This line is the evidence, next to the failure.
-      - name: Fonts the renderer will use
-        run: fc-match "DejaVu Sans" && echo "$(fc-list | wc -l) fonts installed"
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build-deps
+      - uses: Swatinem/rust-cache@v2
 
       - name: Configure (generates src/config.rs)
-        run: PATH=/usr/lib/rust-1.85/bin:$PATH meson setup _build -Dprofile=development
+        run: meson setup _build -Dprofile=development
 
       - name: Format
-        run: PATH=/usr/lib/rust-1.85/bin:$PATH cargo fmt --check
+        run: cargo fmt --all --check
 
       - name: Clippy
-        run: PATH=/usr/lib/rust-1.85/bin:$PATH cargo clippy --locked --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build-deps
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # meson test builds into _build/target (src/meson.build passes --target-dir).
+          workspaces: ". -> _build/target"
+
+      - name: Configure
+        run: meson setup _build -Dprofile=development
 
       # `--verbose` streams each test's own output instead of capturing it. Without it a failing
       # cargo-test run says only "exit status 101": the run of 2026-11-14 could not be diagnosed
       # from its log at all, and the three before it had been red since 2026-11-01 unnoticed.
       - name: Tests
-        run: PATH=/usr/lib/rust-1.85/bin:$PATH meson test -C _build --print-errorlogs --verbose
+        run: meson test -C _build --print-errorlogs --verbose
 
       - name: Test log
         if: failure()
         run: cat _build/meson-logs/testlog.txt
 
+  openspec:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
       - name: OpenSpec validation
         run: npx --yes @fission-ai/openspec@1.15.0 validate --all --strict
 
+  deb:
+    name: .deb (lintian)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build-deps
+
       - name: Build .deb
         run: |
-          rm -rf _build
           build-aux/make-deb.sh
           mkdir -p dist && cp ../annota_*.deb dist/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: annota-deb-ubuntu-24.04
           path: dist/*.deb
-
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*.deb
-
-  publish-apt-repo:
-    needs: build-deb
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install apt-ftparchive
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends apt-utils
-
-      - name: Download .deb artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: annota-deb-ubuntu-24.04
-          path: dist
-
-      - name: Import release signing key
-        run: |
-          echo "${{ secrets.ANNOTA_RELEASE_SIGNING_KEY }}" | base64 -d | gpg --batch --import
-          echo "ANNOTA_SIGNING_KEYID=$(gpg --with-colons --list-secret-keys | awk -F: '/^sec/ {print $5; exit}')" >> "$GITHUB_ENV"
-
-      - name: Assemble signed APT repo
-        run: build-aux/make-apt-repo.sh dist/annota_*.deb docs/apt "$ANNOTA_SIGNING_KEYID"
-
-      - name: Publish keyring alongside the repo
-        run: cp packaging/annota-archive-keyring.asc docs/annota-archive-keyring.asc
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          if-no-files-found: error

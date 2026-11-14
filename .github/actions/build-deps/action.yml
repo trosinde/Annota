@@ -1,0 +1,50 @@
+name: Annota build dependencies
+description: >
+  Installs the Build-Depends of debian/control on an Ubuntu 24.04 runner, puts the pinned
+  Rust 1.85 toolchain first on PATH (CLAUDE.md §2) and writes the versions that decide whether
+  the build and the golden-image tests behave as on a developer machine into the log.
+
+runs:
+  using: composite
+  steps:
+    - name: Install build dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
+          rustfmt-1.85 rust-1.85-clippy \
+          libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext \
+          desktop-file-utils appstream libglib2.0-bin lintian devscripts \
+          fonts-dejavu-core fontconfig
+
+    # Same as `export PATH=/usr/lib/rust-1.85/bin:$PATH` in CLAUDE.md, for every later step.
+    - name: Use Rust 1.85
+      shell: bash
+      run: echo /usr/lib/rust-1.85/bin >> "$GITHUB_PATH"
+
+    # The golden images render text in DejaVu Sans and in Annota's default family, Adwaita Sans
+    # (`DEFAULT_FAMILY`, src/tools/text.rs). Without Adwaita Sans, fontconfig falls back to
+    # another font, the text gets other bounds, and `callout_objects` and
+    # `annota_theme_quick_styles` fail — CI was red from 2026-11-01 to 2026-11-14 for exactly
+    # that. Ubuntu 24.04 has no `fonts-adwaita-sans`, so this installs the Ubuntu 26.04 package
+    # the goldens were made with, checksum-pinned. Measured 2026-11-14 in ubuntu:24.04 and
+    # ubuntu:26.04 containers: render tests 22/24 without it, 24/24 with it, on Pango 1.52 and
+    # 1.57 alike. To update: take the version `apt-cache show fonts-adwaita-sans` lists on the
+    # machine that regenerates the goldens.
+    - name: Install Adwaita Sans
+      shell: bash
+      run: |
+        deb=fonts-adwaita-sans_49.0+dfsg-2_all.deb
+        curl -fsSL -o "$RUNNER_TEMP/$deb" "https://launchpad.net/ubuntu/+archive/primary/+files/$deb"
+        echo "69439ea5a600a1b6dd8f17e1a45951e7c100b5acb2df7af849a04558c45acb93  $RUNNER_TEMP/$deb" | sha256sum -c -
+        sudo dpkg -i "$RUNNER_TEMP/$deb"
+
+    - name: Toolchain and renderer versions
+      shell: bash
+      run: |
+        rustc -V && cargo -V
+        echo "pango $(pkg-config --modversion pango), cairo $(pkg-config --modversion cairo)," \
+          "freetype $(pkg-config --modversion freetype2), harfbuzz $(pkg-config --modversion harfbuzz)," \
+          "gtk4 $(pkg-config --modversion gtk4), libadwaita $(pkg-config --modversion libadwaita-1)"
+        fc-match "Adwaita Sans" && fc-match "DejaVu Sans" && echo "$(fc-list | wc -l) fonts installed"
