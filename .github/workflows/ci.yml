@@ -20,7 +20,15 @@ jobs:
             rustfmt-1.85 rust-1.85-clippy \
             libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext \
             desktop-file-utils appstream libglib2.0-bin lintian devscripts \
-            nodejs npm
+            nodejs npm fonts-dejavu-core fontconfig
+
+      # The golden-image tests set `font_family = "DejaVu Sans"` so that text renders the same
+      # everywhere (tests/render/main.rs). If the runner resolves that to something else, the
+      # glyphs differ and `callout_objects`, `text_objects` and `annota_theme_quick_styles` fail
+      # — which is what they did from 2026-11-01 to 2026-11-14, with `--no-install-recommends`
+      # leaving no DejaVu on the image. This line is the evidence, next to the failure.
+      - name: Fonts the renderer will use
+        run: fc-match "DejaVu Sans" && echo "$(fc-list | wc -l) fonts installed"
 
       - name: Configure (generates src/config.rs)
         run: PATH=/usr/lib/rust-1.85/bin:$PATH meson setup _build -Dprofile=development
