@@ -161,6 +161,13 @@ async fn with_permission(
         match permission::after_refusal(request.mode, store, asked) {
             Refusal::Denied => return Err(CaptureError::PermissionDenied),
             Refusal::CouldNotAsk => return Err(CaptureError::CouldNotAsk),
+            // The user closed GNOME's screenshot UI. Silent, like `Esc` in Annota's overlay —
+            // but still a line in the journal, because the portal answers a genuine failure of
+            // the interactive request with the very same code and nothing tells them apart.
+            Refusal::PickerClosed => {
+                eprintln!("annota: the window picker ended without an image");
+                return Err(CaptureError::Cancelled);
+            }
             Refusal::Failed => {
                 return Err(CaptureError::Failed(String::from(
                     "the portal refused the request",

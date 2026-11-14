@@ -94,6 +94,8 @@ struct Portal {
     hold_question: Rc<Cell<bool>>,
     /// The same for a request nobody is asked about: the portal is busy with the grab.
     hold_grab: Rc<Cell<bool>>,
+    /// The interactive picker ends without an image, as it does when the user closes it.
+    picker_closed: Rc<Cell<bool>>,
     /// The user's answer, while the question is open.
     open_question: OpenQuestion,
     /// `Register` answers only when the test says so.
@@ -260,12 +262,14 @@ fn start_portal(
 
     let hold_question = Rc::new(Cell::new(false));
     let hold_grab = Rc::new(Cell::new(false));
+    let picker_closed = Rc::new(Cell::new(false));
     let open_question: OpenQuestion = Rc::new(RefCell::new(None));
     let (portal_store, portal_calls) = (store.clone(), Rc::clone(&calls));
-    let (hold, hold_any, open) = (
+    let (hold, hold_any, open, closed_picker) = (
         hold_question.clone(),
         hold_grab.clone(),
         open_question.clone(),
+        picker_closed.clone(),
     );
     let (app, dir) = (app.clone(), dir.to_path_buf());
     let counter = Rc::new(Cell::new(0));
@@ -297,6 +301,10 @@ fn start_portal(
                 && stored.is_none()
                 && !parent.is_empty()
                 && question != Question::CannotShow;
+            // GNOME's screenshot UI, closed without an image: `InteractiveScreenshot` reports
+            // `success: false`, which xdg-desktop-portal-gnome 50 answers with response code 2
+            // — the same code as a real failure, not the cancel code 1.
+            let closed = interactive && closed_picker.get();
             let index = portal_calls.borrow().len();
             portal_calls.borrow_mut().push(Call {
                 parent,
@@ -323,6 +331,7 @@ fn start_portal(
                         2
                     }
                     (true, _) => 1,
+                    (false, _) if closed => 2,
                     (false, _) if interactive || stored == Some("yes") => 0,
                     (false, _) => 2,
                 };
@@ -363,6 +372,7 @@ fn start_portal(
         calls,
         hold_question,
         hold_grab,
+        picker_closed,
         open_question,
         hold_registration,
         registrations,
@@ -1163,4 +1173,25 @@ fn window_mode_never_asks_first() {
         (calls[0].parent.as_str(), calls[0].visible_windows),
         ("", 0)
     );
+}
+
+/// Closing GNOME's screenshot UI says nothing, like `Esc` in Annota's own overlay.
+///
+/// The regression test for the defect reported on 2026-11-13: the UI answers response code 2
+/// when it ends without an image, Annota read that as a failure and showed "The capture failed.
+/// Nothing was captured." — twice, for two pickers the maintainer had simply closed. One
+/// portal call, no second attempt, and no window opened to carry a message.
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn closing_the_picker_says_nothing() {
+    let scene = scene("picker-closed", None, Question::CannotShow);
+    scene.portal.picker_closed.set(true);
+    set_after_capture_to_clipboard();
+    scene.capture(CaptureMode::Window);
+    let calls = scene.calls();
+    assert_eq!(calls.len(), 1, "{calls:?}");
+    assert!(calls[0].interactive);
+    assert!(calls[0].file.is_none(), "{calls:?}");
+    assert!(scene.app.windows().is_empty(), "a window was opened");
+    assert!(scene.dialog().is_none());
 }

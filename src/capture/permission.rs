@@ -148,14 +148,26 @@ pub enum Refusal {
     Ask,
     /// A window was on screen and still no answer was stored.
     CouldNotAsk,
+    /// The interactive picker ended without an image: the user closed it. Nothing to say.
+    PickerClosed,
     /// The permission is not the reason.
     Failed,
 }
 
 /// Sorts a refusal by the store as it is now. `asked`: a window was on screen for the question.
+///
+/// Window mode is the one interactive request Annota makes, and the only one that reaches here
+/// without a permission question ever having been possible: the portal does not check the
+/// permission for an interactive request at all (see [`first_step`]). What it does do is answer
+/// response code 2 when GNOME's screenshot UI ends without an image — `xdg-desktop-portal-gnome`
+/// logs "InteractiveScreenshot didn't return a file" and maps `success: false` to 2, not to the
+/// cancel code 1. So in window mode a refusal means the user closed the picker, which must be as
+/// silent as `Esc` in Annota's own overlay. Observed on the maintainer's desktop 2026-11-13:
+/// two window captures, two "The capture failed" toasts, nothing wrong with either of them.
 pub fn after_refusal(mode: CaptureMode, store: StoreState, asked: bool) -> Refusal {
     match (mode, store) {
-        (CaptureMode::Window, _) | (_, StoreState::Allowed) => Refusal::Failed,
+        (CaptureMode::Window, _) => Refusal::PickerClosed,
+        (_, StoreState::Allowed) => Refusal::Failed,
         (_, StoreState::Denied) => Refusal::Denied,
         (_, StoreState::NotDecided | StoreState::Unreadable) if asked => Refusal::CouldNotAsk,
         (_, StoreState::NotDecided | StoreState::Unreadable) => Refusal::Ask,
@@ -347,9 +359,12 @@ mod tests {
         for asked in [false, true] {
             assert_eq!(after_refusal(Region, Denied, asked), Refusal::Denied);
             assert_eq!(after_refusal(Region, Allowed, asked), Refusal::Failed);
-            // The picker isn't checked, so even a stored "no" didn't cause this.
-            assert_eq!(after_refusal(Window, Denied, asked), Refusal::Failed);
-            assert_eq!(after_refusal(Window, NotDecided, asked), Refusal::Failed);
+            // The picker isn't checked, so the store never explains a refusal of it.
+            assert_eq!(after_refusal(Window, Denied, asked), Refusal::PickerClosed);
+            assert_eq!(
+                after_refusal(Window, NotDecided, asked),
+                Refusal::PickerClosed
+            );
         }
         // Nothing stored: the journal's "Only the focused app …" case.
         assert_eq!(
@@ -363,6 +378,32 @@ mod tests {
         // One more try, with a window; `asked` then ends it.
         assert_eq!(after_refusal(Region, NotDecided, false), Refusal::Ask);
         assert_eq!(after_refusal(Screen, Unreadable, false), Refusal::Ask);
+    }
+
+    /// The regression test for the reported defect: closing GNOME's screenshot UI answered
+    /// response code 2, which Annota showed as "The capture failed. Nothing was captured."
+    /// Window mode is the only interactive request, and no store state changes that.
+    #[test]
+    fn closing_the_picker_is_not_a_failure() {
+        use CaptureMode::*;
+        use StoreState::*;
+        for store in [Allowed, Denied, NotDecided, Unreadable] {
+            for asked in [false, true] {
+                assert_eq!(
+                    after_refusal(Window, store, asked),
+                    Refusal::PickerClosed,
+                    "{store:?}, asked={asked}"
+                );
+                // The frozen grab is not interactive: a refusal there still means what it did.
+                for mode in [Region, Screen] {
+                    assert_ne!(
+                        after_refusal(mode, store, asked),
+                        Refusal::PickerClosed,
+                        "{mode:?}, {store:?}, asked={asked}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
