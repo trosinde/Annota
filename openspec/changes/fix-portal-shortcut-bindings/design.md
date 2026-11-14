@@ -32,9 +32,36 @@ What the live portal does, measured 2026-11-14 with a probe registered as
 | GNOME's store after the bind | unchanged: `<Shift><Control>p`, `<Alt>Print`, `<Shift>Print` |
 
 gnome-control-center 50.3 contains a global-shortcuts rebind client
-(`cc_global_shortcuts_rebind_*`, `cc_keyboard_item_load_from_global_shortcuts`). GNOME Settings
-can therefore change Annota's triggers in its keyboard panel. The exact page and path are not
-measured yet (task 2.2).
+(`cc_global_shortcuts_rebind_*`, `cc_keyboard_item_load_from_global_shortcuts`).
+
+**Measured 2026-11-14, evening (tasks 2.2-2.4; AT-SPI, `tools/portal-input.py`, `dbus-monitor`).**
+
+- *Entry point (2.2).* The list is **not** in Keyboard › View and Customize Shortcuts (its search
+  finds neither "annota" nor "capture"). It sits in Apps › Annota › row "Global Shortcuts"
+  ("Global actions that have been registered for use", "3 actions"), which opens a dialog
+  "Annota has registered the following global shortcuts" with one row per ID, a "Reset Shortcut"
+  button per row and "Remove All Shortcuts". Activating a row opens "Set Shortcut" ("Enter new
+  shortcut to change Window capture"). `gnome-control-center applications
+  io.github.trosinde.Annota` lands on the Apps › Annota page directly.
+- *Rebind in Settings (2.3).* With a probe session open, rebinding `window` to
+  `<Shift><Control>F12` in that dialog emitted `ShortcutsChanged` **twice** within the same
+  second: first a list without `window`, then the full list with `Press <Shift><Control>F12`.
+  `ListShortcuts` afterwards reported the new trigger.
+- *Who gets a key both bind (2.4).* GNOME's backend
+  (`gnome-control-center-global-shortcuts-provider`, D-Bus-activated per bind) answers
+  `BindShortcuts` and then calls `org.gnome.Shell.GrabAccelerators` with the stored triggers.
+  Shell returns action ID `0` - grab refused - for `<Alt>Print` and `<Shift>Print`, which its own
+  `screenshot-window` and `screenshot` keybindings hold, and a real ID for `<Shift><Control>p` and
+  `<Shift><Control>F12`. The portal still reports all three as bound. Pressing `Shift+Print` ran
+  GNOME's screenshot and sent no `Activated`; pressing `Shift+Ctrl+F12` sent `Activated window`.
+  **GNOME Shell wins, and the portal does not tell the app.**
+- *Store rewritten by GNOME.* One bind (21:58, fresh provider start, after the Settings rebind)
+  answered and stored `<Shift><Control>p` / `<Shift><Control>i` / `<Shift><Control>o` instead of
+  the stored triggers, `screen` included, which nobody had touched. The same morning the store had
+  held `<Control>y` / `<Control>c` / `<Control>x` without anyone setting them. A controlled repeat
+  (store with `<Shift><Control>F12`, then bind) kept the store. What triggers the reassignment is
+  not known (Open Questions). Showing the bind response (D1) is correct either way, since it
+  matched every `GrabAccelerators` call measured.
 
 **Wayland vs X11.** The GlobalShortcuts portal is the same D-Bus interface in both sessions.
 Annota chooses the path by whether the portal answers, never by display server. The only
@@ -101,9 +128,9 @@ fallback is affected, not correctness.
 On the portal path the three rows lose their chevron and `activatable`. The group description
 reads "GNOME manages these shortcuts. Change them in GNOME Settings." and the group header gets a
 button "Open GNOME Settings" (mockups 02 and 03). The button calls
-`gio::AppInfo` for `org.gnome.Settings.desktop` with the `keyboard` panel argument, or the
-`org.gnome.Settings` `launch-panel` action over D-Bus, whichever task 2.2 shows lands on the page
-that lists Annota's shortcuts. If GNOME Settings is not installed, the button is hidden.
+the `org.gnome.Settings` `launch-panel` action with `('applications', [<'io.github.trosinde.Annota'>])`
+(equivalent to `gnome-control-center applications io.github.trosinde.Annota`, measured in 2.2), which
+lands on Apps › Annota with its "Global Shortcuts" row. If GNOME Settings is not installed, the button is hidden.
 
 *Alternative.* Keep the Set Shortcut dialog and send its value as `preferred_trigger` again:
 rejected. That is exactly today's no-op.
@@ -162,6 +189,9 @@ None. No data or settings change. Rollback is a plain revert.
 
 ## Open Questions
 
-- Exact GNOME Settings entry point (panel name or launch-panel argument) that shows the
-  global-shortcuts list. Task 2.2 answers it before D4 is built. It changes only the argument,
-  not the design.
+- ~~Exact GNOME Settings entry point~~ - answered by 2.2: Apps › Annota › "Global Shortcuts".
+- When does GNOME's provider reassign stored triggers on `BindShortcuts`? Observed twice, not
+  reproduced on demand.
+- A trigger the portal reports as bound can be one that GNOME Shell refused to grab (2.4). The
+  portal gives the app no way to see that. How the UI should treat a reported trigger that
+  collides with a GNOME Shell keybinding is a design decision for the maintainer.

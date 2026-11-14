@@ -22,10 +22,10 @@
 - [x] 2.2 Find the GNOME Settings entry point that lists Annota's portal shortcuts
       (gnome-control-center 50.3: panel name / `launch-panel` argument, and where the list sits).
       Record it in design.md D4 and close its Open Question. Verify by launching it once.
-- [ ] 2.3 With the probe's session open, rebind one Annota shortcut in GNOME Settings. Record
+- [x] 2.3 With the probe's session open, rebind one Annota shortcut in GNOME Settings. Record
       whether `ShortcutsChanged` arrives and whether `ListShortcuts` reports the new trigger
       (design.md D2).
-- [ ] 2.4 Record which of GNOME Shell (`screenshot`) and Annota (`screen`) reacts to `Shift+Print`
+- [x] 2.4 Record which of GNOME Shell (`screenshot`) and Annota (`screen`) reacts to `Shift+Print`
       when both bind it on GNOME 50. Record it in design.md. The spec wording stays
       "depends on the compositor".
 
