@@ -1157,6 +1157,7 @@ mod tests {
         }
     }
 
+    // spec: capture / Global capture hotkey / Hotkey on GNOME 46
     #[test]
     fn gnome_keybinding_runs_annota_capture() {
         // Scenario "Hotkey on GNOME 46": a GNOME custom keybinding for Print is created and
@@ -1229,6 +1230,7 @@ mod tests {
         ]
     }
 
+    // spec: capture / Reversible takeover of GNOME's screenshot keys / Takeover is reversible
     #[test]
     fn takeover_moves_gnome_bindings_aside() {
         let ours = vec![s("Print"), s("<Alt>Print"), s("<Shift>Print")];
@@ -1257,6 +1259,7 @@ mod tests {
         assert_eq!(takeover, Takeover::default());
     }
 
+    // spec: capture / Reversible takeover of GNOME's screenshot keys / Takeover is reversible
     #[test]
     fn restore_gives_keys_back() {
         // Reversible (D9): disabling Annota's Print shortcut gives GNOME its binding back.
@@ -1280,6 +1283,7 @@ mod tests {
         assert!(remaining.is_empty());
     }
 
+    // spec: capture / Reversible takeover of GNOME's screenshot keys / Shortcut conflict
     #[test]
     fn conflicts_are_found_by_accelerator() {
         let bindings = vec![

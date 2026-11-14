@@ -46,12 +46,10 @@ uncovered-scenario: app-shell / Local-only operation / No outgoing connections
 uncovered-scenario: app-shell / Preferences / Setting persists
 uncovered-scenario: app-shell / Single application instance / Second launch forwards request
 uncovered-scenario: app-shell / Single application instance / Second launch starts a capture
-uncovered-scenario: app-shell / Welcome page / Mode card starts a capture
 uncovered-scenario: capture / After-capture destination / Editor destination
 uncovered-scenario: capture / After-capture destination / Editor unavailable
 uncovered-scenario: capture / Delayed capture / Countdown
 uncovered-scenario: capture / Full-screen capture / Multi-monitor
-uncovered-scenario: capture / Global capture hotkey / Hotkey on GNOME 46
 uncovered-scenario: capture / Image from clipboard or file / Drop an image file
 uncovered-scenario: capture / Image from clipboard or file / File already open
 uncovered-scenario: capture / Image from clipboard or file / Paste
@@ -80,8 +78,6 @@ uncovered-scenario: capture / Region capture / Fixed size
 uncovered-scenario: capture / Region capture / Nudge with the keyboard
 uncovered-scenario: capture / Region capture / Select and confirm
 uncovered-scenario: capture / Region capture / Snap to a window edge
-uncovered-scenario: capture / Reversible takeover of GNOME's screenshot keys / Shortcut conflict
-uncovered-scenario: capture / Reversible takeover of GNOME's screenshot keys / Takeover is reversible
 uncovered-scenario: debian-packaging / Continuous integration / Failing lint blocks
 uncovered-scenario: debian-packaging / Desktop integration / App grid
 uncovered-scenario: debian-packaging / Installable package / Offline build
@@ -286,14 +282,10 @@ untagged-test: src/capture/portal.rs::other_errors_keep_their_message
 untagged-test: src/capture/portal.rs::response_code_2_is_a_refusal_not_a_denial
 untagged-test: src/capture/portal.rs::window_mode_uses_the_interactive_picker
 untagged-test: src/capture/shortcuts.rs::accelerators_normalise
-untagged-test: src/capture/shortcuts.rs::conflicts_are_found_by_accelerator
 untagged-test: src/capture/shortcuts.rs::custom_keybinding_list_is_merged_not_replaced
 untagged-test: src/capture/shortcuts.rs::d9_defaults_are_gnome_print_keys
-untagged-test: src/capture/shortcuts.rs::gnome_keybinding_runs_annota_capture
 untagged-test: src/capture/shortcuts.rs::program_name_prefers_path
-untagged-test: src/capture/shortcuts.rs::restore_gives_keys_back
 untagged-test: src/capture/shortcuts.rs::takeover_leaves_unrelated_keys_alone
-untagged-test: src/capture/shortcuts.rs::takeover_moves_gnome_bindings_aside
 untagged-test: src/capture/shortcuts.rs::xdg_triggers_for_portal
 untagged-test: src/capture/snap.rs::corner_snaps_on_both_axes
 untagged-test: src/capture/snap.rs::no_snap_beyond_8_px

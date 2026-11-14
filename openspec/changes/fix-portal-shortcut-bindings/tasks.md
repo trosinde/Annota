@@ -86,7 +86,7 @@
 
 ## 6. Verify
 
-- [ ] 6.1 `manual-checks.md` with live rows, **all run before archive**: the maintainer's
+- [x] 6.1 `manual-checks.md` with live rows, **all run before archive**: the maintainer's
       current state (Preferences, launcher and welcome show the triggers GNOME reports - since 2026-11-14 evening `Ctrl+Print` / `Ctrl+Alt+Print` /
       `Shift+Ctrl+Print` - not `Ctrl+P` / `Ctrl+W` / `Ctrl+Q`); a trigger taken by GNOME shows "Used by GNOME"; rebind in GNOME Settings and see it
       after reopening Preferences; press the rebound key, which starts that capture; "Open GNOME
