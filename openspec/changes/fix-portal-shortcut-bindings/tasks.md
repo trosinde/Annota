@@ -92,8 +92,11 @@
       later; tag capture / Global capture hotkey / Bind answered with an error.
 - [x] 7.2 N2: a `Refresh` that lands inside a `ShortcutsChanged` burst is debounced too. The
       measured gap between the two signals is < 1 ms (dbus-monitor, 2026-11-14), so 250 ms stays.
-- [ ] 7.3 N5: the Preferences row's accessible description carries the "Used by GNOME" text when
+- [x] 7.3 N5: the Preferences row's accessible description carries the "Used by GNOME" text when
       taken, not only the keycap label. Verify by AT-SPI on the real desktop (manual row).
+      Accepted by the maintainer 2026-11-14 as a known limitation (design.md, "Known
+      limitations"): the Description set on the row does not reach AT-SPI; the warning is
+      exposed as the row's subtitle label. Follow-up below.
 - [x] 7.4 N7: GNOME keybinding schema changes (`changed` on the `CONFLICT_SCHEMAS` settings)
       recompute `taken_by` and notify the surfaces.
 - [x] 7.5 N8: one read of GNOME's bindings per refresh, shared by the three modes; the launcher's
@@ -118,6 +121,8 @@
       pass 2 READY, no blocking findings. Follow-ups N1, N2, N5, N7, N8 in group 7.
 
 ## Workflow follow-up
+
+- Follow-up: make the taken row's AT-SPI description carry the "Used by GNOME" text (7.3, N5).
 
 - `/opsx:archive fix-portal-shortcut-bindings` once 6.x is done.
 - Follow-up change for `ConfigureShortcuts` (portal v2, `ashpd` 0.12) when a v2 GNOME backend is

@@ -256,6 +256,16 @@ Design approved: 2026-11-14 (mockups 01-05; mockup 06 for D7 also 2026-11-14, wi
 - [Users relied on editing in Preferences on GNOME ≥ 48] → it never worked after the first bind,
   so no working behaviour is lost.
 
+## Known limitations
+
+- **Row description on AT-SPI (task 7.3, reviewer N5).** Measured 2026-11-14 on the real desktop
+  (build 23e447f + group 7, AT-SPI): the accessible `Description` that `show_portal_row` sets on a
+  Preferences › Capture row does not reach AT-SPI; every row reports an empty description, the
+  taken one included, most likely because the row's own described-by relation wins. The
+  "Used by GNOME: <action>" text is still exposed as the row's visible subtitle label, a child of
+  the list item. Accepted by the maintainer for this change; a follow-up makes the description
+  itself carry the warning.
+
 ## Migration Plan
 
 None. No data or settings change. Rollback is a plain revert.
