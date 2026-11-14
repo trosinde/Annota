@@ -61,7 +61,7 @@
       path, rows read-only (no chevron, not activatable), group description and an "Open GNOME
       Settings" header button (D4). A row shows "Not set" or no trigger while `Pending`.
       `refresh_bound()` runs on `map`. Matches mockups 02/03.
-- [ ] 4.2 "Open GNOME Settings" opens the entry point found in 2.2. It is hidden when
+- [x] 4.2 "Open GNOME Settings" opens the entry point found in 2.2. It is hidden when
       `org.gnome.Settings.desktop` is not installed. Verify by a manual check row.
 - [x] 4.3 Launcher popover (`application.rs` `setup_launcher`): per-mode keycaps and the Capture
       button's accelerator from `shown_trigger`. `refresh_bound()` runs on popover `show`.
@@ -81,7 +81,7 @@
       names them "Annota: <label>". The label table is in one place. Verify: unit test with a
       fake accelerator list, where `<Control>q` gives "Annota: Quit" and an unregistered combo
       gives no conflict.
-- [ ] 5.2 Set Shortcut dialog shows "Used by Annota: Quit" for `Ctrl+Q` and keeps "Set"
+- [x] 5.2 Set Shortcut dialog shows "Used by Annota: Quit" for `Ctrl+Q` and keeps "Set"
       insensitive (mockup 04). Verify: manual check row, plus the 5.1 test covering the decision.
 
 ## 6. Verify
@@ -91,10 +91,12 @@
       `Shift+Ctrl+Print` - not `Ctrl+P` / `Ctrl+W` / `Ctrl+Q`); a trigger taken by GNOME shows "Used by GNOME"; rebind in GNOME Settings and see it
       after reopening Preferences; press the rebound key, which starts that capture; "Open GNOME
       Settings"; fallback-path dialog conflict on `Ctrl+Q`; dark style.
-- [ ] 6.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `meson test -C _build`
+- [x] 6.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `meson test -C _build`
       green.
-- [ ] 6.3 `openspec validate --all --strict` passes.
-- [ ] 6.4 `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean.
+- [x] 6.3 `openspec validate --all --strict` passes.
+- [x] 6.4 `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean.
+      Proven for 79edf1f in CI run 43642858338 (ubuntu-24.04, Rust 1.85): fmt + clippy, tests,
+      openspec, scenario gate and `.deb` with lintian all green.
 - [ ] 6.5 `reviewer` agent (fresh context): specs vs. tests, mockups vs. screenshots, no reads of
       `org.gnome.settings-daemon.global-shortcuts`. No blocking findings.
 
