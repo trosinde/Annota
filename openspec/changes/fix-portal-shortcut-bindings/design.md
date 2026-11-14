@@ -126,21 +126,21 @@ them. Nothing migrates, so rollback means reverting the code alone.
 ## Mockups
 
 Produced by the `designer` agent in `docs/design/fix-portal-shortcut-bindings/` (design gate,
-task group 1). Planned screens and the scenarios they cover:
+task group 1). Screens and the scenarios they cover (03 also has [03b](../../../docs/design/fix-portal-shortcut-bindings/png/03b-prefs-portal-pending-light@1x.png); full mapping in [index.md](../../../docs/design/fix-portal-shortcut-bindings/index.md)):
 
 | # | Screen | Scenarios |
 |---|---|---|
-| 01 | Capture launcher, portal path, triggers from the portal (Screen `Shift+Print`) | capture: Portal keeps an earlier trigger |
-| 02 | Preferences › Capture, portal path: read-only rows, description, "Open GNOME Settings" | capture: Shortcuts are managed by GNOME; Open GNOME Settings; Portal keeps an earlier trigger |
-| 03 | Preferences › Capture, portal path: one row "Not set", and the pending state | capture: Shortcut the portal has not bound |
-| 04 | Set Shortcut dialog (fallback): "Used by Annota: Quit" | capture: Conflict with an Annota application shortcut |
-| 05 | Welcome page, portal triggers, one card without keycaps | app-shell: Keycaps show the portal's triggers; capture: Shortcut the portal has not bound |
+| [01](../../../docs/design/fix-portal-shortcut-bindings/png/01-launcher-portal-triggers-light@1x.png) | Capture launcher, portal path, triggers from the portal (Screen `Shift+Print`) | capture: Portal keeps an earlier trigger |
+| [02](../../../docs/design/fix-portal-shortcut-bindings/png/02-prefs-portal-read-only-light@1x.png) | Preferences › Capture, portal path: read-only rows, description, "Open GNOME Settings" | capture: Shortcuts are managed by GNOME; Open GNOME Settings; Portal keeps an earlier trigger |
+| [03](../../../docs/design/fix-portal-shortcut-bindings/png/03a-prefs-portal-not-set-light@1x.png) | Preferences › Capture, portal path: one row "Not set", and the pending state | capture: Shortcut the portal has not bound |
+| [04](../../../docs/design/fix-portal-shortcut-bindings/png/04-set-shortcut-app-conflict-light@1x.png) | Set Shortcut dialog (fallback): "Used by Annota: Quit" | capture: Conflict with an Annota application shortcut |
+| [05](../../../docs/design/fix-portal-shortcut-bindings/png/05-welcome-portal-triggers-light@1x.png) | Welcome page, portal triggers, one card without keycaps | app-shell: Keycaps show the portal's triggers; capture: Shortcut the portal has not bound |
 
 Each in light and dark, 1× and 2×, built on add-screen-capture 01/09/11 and bootstrap-app-shell
 01. Scenarios with no screen ("Trigger changed in GNOME Settings", "No takeover…", "Hotkey on
 GNOME 46") are covered by a live check (`manual-checks.md`) or by existing tests.
 
-Design approved: _pending_
+Design approved: 2026-11-14
 
 ## Risks / Trade-offs
 

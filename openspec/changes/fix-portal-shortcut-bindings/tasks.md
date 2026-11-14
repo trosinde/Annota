@@ -2,16 +2,16 @@
 
 ## 1. Design gate
 
-- [ ] 1.1 `designer` agent: mockups 01–05 of design.md's "Mockups" table in
+- [x] 1.1 `designer` agent: mockups 01–05 of design.md's "Mockups" table in
       `docs/design/fix-portal-shortcut-bindings/` (HTML source + PNG, light + dark, 1× + 2×) and an
       `index.md` mapping every scenario of both spec deltas to a mockup or to "live check". Base:
       add-screen-capture 01/09/11, bootstrap-app-shell 01. Brief: the portal path must read as
       "GNOME owns these keys" at a glance, with no chevrons, no editable look and one clear way out
       ("Open GNOME Settings"). Done when the PNGs exist and render with
       `python3 tools/render-mockups.py docs/design/fix-portal-shortcut-bindings`.
-- [ ] 1.2 Link each mockup in design.md's "Mockups" table (file paths). Done when every scenario in
+- [x] 1.2 Link each mockup in design.md's "Mockups" table (file paths). Done when every scenario in
       `specs/` appears in it or in `index.md`.
-- [ ] 1.3 Maintainer approval recorded in design.md (`Design approved: <date>`). No code before.
+- [x] 1.3 Maintainer approval recorded in design.md (`Design approved: <date>`). No code before.
 
 ## 2. Portal measurements (before building on them, CLAUDE.md §5)
 
