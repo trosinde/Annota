@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # Only the workflow actions. Cargo updates stay manual: every crate update has to build with
+  # Rust 1.85, be re-vendored and refresh debian/copyright (CLAUDE.md §4).
+  - package-ecosystem: github-actions
+    directories: ["/", "/.github/actions/*"]
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

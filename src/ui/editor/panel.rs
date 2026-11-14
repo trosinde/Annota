@@ -677,6 +677,14 @@ impl TypePanel {
             self.fonts.append(name);
         }
         self.font_family.set_model(Some(&self.fonts));
+        // Set here, not in editor-window.blp: Ubuntu 24.04's blueprint-compiler 0.12 cannot
+        // parse `expr item as <StringObject>.string`, so the .deb did not build there.
+        self.font_family
+            .set_expression(Some(gtk::PropertyExpression::new(
+                gtk::StringObject::static_type(),
+                None::<&gtk::Expression>,
+                "string",
+            )));
         let weak = Rc::downgrade(self);
         self.font_family.connect_selected_notify(move |dropdown| {
             let Some(panel) = weak.upgrade() else {
