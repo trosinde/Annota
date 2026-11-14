@@ -84,6 +84,21 @@
 - [x] 5.2 Set Shortcut dialog shows "Used by Annota: Quit" for `Ctrl+Q` and keeps "Set"
       insensitive (mockup 04). Verify: manual check row, plus the 5.1 test covering the decision.
 
+## 7. Review follow-ups (reviewer pass 1, 2026-11-14)
+
+- [ ] 7.1 D8 / reviewer N1: failed or empty bind → `Unreported`, retried by `refresh_bound()`, the
+      Preferences line "GNOME has not reported these shortcuts." (gettext + de). Verify: live test
+      with the fake portal answering the bind with an error and `ListShortcuts` with triggers
+      later; tag capture / Global capture hotkey / Bind answered with an error.
+- [ ] 7.2 N2: a `Refresh` that lands inside a `ShortcutsChanged` burst is debounced too. The
+      measured gap between the two signals is < 1 ms (dbus-monitor, 2026-11-14), so 250 ms stays.
+- [ ] 7.3 N5: the Preferences row's accessible description carries the "Used by GNOME" text when
+      taken, not only the keycap label. Verify by AT-SPI on the real desktop (manual row).
+- [ ] 7.4 N7: GNOME keybinding schema changes (`changed` on the `CONFLICT_SCHEMAS` settings)
+      recompute `taken_by` and notify the surfaces.
+- [ ] 7.5 N8: one read of GNOME's bindings per refresh, shared by the three modes; the launcher's
+      `connect_bound_changed` listener holds its widgets weakly.
+
 ## 6. Verify
 
 - [x] 6.1 `manual-checks.md` with live rows, **all run before archive**: the maintainer's
@@ -97,8 +112,10 @@
 - [x] 6.4 `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean.
       Proven for 79edf1f in CI run 43642858338 (ubuntu-24.04, Rust 1.85): fmt + clippy, tests,
       openspec, scenario gate and `.deb` with lintian all green.
-- [ ] 6.5 `reviewer` agent (fresh context): specs vs. tests, mockups vs. screenshots, no reads of
+- [x] 6.5 `reviewer` agent (fresh context): specs vs. tests, mockups vs. screenshots, no reads of
       `org.gnome.settings-daemon.global-shortcuts`. No blocking findings.
+      Reviewer 2026-11-14: pass 1 NOT READY (B1 tags/baseline, B2 dark row), fixed in 3f69abc;
+      pass 2 READY, no blocking findings. Follow-ups N1, N2, N5, N7, N8 in group 7.
 
 ## Workflow follow-up
 

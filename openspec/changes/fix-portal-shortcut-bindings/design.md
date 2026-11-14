@@ -160,6 +160,18 @@ accessible description. Maintainer's choice of three (show as reported / mark / 
 *Alternative.* Ask the portal: it has no such answer in version 1. Read Shell's grab result:
 compositor-private (CLAUDE.md §2).
 
+### D8: A bind that fails is retried, and said so (2026-11-14, reviewer N1, maintainer "fixen")
+
+Before: a bind error left `BOUND` empty and the path `Portal`, so every surface stayed `Pending`
+for the whole run, with no word why. Now a failed or empty bind response sets a `Unreported`
+state. `refresh_bound()` (launcher `show`, Preferences `map`) runs `ListShortcuts` on the session
+when one exists; a non-empty answer replaces the state. While `Unreported`, Preferences adds one
+line "GNOME has not reported these shortcuts." under the group description (same style as the
+description, no icon, no button of its own; "Open GNOME Settings" stays) and the rows show no
+trigger, as in 03b; launcher and welcome show no keycaps, as `Pending`. The line names no cause:
+the portal gives the same error for a refused dialog and a backend failure (CLAUDE.md §5). No new
+mockup: it is 03b plus one description line.
+
 ### D6: Settings stay put
 
 `shortcut-*` are left as they are on both paths. On the portal path they keep one job: the
@@ -215,7 +227,8 @@ Design approved: 2026-11-14 (mockups 01-05; mockup 06 for D7 also 2026-11-14, wi
   documented in `manual-checks.md` if measured so.
 - [Another desktop returns triggers in a format D3 cannot parse] → verbatim text is shown. It is
   still the truth, only less pretty.
-- [The portal answers the bind with an error] → `BOUND` stays empty and the surfaces show
+- [The portal answers the bind with an error] → handled by D8 (retry on open, one honest line).
+  Previously `BOUND` stayed empty and the surfaces showed
   `Pending`, not the settings. This is honest (no binding is known), but on that error the user
   sees no keys at all. The error is already logged
   (`annota: global shortcuts portal not used: …`).

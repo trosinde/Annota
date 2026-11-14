@@ -8,6 +8,7 @@ With the GlobalShortcuts portal (GNOME ≥ 48), Annota binds them through the po
 - Preferences › Capture SHALL NOT open the Set Shortcut dialog. It SHALL say that GNOME manages these shortcuts and offer "Open GNOME Settings", which opens GNOME Settings at Annota's page under Apps, where its global shortcuts are listed. Annota opens no network connection for this.
 - Annota SHALL read the portal's triggers again whenever it binds, and whenever Preferences › Capture or the capture launcher opens. A trigger changed in GNOME Settings then shows without restarting Annota, as soon as the portal reports it.
 - Until the portal has answered, the shortcut rows and keycaps show no trigger, not Annota's configured accelerator.
+- If the portal answers the bind with an error or without results, Annota SHALL ask it for the triggers again (`ListShortcuts` on the same session) whenever Preferences › Capture or the capture launcher opens. While no trigger is known, Preferences › Capture SHALL say "GNOME has not reported these shortcuts." below its group description, and the launcher and welcome page show no keycaps. Annota SHALL NOT show its configured accelerators instead, and SHALL NOT claim a cause, since a refused dialog and a portal error give the same answer.
 - A reported trigger that GNOME's own keybinding settings also assign to a GNOME action is taken by GNOME: GNOME Shell refuses Annota's grab, the key runs GNOME's action, and the portal does not tell Annota. Annota SHALL still show that trigger, marked as used by GNOME and naming the GNOME action ("Used by GNOME: <action>"), and SHALL point to GNOME Settings to change it. It SHALL find these collisions only in GNOME's public keybinding settings, the same ones the Set Shortcut dialog checks.
 
 If the portal is unavailable, Annota SHALL offer in Preferences › Capture to create GNOME custom keybindings that run `annota --capture <mode>`. On that path the configured accelerators are the bound keys and are shown and edited as before.
@@ -40,6 +41,12 @@ If the portal is unavailable, Annota SHALL offer in Preferences › Capture to c
 - **THEN** the Screen capture row in Preferences › Capture shows `Shift+Print` with "Used by GNOME: Take a screenshot"
 - **AND** the launcher's Screen row and the welcome page's Screen card mark their `Shift+Print` keycaps as used by GNOME
 - **AND** pressing `Shift+Print` runs GNOME's screenshot, not an Annota capture
+
+#### Scenario: Bind answered with an error
+- **WHEN** the GlobalShortcuts portal is available and answers Annota's bind with an error
+- **THEN** Preferences › Capture reads "GNOME has not reported these shortcuts." and its rows show no trigger
+- **AND** the launcher and the welcome page show no keycaps, and none of Annota's configured accelerators
+- **AND** when Preferences › Capture opens again and `ListShortcuts` now reports triggers, they are shown
 
 #### Scenario: Trigger changed in GNOME Settings
 - **WHEN** Annota is running on the portal path and the user changes Annota's screen-capture shortcut in GNOME Settings to `Super+Shift+S`, then opens Preferences › Capture
