@@ -60,6 +60,14 @@ Adw.ApplicationWindow window {
         icon-name: "annota-capture-region-symbolic";
         tooltip-text: _("New Capture (Ctrl+N)");
 
+        // Without these, GTK names and describes the button from its popover's content: a
+        // screen reader read the whole launcher, and the launcher toggles' "Used by GNOME"
+        // warning (fix-portal-shortcut-bindings D7) as the button's description.
+        accessibility {
+          label: _("New Capture");
+          description: _("New Capture (Ctrl+N)");
+        }
+
         // Capture launcher (mockup 01 of add-screen-capture).
         popover: Popover capture_launcher {
           styles ["annota-launcher"]
