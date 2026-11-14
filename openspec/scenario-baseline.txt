@@ -48,8 +48,6 @@ uncovered-scenario: app-shell / Single application instance / Second launch forw
 uncovered-scenario: app-shell / Single application instance / Second launch starts a capture
 uncovered-scenario: app-shell / Welcome page / Mode card starts a capture
 uncovered-scenario: app-shell / Welcome page / Shortcut keycaps follow the settings
-uncovered-scenario: capture / After-capture destination / Both
-uncovered-scenario: capture / After-capture destination / Copy to clipboard
 uncovered-scenario: capture / After-capture destination / Editor destination
 uncovered-scenario: capture / After-capture destination / Editor unavailable
 uncovered-scenario: capture / Delayed capture / Countdown
@@ -263,7 +261,6 @@ untagged-test: src/capture/live_tests.rs::ask_again_runs_once_and_does_not_block
 untagged-test: src/capture/live_tests.rs::close_keeps_the_answer
 untagged-test: src/capture/live_tests.rs::closing_the_parent_during_the_question_is_safe
 untagged-test: src/capture/live_tests.rs::could_not_ask_uses_the_open_editor
-untagged-test: src/capture/live_tests.rs::first_run_allow_from_a_shortcut
 untagged-test: src/capture/live_tests.rs::first_run_allow_over_the_open_window
 untagged-test: src/capture/live_tests.rs::first_run_deny
 untagged-test: src/capture/live_tests.rs::not_found_counts_as_success

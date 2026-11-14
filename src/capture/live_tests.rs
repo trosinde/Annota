@@ -600,6 +600,7 @@ fn set_after_capture_to_clipboard() {
 }
 
 /// First run from a shortcut, nothing open, nothing stored, the user allows.
+// spec: capture / After-capture destination / Copy to clipboard
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
 fn first_run_allow_from_a_shortcut() {

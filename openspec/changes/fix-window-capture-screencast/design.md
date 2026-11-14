@@ -252,6 +252,57 @@ Design approved: 2026-11-14
   share glib 0.20 with gtk4/libadwaita and `cargo tree -d` shows a single glib. This replaces the
   0.24.5 bullet above. The code needed no change for the older API.
 
+2026-11-14, clipboard defect found by `tools/live-window-capture.py`:
+- **Symptom.** With after-capture "Both" or "Copy to Clipboard", a window capture announced
+  "Window captured · 800 × 500 · Copied to clipboard", but the clipboard kept the previous owner's
+  text. It was not window-specific: region and screen captures did not land either.
+- **Cause, measured on GNOME 50.1 (mutter 50.1, GTK 4.22) with `WAYLAND_DEBUG` and small GTK
+  probes.** Mutter ignores `wl_data_device.set_selection` unless (1) a surface of the client has
+  the keyboard focus and (2) the serial is one of the client's input events. GTK sends the serial
+  of the client's last key or button press, or 0 if there was none. Keyboard focus alone and a
+  pointer entering the window give no serial. A focused window that copies with serial 0 is
+  ignored. A copy with no focused Annota surface is ignored. A focused window that copies with
+  the serial of an earlier key press lands, even if another Annota window, since destroyed,
+  received that key, and even after input to other programs since then. `delivery::deliver`
+  copied before anything of Annota had the focus: the region overlay and the waiting OSD were
+  already destroyed, and the editor was presented only after the copy. A capture from
+  `annota --capture` or a global shortcut has no key or click in Annota at all, because the
+  window chooser and the screenshot UI belong to GNOME. Such a capture cannot be copied by GTK
+  on its own.
+- **Not a focus defect.** The editor of a window capture does get the keyboard focus: GTK's own
+  activation token works, with `wl_keyboard.enter` about 0.5 s after the editor is presented, and
+  AT-SPI shows it ACTIVE. That was true before this fix as well. The live suite saw it inactive
+  because every `wl-paste` call maps a surface of its own to take the focus; while the suite
+  polls the clipboard, the focus moves back and forth about every 260 ms.
+- **Fix.** `delivery::copy_lands(wayland, focused, input_seen)` states the rule; X11 always
+  lands. Every Annota window watches for key and button presses (`delivery::watch_input`,
+  hooked in `application::run`). On Wayland the copy waits until an Annota window is active, at
+  most 2 s, and is made only if it can land. "Both" opens the editor, copies once the editor is
+  active, and only then shows the toast (`editor::open_new_capture` + `OpenedCapture::announce`).
+  "Copy to Clipboard" on Wayland presents the message window (`present_for_message`) to take the
+  focus, also when no Annota window was open. The toast says "· Copied to clipboard" only when
+  the copy was made under those conditions. Otherwise the toast shows the heading alone and
+  offers Copy (mockup 12's editor toast), and a click on Copy supplies the serial. The quick-save
+  fallback no longer copies first, so its toast now offers Copy also with "Both".
+- **Measured after the fix:** region "Both" and region "Copy to Clipboard" from
+  `annota --capture region` (drag and Enter in the overlay) put `image/png` on the clipboard.
+  Screen and window captures from `annota --capture`, and a window capture from the Window card
+  pressed through AT-SPI, show the heading with Copy and leave the clipboard alone. That holds for
+  `--capture window`, the Window card, "Pointer in a window capture" and "Cursor excluded". After
+  one real key press (Shift, through the RemoteDesktop portal) in the focused editor, Copy on the
+  toast puts the image on the clipboard: 800 × 500, and 3840 × 2100 for a maximised window with
+  and without the pointer as expected. Ctrl+C could not be used for this check on the
+  maintainer's desktop: its GlobalShortcuts portal binds Annota's window capture to
+  `<Control>c` (region `<Control>y`, screen `<Control>x`), so GNOME takes Ctrl+C before any
+  application sees it.
+- **Deviation from the archived `capture` spec, open for the maintainer.** "After-capture
+  destination / Copy to clipboard" says no window opens. On Wayland a window now opens, because
+  without one no copy can land. Window and screen captures from a shortcut cannot honour
+  "Copy to Clipboard" or the clipboard half of "Both" automatically. Doing that would need a raw
+  Wayland data source that uses the keyboard-enter serial, which is the technique `wl-copy`
+  uses. That would mean an ADR and either `wayland-client` or unsafe FFI. Neither is in this
+  change.
+
 ## Risks / Trade-offs
 
 - [GNOME's chooser sometimes never becomes visible and its request never answers (measured,

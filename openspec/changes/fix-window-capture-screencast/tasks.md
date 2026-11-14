@@ -103,15 +103,15 @@
 
 ## 6a. Automated live tests (design.md D9)
 
-- [ ] 6.3 `tools/portal-input.py` (RemoteDesktop keys and pointer, restore token) committed with
+- [x] 6.3 `tools/portal-input.py` (RemoteDesktop keys and pointer, restore token) committed with
       its `--help` text. `tools/portal-probe.py --screencast-window` gains a parent window and
       the crop-meta read. Verify: `tools/portal-input.py check` prints "input session ready".
-- [ ] 6.4 `tools/live-window-capture.py`: one function per scenario of `specs/capture` "Window
+- [x] 6.4 `tools/live-window-capture.py`: one function per scenario of `specs/capture` "Window
       capture" and "Cursor inclusion" (window part), driving Annota and GNOME's chooser as in D9.
       Each run asserts the outcome from the editor's accessible tree or from the absence of a new
       document. Verify: all scenarios pass twice in a row on the maintainer's desktop, and the
       run prints a scenario → pass/fail table.
-- [ ] 6.5 `manual-checks.md` keeps only what 6.4 cannot automate (6.2 fresh install, 2.4 X11)
+- [x] 6.5 `manual-checks.md` keeps only what 6.4 cannot automate (6.2 fresh install, 2.4 X11)
       and links the 6.4 output for the rest.
 
 ## 7. Verify

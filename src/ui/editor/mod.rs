@@ -227,9 +227,46 @@ pub fn open_capture(
     title: &str,
     offer: ToastOffer,
 ) -> bool {
-    let Some((editor, pending)) = present_editor(app) else {
-        return false;
-    };
+    match open_new_capture(app, bitmap, name) {
+        Some(opened) => {
+            opened.announce(title, offer);
+            true
+        }
+        None => false,
+    }
+}
+
+/// A new capture open in the editor whose toast is still to come: "Both" copies it once the
+/// editor has the focus and only then knows what the toast may say (`capture::delivery`).
+pub struct OpenedCapture {
+    editor: Editor,
+    uid: u64,
+    pending: Option<Vec<RecoveryEntry>>,
+}
+
+impl OpenedCapture {
+    /// The editor window the capture is in.
+    pub fn window(&self) -> gtk::Window {
+        self.editor.inner.w.window.clone().upcast()
+    }
+
+    /// The toast of the new capture, then "Restore Unsaved Captures?" if it is due (as
+    /// [`open_capture`]).
+    pub fn announce(self, title: &str, offer: ToastOffer) {
+        self.editor.announce(self.uid, title, offer);
+        if let Some(entries) = self.pending {
+            self.editor.offer_recovery(entries);
+        }
+    }
+}
+
+/// [`open_capture`] without the toast; `None` if the editor window could not be built.
+pub fn open_new_capture(
+    app: &adw::Application,
+    bitmap: Bitmap,
+    name: &str,
+) -> Option<OpenedCapture> {
+    let (editor, pending) = present_editor(app)?;
     let loaded = Loaded {
         document: Document::with_title(bitmap, name),
         source: None,
@@ -237,11 +274,11 @@ pub fn open_capture(
         name: name.to_string(),
     };
     let uid = editor.add_session(loaded, Origin::New, AutosaveId::generate());
-    editor.announce(uid, title, offer);
-    if let Some(entries) = pending {
-        editor.offer_recovery(entries);
-    }
-    true
+    Some(OpenedCapture {
+        editor,
+        uid,
+        pending,
+    })
 }
 
 /// If a previous run left autosaves (and this process has not offered them yet), presents the

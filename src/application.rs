@@ -26,6 +26,9 @@ pub fn run() -> glib::ExitCode {
     app.connect_activate(|app| {
         present_window(app);
     });
+    // Key and button presses in any Annota window: whether a copy can land on Wayland
+    // (`capture::delivery::copy_lands`).
+    app.connect_window_added(|_, window| capture::delivery::watch_input(window));
     app.connect_startup(|app| {
         setup_actions(app);
         shortcuts::start_portal_shortcuts(app);

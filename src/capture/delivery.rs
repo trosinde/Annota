@@ -6,10 +6,16 @@
 //! the same editor path; opened and dropped files go to the editor through `import`. Only if
 //! the editor window cannot be built is the capture quick-saved as PNG into the save folder
 //! instead (the stand-in this change used before the editor existed), so it is never lost.
+//!
+//! On Wayland a copy only lands when Annota may own the clipboard (see [`copy_lands`]), so there
+//! the copy waits for an Annota window to have the focus, and a toast says "Copied to clipboard"
+//! only when the copy could land; otherwise it offers Copy, whose click gives Annota what the
+//! compositor asks for.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use adw::prelude::*;
 use gettextrs::gettext;
@@ -131,10 +137,11 @@ pub fn document_name(source: Source, pattern_name: &str) -> String {
 }
 
 /// What the toast of a new document in the editor offers (mockups 12, 13): pasted and opened
-/// images can be dropped again with Undo; a capture that went to the editor only can still be
+/// images can be dropped again with Undo; a capture that is not on the clipboard can still be
 /// copied, as the document is when the button is pressed (`Editor::copy_announced`), so edits
-/// made meanwhile are in the image and the redaction warning applies; with "Both" it is on the
-/// clipboard already.
+/// made meanwhile are in the image and the redaction warning applies; one that was `copied` is
+/// on the clipboard already. A capture is not copied when the preference says "Open in Editor",
+/// or when "Both" asked for a copy that could not land ([`copy_lands`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ToastOffer {
     Undo,
@@ -142,12 +149,102 @@ pub enum ToastOffer {
     Nothing,
 }
 
-pub fn toast_offer(source: Source, plan: Plan) -> ToastOffer {
+pub fn toast_offer(source: Source, copied: bool) -> ToastOffer {
     match source {
         Source::Clipboard | Source::File => ToastOffer::Undo,
-        _ if plan.copy => ToastOffer::Nothing,
+        _ if copied => ToastOffer::Nothing,
         _ => ToastOffer::Copy,
     }
+}
+
+/// The toast title of a delivered capture: "Copied to clipboard" is added only when the image
+/// was put on the clipboard in a way that lands ([`copy_lands`]), never because it was asked for.
+pub fn announced_title(heading: &str, copied: bool) -> String {
+    if copied {
+        format!("{heading} · {}", gettext("Copied to clipboard"))
+    } else {
+        heading.to_string()
+    }
+}
+
+/// Whether a copy made now reaches the clipboard.
+///
+/// On X11 it always does. On Wayland the compositor hands the clipboard (`set_selection`) only
+/// to the client whose surface has the keyboard focus, and only with the serial of an input event
+/// of that client; GTK passes the serial of the last key or button press Annota received, or 0
+/// if there was none. Measured on GNOME 50.1 (mutter 50.1, GTK 4.22) on 2026-11-14: a focused
+/// window copying with serial 0 is ignored, as is any copy while no Annota surface has the focus;
+/// a focused window copying with the serial of an earlier key press lands, even one received by
+/// another, since destroyed, Annota window, and even after input to other programs since then.
+/// The keyboard focus alone and a pointer entering the window give no serial. So a capture
+/// started by `annota --capture` or a global shortcut, without any key or click in Annota (the
+/// window chooser and the screenshot UI are GNOME's own), cannot be copied by itself at all.
+pub fn copy_lands(wayland: bool, focused: bool, input_seen: bool) -> bool {
+    !wayland || (focused && input_seen)
+}
+
+/// Whether Annota runs on Wayland, where [`copy_lands`] needs focus and an input serial.
+pub fn on_wayland() -> bool {
+    gdk::Display::default().is_some_and(|display| display.type_().name() == "GdkWaylandDisplay")
+}
+
+thread_local! {
+    /// Whether any Annota window has received a key or button press (see [`watch_input`]).
+    static INPUT_SEEN: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Whether `kind` is an event whose serial GTK hands to the compositor with a copy.
+pub fn gives_serial(kind: gdk::EventType) -> bool {
+    matches!(
+        kind,
+        gdk::EventType::ButtonPress | gdk::EventType::KeyPress | gdk::EventType::TouchBegin
+    )
+}
+
+/// Notes key and button presses in `window`, for [`copy_lands`]. Every Annota window gets this
+/// (`application::run`); it only looks and never stops an event.
+pub fn watch_input(window: &gtk::Window) {
+    let events = gtk::EventControllerLegacy::new();
+    events.set_propagation_phase(gtk::PropagationPhase::Capture);
+    events.connect_event(|_, event| {
+        if gives_serial(event.event_type()) {
+            INPUT_SEEN.with(|seen| seen.set(true));
+        }
+        glib::Propagation::Proceed
+    });
+    window.add_controller(events);
+}
+
+/// How long a window presented for a copy may take to get the focus (measured: about 0.5 s).
+const FOCUS_WAIT: Duration = Duration::from_secs(2);
+const FOCUS_POLL: Duration = Duration::from_millis(50);
+
+/// Copies `texture` once it can land: on Wayland after `window` has the focus (waiting at most
+/// [`FOCUS_WAIT`]). Returns whether it was copied; if it cannot land, nothing is copied.
+async fn copy_when_it_lands(
+    app: &adw::Application,
+    texture: &gdk::Texture,
+    window: Option<&gtk::Window>,
+) -> bool {
+    let wayland = on_wayland();
+    if wayland {
+        if let Some(window) = window {
+            let start = Instant::now();
+            while !window.is_active() && start.elapsed() < FOCUS_WAIT {
+                glib::timeout_future(FOCUS_POLL).await;
+            }
+        }
+    }
+    let focused = window.is_some_and(|w| w.is_active());
+    let input_seen = INPUT_SEEN.with(Cell::get);
+    if !copy_lands(wayland, focused, input_seen) {
+        eprintln!(
+            "annota: the capture was not copied (focused: {focused}, input seen: {input_seen})"
+        );
+        return false;
+    }
+    copy_to_clipboard(app, texture);
+    true
 }
 
 /// Saves `texture` as PNG into the configured save folder.
@@ -214,7 +311,9 @@ fn hold_until_replaced(app: &adw::Application, clipboard: &gdk::Clipboard) {
 /// Hands a finished image to its destination and tells the user what happened.
 ///
 /// `window_was_open` says whether an Annota window was on screen when the capture started;
-/// "Copy to clipboard" then still confirms with a toast, otherwise no window opens.
+/// "Copy to clipboard" then still confirms with a toast, otherwise no window opens — except on
+/// Wayland, where only a focused Annota window can copy ([`copy_lands`]), so a window is there to
+/// take the focus and to say truthfully whether the image is on the clipboard.
 pub fn deliver(app: &adw::Application, frame: Frame, source: Source, window_was_open: bool) {
     let settings = gio::Settings::new(config::APP_ID);
     let plan = plan(
@@ -224,16 +323,20 @@ pub fn deliver(app: &adw::Application, frame: Frame, source: Source, window_was_
     let texture = texture_from_frame(&frame);
     let heading = title(source, frame.width(), frame.height());
 
-    if plan.copy {
-        copy_to_clipboard(app, &texture);
-    }
-
     if !plan.open {
-        if window_was_open {
-            let window = application::present_for_message(app);
-            let text = format!("{heading} · {}", gettext("Copied to clipboard"));
-            application::show_toast(&window, &adw::Toast::builder().title(text).build());
-        }
+        let window =
+            (window_was_open || on_wayland()).then(|| application::present_for_message(app));
+        // Held until the copy is made: with no window nothing else keeps Annota running.
+        let hold = app.hold();
+        let app = app.clone();
+        glib::spawn_future_local(async move {
+            let copied =
+                copy_when_it_lands(&app, &texture, window.as_ref().map(|w| w.upcast_ref())).await;
+            if let Some(window) = window {
+                application::show_toast(&window, &copy_toast(&app, &texture, &heading, copied));
+            }
+            drop(hold);
+        });
         return;
     }
 
@@ -247,12 +350,6 @@ pub fn deliver(app: &adw::Application, frame: Frame, source: Source, window_was_
         })
         .unwrap_or_else(|_| String::from("Annota"));
     let name = document_name(source, &pattern_name);
-    let toast_title = if plan.copy {
-        format!("{heading} · {}", gettext("Copied to clipboard"))
-    } else {
-        heading.clone()
-    };
-    let offer = toast_offer(source, plan);
     let bitmap = annota::document::bitmap::Bitmap::from_argb32(
         frame.width(),
         frame.height(),
@@ -260,26 +357,67 @@ pub fn deliver(app: &adw::Application, frame: Frame, source: Source, window_was_
         frame.data().to_vec(),
     );
     match bitmap {
+        Ok(bitmap) if !plan.copy => {
+            let offer = toast_offer(source, false);
+            if crate::ui::editor::open_capture(app, bitmap, &name, &heading, offer) {
+                return;
+            }
+            eprintln!("annota: the editor window could not be built; saving the capture");
+        }
         Ok(bitmap) => {
-            if crate::ui::editor::open_capture(app, bitmap, &name, &toast_title, offer) {
+            if let Some(opened) = crate::ui::editor::open_new_capture(app, bitmap, &name) {
+                // "Both": copied once the editor has the focus, announced after that.
+                let app = app.clone();
+                glib::spawn_future_local(async move {
+                    let window = opened.window();
+                    let copied = copy_when_it_lands(&app, &texture, Some(&window)).await;
+                    opened.announce(
+                        &announced_title(&heading, copied),
+                        toast_offer(source, copied),
+                    );
+                });
                 return;
             }
             eprintln!("annota: the editor window could not be built; saving the capture");
         }
         Err(err) => eprintln!("annota: the capture cannot become a document: {err}"),
     }
-    save_instead(app, &texture, &settings, source, &heading, plan);
+    save_instead(app, &texture, &settings, source, &heading);
+}
+
+/// The toast of "Copy to clipboard": "… · Copied to clipboard" if the copy landed, else the
+/// heading with Copy, whose click copies (and gives Annota the input the compositor asks for).
+fn copy_toast(
+    app: &adw::Application,
+    texture: &gdk::Texture,
+    heading: &str,
+    copied: bool,
+) -> adw::Toast {
+    let toast = adw::Toast::builder()
+        .title(announced_title(heading, copied))
+        .build();
+    toast.set_use_markup(false);
+    if !copied {
+        toast.set_button_label(Some(&gettext("Copy")));
+        let texture = texture.clone();
+        toast.connect_button_clicked(glib::clone!(
+            #[weak]
+            app,
+            move |_| copy_to_clipboard(&app, &texture)
+        ));
+    }
+    toast
 }
 
 /// The capture could not open in the editor: it is quick-saved as PNG into the save folder and
-/// a toast names the file, so it is not lost.
+/// a toast names the file, so it is not lost. A capture is not copied on this path, also not with
+/// "Both", so its toast offers Copy.
 fn save_instead(
     app: &adw::Application,
     texture: &gdk::Texture,
     settings: &gio::Settings,
     source: Source,
     heading: &str,
-    plan: Plan,
 ) {
     let window = application::present_window(app);
     match quick_save(texture, settings) {
@@ -309,7 +447,7 @@ fn save_instead(
                         );
                     });
                 }
-                Source::Region | Source::Window | Source::Screen if !plan.copy => {
+                Source::Region | Source::Window | Source::Screen => {
                     toast.set_button_label(Some(&gettext("Copy")));
                     let texture = texture.clone();
                     toast.connect_button_clicked(glib::clone!(
@@ -318,7 +456,6 @@ fn save_instead(
                         move |_| copy_to_clipboard(&app, &texture)
                     ));
                 }
-                _ => {}
             }
             application::show_toast(&window, &toast);
         }
@@ -373,12 +510,52 @@ mod tests {
             document_name(Source::Region, "Capture 2026-10-30 14-22-08"),
             "Capture 2026-10-30 14-22-08"
         );
-        let editor = plan(Source::Region, AfterCapture::Editor);
-        let both = plan(Source::Region, AfterCapture::Both);
-        assert_eq!(toast_offer(Source::Region, editor), ToastOffer::Copy);
-        assert_eq!(toast_offer(Source::Region, both), ToastOffer::Nothing);
-        let pasted = plan(Source::Clipboard, AfterCapture::Clipboard);
-        assert_eq!(toast_offer(Source::Clipboard, pasted), ToastOffer::Undo);
+        assert_eq!(toast_offer(Source::Region, false), ToastOffer::Copy);
+        assert_eq!(toast_offer(Source::Region, true), ToastOffer::Nothing);
+        assert_eq!(toast_offer(Source::Clipboard, false), ToastOffer::Undo);
+    }
+
+    // spec: capture / After-capture destination / Both
+    // spec: capture / After-capture destination / Copy to clipboard
+    #[test]
+    fn a_copy_lands_on_wayland_only_with_focus_and_an_input_serial() {
+        // Measured on GNOME 50.1 (2026-11-14, fix-window-capture-screencast "Decided during
+        // apply"): mutter ignores set_selection without keyboard focus, and with serial 0, which
+        // GTK sends until Annota has received a key or button press.
+        assert!(copy_lands(false, false, false), "X11 takes every copy");
+        assert!(copy_lands(true, true, true));
+        assert!(
+            !copy_lands(true, false, true),
+            "no Annota surface has the focus"
+        );
+        assert!(
+            !copy_lands(true, true, false),
+            "a capture from a shortcut: no key or click in Annota yet"
+        );
+        assert!(gives_serial(gdk::EventType::KeyPress));
+        assert!(gives_serial(gdk::EventType::ButtonPress));
+        assert!(!gives_serial(gdk::EventType::MotionNotify));
+        assert!(!gives_serial(gdk::EventType::EnterNotify));
+        assert!(!gives_serial(gdk::EventType::FocusChange));
+    }
+
+    // spec: capture / After-capture destination / Both
+    // spec: capture / After-capture destination / Copy to clipboard
+    #[test]
+    fn the_toast_claims_a_copy_only_when_it_landed() {
+        // A copy asked for but not made never says "Copied to clipboard" and offers Copy.
+        let heading = title(Source::Window, 800, 500);
+        assert_eq!(
+            announced_title(&heading, true),
+            "Window captured · 800 × 500 · Copied to clipboard"
+        );
+        assert_eq!(toast_offer(Source::Window, true), ToastOffer::Nothing);
+        assert_eq!(
+            announced_title(&heading, false),
+            "Window captured · 800 × 500"
+        );
+        assert_eq!(toast_offer(Source::Window, false), ToastOffer::Copy);
+        assert_eq!(toast_offer(Source::Screen, false), ToastOffer::Copy);
     }
 
     #[test]
@@ -445,7 +622,7 @@ mod tests {
         // delivery, opens in the editor with the toast "Window captured · W × H" and Copy.
         let editor = plan(Source::Window, AfterCapture::Editor);
         assert_eq!(editor, plan(Source::Region, AfterCapture::Editor));
-        assert_eq!(toast_offer(Source::Window, editor), ToastOffer::Copy);
+        assert_eq!(toast_offer(Source::Window, editor.copy), ToastOffer::Copy);
         assert_eq!(
             title(Source::Window, 2248, 2848),
             "Window captured · 2248 × 2848"
