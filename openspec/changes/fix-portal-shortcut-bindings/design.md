@@ -144,6 +144,22 @@ Image, Open Library, Preferences, Paste Image, and the editor's window actions).
 falls back to "Annota". Reading the live registrations means the list cannot drift from the code.
 The check applies on the fallback path, the only path that still has the dialog.
 
+### D7: Mark triggers GNOME Shell keeps for itself (decided 2026-11-14 after 2.4)
+
+Measured in 2.4: GNOME Shell refuses `GrabAccelerators` for a trigger its own keybindings hold,
+while the portal reports the trigger as bound. `shown_trigger` therefore gets a second result
+field: `taken_by: Option<String>`, the GNOME action's summary, found with the same
+`CONFLICT_SCHEMAS` lookup `find_conflict` already does (`org.gnome.shell.keybindings`,
+`org.gnome.desktop.wm.keybindings`, `org.gnome.mutter.keybindings`, media keys and custom
+keybindings - all public GSettings, never `org.gnome.settings-daemon.global-shortcuts`). The
+lookup is pure over a keybinding list, so it is unit-tested without a desktop. The surfaces show
+the trigger and the warning (mockup 06): Preferences row subtitle "Used by GNOME: <action>" with
+a warning icon, launcher and welcome keycaps with a warning badge and that text as tooltip and
+accessible description. Maintainer's choice of three (show as reported / mark / show "Not set").
+
+*Alternative.* Ask the portal: it has no such answer in version 1. Read Shell's grab result:
+compositor-private (CLAUDE.md §2).
+
 ### D6: Settings stay put
 
 `shortcut-*` are left as they are on both paths. On the portal path they keep one job: the
@@ -162,12 +178,13 @@ task group 1). Screens and the scenarios they cover (03 also has [03b](../../../
 | [03](../../../docs/design/fix-portal-shortcut-bindings/png/03a-prefs-portal-not-set-light@1x.png) | Preferences › Capture, portal path: one row "Not set", and the pending state | capture: Shortcut the portal has not bound |
 | [04](../../../docs/design/fix-portal-shortcut-bindings/png/04-set-shortcut-app-conflict-light@1x.png) | Set Shortcut dialog (fallback): "Used by Annota: Quit" | capture: Conflict with an Annota application shortcut |
 | [05](../../../docs/design/fix-portal-shortcut-bindings/png/05-welcome-portal-triggers-light@1x.png) | Welcome page, portal triggers, one card without keycaps | app-shell: Keycaps show the portal's triggers; capture: Shortcut the portal has not bound |
+| 06 (pending) | Preferences, launcher and welcome with a trigger taken by GNOME (`Shift+Print`, "Used by GNOME: Take a screenshot") | capture: Trigger taken by GNOME |
 
 Each in light and dark, 1× and 2×, built on add-screen-capture 01/09/11 and bootstrap-app-shell
 01. Scenarios with no screen ("Trigger changed in GNOME Settings", "No takeover…", "Hotkey on
 GNOME 46") are covered by a live check (`manual-checks.md`) or by existing tests.
 
-Design approved: 2026-11-14
+Design approved: 2026-11-14 (mockups 01-05; mockup 06 for D7 pending)
 
 ## Risks / Trade-offs
 

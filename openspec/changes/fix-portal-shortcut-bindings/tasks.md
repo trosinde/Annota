@@ -13,6 +13,9 @@
       `specs/` appears in it or in `index.md`.
 - [x] 1.3 Maintainer approval recorded in design.md (`Design approved: <date>`). No code before.
 
+- [ ] 1.4 `designer`: mockup 06 for D7 (trigger taken by GNOME) on Preferences, launcher and
+      welcome; link it in design.md; maintainer approval of 06 recorded. No D7 UI code before.
+
 ## 2. Portal measurements (before building on them, CLAUDE.md §5)
 
 - [x] 2.1 Extend `tools/portal-probe.py` with a `--global-shortcuts` mode. It registers as
@@ -47,6 +50,11 @@
       `screen` to `<Shift>Print`, so `shown_trigger(Screen)` is `Accel("<Shift>Print")` and never
       `<Control>q`.
 
+- [ ] 3.5 D7: `taken_by` lookup over GNOME's public keybinding schemas, shared with
+      `find_conflict`. Verify: unit tests - `<Shift>Print` against a list holding "Take a
+      screenshot" gives that name; a free trigger gives none; Annota's own fallback custom
+      keybindings never count.
+
 ## 4. UI surfaces
 
 - [ ] 4.1 Preferences › Capture (`src/preferences.rs`, `data/ui/preferences.blp`): on the portal
@@ -61,9 +69,11 @@
 - [ ] 4.4 Welcome cards (`application.rs` `setup_welcome`): keycaps from `shown_trigger`. They
       update on `connect_bound_changed` and on `shortcut-*` changes. `NotSet` and `Pending` show
       no keycaps. Matches mockup 05.
+- [ ] 4.6 D7 surfaces per mockup 06: warning subtitle on the Preferences row, warning badge +
+      tooltip + accessible description on launcher and welcome keycaps.
 - [ ] 4.5 All new strings through gettext. `po/de.po` updated in the same commit ("GNOME manages
       these shortcuts. Change them in GNOME Settings.", "Open GNOME Settings", "Not set",
-      "Used by Annota: {action}").
+      "Used by Annota: {action}", "Used by GNOME: {action}").
 
 ## 5. App-accelerator conflicts (design.md D5)
 
@@ -77,8 +87,8 @@
 ## 6. Verify
 
 - [ ] 6.1 `manual-checks.md` with live rows, **all run before archive**: the maintainer's
-      current state (Preferences, launcher and welcome show `Shift+Ctrl+P` / `Alt+Print` /
-      `Shift+Print`, not `Ctrl+P` / `Ctrl+W` / `Ctrl+Q`); rebind in GNOME Settings and see it
+      current state (Preferences, launcher and welcome show the triggers GNOME reports - since 2026-11-14 evening `Ctrl+Print` / `Ctrl+Alt+Print` /
+      `Shift+Ctrl+Print` - not `Ctrl+P` / `Ctrl+W` / `Ctrl+Q`); a trigger taken by GNOME shows "Used by GNOME"; rebind in GNOME Settings and see it
       after reopening Preferences; press the rebound key, which starts that capture; "Open GNOME
       Settings"; fallback-path dialog conflict on `Ctrl+Q`; dark style.
 - [ ] 6.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `meson test -C _build`
