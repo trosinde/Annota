@@ -312,7 +312,11 @@ Bugfixes without visible behaviour change skip step 2–3 but still need a test.
 
 | Agent | Use for |
 |---|---|
-| `designer` | Design kit, mockups for every change, app icon, tool icons, stamp art, marketing screenshots for README/metainfo |
+| `designer` | Design kit, mockups for every change, app icon, tool icons, stamp art |
+
+README and metainfo images are not mockups: every UI screenshot is taken fresh from the current
+build (never from `docs/design/`), framing graphics are made with Claude Design, and the demo
+sources that rebuild them live in `docs/assets/source/` (skill `github-repo-showcase`).
 | `gtk-engineer` | Implementation chunks of an approved change (Rust/GTK/libadwaita) |
 | `reviewer` | Independent verification of a change against specs, mockups and quality gates |
 | `debian-packager` | `debian/`, Flatpak manifest, CI packaging jobs, release builds |
