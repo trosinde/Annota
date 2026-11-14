@@ -1,94 +1,98 @@
+<div align="center">
+
+<img src="data/icons/hicolor/scalable/apps/io.github.trosinde.Annota.svg" width="96" alt="">
+
 # Annota
 
 **Capture it. Mark it up. Make it obvious.**
 
-Annota is a native GNOME screenshot, annotation and screen-recording app for Ubuntu and Debian.
-Arrows, callouts, numbered steps, highlights and redaction stay editable until you export.
-Built in Rust with GTK 4 and libadwaita, shipped as a native Debian package, private by default.
+Annotated screenshots for GNOME – editable until you export.
 
-> Status: pre-alpha. Roadmap fully specified (18 OpenSpec changes), 267 mockups awaiting review,
-> application skeleton and lintian-clean Debian package in place.
+<img src="docs/assets/hero.png" width="860" alt="The Annota editor with a settings page marked up: numbered steps 1 to 3, a callout saying Turn this on, an arrow and two pixelated private fields">
 
-| | |
-|---|---|
-| Platform | Ubuntu 24.04+, Debian 13 · GNOME, Wayland first, X11 supported |
-| Stack | Rust · GTK 4 · libadwaita · Cairo · GStreamer · xdg-desktop-portal |
-| App ID | `io.github.trosinde.Annota` |
-| Privacy | no telemetry, OCR and redaction run locally |
+</div>
 
-## Documentation
+You explain software with screenshots – in a support ticket, a how-to, a bug report or a handout.
+A plain screenshot makes the reader guess where to look. Annota lets you point at exactly what
+matters, hide what is private, and change your mind until the moment you share it.
+It is a native GNOME app for Ubuntu and Debian, and it never sends anything anywhere.
 
-- **Visual project overview:** [`docs/index.html`](docs/index.html) (GitHub Pages ready)
-- Feature catalogue (benchmark → phase): [`docs/feature-catalog.md`](docs/feature-catalog.md)
-- Roadmap as OpenSpec changes: [`openspec/changes/`](openspec/changes)
-- Rules for contributors and Claude Code: [`CLAUDE.md`](CLAUDE.md)
+> **Status: pre-alpha.** Capture, the editor, the annotation tools, styles and export work today.
+> There is no release yet – [build it from source](#get-started). The capture library, screen
+> recording and text recognition are [planned](#roadmap).
+
+## Why Annota
+
+### Point at exactly what matters
+
+Arrows, callouts, numbered steps, shapes, text and a highlighter – each one key away.
+
+<img src="docs/assets/feature-1-markup.png" width="720" alt="A settings page with step badges 1 to 3, a red callout pointing at a switch and an arrow with the note Daily is safer">
+
+### Change your mind later
+
+Every annotation stays an object: move it, restyle it or delete it at any time. Save as `.annota`
+and keep editing tomorrow.
+
+<img src="docs/assets/feature-2-editable.png" width="720" alt="A selected callout with resize handles, and its properties in the sidebar: shape, fill, outline, font and padding">
+
+### Share without oversharing
+
+Blur, pixelate or black out names, e-mail addresses and keys before you share. Annota warns you
+when blur or pixelate is not enough – and it never opens a network connection.
+
+<img src="docs/assets/feature-3-redact.png" width="720" alt="A pixelated e-mail address is selected; the sidebar offers Blur, Pixelate and Solid and warns that blur and pixelate can sometimes be reversed">
+
+### Look consistent in one click
+
+Quick styles and themes give every arrow, callout and step the same colours and fonts.
+
+<img src="docs/assets/feature-4-styles.png" width="720" alt="A selected arrow with eight quick styles for arrows in the sidebar, from the Annota theme">
+
+## Before and after
+
+<img src="docs/assets/before-after.png" width="860" alt="Left: a plain settings page where nothing shows where to look. Right: the same page with three steps, a callout and the private data pixelated">
+
+## Get started
+
+Annota has no release yet, so you build it from source. On Ubuntu 24.04:
+
+```bash
+sudo apt install -y meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
+  libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext desktop-file-utils \
+  appstream libglib2.0-bin
+git clone https://github.com/trosinde/Annota.git && cd Annota
+export PATH=/usr/lib/rust-1.85/bin:$PATH
+meson setup _build -Dprofile=development && meson compile -C _build
+meson devenv -C _build ./src/annota
+```
+
+On Ubuntu 26.04 or Debian 13, install `cargo rustc` instead of the `-1.85` packages and skip the
+`export` line.
+
+Annota opens with three buttons: **Region**, **Window** and **Screen**. Pick one, and the capture
+opens in the editor. Next: [your first annotated screenshot](docs/tutorials/first-steps.md).
+
+## Learn more
+
+- **Tutorial** – [Your first annotated screenshot](docs/tutorials/first-steps.md)
+- **How-to guides** – [Install Annota](docs/how-to/install.md) · [Build the Debian package](docs/development/building.md)
+- **Reference** – [Keyboard shortcuts](docs/reference/keyboard-shortcuts.md) · [Feature catalogue](docs/feature-catalog.md)
+- **Explanation** – [Architecture](docs/explanation/architecture.md) · [Decision records](docs/adr/)
+- **All documentation** – [docs/](docs/README.md)
 
 ## Roadmap
 
-| Phase | Changes |
-|---|---|
-| **MVP 0.1** | app shell & packaging · screen capture · editor & `.annota` format · core tools · quick styles & themes · export & share · capture library |
-| **Phase 2** | advanced tools · effects · capture presets · text recognition · smart redaction · library search, tags & collections · templates · screen recording |
-| **Phase 3** | scrolling capture · step capture · smart move & simplify |
+- **MVP 0.1:** app shell and packaging · screen capture · editor and `.annota` format · core tools · quick styles and themes · export and share · capture library
+- **Phase 2:** advanced tools · effects · capture presets · text recognition · smart redaction · library search, tags and collections · templates · screen recording
+- **Phase 3:** scrolling capture · step capture · smart move and simplify
 
-## Install
+Every change is specified in [`openspec/changes/`](openspec/changes) before it is built –
+see [how Annota is built](docs/development/workflow.md).
 
-**From the signed APT repository (recommended)** — every release is signed with Annota's GPG
-release key, so `apt` verifies it on install and every later upgrade:
+## Project
 
-```bash
-curl -fsSL https://trosinde.github.io/Annota/annota-archive-keyring.asc \
-  | sudo tee /usr/share/keyrings/annota-archive-keyring.asc
-echo "deb [signed-by=/usr/share/keyrings/annota-archive-keyring.asc] \
-  https://trosinde.github.io/Annota/apt noble main" \
-  | sudo tee /etc/apt/sources.list.d/annota.list
-sudo apt update && sudo apt install annota
-```
+[Contributing and workflow](docs/development/workflow.md) · Privacy: no accounts, no cloud, no
+telemetry · License: MIT for code, CC-BY-SA-4.0 for artwork and docs.
 
-**Direct download** — grab the `.deb` from the [latest release](https://github.com/trosinde/Annota/releases)
-and install it without adding a repository (not verified by `apt` itself):
-
-```bash
-sudo apt install ./annota_*.deb
-```
-
-Every release tag (`vX.Y.Z`) publishes both paths: the unsigned `.deb` on the GitHub Release and
-the signed APT repository on GitHub Pages. See `packaging/annota-archive-keyring.asc` for the
-raw public key, and [`docs/adr/0001-signed-apt-repo.md`](docs/adr/0001-signed-apt-repo.md) for how
-the key is generated, rotated and revoked.
-
-## Build the Debian/Ubuntu package
-
-On Ubuntu 24.04 (or Debian 13):
-
-```bash
-sudo apt install -y debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
-  libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext desktop-file-utils \
-  appstream libglib2.0-bin lintian devscripts
-build-aux/make-deb.sh            # vendors crates, builds offline, runs lintian
-sudo apt install ../annota_*.deb
-```
-
-On Debian 13 install `cargo rustc` instead of the versioned `-1.85` packages.
-Every push to `main` also builds the `.deb` in GitHub Actions (artifact `annota-deb-ubuntu-24.04`).
-
-## Continue with Claude Code
-
-`CLAUDE.md` is the rule book. Next change: `/opsx:apply <id>`, design gate: `/design <id>`,
-agents: `designer`, `gtk-engineer`, `reviewer`, `debian-packager`.
-Review all mockups in one page: `python3 tools/build-review-gallery.py` → `docs/design/review.html`.
-
-## How it is built
-
-Design → Spec → Code → Verify → Package. Every user-visible change gets high-fidelity mockups from the
-`designer` agent and maintainer approval before any code is written.
-
-```bash
-git clone https://github.com/trosinde/Annota.git && cd Annota && claude
-# then: /opsx:apply bootstrap-app-shell   (after the design is approved)
-```
-
-## License
-
-MIT for code, CC-BY-SA-4.0 for artwork and docs.
 Annota is an independent project and is not affiliated with any commercial screenshot tool.
