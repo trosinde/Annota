@@ -40,6 +40,19 @@ runs:
         echo "69439ea5a600a1b6dd8f17e1a45951e7c100b5acb2df7af849a04558c45acb93  $RUNNER_TEMP/$deb" | sha256sum -c -
         sudo dpkg -i "$RUNNER_TEMP/$deb"
 
+    # The runner image ships fonts-dejavu-extra; a desktop with fonts-dejavu-core does not, and
+    # that is where the goldens are made. With DejaVuSans-Oblique present, the italic note in
+    # `text_objects` gets the real oblique face instead of a synthesised slant and 111 of 4950
+    # cells differ — measured 2026-11-14, the same count in a ubuntu:24.04 container with the
+    # package as on the runner, and 0 without it.
+    - name: Remove fonts the goldens were not made with
+      shell: bash
+      run: |
+        if dpkg -s fonts-dejavu-extra >/dev/null 2>&1; then
+          # dpkg, not apt-get: apt would also remove whatever depends on it.
+          sudo dpkg --remove --force-depends fonts-dejavu-extra
+        fi
+
     - name: Toolchain and renderer versions
       shell: bash
       run: |
@@ -47,4 +60,7 @@ runs:
         echo "pango $(pkg-config --modversion pango), cairo $(pkg-config --modversion cairo)," \
           "freetype $(pkg-config --modversion freetype2), harfbuzz $(pkg-config --modversion harfbuzz)," \
           "gtk4 $(pkg-config --modversion gtk4), libadwaita $(pkg-config --modversion libadwaita-1)"
-        fc-match "Adwaita Sans" && fc-match "DejaVu Sans" && echo "$(fc-list | wc -l) fonts installed"
+        for f in "Adwaita Sans" "DejaVu Sans" "DejaVu Sans:bold" "DejaVu Sans:italic"; do
+          echo "$f -> $(fc-match "$f")"
+        done
+        echo "$(fc-list | wc -l) fonts installed"
