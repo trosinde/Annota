@@ -51,27 +51,69 @@ The system SHALL support a delay of 1–60 s with a visible countdown that is no
 - **AND** the captured image does not contain the countdown
 
 ### Requirement: Global capture hotkey
-The system SHALL register configurable global shortcuts for region (default `Print`), window (default `Alt+Print`) and screen (default `Shift+Print`) capture. With the GlobalShortcuts portal (GNOME ≥ 48) they are bound through the portal while Annota runs. If the portal is unavailable, Annota SHALL offer in Preferences › Capture to create GNOME custom keybindings that run `annota --capture <mode>`.
+The system SHALL register global shortcuts for region (default `Print`), window (`Alt+Print`) and screen (`Shift+Print`) capture: through the GlobalShortcuts portal (IDs `region`, `window`, `screen`) when it exists, else as GNOME custom keybindings that run `annota --capture <mode>`. On the portal path every surface SHALL show only the triggers the portal reports, read again on bind, on `ShortcutsChanged` and when Preferences or the launcher opens, and editing SHALL be left to GNOME Settings.
 
 #### Scenario: Hotkey on GNOME 46
 - **WHEN** the GlobalShortcuts portal is unavailable and the user enables the hotkey in preferences
 - **THEN** a GNOME custom keybinding for `Print` is created
 - **AND** pressing it starts a region capture
 
+#### Scenario: Portal keeps an earlier trigger
+- **WHEN** the GlobalShortcuts portal is available, GNOME has bound `screen` to `Shift+Print`, and Annota's screen-capture setting is `Ctrl+Q`
+- **THEN** Preferences › Capture, the launcher's Screen row and the welcome page's Screen card show `Shift+Print`
+- **AND** none of them shows `Ctrl+Q`
+
+#### Scenario: Shortcut the portal has not bound
+- **WHEN** the GlobalShortcuts portal is available and its answer to the bind contains no trigger for `window`
+- **THEN** the Window capture row in Preferences › Capture reads "Not set", and the launcher and the welcome page show no keycap for Window
+- **AND** before the portal has answered at all, no surface shows a trigger, and none shows Annota's configured accelerator
+
+#### Scenario: Shortcuts are managed by GNOME
+- **WHEN** the GlobalShortcuts portal is available and the user activates the Region capture row in Preferences › Capture
+- **THEN** no Set Shortcut dialog opens
+- **AND** the group explains that GNOME manages these shortcuts and offers "Open GNOME Settings"
+
+#### Scenario: Open GNOME Settings
+- **WHEN** the user clicks "Open GNOME Settings" in Preferences › Capture
+- **THEN** GNOME Settings opens at Apps › Annota, which has the "Global Shortcuts" row listing Annota's shortcuts
+
+#### Scenario: Trigger taken by GNOME
+- **WHEN** the GlobalShortcuts portal is available, it reports `screen` bound to `Shift+Print`, and GNOME's keybinding settings assign `Shift+Print` to "Take a screenshot"
+- **THEN** the Screen capture row in Preferences › Capture shows `Shift+Print` with "Used by GNOME: Take a screenshot"
+- **AND** the launcher's Screen row and the welcome page's Screen card mark their `Shift+Print` keycaps as used by GNOME
+- **AND** pressing `Shift+Print` runs GNOME's screenshot, not an Annota capture
+
+#### Scenario: Bind answered with an error
+- **WHEN** the GlobalShortcuts portal is available and answers Annota's bind with an error
+- **THEN** Preferences › Capture reads "GNOME has not reported these shortcuts." and its rows show no trigger
+- **AND** the launcher and the welcome page show no keycaps, and none of Annota's configured accelerators
+- **AND** when Preferences › Capture opens again and `ListShortcuts` now reports triggers, they are shown
+
+#### Scenario: Trigger changed in GNOME Settings
+- **WHEN** Annota is running on the portal path and the user changes Annota's screen-capture shortcut in GNOME Settings to `Super+Shift+S`, then opens Preferences › Capture
+- **THEN** the Screen capture row shows `Super+Shift+S`, provided the portal reports that trigger
+- **AND** pressing `Super+Shift+S` starts a screen capture
+
 ### Requirement: Reversible takeover of GNOME's screenshot keys
-Per decision D9, the default shortcuts are GNOME's own screenshot keys. On the GNOME-custom-keybinding fallback only (see "Global capture hotkey"), when Annota creates those keybindings the system SHALL move GNOME's bindings for the same keys aside, recorded and never deleted, and SHALL give them back when the Annota shortcut is disabled or changed.
+On the GNOME-custom-keybinding fallback only, creating Annota's keybindings SHALL move GNOME's bindings for the same keys aside, recorded and never deleted, and give them back when the Annota shortcut is disabled or changed (D9). The Set Shortcut dialog SHALL refuse a combination already used by another GNOME action (except GNOME's screenshot keys), by another Annota capture shortcut, or by an Annota application or window shortcut, since a global binding takes the key from every app.
 
 #### Scenario: Takeover is reversible
 - **WHEN** Annota's GNOME shortcuts were created and the user disables the region shortcut with Backspace in the Set Shortcut dialog
 - **THEN** GNOME's own `Print` binding is restored
 
 #### Scenario: No takeover on the GlobalShortcuts portal path
-- **WHEN** the GlobalShortcuts portal is available (GNOME ≥ 48, e.g. Debian 13, Ubuntu 26.04) and Annota registers `Print`/`Alt+Print`/`Shift+Print` as its preferred triggers
-- **THEN** GNOME Shell's own bindings for those keys are left untouched, and which of GNOME or Annota actually reacts to the key depends on the compositor
+- **WHEN** the GlobalShortcuts portal is available (GNOME ≥ 48, e.g. Debian 13, Ubuntu 26.04) and Annota binds its shortcuts
+- **THEN** GNOME Shell's own bindings for `Print`, `Alt+Print` and `Shift+Print` are left untouched
+- **AND** the triggers Annota shows are the ones the portal reported
+- **AND** a reported trigger that is one of those GNOME keys is marked "Used by GNOME" (see "Global capture hotkey")
 
 #### Scenario: Shortcut conflict
 - **WHEN** the user presses a key combination in the Set Shortcut dialog that another GNOME action already uses (other than GNOME's own screenshot keys, which Annota takes over)
 - **THEN** the dialog names that action and "Set" stays insensitive
+
+#### Scenario: Conflict with an Annota application shortcut
+- **WHEN** the user presses `Ctrl+Q` in the Set Shortcut dialog for Screen capture
+- **THEN** the dialog reads "Used by Annota: Quit" and "Set" stays insensitive
 
 ### Requirement: Cursor inclusion
 The user SHALL be able to include or exclude the mouse pointer; default is exclude. For region and screen captures Annota draws the pointer into the image itself, since the Screenshot portal has no pointer option for non-interactive captures; in window mode the desktop's picker decides.

@@ -137,8 +137,12 @@ annota/
   `.deb` dependencies, the automated live suite (`tools/live-window-capture.py`, AT-SPI +
   `tools/portal-input.py`), the Rust 1.85 build (CI), review. Defect class: the spec described
   portal behaviour that no probe had ever measured - see §5 "Assumptions about the portal".
-- `fix-portal-shortcut-bindings` (parked at 2/23): GlobalShortcuts bindings that GNOME keeps from
-  an earlier run do not fire.
+- `fix-portal-shortcut-bindings` archived 2026-11-14. Every surface shows the triggers the portal
+  reports, never `shortcut-*`; Preferences leaves editing to GNOME Settings (Apps › Annota ›
+  Global Shortcuts). Measured on GNOME 50: GNOME Shell silently refuses a grab on a key its own
+  keybindings hold (`Alt+Print`, `Shift+Print`) while the portal reports it bound - Annota marks
+  such keys "Used by GNOME". GNOME's provider has also been seen to reassign stored triggers on
+  bind (cause unknown). Known limitation: the Preferences row's AT-SPI description stays empty.
 - `add-capture-library` is the last MVP change not started (18 tasks, design-approved). The other
   P2/P3 changes have no implementation.
 - `add-screen-capture` task 4.6 (the first-launch Print-key-takeover prompt, D9) was archived

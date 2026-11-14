@@ -70,12 +70,16 @@ The `annota` binary SHALL accept `--capture region|window|screen`, `--delay <sec
 - **THEN** the editor shows the "Newer Annota Version Needed" alert and the file is unchanged
 
 ### Requirement: Welcome page
-Without a document, the main window SHALL show the welcome page (bootstrap-app-shell mockup 01): "Capture Anything", a line saying that a capture opens in the editor, mode cards Region, Window and Screen with their current shortcuts as keycaps (the first one focused), and a hint to open or drop images and `.annota` files. A mode card SHALL start that capture, delivered by the after-capture destination (`capture`).
+Without a document, the main window SHALL show the welcome page (bootstrap-app-shell mockup 01): "Capture Anything", a line saying that a capture opens in the editor, mode cards Region, Window and Screen (the first one focused), and a hint to open or drop images and `.annota` files. Each card SHALL show as keycaps the shortcut that actually starts that capture (`capture` "Global capture hotkey"), none if unset, and SHALL start that capture, delivered by the after-capture destination.
 
 #### Scenario: Mode card starts a capture
 - **WHEN** the user activates the Region card on the welcome page
 - **THEN** a region capture starts, as with the Region shortcut
 
 #### Scenario: Shortcut keycaps follow the settings
-- **WHEN** the window-capture shortcut is changed in Preferences › Capture
+- **WHEN** the GlobalShortcuts portal is unavailable and the window-capture shortcut is changed in Preferences › Capture
 - **THEN** the Window card shows the new shortcut
+
+#### Scenario: Keycaps show the portal's triggers
+- **WHEN** the GlobalShortcuts portal is available, it reports `region` bound to `Shift+Ctrl+P`, and Annota's region-capture setting is `Ctrl+P`
+- **THEN** the Region card shows the keycaps `Shift` `Ctrl` `P`
