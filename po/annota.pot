@@ -3476,6 +3476,10 @@ msgstr ""
 msgid "GNOME manages these shortcuts. Change them in GNOME Settings."
 msgstr ""
 
+#: src/preferences.rs:307
+msgid "GNOME has not reported these shortcuts."
+msgstr ""
+
 #: src/preferences.rs:332
 msgid "Not set"
 msgstr ""

@@ -250,14 +250,13 @@ fn mark_taken(widget: &gtk::Widget, own_tooltip: Option<&str>, taken: Option<&st
     }
 }
 
-/// One welcome card's keycap line from `shortcuts::shown_trigger` (mockups 05, 06c).
+/// One welcome card's keycap line from `shortcuts::shown_triggers` (mockups 05, 06c).
 fn fill_welcome_keys(
     card: &gtk::Button,
     keys: &gtk::Box,
     own_tooltip: Option<&str>,
-    mode: CaptureMode,
+    shown: &shortcuts::Shown,
 ) {
-    let shown = shortcuts::shown_trigger(mode);
     match &shown.trigger {
         shortcuts::ShownTrigger::Accel(accel) => fill_keycaps(keys, accel),
         shortcuts::ShownTrigger::Text(text) => {
@@ -289,12 +288,42 @@ fn fill_welcome_keys(
     mark_taken(card.upcast_ref(), own_tooltip, taken.as_deref());
 }
 
+/// One welcome card, held weakly by the listeners.
+struct WelcomeCard {
+    mode: CaptureMode,
+    card: glib::WeakRef<gtk::Button>,
+    keys: glib::WeakRef<gtk::Box>,
+    own_tooltip: Option<String>,
+}
+
+/// Fills every welcome card from one `shortcuts::shown_triggers` (reviewer N8). `Break` once the
+/// cards are gone.
+fn fill_welcome_cards(cards: &[WelcomeCard]) -> glib::ControlFlow {
+    let shown = shortcuts::shown_triggers();
+    let mut alive = false;
+    for card in cards {
+        let (Some(button), Some(keys)) = (card.card.upgrade(), card.keys.upgrade()) else {
+            continue;
+        };
+        alive = true;
+        if let Some((_, shown)) = shown.iter().find(|(mode, _)| *mode == card.mode) {
+            fill_welcome_keys(&button, &keys, card.own_tooltip.as_deref(), shown);
+        }
+    }
+    if alive {
+        glib::ControlFlow::Continue
+    } else {
+        glib::ControlFlow::Break
+    }
+}
+
 /// The welcome page's mode cards (bootstrap-app-shell mockup 01): each starts its capture,
 /// which opens in the editor; their keycaps show the trigger that starts it
-/// (`shortcuts::shown_trigger`). The first card has the keyboard focus.
+/// (`shortcuts::shown_triggers`). The first card has the keyboard focus.
 fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builder: &gtk::Builder) {
     let settings = gio::Settings::new(config::APP_ID);
     let mut first = None;
+    let mut cards = Vec::new();
     for (mode, card, keys) in [
         (
             CaptureMode::Region,
@@ -319,36 +348,12 @@ fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builde
             eprintln!("annota: window.ui is missing the welcome card '{card}'");
             continue;
         };
-        let key = shortcuts::settings_key(mode);
-        let own_tooltip = card.tooltip_text().map(|t| t.to_string());
-        fill_welcome_keys(&card, &keys, own_tooltip.as_deref(), mode);
-        settings.connect_changed(
-            Some(key),
-            glib::clone!(
-                #[weak]
-                card,
-                #[weak]
-                keys,
-                #[strong]
-                own_tooltip,
-                move |_, _| fill_welcome_keys(&card, &keys, own_tooltip.as_deref(), mode)
-            ),
-        );
-        // The welcome page has no open event of its own; it follows the portal's answers (D2).
-        shortcuts::connect_bound_changed(glib::clone!(
-            #[weak]
-            card,
-            #[weak]
-            keys,
-            #[strong]
-            own_tooltip,
-            #[upgrade_or]
-            glib::ControlFlow::Break,
-            move || {
-                fill_welcome_keys(&card, &keys, own_tooltip.as_deref(), mode);
-                glib::ControlFlow::Continue
-            }
-        ));
+        cards.push(WelcomeCard {
+            mode,
+            card: card.downgrade(),
+            keys: keys.downgrade(),
+            own_tooltip: card.tooltip_text().map(|t| t.to_string()),
+        });
         // The card keeps the settings object (and with it the keycap updates) alive.
         let keep = settings.clone();
         card.connect_clicked(glib::clone!(
@@ -361,6 +366,18 @@ fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builde
         ));
         first.get_or_insert(card);
     }
+    let cards: Rc<[WelcomeCard]> = cards.into();
+    fill_welcome_cards(&cards);
+    settings.connect_changed(None, {
+        let cards = cards.clone();
+        move |_, key| {
+            if key.starts_with("shortcut-") || key == "gnome-shortcuts-created" {
+                fill_welcome_cards(&cards);
+            }
+        }
+    });
+    // The welcome page has no open event of its own; it follows the portal's answers (D2).
+    shortcuts::connect_bound_changed(move || fill_welcome_cards(&cards));
     if let Some(open_keys) = builder.object::<gtk::Box>("welcome_open_keys") {
         fill_keycaps(&open_keys, "<Control>o");
     }
@@ -396,15 +413,16 @@ pub fn accel_label(accel: &str) -> String {
         .unwrap_or_default()
 }
 
-/// One mode toggle of the capture launcher.
+/// One mode toggle of the capture launcher. Weak, since the shortcut listeners outlive the
+/// window (reviewer N8).
 struct LauncherToggle {
     mode: CaptureMode,
-    button: gtk::ToggleButton,
+    button: glib::WeakRef<gtk::ToggleButton>,
     /// The toggle's tooltip from `window.ui`, back when the trigger is not taken.
     own_tooltip: Option<String>,
-    caption: gtk::Box,
-    warning: gtk::Image,
-    accel: gtk::Label,
+    caption: glib::WeakRef<gtk::Box>,
+    warning: glib::WeakRef<gtk::Image>,
+    accel: glib::WeakRef<gtk::Label>,
 }
 
 /// A launcher toggle's caption and the Capture button's hint: `Shift+Print`, a portal text
@@ -435,13 +453,16 @@ fn setup_launcher(app: &adw::Application, window: &adw::ApplicationWindow, build
     macro_rules! toggle {
         ($mode:expr, $name:literal) => {{
             let button: gtk::ToggleButton = get!(concat!("launcher_", $name, "_button"));
+            let caption: gtk::Box = get!(concat!("launcher_", $name, "_caption"));
+            let warning: gtk::Image = get!(concat!("launcher_", $name, "_warning"));
+            let accel: gtk::Label = get!(concat!("launcher_", $name, "_accel"));
             LauncherToggle {
                 mode: $mode,
                 own_tooltip: button.tooltip_text().map(|t| t.to_string()),
-                button,
-                caption: get!(concat!("launcher_", $name, "_caption")),
-                warning: get!(concat!("launcher_", $name, "_warning")),
-                accel: get!(concat!("launcher_", $name, "_accel")),
+                button: button.downgrade(),
+                caption: caption.downgrade(),
+                warning: warning.downgrade(),
+                accel: accel.downgrade(),
             }
         }};
     }
@@ -479,7 +500,7 @@ fn setup_launcher(app: &adw::Application, window: &adw::ApplicationWindow, build
         move || {
             toggles
                 .iter()
-                .find(|toggle| toggle.button.is_active())
+                .find(|toggle| toggle.button.upgrade().is_some_and(|b| b.is_active()))
                 .map(|toggle| toggle.mode)
                 .unwrap_or(CaptureMode::Region)
         }
@@ -496,15 +517,27 @@ fn setup_launcher(app: &adw::Application, window: &adw::ApplicationWindow, build
                 return glib::ControlFlow::Break;
             };
             let selected = selected_mode();
+            // One read of GNOME's keybindings for the three toggles (reviewer N8).
+            let all = shortcuts::shown_triggers();
             for toggle in toggles.iter() {
-                let shown = shortcuts::shown_trigger(toggle.mode);
+                let (Some(button), Some(caption_box), Some(warning), Some(accel)) = (
+                    toggle.button.upgrade(),
+                    toggle.caption.upgrade(),
+                    toggle.warning.upgrade(),
+                    toggle.accel.upgrade(),
+                ) else {
+                    return glib::ControlFlow::Break;
+                };
+                let Some((_, shown)) = all.iter().find(|(mode, _)| *mode == toggle.mode) else {
+                    continue;
+                };
                 let caption = launcher_caption(&shown.trigger);
-                toggle.accel.set_text(&caption);
+                accel.set_text(&caption);
                 let taken = shown.taken_by.as_ref().map(shortcuts::TakenBy::text);
-                toggle.warning.set_visible(taken.is_some());
-                toggle.caption.set_visible(!caption.is_empty());
+                warning.set_visible(taken.is_some());
+                caption_box.set_visible(!caption.is_empty());
                 mark_taken(
-                    toggle.button.upcast_ref(),
+                    button.upcast_ref(),
                     toggle.own_tooltip.as_deref(),
                     taken.as_deref(),
                 );
@@ -530,14 +563,19 @@ fn setup_launcher(app: &adw::Application, window: &adw::ApplicationWindow, build
 
     let initial = CaptureMode::from_index(settings.enum_("capture-mode"));
     for toggle in toggles.iter() {
-        toggle.button.set_active(toggle.mode == initial);
+        if let Some(button) = toggle.button.upgrade() {
+            button.set_active(toggle.mode == initial);
+        }
     }
     refresh();
     for toggle in toggles.iter() {
         let mode = toggle.mode;
         let settings = settings.clone();
         let refresh = refresh.clone();
-        toggle.button.connect_toggled(move |button| {
+        let Some(button) = toggle.button.upgrade() else {
+            continue;
+        };
+        button.connect_toggled(move |button| {
             if button.is_active() {
                 let _ = settings.set_enum("capture-mode", mode.index());
                 refresh();

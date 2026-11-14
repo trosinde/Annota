@@ -299,7 +299,16 @@ impl ShortcutsView {
         } else if created {
             gettext("Work in every app, even when Annota is closed")
         } else if portal == Some(true) {
-            gettext("GNOME manages these shortcuts. Change them in GNOME Settings.")
+            let managed = gettext("GNOME manages these shortcuts. Change them in GNOME Settings.");
+            if shortcuts::unreported() {
+                // D8: one more line in the description's own style, naming no cause.
+                format!(
+                    "{managed}\n{}",
+                    gettext("GNOME has not reported these shortcuts.")
+                )
+            } else {
+                managed
+            }
         } else {
             String::new()
         };
@@ -311,18 +320,21 @@ impl ShortcutsView {
         self.open_settings
             .set_visible(portal == Some(true) && !created && gnome_settings_installed());
 
+        // One read of GNOME's keybindings for all three rows (reviewer N8).
+        let shown = portal_path.then(shortcuts::shown_triggers);
         for shortcut in &self.rows {
-            if portal_path {
-                self.show_portal_row(shortcut);
-            } else {
-                self.show_fallback_row(shortcut, created, portal);
+            match shown
+                .as_ref()
+                .and_then(|shown| shown.iter().find(|(mode, _)| *mode == shortcut.mode))
+            {
+                Some((_, shown)) => self.show_portal_row(shortcut, shown),
+                None => self.show_fallback_row(shortcut, created, portal),
             }
         }
     }
 
     /// Mockups 02, 03a, 03b, 06a: read-only, the trigger GNOME reports.
-    fn show_portal_row(&self, shortcut: &ShortcutRow) {
-        let shown = shortcuts::shown_trigger(shortcut.mode);
+    fn show_portal_row(&self, shortcut: &ShortcutRow, shown: &shortcuts::Shown) {
         shortcut.row.set_activatable(false);
         shortcut.chevron.set_visible(false);
         let (accel, text) = match &shown.trigger {
@@ -341,10 +353,11 @@ impl ShortcutsView {
             taken.as_deref().unwrap_or_default(),
         ));
         // Read with the row: "Screen capture, Shift+Print, Used by GNOME: Take a screenshot".
-        let spoken = match &shown.trigger {
+        let trigger = match &shown.trigger {
             shortcuts::ShownTrigger::Accel(accel) => crate::application::accel_label(accel),
             _ => text.unwrap_or_default(),
         };
+        let spoken = row_description(&trigger, taken.as_deref());
         if spoken.is_empty() {
             shortcut
                 .row
@@ -417,6 +430,17 @@ impl ShortcutsView {
             ),
         }
     }
+}
+
+/// A portal-path row's accessible description: the trigger as read aloud, then the "Used by
+/// GNOME" warning when GNOME holds it (reviewer N5), so the warning is not only visible.
+pub(crate) fn row_description(trigger: &str, taken: Option<&str>) -> String {
+    [Some(trigger), taken]
+        .into_iter()
+        .flatten()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// GNOME Settings' desktop file; "Open GNOME Settings" is hidden without it (design.md D4).
@@ -584,6 +608,18 @@ mod tests {
             resolved_save_folder("/tmp/shots"),
             PathBuf::from("/tmp/shots")
         );
+    }
+
+    // spec: capture / Global capture hotkey / Trigger taken by GNOME
+    #[test]
+    fn a_taken_rows_description_names_the_gnome_action() {
+        assert_eq!(
+            row_description("Shift+Print", Some("Used by GNOME: Take a screenshot")),
+            "Shift+Print, Used by GNOME: Take a screenshot"
+        );
+        assert_eq!(row_description("Shift+Ctrl+P", None), "Shift+Ctrl+P");
+        assert_eq!(row_description("Not set", None), "Not set");
+        assert_eq!(row_description("", None), "");
     }
 
     // spec: capture / Global capture hotkey / Open GNOME Settings

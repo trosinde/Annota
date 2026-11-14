@@ -1682,6 +1682,8 @@ struct GlobalShortcutsPortal {
     preferred: Rc<RefCell<Vec<(String, String)>>>,
     /// Annota's bus name and session, for the signals.
     client: Rc<RefCell<Option<(String, String)>>>,
+    /// `BindShortcuts` answers with response code 2 and no results (D8).
+    bind_error: Rc<Cell<bool>>,
 }
 
 fn shortcut_list(bound: &[(&str, &str)]) -> glib::Variant {
@@ -1709,12 +1711,14 @@ fn add_global_shortcuts(bound: &[(&'static str, &'static str)]) -> GlobalShortcu
         log: Rc::new(RefCell::new(Vec::new())),
         preferred: Rc::new(RefCell::new(Vec::new())),
         client: Rc::new(RefCell::new(None)),
+        bind_error: Rc::new(Cell::new(false)),
     };
-    let (answer, log, preferred, client) = (
+    let (answer, log, preferred, client, bind_error) = (
         portal.bound.clone(),
         portal.log.clone(),
         portal.preferred.clone(),
         portal.client.clone(),
+        portal.bind_error.clone(),
     );
     connection
         .register_object(
@@ -1734,6 +1738,7 @@ fn add_global_shortcuts(bound: &[(&'static str, &'static str)]) -> GlobalShortcu
                 let handle = portal_path("request", &sender, &token("handle_token").unwrap());
                 let path = glib::variant::ObjectPath::try_from(handle.clone()).unwrap();
                 let mut results: HashMap<String, glib::Variant> = HashMap::new();
+                let mut code = 0;
                 match method {
                     "CreateSession" => {
                         let session = portal_path(
@@ -1764,7 +1769,12 @@ fn add_global_shortcuts(bound: &[(&'static str, &'static str)]) -> GlobalShortcu
                                 .unwrap_or_default();
                             preferred.borrow_mut().push((id, trigger));
                         }
-                        results.insert(String::from("shortcuts"), shortcut_list(&answer.borrow()));
+                        if bind_error.get() {
+                            code = 2;
+                        } else {
+                            results
+                                .insert(String::from("shortcuts"), shortcut_list(&answer.borrow()));
+                        }
                     }
                     "ListShortcuts" => {
                         results.insert(String::from("shortcuts"), shortcut_list(&answer.borrow()));
@@ -1772,7 +1782,7 @@ fn add_global_shortcuts(bound: &[(&'static str, &'static str)]) -> GlobalShortcu
                     _ => unreachable!(),
                 }
                 invocation.return_value(Some(&(path,).to_variant()));
-                respond(&connection, &sender, &handle, 0, results);
+                respond(&connection, &sender, &handle, code, results);
             },
         )
         .property(|_, _, _, _, _| 1u32.to_variant())
@@ -2232,4 +2242,239 @@ fn without_the_portal_the_keycaps_follow_the_settings() {
         .unwrap();
     pump(100);
     assert!(texts(&keys).is_empty());
+}
+
+/// D8: the portal answers the bind with an error. Nothing shows a trigger, none of the configured
+/// accelerators either, and Preferences says GNOME has not reported them. `ListShortcuts` keeps
+/// being asked when Preferences or the launcher opens; once it reports triggers, they show
+/// (task 7.1).
+// spec: capture / Global capture hotkey / Bind answered with an error
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_failed_bind_is_said_and_retried() {
+    let scene = scene("portal-bind-error", Some("yes"), Question::CannotShow);
+    set_reported_settings();
+    let portal = add_global_shortcuts(&[]);
+    portal.bind_error.set(true);
+    shortcuts::start_portal_shortcuts(&scene.app);
+    wait_for(shortcuts::unreported, "the failed bind");
+    assert_eq!(portal.count("BindShortcuts"), 1);
+    assert!(shortcuts::portal_active(), "the session stays open");
+    for mode in CaptureMode::ALL {
+        assert_eq!(
+            shortcuts::shown_trigger(mode).trigger,
+            ShownTrigger::Pending
+        );
+    }
+
+    // Welcome page and launcher: no keycaps, no configured accelerator.
+    let window = crate::application::present_window(&scene.app);
+    pump(200);
+    for mode in ["region", "window", "screen"] {
+        let keys: gtk::Widget = find(&window, &format!("welcome_{mode}_keys")).unwrap();
+        assert!(texts(&keys).is_empty(), "{mode}: no keycaps");
+    }
+    let menu: gtk::MenuButton = find(&window, "capture_menu_button").unwrap();
+    let lists_before = portal.count("ListShortcuts");
+    menu.popup();
+    wait_for(
+        || portal.count("ListShortcuts") == lists_before + 1,
+        "ListShortcuts when the launcher shows",
+    );
+    pump(100);
+    assert!(shortcuts::unreported(), "an empty list reports nothing");
+    for mode in ["region", "window", "screen"] {
+        let caption: gtk::Widget = find(&window, &format!("launcher_{mode}_caption")).unwrap();
+        assert!(!caption.is_visible(), "{mode}: no caption");
+    }
+    let capture_accel: gtk::Label = find(&window, "launcher_capture_accel").unwrap();
+    assert!(!capture_accel.is_visible(), "no key hint");
+    let popover: gtk::Popover = find(&window, "capture_launcher").unwrap();
+    popover.popdown();
+    pump(100);
+
+    // Preferences › Capture: the D8 line under the description, rows without a trigger.
+    let dialog = open_preferences(&window);
+    let group: adw::PreferencesGroup = find(&dialog, "shortcuts_group").unwrap();
+    wait_for(
+        || {
+            group.description().as_deref()
+                == Some(
+                    "GNOME manages these shortcuts. Change them in GNOME Settings.\n\
+                     GNOME has not reported these shortcuts.",
+                )
+        },
+        "the unreported line",
+    );
+    for mode in ["region", "window", "screen"] {
+        let keycaps: gtk::ShortcutLabel = find(&dialog, &format!("shortcut_{mode}_label")).unwrap();
+        let text: gtk::Label = find(&dialog, &format!("shortcut_{mode}_text")).unwrap();
+        let warning: gtk::Image = find(&dialog, &format!("shortcut_{mode}_warning")).unwrap();
+        assert!(!keycaps.is_visible(), "{mode}: no keycaps");
+        assert!(!text.is_visible(), "{mode}: no text");
+        assert!(!warning.is_visible(), "{mode}: no icon");
+    }
+    for setting in ["Ctrl+P", "Ctrl+W", "Ctrl+Q"] {
+        assert!(
+            !holds(dialog.upcast_ref(), &|w| w
+                .downcast_ref::<gtk::Label>()
+                .is_some_and(|l| l.is_visible() && l.text() == setting)),
+            "{setting} shown"
+        );
+    }
+    shot(&dialog, "prefs-portal-unreported");
+    dialog.close();
+    pump(200);
+
+    // GNOME reports triggers now: the next time Preferences opens, they show.
+    *portal.bound.borrow_mut() = vec![
+        ("region", "Press <Shift><Control>p"),
+        ("screen", "Press <Shift><Control>F12"),
+    ];
+    let lists_before = portal.count("ListShortcuts");
+    let dialog = open_preferences(&window);
+    wait_for(
+        || portal.count("ListShortcuts") > lists_before,
+        "ListShortcuts when Preferences › Capture maps",
+    );
+    let region: gtk::ShortcutLabel = find(&dialog, "shortcut_region_label").unwrap();
+    wait_for(
+        || region.accelerator().as_deref() == Some("<Shift><Control>p"),
+        "the listed trigger in Preferences",
+    );
+    assert!(!shortcuts::unreported());
+    let group: adw::PreferencesGroup = find(&dialog, "shortcuts_group").unwrap();
+    assert_eq!(
+        group.description().as_deref(),
+        Some("GNOME manages these shortcuts. Change them in GNOME Settings.")
+    );
+    let window_text: gtk::Label = find(&dialog, "shortcut_window_text").unwrap();
+    assert_eq!(window_text.text(), "Not set");
+    let screen: gtk::ShortcutLabel = find(&dialog, "shortcut_screen_label").unwrap();
+    assert_eq!(screen.accelerator().as_deref(), Some("<Shift><Control>F12"));
+    let keys: gtk::Widget = find(&window, "welcome_region_keys").unwrap();
+    assert_eq!(texts(&keys), ["Shift", "Ctrl", "P"]);
+    // No second bind: the session of the failed one was kept.
+    assert_eq!(portal.count("BindShortcuts"), 1);
+    assert_eq!(portal.count("CreateSession"), 1);
+}
+
+/// N2: Preferences opens while GNOME Settings rebinds. The `ListShortcuts` answer lands between
+/// the burst's two `ShortcutsChanged` and holds the gap; it waits like a signal, and the gap is
+/// never shown (task 7.2).
+// spec: capture / Global capture hotkey / Trigger changed in GNOME Settings
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_refresh_inside_a_rebind_burst_shows_no_gap() {
+    let scene = scene("portal-burst-refresh", Some("yes"), Question::CannotShow);
+    set_reported_settings();
+    let full = [
+        ("region", "Press <Shift><Control>p"),
+        ("window", "Press <Alt>Print"),
+        ("screen", "Press <Shift>Print"),
+    ];
+    let gap = [
+        ("region", "Press <Shift><Control>p"),
+        ("window", "Press <Alt>Print"),
+    ];
+    let portal = add_global_shortcuts(&full);
+    bind_through_the_portal(&scene);
+
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let log = seen.clone();
+    shortcuts::connect_bound_changed(move || {
+        log.borrow_mut()
+            .push(shortcuts::shown_trigger(CaptureMode::Screen).trigger);
+        glib::ControlFlow::Continue
+    });
+    // The first signal of the burst, then a refresh that sees the same gap.
+    *portal.bound.borrow_mut() = gap.to_vec();
+    portal.changed(&gap);
+    pump(20);
+    let lists_before = portal.count("ListShortcuts");
+    shortcuts::refresh_bound();
+    wait_for(
+        || portal.count("ListShortcuts") > lists_before,
+        "ListShortcuts inside the burst",
+    );
+    pump(20);
+    // The burst's last signal.
+    let rebound = [
+        ("region", "Press <Shift><Control>p"),
+        ("window", "Press <Alt>Print"),
+        ("screen", "Press <Shift><Super>s"),
+    ];
+    *portal.bound.borrow_mut() = rebound.to_vec();
+    portal.changed(&rebound);
+    let shown = ShownTrigger::Accel(String::from("<Shift><Super>s"));
+    wait_for(
+        || shortcuts::shown_trigger(CaptureMode::Screen).trigger == shown,
+        "the rebound trigger",
+    );
+    pump(400);
+    assert!(
+        !seen
+            .borrow()
+            .iter()
+            .any(|t| *t == ShownTrigger::NotSet || *t == ShownTrigger::Pending),
+        "the gap was shown: {:?}",
+        seen.borrow()
+    );
+    assert_eq!(seen.borrow().last(), Some(&shown));
+}
+
+/// N7: GNOME's keybinding settings change while Annota runs. The "Used by GNOME" mark follows on
+/// the welcome page and in Preferences without any portal event (task 7.4).
+// spec: capture / Global capture hotkey / Trigger taken by GNOME
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_change_in_gnomes_keybindings_moves_the_mark() {
+    let scene = scene_with_schemas(
+        "portal-taken-follows",
+        Some("yes"),
+        Question::CannotShow,
+        &[("org.gnome.shell.gschema.xml", SHELL_KEYBINDINGS_XML)],
+    );
+    set_reported_settings();
+    let _portal = add_global_shortcuts(&[
+        ("region", "Press <Shift><Control>p"),
+        ("screen", "Press <Shift>Print"),
+    ]);
+    bind_through_the_portal(&scene);
+    let window = crate::application::present_window(&scene.app);
+    pump(200);
+    let keys: gtk::Widget = find(&window, "welcome_screen_keys").unwrap();
+    let card: gtk::Button = find(&window, "welcome_screen_card").unwrap();
+    assert!(has_warning(&keys));
+    let dialog = open_preferences(&window);
+    let row: adw::ActionRow = find(&dialog, "shortcut_screen_row").unwrap();
+    let warning: gtk::Image = find(&dialog, "shortcut_screen_warning").unwrap();
+    assert_eq!(
+        row.subtitle().as_deref(),
+        Some("Used by GNOME: Take a screenshot")
+    );
+
+    // GNOME's screenshot moves to another key: Shift+Print is free.
+    let shell = gio::Settings::new("org.gnome.shell.keybindings");
+    shell.set_strv("screenshot", ["<Super>F12"]).unwrap();
+    wait_for(|| !has_warning(&keys), "the mark leaving the welcome card");
+    assert_eq!(card.tooltip_text().as_deref(), Some("Capture the screen"));
+    wait_for(|| !warning.is_visible(), "the mark leaving the row");
+    assert_eq!(row.subtitle().as_deref().unwrap_or_default(), "");
+    assert_eq!(texts(&keys), ["Shift", "Print"]);
+
+    // A window screenshot takes Shift+Print: marked again, with that action's name.
+    shell
+        .set_strv("screenshot-window", ["<Shift>Print"])
+        .unwrap();
+    wait_for(|| has_warning(&keys), "the mark on the welcome card");
+    wait_for(
+        || row.subtitle().as_deref() == Some("Used by GNOME: Take a screenshot of a window"),
+        "the mark on the row",
+    );
+    assert!(warning.is_visible());
+    assert_eq!(
+        card.tooltip_text().as_deref(),
+        Some("Used by GNOME: Take a screenshot of a window")
+    );
 }

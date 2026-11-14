@@ -15,7 +15,8 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::Path;
-use std::time::Duration;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use ashpd::desktop::global_shortcuts::{GlobalShortcuts, NewShortcut, Shortcut};
 use futures_util::StreamExt;
@@ -705,9 +706,18 @@ pub fn taken_by_in(bindings: &[GnomeBinding], accel: &str) -> Option<TakenBy> {
     })
 }
 
-/// [`taken_by_in`] over GNOME's current public keybinding settings.
-pub fn taken_by(accel: &str) -> Option<TakenBy> {
-    taken_by_in(&read_gnome_bindings(), accel)
+/// GNOME's keybindings for one refresh. While [`notify_bound_changed`] runs its listeners, every
+/// surface shares one read (reviewer N8); otherwise each call reads afresh.
+fn gnome_bindings() -> Rc<Vec<GnomeBinding>> {
+    if !DISPATCH.with(Cell::get) {
+        return Rc::new(read_gnome_bindings());
+    }
+    SNAPSHOT.with(|snapshot| {
+        snapshot
+            .borrow_mut()
+            .get_or_insert_with(|| Rc::new(read_gnome_bindings()))
+            .clone()
+    })
 }
 
 /// GNOME's keybindings from [`CONFLICT_SCHEMAS`] and the custom keybindings, in that order. Only
@@ -853,32 +863,62 @@ pub fn shortcut_path(settings: &gio::Settings) -> ShortcutPath {
     }
 }
 
-/// What Preferences, the launcher and the welcome page show for `mode`.
-pub fn shown_trigger(mode: CaptureMode) -> Shown {
+/// What Preferences, the launcher and the welcome page show for every mode, in
+/// [`CaptureMode::ALL`] order. GNOME's keybindings are read at most once for all three (N8).
+pub fn shown_triggers() -> [(CaptureMode, Shown); 3] {
     let settings = gio::Settings::new(config::APP_ID);
     let path = shortcut_path(&settings);
-    let trigger = BOUND.with(|bound| {
-        resolve_trigger(
-            path,
-            bound.borrow().as_ref(),
-            mode,
-            &settings.string(settings_key(mode)),
-        )
-    });
-    let taken_by = match (&trigger, path) {
-        (ShownTrigger::Accel(accel), ShortcutPath::Portal) => taken_by(accel),
-        _ => None,
-    };
-    Shown { trigger, taken_by }
+    let mut bindings: Option<Rc<Vec<GnomeBinding>>> = None;
+    CaptureMode::ALL.map(|mode| {
+        let trigger = BOUND.with(|bound| {
+            resolve_trigger(
+                path,
+                bound.borrow().reported(),
+                mode,
+                &settings.string(settings_key(mode)),
+            )
+        });
+        let taken_by = match (&trigger, path) {
+            (ShownTrigger::Accel(accel), ShortcutPath::Portal) => {
+                taken_by_in(bindings.get_or_insert_with(gnome_bindings), accel)
+            }
+            _ => None,
+        };
+        (mode, Shown { trigger, taken_by })
+    })
+}
+
+/// [`shown_triggers`] for one mode.
+#[cfg(test)]
+pub fn shown_trigger(mode: CaptureMode) -> Shown {
+    shown_triggers()
+        .into_iter()
+        .find(|(m, _)| *m == mode)
+        .map(|(_, shown)| shown)
+        .unwrap_or(Shown {
+            trigger: ShownTrigger::Pending,
+            taken_by: None,
+        })
+}
+
+/// D8: on the portal path, the bind failed or answered with nothing and no later answer has
+/// reported a trigger. Preferences says so; the surfaces show no trigger.
+pub fn unreported() -> bool {
+    let settings = gio::Settings::new(config::APP_ID);
+    shortcut_path(&settings) == ShortcutPath::Portal
+        && BOUND.with(|bound| *bound.borrow() == Answer::Unreported)
 }
 
 /// Calls `callback` whenever the shown triggers may have changed: a bind, `ShortcutsChanged`, a
 /// refresh, or the path becoming known. `Break` unsubscribes.
+/// Also when GNOME's keybinding settings change, since they decide `taken_by` (reviewer N7).
 pub fn connect_bound_changed(callback: impl Fn() -> glib::ControlFlow + 'static) {
+    watch_gnome_bindings();
     LISTENERS.with(|listeners| listeners.borrow_mut().push(Box::new(callback)));
 }
 
 fn notify_bound_changed() {
+    let outer = !DISPATCH.with(|dispatch| dispatch.replace(true));
     let current = LISTENERS.with(|listeners| listeners.take());
     let kept: Vec<Listener> = current
         .into_iter()
@@ -889,15 +929,141 @@ fn notify_bound_changed() {
         let added = std::mem::replace(&mut *listeners, kept);
         listeners.extend(added);
     });
+    if outer {
+        DISPATCH.with(|dispatch| dispatch.set(false));
+        SNAPSHOT.with(|snapshot| snapshot.replace(None));
+    }
 }
 
-fn set_bound(shortcuts: &[Shortcut]) {
-    let bound: BoundTriggers = shortcuts
+/// The portal's answer as the surfaces use it (D1, D8).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum Answer {
+    /// No answer yet in this process.
+    #[default]
+    Pending,
+    /// The bind failed or answered with no shortcuts, and nothing has reported any since (D8).
+    Unreported,
+    /// The triggers the portal reported last.
+    Reported(BoundTriggers),
+}
+
+impl Answer {
+    /// The reported triggers, if any.
+    pub fn reported(&self) -> Option<&BoundTriggers> {
+        match self {
+            Self::Reported(bound) => Some(bound),
+            Self::Pending | Self::Unreported => None,
+        }
+    }
+
+    /// D8: the answer after a bind. An error (`None`) or an empty list reports nothing.
+    pub fn after_bind(bound: Option<BoundTriggers>) -> Self {
+        match bound {
+            Some(bound) if !bound.is_empty() => Self::Reported(bound),
+            _ => Self::Unreported,
+        }
+    }
+
+    /// D8: the answer after `ShortcutsChanged` or `ListShortcuts`. Only a non-empty list ends
+    /// `Unreported`; once triggers were reported, an empty list means nothing is bound any more.
+    pub fn after_list(&self, bound: BoundTriggers) -> Self {
+        match self {
+            Self::Pending | Self::Unreported if bound.is_empty() => Self::Unreported,
+            _ => Self::Reported(bound),
+        }
+    }
+}
+
+fn triggers(shortcuts: &[Shortcut]) -> BoundTriggers {
+    shortcuts
         .iter()
         .map(|s| (s.id().to_string(), s.trigger_description().to_string()))
-        .collect();
-    BOUND.with(|cell| cell.replace(Some(bound)));
+        .collect()
+}
+
+fn set_answer(answer: Answer) {
+    BOUND.with(|cell| cell.replace(answer));
     notify_bound_changed();
+}
+
+/// A list from `ShortcutsChanged` or `ListShortcuts`.
+fn set_listed(bound: BoundTriggers) {
+    let answer = BOUND.with(|cell| cell.borrow().after_list(bound));
+    set_answer(answer);
+}
+
+/// Applies `bound` once [`CHANGE_SETTLE`] has passed without a newer list (N2: a burst of
+/// `ShortcutsChanged`, and a `ListShortcuts` answer that lands inside one).
+fn settle(generation: u64, bound: BoundTriggers) {
+    let change = CHANGES.with(|changes| {
+        changes.set(changes.get() + 1);
+        changes.get()
+    });
+    glib::timeout_add_local_once(CHANGE_SETTLE, move || {
+        let last = CHANGES.with(Cell::get) == change;
+        if last && PORTAL_GENERATION.with(Cell::get) == generation {
+            set_listed(bound);
+        }
+    });
+}
+
+/// Whether a `ShortcutsChanged` burst is still settling.
+fn in_burst() -> bool {
+    LAST_CHANGE.with(|last| last.get().is_some_and(|at| at.elapsed() < CHANGE_SETTLE))
+}
+
+/// Watches GNOME's public keybinding settings (the [`CONFLICT_SCHEMAS`] and the custom
+/// keybindings), so a change there recomputes `taken_by` on every surface (reviewer N7). Starts
+/// once; the settings objects live for the process.
+fn watch_gnome_bindings() {
+    if WATCHING.with(|watching| watching.replace(true)) {
+        return;
+    }
+    let watched: Vec<gio::Settings> = CONFLICT_SCHEMAS
+        .iter()
+        .filter_map(|id| settings_if_installed(id))
+        .collect();
+    for settings in &watched {
+        let media = settings.schema_id().as_deref() == Some(MEDIA_KEYS_SCHEMA);
+        settings.connect_changed(None, move |settings, key| {
+            if media && key == "custom-keybindings" {
+                watch_custom_keybindings(settings);
+            }
+            gnome_bindings_changed();
+        });
+        if media {
+            watch_custom_keybindings(settings);
+        }
+    }
+    GNOME_WATCH.with(|cell| cell.replace(watched));
+}
+
+/// (Re)watches every custom keybinding listed in `media`'s `custom-keybindings`.
+fn watch_custom_keybindings(media: &gio::Settings) {
+    if schema(CUSTOM_KEYBINDING_SCHEMA).is_none() {
+        return;
+    }
+    let watched: Vec<gio::Settings> = media
+        .strv("custom-keybindings")
+        .iter()
+        .map(|path| {
+            let binding = gio::Settings::with_path(CUSTOM_KEYBINDING_SCHEMA, path.as_str());
+            binding.connect_changed(None, |_, _| gnome_bindings_changed());
+            binding
+        })
+        .collect();
+    CUSTOM_WATCH.with(|cell| cell.replace(watched));
+}
+
+/// Several keys often change at once: one notification when the main loop is idle again.
+fn gnome_bindings_changed() {
+    if WATCH_QUEUED.with(|queued| queued.replace(true)) {
+        return;
+    }
+    glib::idle_add_local_once(|| {
+        WATCH_QUEUED.with(|queued| queued.set(false));
+        notify_bound_changed();
+    });
 }
 
 fn set_path(path: ShortcutPath) {
@@ -923,8 +1089,9 @@ pub fn refresh_bound() {
 type Listener = Box<dyn Fn() -> glib::ControlFlow>;
 
 /// How long `ShortcutsChanged` has to be quiet before its list is shown. GNOME 50 sends a rebind
-/// in GNOME Settings as two signals in the same second, the first without the rebound shortcut
-/// (design.md, "Measured 2026-11-14, evening"); only the second one is the truth.
+/// in GNOME Settings as two signals, the first without the rebound shortcut (design.md, "Measured
+/// 2026-11-14, evening"); only the second one is the truth. The gap between them measured < 1 ms
+/// (`dbus-monitor`, 2026-11-14), so 250 ms leaves a wide margin.
 const CHANGE_SETTLE: Duration = Duration::from_millis(250);
 
 thread_local! {
@@ -933,14 +1100,24 @@ thread_local! {
     static PORTAL_APP: RefCell<Option<glib::WeakRef<adw::Application>>> =
         const { RefCell::new(None) };
     static PORTAL_PATH: Cell<ShortcutPath> = const { Cell::new(ShortcutPath::Unknown) };
-    /// The portal's last answer (D1); `None` until the first one of the process.
-    static BOUND: RefCell<Option<BoundTriggers>> = const { RefCell::new(None) };
+    /// The portal's last answer (D1, D8).
+    static BOUND: RefCell<Answer> = const { RefCell::new(Answer::Pending) };
     static LISTENERS: RefCell<Vec<Listener>> = const { RefCell::new(Vec::new()) };
     /// Asks the live session's loop for `ListShortcuts` ([`refresh_bound`]).
     static REFRESH: RefCell<Option<futures_channel::mpsc::UnboundedSender<()>>> =
         const { RefCell::new(None) };
-    /// Counts `ShortcutsChanged` signals, so only the last of a burst is applied.
+    /// Counts the lists waiting in [`settle`], so only the last of a burst is applied.
     static CHANGES: Cell<u64> = const { Cell::new(0) };
+    /// When the last `ShortcutsChanged` arrived.
+    static LAST_CHANGE: Cell<Option<Instant>> = const { Cell::new(None) };
+    /// [`notify_bound_changed`] is running its listeners: they share [`SNAPSHOT`].
+    static DISPATCH: Cell<bool> = const { Cell::new(false) };
+    static SNAPSHOT: RefCell<Option<Rc<Vec<GnomeBinding>>>> = const { RefCell::new(None) };
+    /// [`watch_gnome_bindings`] has started, and what it watches.
+    static WATCHING: Cell<bool> = const { Cell::new(false) };
+    static GNOME_WATCH: RefCell<Vec<gio::Settings>> = const { RefCell::new(Vec::new()) };
+    static CUSTOM_WATCH: RefCell<Vec<gio::Settings>> = const { RefCell::new(Vec::new()) };
+    static WATCH_QUEUED: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Whether the desktop offers the GlobalShortcuts portal (GNOME ≥ 48).
@@ -985,6 +1162,12 @@ fn restart_portal_shortcuts() {
     glib::spawn_future_local(async move {
         if let Err(err) = run_portal_shortcuts(app, generation).await {
             eprintln!("annota: global shortcuts portal not used: {err}");
+            // D8: the portal exists but no session came of it, so no trigger is known.
+            let current = PORTAL_GENERATION.with(Cell::get) == generation;
+            let pending = BOUND.with(|bound| *bound.borrow() == Answer::Pending);
+            if current && pending && PORTAL_PATH.with(Cell::get) == ShortcutPath::Portal {
+                set_answer(Answer::Unreported);
+            }
         }
         if PORTAL_GENERATION.with(Cell::get) == generation {
             PORTAL_ACTIVE.with(|active| active.set(false));
@@ -1033,7 +1216,7 @@ async fn run_portal_shortcuts(
         .collect();
     if shortcuts.is_empty() {
         // Nothing bound, so nothing starts a capture: every mode shows "Not set".
-        set_bound(&[]);
+        set_answer(Answer::Reported(BoundTriggers::new()));
         return Ok(());
     }
     let session = proxy.create_session().await?;
@@ -1048,12 +1231,22 @@ async fn run_portal_shortcuts(
         .await?
         .map(|event| PortalEvent::Changed(event.shortcuts().to_vec()));
     // D1: the desktop decides the triggers; its answer to the bind is what Annota shows.
-    let response = proxy
-        .bind_shortcuts(&session, &shortcuts, None)
-        .await?
-        .response()?;
+    // D8: a bind that fails or reports nothing keeps the session; `refresh_bound` asks again.
+    let bound = match proxy.bind_shortcuts(&session, &shortcuts, None).await {
+        Ok(request) => request
+            .response()
+            .map(|response| triggers(response.shortcuts())),
+        Err(err) => Err(err),
+    };
+    let bound = match bound {
+        Ok(bound) => Some(bound),
+        Err(err) => {
+            eprintln!("annota: the global shortcuts portal did not bind: {err}");
+            None
+        }
+    };
     if PORTAL_GENERATION.with(Cell::get) == generation {
-        set_bound(response.shortcuts());
+        set_answer(Answer::after_bind(bound));
     }
     PORTAL_ACTIVE.with(|active| active.set(true));
 
@@ -1076,20 +1269,21 @@ async fn run_portal_shortcuts(
                 app.activate_action("capture", Some(&mode.as_str().to_variant()));
             }
             PortalEvent::Changed(shortcuts) => {
-                let change = CHANGES.with(|changes| {
-                    changes.set(changes.get() + 1);
-                    changes.get()
-                });
-                glib::timeout_add_local_once(CHANGE_SETTLE, move || {
-                    let last = CHANGES.with(Cell::get) == change;
-                    if last && PORTAL_GENERATION.with(Cell::get) == generation {
-                        set_bound(&shortcuts);
-                    }
-                });
+                LAST_CHANGE.with(|last| last.set(Some(Instant::now())));
+                settle(generation, triggers(&shortcuts));
             }
             PortalEvent::Refresh => match proxy.list_shortcuts(&session).await {
                 Ok(request) => match request.response() {
-                    Ok(list) => set_bound(list.shortcuts()),
+                    // N2: inside a `ShortcutsChanged` burst the list may be the burst's gap, so
+                    // it waits its turn like a signal; a later signal of the burst wins.
+                    Ok(list) if in_burst() => settle(generation, triggers(list.shortcuts())),
+                    Ok(list) => {
+                        // Newer than any list still waiting in `settle`.
+                        CHANGES.with(|changes| changes.set(changes.get() + 1));
+                        if PORTAL_GENERATION.with(Cell::get) == generation {
+                            set_listed(triggers(list.shortcuts()));
+                        }
+                    }
                     Err(err) => eprintln!("annota: could not list the global shortcuts: {err}"),
                 },
                 Err(err) => eprintln!("annota: could not list the global shortcuts: {err}"),
@@ -1402,6 +1596,43 @@ mod tests {
         assert_eq!(
             resolve_trigger(ShortcutPath::Fallback, None, CaptureMode::Window, ""),
             ShownTrigger::NotSet
+        );
+    }
+
+    // spec: capture / Global capture hotkey / Bind answered with an error
+    #[test]
+    fn a_failed_or_empty_bind_is_unreported_until_a_list_reports() {
+        let listed = bound(&[("screen", "Press <Shift>Print")]);
+        // D8: an error and an empty answer both report nothing.
+        assert_eq!(Answer::after_bind(None), Answer::Unreported);
+        assert_eq!(Answer::after_bind(Some(bound(&[]))), Answer::Unreported);
+        assert_eq!(
+            Answer::after_bind(Some(listed.clone())),
+            Answer::Reported(listed.clone())
+        );
+        // An empty list does not end it, a non-empty one does.
+        assert_eq!(
+            Answer::Unreported.after_list(bound(&[])),
+            Answer::Unreported
+        );
+        assert_eq!(
+            Answer::Unreported.after_list(listed.clone()),
+            Answer::Reported(listed.clone())
+        );
+        // Once reported, an empty list means nothing is bound any more: "Not set".
+        assert_eq!(
+            Answer::Reported(listed.clone()).after_list(bound(&[])),
+            Answer::Reported(bound(&[]))
+        );
+        // While unreported the rows show no trigger, never the configured accelerator.
+        assert_eq!(
+            resolve_trigger(
+                ShortcutPath::Portal,
+                Answer::Unreported.reported(),
+                CaptureMode::Screen,
+                "<Control>q"
+            ),
+            ShownTrigger::Pending
         );
     }
 

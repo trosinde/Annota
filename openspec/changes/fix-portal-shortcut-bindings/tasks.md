@@ -86,17 +86,17 @@
 
 ## 7. Review follow-ups (reviewer pass 1, 2026-11-14)
 
-- [ ] 7.1 D8 / reviewer N1: failed or empty bind → `Unreported`, retried by `refresh_bound()`, the
+- [x] 7.1 D8 / reviewer N1: failed or empty bind → `Unreported`, retried by `refresh_bound()`, the
       Preferences line "GNOME has not reported these shortcuts." (gettext + de). Verify: live test
       with the fake portal answering the bind with an error and `ListShortcuts` with triggers
       later; tag capture / Global capture hotkey / Bind answered with an error.
-- [ ] 7.2 N2: a `Refresh` that lands inside a `ShortcutsChanged` burst is debounced too. The
+- [x] 7.2 N2: a `Refresh` that lands inside a `ShortcutsChanged` burst is debounced too. The
       measured gap between the two signals is < 1 ms (dbus-monitor, 2026-11-14), so 250 ms stays.
 - [ ] 7.3 N5: the Preferences row's accessible description carries the "Used by GNOME" text when
       taken, not only the keycap label. Verify by AT-SPI on the real desktop (manual row).
-- [ ] 7.4 N7: GNOME keybinding schema changes (`changed` on the `CONFLICT_SCHEMAS` settings)
+- [x] 7.4 N7: GNOME keybinding schema changes (`changed` on the `CONFLICT_SCHEMAS` settings)
       recompute `taken_by` and notify the surfaces.
-- [ ] 7.5 N8: one read of GNOME's bindings per refresh, shared by the three modes; the launcher's
+- [x] 7.5 N8: one read of GNOME's bindings per refresh, shared by the three modes; the launcher's
       `connect_bound_changed` listener holds its widgets weakly.
 
 ## 6. Verify

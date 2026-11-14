@@ -3579,6 +3579,10 @@ msgstr "GNOME-Einstellungen öffnen"
 msgid "GNOME manages these shortcuts. Change them in GNOME Settings."
 msgstr "GNOME verwaltet diese Tastenkürzel. Ändern Sie sie in den GNOME-Einstellungen."
 
+#: src/preferences.rs:307
+msgid "GNOME has not reported these shortcuts."
+msgstr "GNOME hat diese Tastenkürzel nicht gemeldet."
+
 #: src/preferences.rs:332
 msgid "Not set"
 msgstr "Nicht festgelegt"

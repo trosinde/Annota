@@ -209,7 +209,7 @@ Design approved: 2026-11-14 (mockups 01-05; mockup 06 for D7 also 2026-11-14, wi
   GNOME"). Only an `Accel` can be looked up; a `Text` trigger never carries `taken_by`.
 - The path is `Unknown` until `run_portal_shortcuts` knows it. If `GlobalShortcuts::new()` itself
   fails, the path becomes `Fallback` (as `portal_available` decides in Preferences); a failed
-  bind on a present portal keeps `Pending` (Risks, above).
+  bind on a present portal is `Unreported` since D8 (it kept `Pending` before).
 - With every `shortcut-*` disabled, nothing is bound, and the store holds an empty answer: every
   mode shows "Not set" instead of `Pending`.
 - D5: the order is Annota's other capture shortcuts, then the application's accelerators, then
@@ -217,6 +217,27 @@ Design approved: 2026-11-14 (mockups 01-05; mockup 06 for D7 also 2026-11-14, wi
   (`ui::editor::set_accels` from `setup_actions`), so `Ctrl+S` counts before an editor opens.
 - Mockup 04's refused-keycap ring (`.annota-live-keys.annota-conflict`) and the 13 px status line
   (`.annota-shortcut-status`) were not built yet and are added here.
+- Review follow-ups (group 7, 2026-11-14):
+  - D8: `BOUND` holds an `Answer { Pending, Unreported, Reported(map) }`. A bind error (the D-Bus
+    call or a non-zero response) or an empty bind answer is `Unreported`; the session and the
+    loop stay, so `refresh_bound()` asks `ListShortcuts` again. While `Unreported` an empty list
+    keeps it; once triggers were reported, an empty list means "Not set" for every mode (GNOME
+    Settings' "Remove All Shortcuts"). A failure before the bind (no session) is `Unreported`
+    too, with nothing left to retry. The line is a second line of the group description
+    (`\n`-joined), so it has the description's style by construction.
+  - N2: the gap between GNOME's two `ShortcutsChanged` of one rebind measured < 1 ms
+    (`dbus-monitor`, 2026-11-14), so `CHANGE_SETTLE` stays 250 ms. A `ListShortcuts` answer that
+    arrives less than 250 ms after a `ShortcutsChanged` goes through the same settle step as a
+    signal, so a later signal of the burst wins; outside a burst it applies at once and cancels
+    any list still settling.
+  - N5: a taken row's accessible description is "<trigger>, Used by GNOME: <action>"
+    (`preferences::row_description`).
+  - N7: the first `connect_bound_changed` starts watching `changed` on every installed
+    `CONFLICT_SCHEMAS` settings object and on each listed custom keybinding (re-watched when
+    `custom-keybindings` changes); a change notifies the surfaces once per idle.
+  - N8: `shown_triggers()` gives all three modes from one read of GNOME's bindings, and during
+    one notification all listeners share a single read. The launcher's toggles and the welcome
+    cards are held as `WeakRef`s by the listeners, which return `Break` once they are gone.
 - Preferences before the portal probe has answered: the rows are read-only and empty, with no
   description and no button (mockup 03b shows the known portal path; the unknown one is not drawn).
 
