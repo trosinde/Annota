@@ -11,15 +11,17 @@
 //! writers are thin wrappers. Neither the portal nor the GNOME keybindings were exercised
 //! against a live session during development (see `manual-checks.md`).
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::Path;
+use std::time::Duration;
 
-use ashpd::desktop::global_shortcuts::{GlobalShortcuts, NewShortcut};
+use ashpd::desktop::global_shortcuts::{GlobalShortcuts, NewShortcut, Shortcut};
 use futures_util::StreamExt;
 use gettextrs::gettext;
 use gtk::prelude::*;
-use gtk::{gio, glib};
+use gtk::{gdk, gio, glib};
 
 use super::portal;
 use crate::cli::CaptureMode;
@@ -540,8 +542,15 @@ pub fn change_shortcut(
     Ok(())
 }
 
-/// Who already uses `accel` (Set Shortcut dialog status line, mockup 11).
-pub fn find_conflict(settings: &gio::Settings, mode: CaptureMode, accel: &str) -> Option<Conflict> {
+/// Who already uses `accel` (Set Shortcut dialog status line, mockups 11 and 04): another of
+/// Annota's capture shortcuts, one of the running application's own accelerators (design.md D5),
+/// or a GNOME action.
+pub fn find_conflict(
+    settings: &gio::Settings,
+    app: Option<&gtk::Application>,
+    mode: CaptureMode,
+    accel: &str,
+) -> Option<Conflict> {
     let own: Vec<(String, Vec<String>)> = configured_accels(settings)
         .into_iter()
         .filter(|(other, _)| *other != mode)
@@ -553,7 +562,159 @@ pub fn find_conflict(settings: &gio::Settings, mode: CaptureMode, accel: &str) -
             takeover: false,
         });
     }
+    if let Some(name) = app.and_then(|app| app_user(&app_accels(app), accel)) {
+        return Some(Conflict {
+            name,
+            takeover: false,
+        });
+    }
+    gnome_user(&read_gnome_bindings(), accel).map(|binding| Conflict {
+        name: binding.name.clone(),
+        takeover: binding.is_screenshot_key(),
+    })
+}
 
+// ---------------------------------------------------------------------------------------------
+// Annota's own application accelerators (design.md D5)
+// ---------------------------------------------------------------------------------------------
+
+/// The label an Annota action is known by in its menus and the shortcuts window. The one table
+/// of these names; an action missing here is named plain "Annota".
+pub fn action_label(action: &str) -> Option<String> {
+    let label = match action {
+        "app.quit" => gettext("Quit"),
+        "app.preferences" => gettext("Preferences"),
+        "app.paste-image" => gettext("Paste Image"),
+        "app.open-image" => gettext("Open Image"),
+        "app.open-library" => gettext("Open Library"),
+        "win.new-capture" => gettext("New Capture"),
+        "window.close" => gettext("Close Window"),
+        "win.show-help-overlay" => gettext("Keyboard Shortcuts"),
+        "win.show-properties" => gettext("Show Properties"),
+        "win.export" => gettext("Export"),
+        "win.save" => gettext("Save"),
+        "win.save-as" => gettext("Save As"),
+        "win.zoom-fit" => gettext("Fit to Window"),
+        "win.zoom-preset('100')" => String::from("100 %"),
+        "win.zoom-in" => gettext("Zoom In"),
+        "win.zoom-out" => gettext("Zoom Out"),
+        "win.rotate-right" => gettext("Rotate Right"),
+        "win.rotate-left" => gettext("Rotate Left"),
+        "win.flatten-all" => gettext("Flatten All"),
+        "win.flatten-selection" => gettext("Flatten Selection"),
+        _ => return None,
+    };
+    Some(label)
+}
+
+/// Every accelerator the running application has registered: (detailed action, accelerators).
+pub fn app_accels(app: &gtk::Application) -> Vec<(String, Vec<String>)> {
+    app.list_action_descriptions()
+        .iter()
+        .map(|action| {
+            let accels = app
+                .accels_for_action(action)
+                .iter()
+                .map(|a| a.to_string())
+                .collect();
+            (action.to_string(), accels)
+        })
+        .collect()
+}
+
+/// The name of the Annota action that uses `accel` in `accels` (from [`app_accels`]), as the
+/// Set Shortcut dialog shows it: "Annota: Quit".
+pub fn app_user(accels: &[(String, Vec<String>)], accel: &str) -> Option<String> {
+    let action = find_user(accels, accel)?;
+    Some(match action_label(action) {
+        Some(label) => gettext("Annota: {action}").replace("{action}", &label),
+        None => String::from("Annota"),
+    })
+}
+
+// ---------------------------------------------------------------------------------------------
+// GNOME's public keybinding settings (Set Shortcut dialog and design.md D7)
+// ---------------------------------------------------------------------------------------------
+
+/// Where a GNOME keybinding lives.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BindingSource {
+    /// A key of one of [`CONFLICT_SCHEMAS`].
+    Schema { schema: String, key: String },
+    /// A custom keybinding (`custom-keybindings` of the media-keys plugin), by its path.
+    Custom { path: String },
+}
+
+/// One keybinding from GNOME's public keybinding settings.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GnomeBinding {
+    /// The action as GNOME names it (the key's summary, or the custom keybinding's name), or the
+    /// key itself when there is no summary.
+    pub name: String,
+    /// The schema key's summary or the custom keybinding's name, if it has one.
+    pub summary: Option<String>,
+    pub accels: Vec<String>,
+    pub source: BindingSource,
+}
+
+impl GnomeBinding {
+    /// One of GNOME's screenshot keys, which Annota moves aside on the fallback path (D9).
+    pub fn is_screenshot_key(&self) -> bool {
+        matches!(&self.source, BindingSource::Schema { schema, key }
+            if schema == GNOME_SHELL_KEYBINDINGS && GNOME_SCREENSHOT_KEYS.contains(&key.as_str()))
+    }
+
+    /// A custom keybinding Annota wrote itself (fallback path): never someone else's key.
+    pub fn is_annotas(&self) -> bool {
+        matches!(&self.source, BindingSource::Custom { path }
+            if path.starts_with(&format!("{CUSTOM_KEYBINDINGS_BASE}annota-")))
+    }
+}
+
+/// The first GNOME binding in `bindings` that uses `accel`, Annota's own custom keybindings
+/// left out.
+pub fn gnome_user<'a>(bindings: &'a [GnomeBinding], accel: &str) -> Option<&'a GnomeBinding> {
+    bindings
+        .iter()
+        .filter(|binding| !binding.is_annotas())
+        .find(|binding| binding.accels.iter().any(|a| same_accel(a, accel)))
+}
+
+/// A trigger GNOME's own keybindings hold (design.md D7): GNOME Shell refuses Annota's portal
+/// grab for it, and the key runs GNOME's action.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TakenBy {
+    /// The GNOME action's summary from its GSettings schema (translated by GNOME), if any.
+    pub action: Option<String>,
+}
+
+impl TakenBy {
+    /// "Used by GNOME: Take a screenshot", or "Used by GNOME" without a summary.
+    pub fn text(&self) -> String {
+        match &self.action {
+            Some(action) => gettext("Used by GNOME: {action}").replace("{action}", action),
+            None => gettext("Used by GNOME"),
+        }
+    }
+}
+
+/// Who in `bindings` holds `accel` on the portal path, Annota's own custom keybindings left out.
+pub fn taken_by_in(bindings: &[GnomeBinding], accel: &str) -> Option<TakenBy> {
+    gnome_user(bindings, accel).map(|binding| TakenBy {
+        action: binding.summary.clone(),
+    })
+}
+
+/// [`taken_by_in`] over GNOME's current public keybinding settings.
+pub fn taken_by(accel: &str) -> Option<TakenBy> {
+    taken_by_in(&read_gnome_bindings(), accel)
+}
+
+/// GNOME's keybindings from [`CONFLICT_SCHEMAS`] and the custom keybindings, in that order. Only
+/// public GSettings schemas; never `org.gnome.settings-daemon.global-shortcuts`, which is
+/// GNOME-private storage (CLAUDE.md §2).
+pub fn read_gnome_bindings() -> Vec<GnomeBinding> {
+    let mut bindings = Vec::new();
     for id in CONFLICT_SCHEMAS {
         let (Some(schema), Some(values)) = (schema(id), settings_if_installed(id)) else {
             continue;
@@ -565,48 +726,221 @@ pub fn find_conflict(settings: &gio::Settings, mode: CaptureMode, accel: &str) -
                 "s" => vec![values.string(key).to_string()],
                 _ => continue,
             };
-            if accels.iter().any(|a| same_accel(a, accel)) {
-                let name = schema
-                    .key(key)
-                    .summary()
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| key.to_string());
-                let takeover =
-                    id == GNOME_SHELL_KEYBINDINGS && GNOME_SCREENSHOT_KEYS.contains(&key);
-                return Some(Conflict { name, takeover });
-            }
+            let summary = schema
+                .key(key)
+                .summary()
+                .map(|s| s.to_string())
+                .filter(|s| !s.is_empty());
+            bindings.push(GnomeBinding {
+                name: summary.clone().unwrap_or_else(|| key.to_string()),
+                summary,
+                accels,
+                source: BindingSource::Schema {
+                    schema: id.to_string(),
+                    key: key.to_string(),
+                },
+            });
         }
     }
 
-    // Other custom keybindings (not Annota's own).
-    let media = settings_if_installed(MEDIA_KEYS_SCHEMA)?;
-    schema(CUSTOM_KEYBINDING_SCHEMA)?;
-    media
-        .strv("custom-keybindings")
+    let (Some(media), Some(_)) = (
+        settings_if_installed(MEDIA_KEYS_SCHEMA),
+        schema(CUSTOM_KEYBINDING_SCHEMA),
+    ) else {
+        return bindings;
+    };
+    for path in media.strv("custom-keybindings").iter() {
+        let binding = gio::Settings::with_path(CUSTOM_KEYBINDING_SCHEMA, path.as_str());
+        let name = binding.string("name").to_string();
+        bindings.push(GnomeBinding {
+            summary: Some(name.clone()).filter(|n| !n.is_empty()),
+            name,
+            accels: vec![binding.string("binding").to_string()],
+            source: BindingSource::Custom {
+                path: path.to_string(),
+            },
+        });
+    }
+    bindings
+}
+
+// ---------------------------------------------------------------------------------------------
+// Shown triggers (design.md D1-D3)
+// ---------------------------------------------------------------------------------------------
+
+/// What a surface shows for one capture shortcut.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ShownTrigger {
+    /// No answer yet: show no trigger, and never the configured accelerator.
+    Pending,
+    /// Nothing is bound: "Not set" in Preferences, no keycaps elsewhere.
+    NotSet,
+    /// A GTK accelerator for keycaps (`gtk::ShortcutLabel`, `gtk::accelerator_get_label`).
+    Accel(String),
+    /// The portal's description, shown verbatim (another desktop, locale or format).
+    Text(String),
+}
+
+/// One capture shortcut as the surfaces show it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Shown {
+    pub trigger: ShownTrigger,
+    /// Portal path only: the trigger is held by a GNOME action (design.md D7, mockup 06).
+    pub taken_by: Option<TakenBy>,
+}
+
+/// Which path binds Annota's shortcuts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShortcutPath {
+    /// Not known yet (the portal has not been asked).
+    Unknown,
+    /// The GlobalShortcuts portal: the desktop decides the triggers.
+    Portal,
+    /// GNOME custom keybindings: the `shortcut-*` settings are the bound keys.
+    Fallback,
+}
+
+/// The portal's triggers by shortcut ID (`region`, `window`, `screen`); a missing ID is not bound.
+pub type BoundTriggers = HashMap<String, String>;
+
+/// D3: a `trigger_description` as shown. GNOME 50 writes `Press <Shift><Control>p`; the last
+/// whitespace-separated token is used for keycaps when it is a GTK accelerator, else the text is
+/// shown as it is.
+pub fn trigger_from_description(description: &str) -> ShownTrigger {
+    let description = description.trim();
+    let Some(token) = description.split_whitespace().last() else {
+        return ShownTrigger::NotSet;
+    };
+    let is_accel =
+        Accel::parse(token).is_some_and(|accel| gdk::Key::from_name(&accel.key).is_some());
+    if is_accel {
+        ShownTrigger::Accel(token.to_string())
+    } else {
+        ShownTrigger::Text(description.to_string())
+    }
+}
+
+/// D1: the trigger shown for `mode`. On the portal path from the portal's answer (`bound`,
+/// `None` before the first one); on the fallback path from the `shortcut-*` setting.
+pub fn resolve_trigger(
+    path: ShortcutPath,
+    bound: Option<&BoundTriggers>,
+    mode: CaptureMode,
+    setting: &str,
+) -> ShownTrigger {
+    match path {
+        ShortcutPath::Unknown => ShownTrigger::Pending,
+        ShortcutPath::Fallback if Accel::parse(setting).is_some() => {
+            ShownTrigger::Accel(setting.to_string())
+        }
+        ShortcutPath::Fallback => ShownTrigger::NotSet,
+        ShortcutPath::Portal => match bound {
+            None => ShownTrigger::Pending,
+            Some(bound) => bound
+                .get(mode.as_str())
+                .map_or(ShownTrigger::NotSet, |d| trigger_from_description(d)),
+        },
+    }
+}
+
+/// The path in use: the fallback once Annota created GNOME keybindings, else what the portal
+/// said.
+pub fn shortcut_path(settings: &gio::Settings) -> ShortcutPath {
+    if settings.boolean("gnome-shortcuts-created") {
+        ShortcutPath::Fallback
+    } else {
+        PORTAL_PATH.with(Cell::get)
+    }
+}
+
+/// What Preferences, the launcher and the welcome page show for `mode`.
+pub fn shown_trigger(mode: CaptureMode) -> Shown {
+    let settings = gio::Settings::new(config::APP_ID);
+    let path = shortcut_path(&settings);
+    let trigger = BOUND.with(|bound| {
+        resolve_trigger(
+            path,
+            bound.borrow().as_ref(),
+            mode,
+            &settings.string(settings_key(mode)),
+        )
+    });
+    let taken_by = match (&trigger, path) {
+        (ShownTrigger::Accel(accel), ShortcutPath::Portal) => taken_by(accel),
+        _ => None,
+    };
+    Shown { trigger, taken_by }
+}
+
+/// Calls `callback` whenever the shown triggers may have changed: a bind, `ShortcutsChanged`, a
+/// refresh, or the path becoming known. `Break` unsubscribes.
+pub fn connect_bound_changed(callback: impl Fn() -> glib::ControlFlow + 'static) {
+    LISTENERS.with(|listeners| listeners.borrow_mut().push(Box::new(callback)));
+}
+
+fn notify_bound_changed() {
+    let current = LISTENERS.with(|listeners| listeners.take());
+    let kept: Vec<Listener> = current
+        .into_iter()
+        .filter(|callback| callback() == glib::ControlFlow::Continue)
+        .collect();
+    LISTENERS.with(|listeners| {
+        let mut listeners = listeners.borrow_mut();
+        let added = std::mem::replace(&mut *listeners, kept);
+        listeners.extend(added);
+    });
+}
+
+fn set_bound(shortcuts: &[Shortcut]) {
+    let bound: BoundTriggers = shortcuts
         .iter()
-        .filter(|path| {
-            !path
-                .as_str()
-                .starts_with(&format!("{CUSTOM_KEYBINDINGS_BASE}annota-"))
-        })
-        .find_map(|path| {
-            let binding = gio::Settings::with_path(CUSTOM_KEYBINDING_SCHEMA, path.as_str());
-            same_accel(&binding.string("binding"), accel).then(|| Conflict {
-                name: binding.string("name").to_string(),
-                takeover: false,
-            })
-        })
+        .map(|s| (s.id().to_string(), s.trigger_description().to_string()))
+        .collect();
+    BOUND.with(|cell| cell.replace(Some(bound)));
+    notify_bound_changed();
+}
+
+fn set_path(path: ShortcutPath) {
+    if PORTAL_PATH.with(|cell| cell.replace(path)) != path {
+        notify_bound_changed();
+    }
+}
+
+/// Asks the portal for Annota's triggers again (`ListShortcuts` on the live session) and
+/// replaces the shown ones. Does nothing without a session.
+pub fn refresh_bound() {
+    REFRESH.with(|refresh| {
+        if let Some(sender) = refresh.borrow().as_ref() {
+            let _ = sender.unbounded_send(());
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------------------------
 // GlobalShortcuts portal
 // ---------------------------------------------------------------------------------------------
 
+type Listener = Box<dyn Fn() -> glib::ControlFlow>;
+
+/// How long `ShortcutsChanged` has to be quiet before its list is shown. GNOME 50 sends a rebind
+/// in GNOME Settings as two signals in the same second, the first without the rebound shortcut
+/// (design.md, "Measured 2026-11-14, evening"); only the second one is the truth.
+const CHANGE_SETTLE: Duration = Duration::from_millis(250);
+
 thread_local! {
     static PORTAL_GENERATION: Cell<u64> = const { Cell::new(0) };
     static PORTAL_ACTIVE: Cell<bool> = const { Cell::new(false) };
-    static PORTAL_APP: std::cell::RefCell<Option<glib::WeakRef<adw::Application>>> =
-        const { std::cell::RefCell::new(None) };
+    static PORTAL_APP: RefCell<Option<glib::WeakRef<adw::Application>>> =
+        const { RefCell::new(None) };
+    static PORTAL_PATH: Cell<ShortcutPath> = const { Cell::new(ShortcutPath::Unknown) };
+    /// The portal's last answer (D1); `None` until the first one of the process.
+    static BOUND: RefCell<Option<BoundTriggers>> = const { RefCell::new(None) };
+    static LISTENERS: RefCell<Vec<Listener>> = const { RefCell::new(Vec::new()) };
+    /// Asks the live session's loop for `ListShortcuts` ([`refresh_bound`]).
+    static REFRESH: RefCell<Option<futures_channel::mpsc::UnboundedSender<()>>> =
+        const { RefCell::new(None) };
+    /// Counts `ShortcutsChanged` signals, so only the last of a burst is applied.
+    static CHANGES: Cell<u64> = const { Cell::new(0) };
 }
 
 /// Whether the desktop offers the GlobalShortcuts portal (GNOME ≥ 48).
@@ -654,8 +988,16 @@ fn restart_portal_shortcuts() {
         }
         if PORTAL_GENERATION.with(Cell::get) == generation {
             PORTAL_ACTIVE.with(|active| active.set(false));
+            REFRESH.with(|cell| cell.replace(None));
         }
     });
+}
+
+/// What the portal session's loop reacts to.
+enum PortalEvent {
+    Activated(String),
+    Changed(Vec<Shortcut>),
+    Refresh,
 }
 
 async fn run_portal_shortcuts(
@@ -663,11 +1005,20 @@ async fn run_portal_shortcuts(
     generation: u64,
 ) -> Result<(), ashpd::Error> {
     portal::ensure_registered().await;
-    let proxy = GlobalShortcuts::new().await?;
+    // No GlobalShortcuts portal (GNOME < 48): Preferences offers GNOME shortcuts instead, as
+    // `portal_available` decides there.
+    let proxy = match GlobalShortcuts::new().await {
+        Ok(proxy) => proxy,
+        Err(err) => {
+            set_path(ShortcutPath::Fallback);
+            return Err(err);
+        }
+    };
     if !portal_answers(&proxy).await {
-        // No GlobalShortcuts portal (GNOME < 48): Preferences offers GNOME shortcuts instead.
+        set_path(ShortcutPath::Fallback);
         return Ok(());
     }
+    set_path(ShortcutPath::Portal);
     let settings = gio::Settings::new(config::APP_ID);
     let shortcuts: Vec<NewShortcut> = configured_accels(&settings)
         .into_iter()
@@ -681,25 +1032,69 @@ async fn run_portal_shortcuts(
         })
         .collect();
     if shortcuts.is_empty() {
+        // Nothing bound, so nothing starts a capture: every mode shows "Not set".
+        set_bound(&[]);
         return Ok(());
     }
     let session = proxy.create_session().await?;
-    proxy
+    let activated = proxy
+        .receive_activated()
+        .await?
+        .map(|event| PortalEvent::Activated(event.shortcut_id().to_string()));
+    // The portal sends a session's signals to its owner only, and Annota has one session at a
+    // time (`ashpd` 0.11 does not expose the session's path to compare with).
+    let changed = proxy
+        .receive_shortcuts_changed()
+        .await?
+        .map(|event| PortalEvent::Changed(event.shortcuts().to_vec()));
+    // D1: the desktop decides the triggers; its answer to the bind is what Annota shows.
+    let response = proxy
         .bind_shortcuts(&session, &shortcuts, None)
         .await?
         .response()?;
+    if PORTAL_GENERATION.with(Cell::get) == generation {
+        set_bound(response.shortcuts());
+    }
     PORTAL_ACTIVE.with(|active| active.set(true));
 
-    let mut activated = proxy.receive_activated().await?;
-    while let Some(event) = activated.next().await {
+    let (sender, refresh) = futures_channel::mpsc::unbounded();
+    REFRESH.with(|cell| cell.replace(Some(sender)));
+    let events = futures_util::stream::select(
+        activated,
+        futures_util::stream::select(changed, refresh.map(|()| PortalEvent::Refresh)),
+    );
+    let mut events = std::pin::pin!(events);
+    while let Some(event) = events.next().await {
         if PORTAL_GENERATION.with(Cell::get) != generation {
             break;
         }
-        let (Some(app), Some(mode)) = (app.upgrade(), CaptureMode::parse(event.shortcut_id()))
-        else {
-            continue;
-        };
-        app.activate_action("capture", Some(&mode.as_str().to_variant()));
+        match event {
+            PortalEvent::Activated(id) => {
+                let (Some(app), Some(mode)) = (app.upgrade(), CaptureMode::parse(&id)) else {
+                    continue;
+                };
+                app.activate_action("capture", Some(&mode.as_str().to_variant()));
+            }
+            PortalEvent::Changed(shortcuts) => {
+                let change = CHANGES.with(|changes| {
+                    changes.set(changes.get() + 1);
+                    changes.get()
+                });
+                glib::timeout_add_local_once(CHANGE_SETTLE, move || {
+                    let last = CHANGES.with(Cell::get) == change;
+                    if last && PORTAL_GENERATION.with(Cell::get) == generation {
+                        set_bound(&shortcuts);
+                    }
+                });
+            }
+            PortalEvent::Refresh => match proxy.list_shortcuts(&session).await {
+                Ok(request) => match request.response() {
+                    Ok(list) => set_bound(list.shortcuts()),
+                    Err(err) => eprintln!("annota: could not list the global shortcuts: {err}"),
+                },
+                Err(err) => eprintln!("annota: could not list the global shortcuts: {err}"),
+            },
+        }
     }
     session.close().await
 }
@@ -896,5 +1291,207 @@ mod tests {
             Some("Take a screenshot")
         );
         assert_eq!(find_user(&bindings, "<Super>w"), None);
+    }
+
+    fn bound(entries: &[(&str, &str)]) -> BoundTriggers {
+        entries.iter().map(|(id, t)| (s(id), s(t))).collect()
+    }
+
+    // spec: capture / Global capture hotkey / Portal keeps an earlier trigger
+    // spec: capture / Global capture hotkey / Shortcut the portal has not bound
+    #[test]
+    fn trigger_descriptions_become_keycaps_or_text() {
+        assert_eq!(
+            trigger_from_description("Press <Shift>Print"),
+            ShownTrigger::Accel(s("<Shift>Print"))
+        );
+        assert_eq!(
+            trigger_from_description("Press <Shift><Control>p"),
+            ShownTrigger::Accel(s("<Shift><Control>p"))
+        );
+        assert_eq!(trigger_from_description(""), ShownTrigger::NotSet);
+        assert_eq!(trigger_from_description("   "), ShownTrigger::NotSet);
+        // Another desktop or locale: shown as it is, never guessed at.
+        assert_eq!(
+            trigger_from_description("Drücken Sie Strg+Druck"),
+            ShownTrigger::Text(s("Drücken Sie Strg+Druck"))
+        );
+        assert_eq!(
+            trigger_from_description("Press <Bogus>x"),
+            ShownTrigger::Text(s("Press <Bogus>x"))
+        );
+    }
+
+    // spec: capture / Global capture hotkey / Shortcut the portal has not bound
+    #[test]
+    fn no_answer_is_pending_and_a_missing_id_is_not_set() {
+        let answer = bound(&[("region", "Press <Shift><Control>p")]);
+        for path in [ShortcutPath::Unknown, ShortcutPath::Portal] {
+            assert_eq!(
+                resolve_trigger(path, None, CaptureMode::Region, "Print"),
+                ShownTrigger::Pending,
+                "{path:?}: never the configured accelerator before the answer"
+            );
+        }
+        assert_eq!(
+            resolve_trigger(
+                ShortcutPath::Portal,
+                Some(&answer),
+                CaptureMode::Window,
+                "<Alt>Print"
+            ),
+            ShownTrigger::NotSet
+        );
+        assert_eq!(
+            resolve_trigger(
+                ShortcutPath::Portal,
+                Some(&bound(&[("window", "")])),
+                CaptureMode::Window,
+                "<Alt>Print"
+            ),
+            ShownTrigger::NotSet
+        );
+    }
+
+    // The reported defect (proposal.md): the settings hold Ctrl+Q, GNOME bound Shift+Print.
+    // spec: capture / Global capture hotkey / Portal keeps an earlier trigger
+    // spec: app-shell / Welcome page / Keycaps show the portal's triggers
+    #[test]
+    fn the_portals_trigger_wins_over_the_setting() {
+        let answer = bound(&[
+            ("region", "Press <Shift><Control>p"),
+            ("window", "Press <Alt>Print"),
+            ("screen", "Press <Shift>Print"),
+        ]);
+        let screen = resolve_trigger(
+            ShortcutPath::Portal,
+            Some(&answer),
+            CaptureMode::Screen,
+            "<Control>q",
+        );
+        assert_eq!(screen, ShownTrigger::Accel(s("<Shift>Print")));
+        assert_ne!(screen, ShownTrigger::Accel(s("<Control>q")));
+        assert_eq!(
+            resolve_trigger(
+                ShortcutPath::Portal,
+                Some(&answer),
+                CaptureMode::Region,
+                "<Control>p"
+            ),
+            ShownTrigger::Accel(s("<Shift><Control>p"))
+        );
+    }
+
+    // spec: app-shell / Welcome page / Shortcut keycaps follow the settings
+    #[test]
+    fn the_fallback_path_shows_the_settings() {
+        let answer = bound(&[("window", "Press <Alt>Print")]);
+        assert_eq!(
+            resolve_trigger(
+                ShortcutPath::Fallback,
+                Some(&answer),
+                CaptureMode::Window,
+                "<Super>w"
+            ),
+            ShownTrigger::Accel(s("<Super>w"))
+        );
+        assert_eq!(
+            resolve_trigger(ShortcutPath::Fallback, None, CaptureMode::Window, ""),
+            ShownTrigger::NotSet
+        );
+    }
+
+    fn schema_binding(
+        schema: &str,
+        key: &str,
+        summary: Option<&str>,
+        accels: &[&str],
+    ) -> GnomeBinding {
+        GnomeBinding {
+            name: summary.unwrap_or(key).to_string(),
+            summary: summary.map(s),
+            accels: accels.iter().map(|a| s(a)).collect(),
+            source: BindingSource::Schema {
+                schema: s(schema),
+                key: s(key),
+            },
+        }
+    }
+
+    // spec: capture / Global capture hotkey / Trigger taken by GNOME
+    // spec: capture / Reversible takeover of GNOME's screenshot keys / No takeover on the GlobalShortcuts portal path
+    #[test]
+    fn a_trigger_gnome_holds_is_taken_by_that_action() {
+        let bindings = vec![
+            schema_binding(
+                "org.gnome.desktop.wm.keybindings",
+                "switch-windows",
+                Some("Switch windows"),
+                &["<Alt>Tab"],
+            ),
+            schema_binding(
+                GNOME_SHELL_KEYBINDINGS,
+                "screenshot",
+                Some("Take a screenshot"),
+                &["<Shift>Print"],
+            ),
+            schema_binding(GNOME_SHELL_KEYBINDINGS, "no-summary", None, &["<Super>F9"]),
+            GnomeBinding {
+                name: s("Annota: Region capture"),
+                summary: Some(s("Annota: Region capture")),
+                accels: vec![s("<Control>Print")],
+                source: BindingSource::Custom {
+                    path: keybinding_path(CaptureMode::Region),
+                },
+            },
+            GnomeBinding {
+                name: s("Terminal"),
+                summary: Some(s("Terminal")),
+                accels: vec![s("<Control><Alt>t")],
+                source: BindingSource::Custom {
+                    path: format!("{CUSTOM_KEYBINDINGS_BASE}custom0/"),
+                },
+            },
+        ];
+        let taken = taken_by_in(&bindings, "<Shift>Print").expect("held by GNOME");
+        assert_eq!(taken.action.as_deref(), Some("Take a screenshot"));
+        assert_eq!(taken.text(), "Used by GNOME: Take a screenshot");
+        assert!(bindings[1].is_screenshot_key());
+        // A free trigger is nobody's.
+        assert_eq!(taken_by_in(&bindings, "<Shift><Control>F12"), None);
+        // Annota's own fallback keybindings never count.
+        assert_eq!(taken_by_in(&bindings, "<Control>Print"), None);
+        // Another custom keybinding does.
+        assert_eq!(
+            taken_by_in(&bindings, "<Control><Alt>t").and_then(|t| t.action),
+            Some(s("Terminal"))
+        );
+        // No summary: plain "Used by GNOME".
+        let unnamed = taken_by_in(&bindings, "<Super>F9").expect("held by GNOME");
+        assert_eq!(unnamed.action, None);
+        assert_eq!(unnamed.text(), "Used by GNOME");
+        // Only public keybinding schemas are read, never GNOME's private portal store.
+        assert!(!CONFLICT_SCHEMAS.contains(&"org.gnome.settings-daemon.global-shortcuts"));
+    }
+
+    // spec: capture / Reversible takeover of GNOME's screenshot keys / Conflict with an Annota application shortcut
+    #[test]
+    fn annotas_own_accelerators_are_conflicts() {
+        let accels = vec![
+            (s("app.quit"), vec![s("<Control>q")]),
+            (s("app.open-image"), vec![s("<Control>o")]),
+            (s("app.capture"), vec![]),
+            (s("app.unlabelled"), vec![s("<Control>F7")]),
+        ];
+        assert_eq!(
+            app_user(&accels, "<Control>q").as_deref(),
+            Some("Annota: Quit")
+        );
+        assert_eq!(
+            app_user(&accels, "<control>O").as_deref(),
+            Some("Annota: Open Image")
+        );
+        assert_eq!(app_user(&accels, "<Shift><Control>F12"), None);
+        assert_eq!(app_user(&accels, "<Control>F7").as_deref(), Some("Annota"));
     }
 }

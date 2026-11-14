@@ -3467,3 +3467,43 @@ msgid "{n} object flattened into the image"
 msgid_plural "{n} objects flattened into the image"
 msgstr[0] ""
 msgstr[1] ""
+
+#: data/ui/preferences.blp:115
+msgid "Open GNOME Settings"
+msgstr ""
+
+#: src/preferences.rs:303
+msgid "GNOME manages these shortcuts. Change them in GNOME Settings."
+msgstr ""
+
+#: src/preferences.rs:332
+msgid "Not set"
+msgstr ""
+
+#: src/capture/shortcuts.rs:587
+msgid "Paste Image"
+msgstr ""
+
+#: src/capture/shortcuts.rs:588
+msgid "Open Image"
+msgstr ""
+
+#: src/capture/shortcuts.rs:591
+msgid "Close Window"
+msgstr ""
+
+#: src/capture/shortcuts.rs:592
+msgid "Keyboard Shortcuts"
+msgstr ""
+
+#: src/capture/shortcuts.rs:630
+msgid "Annota: {action}"
+msgstr ""
+
+#: src/capture/shortcuts.rs:695
+msgid "Used by GNOME: {action}"
+msgstr ""
+
+#: src/capture/shortcuts.rs:696
+msgid "Used by GNOME"
+msgstr ""

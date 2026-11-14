@@ -281,6 +281,16 @@ popover.annota-launcher > contents {
   font-weight: bold;
 }
 
+/* A combination the dialog refuses (fix-portal-shortcut-bindings mockup 04). */
+.annota-live-keys.annota-conflict label {
+  box-shadow: inset 0 0 0 1px @destructive_color;
+}
+
+/* The status line, 13 px (mockup 04). */
+.annota-shortcut-status {
+  font-size: 13px;
+}
+
 /* 40 px high all in (redlines): `min-height` does not include the button's padding. */
 .annota-dialog-button {
   min-height: 40px;
@@ -611,6 +621,11 @@ banner.annota-error-banner.annota-banner-destructive button {
   min-height: 108px;
   border-radius: 12px;
   padding: 8px;
+}
+
+/* The keycap line keeps its 22 px when a mode has no trigger (fix-portal-shortcut-bindings 05). */
+.annota-welcome-keys {
+  min-height: 22px;
 }
 
 .annota-welcome-keycap {

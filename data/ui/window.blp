@@ -94,8 +94,24 @@ Adw.ApplicationWindow window {
                     styles ["annota-mode-label"]
                   }
 
-                  Label launcher_region_accel {
-                    styles ["annota-mode-accel", "dim-label"]
+                  // The trigger that starts this capture; a warning icon when GNOME's own
+                  // keybinding holds it (fix-portal-shortcut-bindings mockups 01, 06b).
+                  Box launcher_region_caption {
+                    halign: center;
+                    spacing: 3;
+
+                    Image launcher_region_warning {
+                      icon-name: "dialog-warning-symbolic";
+                      pixel-size: 12;
+                      accessible-role: presentation;
+                      visible: false;
+                      styles ["warning"]
+                    }
+
+                    Label launcher_region_accel {
+                      ellipsize: end;
+                      styles ["annota-mode-accel", "dim-label"]
+                    }
                   }
                 };
               }
@@ -120,8 +136,24 @@ Adw.ApplicationWindow window {
                     styles ["annota-mode-label"]
                   }
 
-                  Label launcher_window_accel {
-                    styles ["annota-mode-accel", "dim-label"]
+                  // The trigger that starts this capture; a warning icon when GNOME's own
+                  // keybinding holds it (fix-portal-shortcut-bindings mockups 01, 06b).
+                  Box launcher_window_caption {
+                    halign: center;
+                    spacing: 3;
+
+                    Image launcher_window_warning {
+                      icon-name: "dialog-warning-symbolic";
+                      pixel-size: 12;
+                      accessible-role: presentation;
+                      visible: false;
+                      styles ["warning"]
+                    }
+
+                    Label launcher_window_accel {
+                      ellipsize: end;
+                      styles ["annota-mode-accel", "dim-label"]
+                    }
                   }
                 };
               }
@@ -146,8 +178,24 @@ Adw.ApplicationWindow window {
                     styles ["annota-mode-label"]
                   }
 
-                  Label launcher_screen_accel {
-                    styles ["annota-mode-accel", "dim-label"]
+                  // The trigger that starts this capture; a warning icon when GNOME's own
+                  // keybinding holds it (fix-portal-shortcut-bindings mockups 01, 06b).
+                  Box launcher_screen_caption {
+                    halign: center;
+                    spacing: 3;
+
+                    Image launcher_screen_warning {
+                      icon-name: "dialog-warning-symbolic";
+                      pixel-size: 12;
+                      accessible-role: presentation;
+                      visible: false;
+                      styles ["warning"]
+                    }
+
+                    Label launcher_screen_accel {
+                      ellipsize: end;
+                      styles ["annota-mode-accel", "dim-label"]
+                    }
                   }
                 };
               }
@@ -214,6 +262,7 @@ Adw.ApplicationWindow window {
                 }
 
                 Label launcher_capture_accel {
+                  ellipsize: end;
                   styles ["annota-launcher-accel"]
                 }
               };
@@ -347,6 +396,7 @@ Adw.ApplicationWindow window {
                   Box welcome_region_keys {
                     halign: center;
                     spacing: 4;
+                    styles ["annota-welcome-keys"]
                   }
                 };
               }
@@ -373,6 +423,7 @@ Adw.ApplicationWindow window {
                   Box welcome_window_keys {
                     halign: center;
                     spacing: 4;
+                    styles ["annota-welcome-keys"]
                   }
                 };
               }
@@ -399,6 +450,7 @@ Adw.ApplicationWindow window {
                   Box welcome_screen_keys {
                     halign: center;
                     spacing: 4;
+                    styles ["annota-welcome-keys"]
                   }
                 };
               }

@@ -137,22 +137,23 @@ fn bind_capture(builder: &gtk::Builder, settings: &gio::Settings, dialog: &adw::
     let banner_group: adw::PreferencesGroup = obj!(builder, "banner_group");
     let banner: adw::Banner = obj!(builder, "shortcuts_banner");
     let group: adw::PreferencesGroup = obj!(builder, "shortcuts_group");
+    let open_settings: gtk::Button = obj!(builder, "open_gnome_settings_button");
+    macro_rules! row {
+        ($mode:expr, $name:literal) => {
+            ShortcutRow {
+                mode: $mode,
+                row: obj!(builder, concat!("shortcut_", $name, "_row")),
+                keys: obj!(builder, concat!("shortcut_", $name, "_label")),
+                text: obj!(builder, concat!("shortcut_", $name, "_text")),
+                warning: obj!(builder, concat!("shortcut_", $name, "_warning")),
+                chevron: obj!(builder, concat!("shortcut_", $name, "_chevron")),
+            }
+        };
+    }
     let rows = [
-        (
-            CaptureMode::Region,
-            obj!(builder, "shortcut_region_row"),
-            obj!(builder, "shortcut_region_label"),
-        ),
-        (
-            CaptureMode::Window,
-            obj!(builder, "shortcut_window_row"),
-            obj!(builder, "shortcut_window_label"),
-        ),
-        (
-            CaptureMode::Screen,
-            obj!(builder, "shortcut_screen_row"),
-            obj!(builder, "shortcut_screen_label"),
-        ),
+        row!(CaptureMode::Region, "region"),
+        row!(CaptureMode::Window, "window"),
+        row!(CaptureMode::Screen, "screen"),
     ];
     // AdwPreferencesPage:banner exists from libadwaita 1.7 (Ubuntu 26.04); older versions show
     // the banner at the top of the page's content instead.
@@ -170,6 +171,7 @@ fn bind_capture(builder: &gtk::Builder, settings: &gio::Settings, dialog: &adw::
         banner_group,
         banner_in_group,
         group,
+        open_settings,
         rows,
         portal: Cell::new(shortcuts::portal_active().then_some(true)),
     });
@@ -188,12 +190,29 @@ fn bind_capture(builder: &gtk::Builder, settings: &gio::Settings, dialog: &adw::
         view,
         move |_| view.create_gnome_shortcuts()
     ));
-    for (mode, row, _) in &view.rows {
-        let mode = *mode;
-        row.connect_activated(glib::clone!(
+    view.open_settings.connect_clicked(open_gnome_settings);
+    // D2: Preferences › Capture reads the portal's triggers again whenever it is shown.
+    page.connect_map(|_| shortcuts::refresh_bound());
+    shortcuts::connect_bound_changed(glib::clone!(
+        #[weak]
+        view,
+        #[upgrade_or]
+        glib::ControlFlow::Break,
+        move || {
+            view.refresh();
+            glib::ControlFlow::Continue
+        }
+    ));
+    for shortcut in &view.rows {
+        let mode = shortcut.mode;
+        shortcut.row.connect_activated(glib::clone!(
             #[strong]
             view,
             move |_| {
+                // Portal path: GNOME owns the keys, so there is nothing to edit here (D4).
+                if view.portal_path() {
+                    return;
+                }
                 let Some(dialog) = view.dialog.upgrade() else {
                     return;
                 };
@@ -232,7 +251,20 @@ fn seconds_text(seconds: i32) -> String {
     gettext("{seconds} s").replace("{seconds}", &seconds.to_string())
 }
 
-/// The Global Shortcuts group (mockups 09, 10).
+/// One row of the Global Shortcuts group.
+struct ShortcutRow {
+    mode: CaptureMode,
+    row: adw::ActionRow,
+    keys: gtk::ShortcutLabel,
+    /// "Not set" or a trigger the portal described in words (fix-portal-shortcut-bindings D3).
+    text: gtk::Label,
+    /// A trigger GNOME's own keybinding holds (D7, mockup 06a).
+    warning: gtk::Image,
+    chevron: gtk::Image,
+}
+
+/// The Global Shortcuts group (add-screen-capture mockups 09, 10; fix-portal-shortcut-bindings
+/// 02, 03, 06a).
 struct ShortcutsView {
     settings: gio::Settings,
     dialog: glib::WeakRef<adw::PreferencesDialog>,
@@ -241,12 +273,19 @@ struct ShortcutsView {
     /// libadwaita < 1.7: the banner lives in `banner_group`.
     banner_in_group: bool,
     group: adw::PreferencesGroup,
-    rows: [(CaptureMode, adw::ActionRow, gtk::ShortcutLabel); 3],
+    open_settings: gtk::Button,
+    rows: [ShortcutRow; 3],
     /// Whether the GlobalShortcuts portal exists; `None` until known.
     portal: Cell<Option<bool>>,
 }
 
 impl ShortcutsView {
+    /// The GlobalShortcuts portal binds the keys, so GNOME owns them. Also before the portal has
+    /// been asked: until it answers, no configured accelerator is shown.
+    fn portal_path(&self) -> bool {
+        !self.settings.boolean("gnome-shortcuts-created") && self.portal.get() != Some(false)
+    }
+
     fn refresh(&self) {
         let created = self.settings.boolean("gnome-shortcuts-created");
         let portal = self.portal.get();
@@ -254,12 +293,13 @@ impl ShortcutsView {
         self.banner.set_revealed(fallback);
         self.banner_group
             .set_visible(fallback && self.banner_in_group);
+        let portal_path = self.portal_path();
         let description = if fallback {
             gettext("This system has no global-shortcuts portal. Annota adds GNOME keyboard shortcuts instead.")
         } else if created {
             gettext("Work in every app, even when Annota is closed")
         } else if portal == Some(true) {
-            gettext("Work in every app while Annota is running")
+            gettext("GNOME manages these shortcuts. Change them in GNOME Settings.")
         } else {
             String::new()
         };
@@ -268,23 +308,78 @@ impl ShortcutsView {
                 .filter(|d| !d.is_empty())
                 .map(String::as_str),
         );
+        self.open_settings
+            .set_visible(portal == Some(true) && !created && gnome_settings_installed());
 
-        for (mode, row, label) in &self.rows {
-            let accel = self.settings.string(shortcuts::settings_key(*mode));
-            label.set_accelerator(&accel);
-            let subtitle = if accel.is_empty() {
-                glib::markup_escape_text(&gettext("Disabled")).to_string()
-            } else if created {
-                let command = glib::markup_escape_text(&shortcuts::keybinding_command(*mode));
-                glib::markup_escape_text(&gettext("GNOME shortcut · runs {command}"))
-                    .replace("{command}", &format!("<tt>{command}</tt>"))
-            } else if portal == Some(true) {
-                glib::markup_escape_text(&gettext("System shortcut")).to_string()
+        for shortcut in &self.rows {
+            if portal_path {
+                self.show_portal_row(shortcut);
             } else {
-                glib::markup_escape_text(&gettext("Not active yet")).to_string()
-            };
-            row.set_subtitle(&subtitle);
+                self.show_fallback_row(shortcut, created, portal);
+            }
         }
+    }
+
+    /// Mockups 02, 03a, 03b, 06a: read-only, the trigger GNOME reports.
+    fn show_portal_row(&self, shortcut: &ShortcutRow) {
+        let shown = shortcuts::shown_trigger(shortcut.mode);
+        shortcut.row.set_activatable(false);
+        shortcut.chevron.set_visible(false);
+        let (accel, text) = match &shown.trigger {
+            shortcuts::ShownTrigger::Accel(accel) => (accel.clone(), None),
+            shortcuts::ShownTrigger::Text(text) => (String::new(), Some(text.clone())),
+            shortcuts::ShownTrigger::NotSet => (String::new(), Some(gettext("Not set"))),
+            shortcuts::ShownTrigger::Pending => (String::new(), None),
+        };
+        shortcut.keys.set_accelerator(&accel);
+        shortcut.keys.set_visible(!accel.is_empty());
+        shortcut.text.set_text(text.as_deref().unwrap_or_default());
+        shortcut.text.set_visible(text.is_some());
+        let taken = shown.taken_by.as_ref().map(shortcuts::TakenBy::text);
+        shortcut.warning.set_visible(taken.is_some());
+        shortcut.row.set_subtitle(&glib::markup_escape_text(
+            taken.as_deref().unwrap_or_default(),
+        ));
+        // Read with the row: "Screen capture, Shift+Print, Used by GNOME: Take a screenshot".
+        let spoken = match &shown.trigger {
+            shortcuts::ShownTrigger::Accel(accel) => crate::application::accel_label(accel),
+            _ => text.unwrap_or_default(),
+        };
+        if spoken.is_empty() {
+            shortcut
+                .row
+                .reset_property(gtk::AccessibleProperty::Description);
+        } else {
+            shortcut
+                .row
+                .update_property(&[gtk::accessible::Property::Description(&spoken)]);
+        }
+    }
+
+    /// GNOME custom keybindings (mockups 09, 10): the configured accelerators, editable.
+    fn show_fallback_row(&self, shortcut: &ShortcutRow, created: bool, portal: Option<bool>) {
+        let accel = self.settings.string(shortcuts::settings_key(shortcut.mode));
+        shortcut.row.set_activatable(true);
+        shortcut.chevron.set_visible(true);
+        shortcut.keys.set_accelerator(&accel);
+        shortcut.keys.set_visible(true);
+        shortcut.text.set_visible(false);
+        shortcut.warning.set_visible(false);
+        shortcut
+            .row
+            .reset_property(gtk::AccessibleProperty::Description);
+        let subtitle = if accel.is_empty() {
+            glib::markup_escape_text(&gettext("Disabled")).to_string()
+        } else if created {
+            let command = glib::markup_escape_text(&shortcuts::keybinding_command(shortcut.mode));
+            glib::markup_escape_text(&gettext("GNOME shortcut · runs {command}"))
+                .replace("{command}", &format!("<tt>{command}</tt>"))
+        } else if portal == Some(true) {
+            glib::markup_escape_text(&gettext("System shortcut")).to_string()
+        } else {
+            glib::markup_escape_text(&gettext("Not active yet")).to_string()
+        };
+        shortcut.row.set_subtitle(&subtitle);
     }
 
     fn toast(&self, text: &str) {
@@ -322,6 +417,64 @@ impl ShortcutsView {
             ),
         }
     }
+}
+
+/// GNOME Settings' desktop file; "Open GNOME Settings" is hidden without it (design.md D4).
+const GNOME_SETTINGS_APP: &str = "org.gnome.Settings.desktop";
+
+fn gnome_settings_installed() -> bool {
+    gio::DesktopAppInfo::new(GNOME_SETTINGS_APP).is_some()
+}
+
+/// The `org.gnome.Settings` `launch-panel` call that opens Apps › Annota, where GNOME lists
+/// Annota's global shortcuts (design.md D4, measured with gnome-control-center 50.3).
+pub(crate) fn launch_panel_parameters(activation_token: Option<&str>) -> glib::Variant {
+    let target = ("applications", vec![config::APP_ID.to_variant()]).to_variant();
+    let platform_data = glib::VariantDict::new(None);
+    if let Some(token) = activation_token {
+        platform_data.insert("activation-token", token);
+        platform_data.insert("desktop-startup-id", token);
+    }
+    // `(sava{sv})`: a tuple of `Variant`s would box each one as `v` again.
+    glib::Variant::tuple_from_iter([
+        "launch-panel".to_variant(),
+        vec![target].to_variant(),
+        platform_data.end(),
+    ])
+}
+
+/// "Open GNOME Settings": GNOME Settings at Apps › Annota. A D-Bus call on this computer; no
+/// network.
+fn open_gnome_settings(button: &gtk::Button) {
+    let token = gio::DesktopAppInfo::new(GNOME_SETTINGS_APP).and_then(|info| {
+        button
+            .display()
+            .app_launch_context()
+            .startup_notify_id(Some(&info), &[])
+            .map(|t| t.to_string())
+    });
+    let parameters = launch_panel_parameters(token.as_deref());
+    glib::spawn_future_local(async move {
+        let result = match gio::bus_get_future(gio::BusType::Session).await {
+            Ok(connection) => connection
+                .call_future(
+                    Some("org.gnome.Settings"),
+                    "/org/gnome/Settings",
+                    "org.freedesktop.Application",
+                    "ActivateAction",
+                    Some(&parameters),
+                    None,
+                    gio::DBusCallFlags::NONE,
+                    10_000,
+                )
+                .await
+                .map(|_| ()),
+            Err(err) => Err(err),
+        };
+        if let Err(err) = result {
+            eprintln!("annota: cannot open GNOME Settings: {err}");
+        }
+    });
 }
 
 fn open_keyboard_settings() {
@@ -431,5 +584,20 @@ mod tests {
             resolved_save_folder("/tmp/shots"),
             PathBuf::from("/tmp/shots")
         );
+    }
+
+    // spec: capture / Global capture hotkey / Open GNOME Settings
+    #[test]
+    fn open_gnome_settings_targets_annotas_apps_page() {
+        // `gdbus call ... ActivateAction` form of `gnome-control-center applications <app-id>`.
+        assert_eq!(
+            launch_panel_parameters(None).print(true).as_str(),
+            "('launch-panel', [<('applications', [<'io.github.trosinde.Annota'>])>], @a{sv} {})"
+        );
+        let with_token = launch_panel_parameters(Some("t-1"));
+        assert_eq!(with_token.type_().as_str(), "(sava{sv})");
+        assert!(with_token
+            .print(false)
+            .contains("'activation-token': <'t-1'>"));
     }
 }

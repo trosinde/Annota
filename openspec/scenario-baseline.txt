@@ -47,7 +47,6 @@ uncovered-scenario: app-shell / Preferences / Setting persists
 uncovered-scenario: app-shell / Single application instance / Second launch forwards request
 uncovered-scenario: app-shell / Single application instance / Second launch starts a capture
 uncovered-scenario: app-shell / Welcome page / Mode card starts a capture
-uncovered-scenario: app-shell / Welcome page / Shortcut keycaps follow the settings
 uncovered-scenario: capture / After-capture destination / Editor destination
 uncovered-scenario: capture / After-capture destination / Editor unavailable
 uncovered-scenario: capture / Delayed capture / Countdown
@@ -81,7 +80,6 @@ uncovered-scenario: capture / Region capture / Fixed size
 uncovered-scenario: capture / Region capture / Nudge with the keyboard
 uncovered-scenario: capture / Region capture / Select and confirm
 uncovered-scenario: capture / Region capture / Snap to a window edge
-uncovered-scenario: capture / Reversible takeover of GNOME's screenshot keys / No takeover on the GlobalShortcuts portal path
 uncovered-scenario: capture / Reversible takeover of GNOME's screenshot keys / Shortcut conflict
 uncovered-scenario: capture / Reversible takeover of GNOME's screenshot keys / Takeover is reversible
 uncovered-scenario: debian-packaging / Continuous integration / Failing lint blocks

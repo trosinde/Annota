@@ -3353,8 +3353,10 @@ fn is_image_op_key(key: gdk::Key, modifiers: gdk::ModifierType) -> bool {
 /// Accelerators of the editor's actions, one each: menus show an action's accelerator only
 /// if it has exactly one (GTK 4.22). The keypad and `Ctrl+=` variants of the zoom keys are
 /// handled by the canvas. Keys text fields use too (Ctrl+C, Ctrl+Z, Ctrl+A, arrows, Delete)
-/// are handled by the window's key controller instead (see the module docs).
-fn set_accels(app: &adw::Application) {
+/// are handled by the window's key controller instead (see the module docs). Also set at
+/// startup, so the Set Shortcut dialog knows them before an editor opens
+/// (fix-portal-shortcut-bindings D5).
+pub(crate) fn set_accels(app: &adw::Application) {
     for (action, accel) in [
         ("win.show-properties", "F9"),
         ("win.export", "<Control>e"),

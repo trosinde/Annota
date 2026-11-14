@@ -186,6 +186,28 @@ GNOME 46") are covered by a live check (`manual-checks.md`) or by existing tests
 
 Design approved: 2026-11-14 (mockups 01-05; mockup 06 for D7 also 2026-11-14, with the Capture button dropping its key hint while the key is taken by GNOME)
 
+## Decided during apply (2026-11-14)
+
+- `ShortcutsChanged` is applied after 250 ms of quiet (`CHANGE_SETTLE`): GNOME 50 sends a rebind as
+  two signals, the first without the rebound shortcut, so the last of a burst wins and the gap is
+  never shown. The signal is not filtered by session path: `ashpd` 0.11 does not expose it, the
+  portal sends a session's signals to its owner only, and Annota has one session at a time.
+- `shown_trigger(mode)` returns `Shown { trigger: ShownTrigger, taken_by: Option<TakenBy> }`.
+  `TakenBy.action` is the GSettings key summary (`None` without one, shown as plain "Used by
+  GNOME"). Only an `Accel` can be looked up; a `Text` trigger never carries `taken_by`.
+- The path is `Unknown` until `run_portal_shortcuts` knows it. If `GlobalShortcuts::new()` itself
+  fails, the path becomes `Fallback` (as `portal_available` decides in Preferences); a failed
+  bind on a present portal keeps `Pending` (Risks, above).
+- With every `shortcut-*` disabled, nothing is bound, and the store holds an empty answer: every
+  mode shows "Not set" instead of `Pending`.
+- D5: the order is Annota's other capture shortcuts, then the application's accelerators, then
+  GNOME's schemas. The editor's accelerators are registered at startup too
+  (`ui::editor::set_accels` from `setup_actions`), so `Ctrl+S` counts before an editor opens.
+- Mockup 04's refused-keycap ring (`.annota-live-keys.annota-conflict`) and the 13 px status line
+  (`.annota-shortcut-status`) were not built yet and are added here.
+- Preferences before the portal probe has answered: the rows are read-only and empty, with no
+  description and no button (mockup 03b shows the known portal path; the unknown one is not drawn).
+
 ## Risks / Trade-offs
 
 - [GNOME never emits `ShortcutsChanged` for a rebind in Settings] → D2's refresh on open still

@@ -34,50 +34,50 @@
 
 ## 3. Bound-trigger store (design.md D1–D3)
 
-- [ ] 3.1 `run_portal_shortcuts` keeps `bind_shortcuts`' response in `BOUND` (id → trigger
+- [x] 3.1 `run_portal_shortcuts` keeps `bind_shortcuts`' response in `BOUND` (id → trigger
       description) and notifies `connect_bound_changed` subscribers. It also listens to
       `receive_shortcuts_changed` and updates `BOUND`. Verify: `live_tests.rs` case where the fake
       portal answers the bind with a trigger different from the preferred one, and `BOUND` holds
       the portal's.
-- [ ] 3.2 `refresh_bound()`: `list_shortcuts` on the live session, then replace and notify.
+- [x] 3.2 `refresh_bound()`: `list_shortcuts` on the live session, then replace and notify.
       No-op without a session. Verify: live test, fake portal changes its answer between bind and
       list, and the store follows.
-- [ ] 3.3 `shown_trigger(mode) -> ShownTrigger { Pending, NotSet, Accel, Text }`: portal path
+- [x] 3.3 `shown_trigger(mode) -> ShownTrigger { Pending, NotSet, Accel, Text }`: portal path
       from `BOUND`, fallback path from `shortcut-*`. Verify: unit tests for `Press <Shift>Print` →
       `Accel("<Shift>Print")`, empty → `NotSet`, unparsable text → `Text` verbatim, no answer yet →
       `Pending`, fallback → setting.
-- [ ] 3.4 Regression test for the reported defect: settings `<Control>q`, fake portal binds
+- [x] 3.4 Regression test for the reported defect: settings `<Control>q`, fake portal binds
       `screen` to `<Shift>Print`, so `shown_trigger(Screen)` is `Accel("<Shift>Print")` and never
       `<Control>q`.
 
-- [ ] 3.5 D7: `taken_by` lookup over GNOME's public keybinding schemas, shared with
+- [x] 3.5 D7: `taken_by` lookup over GNOME's public keybinding schemas, shared with
       `find_conflict`. Verify: unit tests - `<Shift>Print` against a list holding "Take a
       screenshot" gives that name; a free trigger gives none; Annota's own fallback custom
       keybindings never count.
 
 ## 4. UI surfaces
 
-- [ ] 4.1 Preferences › Capture (`src/preferences.rs`, `data/ui/preferences.blp`): on the portal
+- [x] 4.1 Preferences › Capture (`src/preferences.rs`, `data/ui/preferences.blp`): on the portal
       path, rows read-only (no chevron, not activatable), group description and an "Open GNOME
       Settings" header button (D4). A row shows "Not set" or no trigger while `Pending`.
       `refresh_bound()` runs on `map`. Matches mockups 02/03.
 - [ ] 4.2 "Open GNOME Settings" opens the entry point found in 2.2. It is hidden when
       `org.gnome.Settings.desktop` is not installed. Verify by a manual check row.
-- [ ] 4.3 Launcher popover (`application.rs` `setup_launcher`): per-mode keycaps and the Capture
+- [x] 4.3 Launcher popover (`application.rs` `setup_launcher`): per-mode keycaps and the Capture
       button's accelerator from `shown_trigger`. `refresh_bound()` runs on popover `show`.
       Matches mockup 01.
-- [ ] 4.4 Welcome cards (`application.rs` `setup_welcome`): keycaps from `shown_trigger`. They
+- [x] 4.4 Welcome cards (`application.rs` `setup_welcome`): keycaps from `shown_trigger`. They
       update on `connect_bound_changed` and on `shortcut-*` changes. `NotSet` and `Pending` show
       no keycaps. Matches mockup 05.
-- [ ] 4.6 D7 surfaces per mockup 06: warning subtitle on the Preferences row, warning badge +
+- [x] 4.6 D7 surfaces per mockup 06: warning subtitle on the Preferences row, warning badge +
       tooltip + accessible description on launcher and welcome keycaps.
-- [ ] 4.5 All new strings through gettext. `po/de.po` updated in the same commit ("GNOME manages
+- [x] 4.5 All new strings through gettext. `po/de.po` updated in the same commit ("GNOME manages
       these shortcuts. Change them in GNOME Settings.", "Open GNOME Settings", "Not set",
       "Used by Annota: {action}", "Used by GNOME: {action}").
 
 ## 5. App-accelerator conflicts (design.md D5)
 
-- [ ] 5.1 `find_conflict` checks the running application's registered accelerators first and
+- [x] 5.1 `find_conflict` checks the running application's registered accelerators first and
       names them "Annota: <label>". The label table is in one place. Verify: unit test with a
       fake accelerator list, where `<Control>q` gives "Annota: Quit" and an unregistered combo
       gives no conflict.
