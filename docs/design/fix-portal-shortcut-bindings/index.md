@@ -16,6 +16,9 @@ The example triggers are the ones measured on the maintainer's machine on 2026-1
 | 03b | Preferences › Capture, portal path, portal has not answered yet (Pending) | [png/03b-prefs-portal-pending-light@1x.png](png/03b-prefs-portal-pending-light@1x.png) |
 | 04 | Set Shortcut dialog, fallback path (GNOME 46), `Ctrl+Q` refused: "Used by Annota: Quit" | [png/04-set-shortcut-app-conflict-light@1x.png](png/04-set-shortcut-app-conflict-light@1x.png) |
 | 05 | Welcome page, portal triggers, Screen has no trigger | [png/05-welcome-portal-triggers-light@1x.png](png/05-welcome-portal-triggers-light@1x.png) |
+| 06a | Preferences › Capture, portal path, Screen trigger taken by GNOME (row keyboard focus) | [png/06a-prefs-trigger-taken-light@1x.png](png/06a-prefs-trigger-taken-light@1x.png) |
+| 06b | Capture launcher, Screen trigger taken by GNOME, tooltip on the Screen toggle | [png/06b-launcher-trigger-taken-light@1x.png](png/06b-launcher-trigger-taken-light@1x.png) |
+| 06c | Welcome page, Screen card trigger taken by GNOME, tooltip on hover | [png/06c-welcome-trigger-taken-light@1x.png](png/06c-welcome-trigger-taken-light@1x.png) |
 
 ## Scenario → mockup
 
@@ -26,6 +29,7 @@ The example triggers are the ones measured on the maintainer's machine on 2026-1
 | capture / Global capture hotkey / Shortcut the portal has not bound | 03a (Preferences), 05 (welcome card without keycaps) | Launcher: the toggle loses its caption line, see redlines. The spec example is `window`; 05 shows the rule on `screen`, as briefed. Same rendering for every mode. |
 | capture / Global capture hotkey / Shortcuts are managed by GNOME | 02, 03a, 03b | Rows have no chevron and do not react to activation. Description and button are in the group header. |
 | capture / Global capture hotkey / Open GNOME Settings | 02 (button, focus ring) | What opens is GNOME Settings itself. No Annota UI. Live check (task 4.2, 6.1). |
+| capture / Global capture hotkey / Trigger taken by GNOME | 06a, 06b, 06c | `screen` = `Shift+Print`, held by GNOME's "Take a screenshot". "Pressing `Shift+Print` runs GNOME's screenshot" is a live check. Region `Ctrl+Print` and Window `Ctrl+Alt+Print` are normal. |
 | capture / Global capture hotkey / Trigger changed in GNOME Settings | live check | Same screen as 02 with `Super+Shift+S` in the Screen row. Nothing new to draw. |
 | capture / Reversible takeover / Takeover is reversible | existing: add-screen-capture 11 | Unchanged. |
 | capture / Reversible takeover / No takeover on the GlobalShortcuts portal path | live check (+ 01/02 for "the triggers Annota shows") | GNOME's own bindings are not visible in Annota. |
@@ -114,6 +118,54 @@ As bootstrap-app-shell 01. Cards 156 × 108, keycaps `kbd` 22 px.
 - The Region card keeps the initial focus.
 - The keycaps follow `connect_bound_changed` and, on the fallback path, `notify::shortcut-*`.
 
+### Trigger taken by GNOME (06, design.md D7)
+
+`shown_trigger(mode)` returns `taken_by: Option<String>` beside the trigger. It applies to `Accel` and
+`Text` only. With `taken_by = Some(action)`, each surface keeps the trigger and adds the warning. The
+text is always "Used by GNOME: {action}", where `{action}` is the GNOME keybinding's own summary
+from its GSettings schema (translated by GNOME). The warning icon is `dialog-warning-symbolic`
+with the `.warning` style class (light `#9c6e03`, dark `#ffc252`). The icon and the text carry the
+meaning, so it does not rely on colour alone.
+
+06 uses other example triggers than 01-05: `region` = `<Control>Print`, `window` =
+`<Control><Alt>Print`, `screen` = `<Shift>Print`. With the measured triggers of 01-05, Window
+(`Alt+Print`) would be taken too, by GNOME's "Take a screenshot of a window". Same rendering.
+
+**Preferences row (06a)**
+- `AdwActionRow` stays `activatable: false`, no chevron. It gets `subtitle` "Used by GNOME: Take a
+  screenshot", in the normal subtitle style (dim, 13 px). The row grows from 50 px to 56 px (`AdwActionRow` with subtitle). That
+  is the only state where a shortcut row has a subtitle.
+- Suffix, left to right: `GtkImage` `dialog-warning-symbolic`, 16 px, `.warning`, then 12 px gap,
+  then the `GtkShortcutLabel` keycaps (`Shift` `Print`). The keycaps stay right-aligned with the
+  other rows.
+- The icon has no accessible name of its own (`accessible-role: presentation`). The subtitle is
+  read with the row: "Screen capture, Shift+Print, Used by GNOME: Take a screenshot".
+- 06a shows the row's keyboard focus ring (rows stay focusable, see 02). "Open GNOME Settings"
+  is the way out; it is unchanged and is not highlighted.
+- No banner, no toast. The group description stays unchanged.
+
+**Launcher toggle (06b)**
+- Caption line: `GtkBox` horizontal, spacing 3, centred: `GtkImage` `dialog-warning-symbolic`,
+  `pixel-size: 12`, `.warning`, full opacity, then the caption label (11 px, dim) `Shift+Print`.
+  Toggle height stays 76 px.
+- The toggle gets `tooltip-text` "Used by GNOME: Take a screenshot" and the same text as
+  accessible description. Toggles without a taken trigger keep no tooltip, as built.
+- **The suggested Capture button drops its dim trigger suffix** while the active mode's trigger is
+  taken. It reads only "Capture Screen". The button must not advertise a key that does not start
+  Annota, and a warning icon on the blue button would fail contrast.
+- 06b shows the Screen toggle active with pointer hover and its tooltip (GTK tooltip, centred
+  below the widget).
+
+**Welcome card (06c)**
+- Keycap line: `GtkImage` `dialog-warning-symbolic`, 16 px, `.warning`, 6 px before the keycaps
+  (`Shift` `Print`). The line keeps its 22 px height. Card size 156 × 108 unchanged; the line
+  stays centred, so the keycaps move right by 11 px against a card without the icon.
+- The card gets `tooltip-text` and accessible description "Used by GNOME: Take a screenshot".
+- The Region card keeps the initial focus. 06c shows the Screen card on pointer hover with its
+  tooltip.
+
+**Not taken** (`taken_by = None`): every surface is exactly as 01, 02 and 05.
+
 ### Strings
 
 `po/de.po` addresses the user as "Sie", and the existing string "Used by {name}" is "Belegt durch {name}".
@@ -126,6 +178,7 @@ The German below follows both.
 | Not set | Nicht festgelegt |
 | Used by {name} (existing) → "Used by Annota: Quit" | Belegt durch {name} (existing) → "Belegt durch Annota: Beenden" |
 | Annota: {action} | Annota: {action} |
+| Used by GNOME: {action} | Belegt durch GNOME: {action} |
 
 The brief proposed "Belegt von Annota: Beenden". The existing translation uses "Belegt durch", so
 this change uses "Belegt durch" too.
@@ -139,4 +192,11 @@ this change uses "Belegt durch" too.
 - **Base mockups are stale.** add-screen-capture 01, 09, 10 and 11 still show `Shift+Print` /
   `Super+Shift+W` / `Super+Shift+S`. Their own index and decision D9 say `Print` / `Alt+Print` /
   `Shift+Print`. These mockups do not repeat the stale keys. The base files were not edited.
+- **06: Capture button suffix.** 06b drops the dim trigger suffix from "Capture Screen" while the
+  trigger is taken (see redlines). The alternative is to keep `Shift+Print` there unmarked.
+  Decision needed only if the maintainer prefers that.
+- **06: `{action}` wording.** The text uses GNOME's own keybinding summary from GSettings. On GNOME 50
+  the summary for `screenshot` is assumed to be "Take a screenshot", as the spec says. It has not
+  been probed under `LANG=de_DE.UTF-8`. If the key has no summary, the fallback is "Used by GNOME"
+  without an action (not drawn).
 - Exact GNOME Settings target (task 2.2) does not change any screen.

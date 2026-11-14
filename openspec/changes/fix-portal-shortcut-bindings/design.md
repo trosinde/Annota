@@ -178,13 +178,13 @@ task group 1). Screens and the scenarios they cover (03 also has [03b](../../../
 | [03](../../../docs/design/fix-portal-shortcut-bindings/png/03a-prefs-portal-not-set-light@1x.png) | Preferences › Capture, portal path: one row "Not set", and the pending state | capture: Shortcut the portal has not bound |
 | [04](../../../docs/design/fix-portal-shortcut-bindings/png/04-set-shortcut-app-conflict-light@1x.png) | Set Shortcut dialog (fallback): "Used by Annota: Quit" | capture: Conflict with an Annota application shortcut |
 | [05](../../../docs/design/fix-portal-shortcut-bindings/png/05-welcome-portal-triggers-light@1x.png) | Welcome page, portal triggers, one card without keycaps | app-shell: Keycaps show the portal's triggers; capture: Shortcut the portal has not bound |
-| 06 (pending) | Preferences, launcher and welcome with a trigger taken by GNOME (`Shift+Print`, "Used by GNOME: Take a screenshot") | capture: Trigger taken by GNOME |
+| [06](../../../docs/design/fix-portal-shortcut-bindings/png/06a-prefs-trigger-taken-light@1x.png) | Preferences, launcher and welcome with a trigger taken by GNOME (`Shift+Print`, "Used by GNOME: Take a screenshot"); also [06b](../../../docs/design/fix-portal-shortcut-bindings/png/06b-launcher-trigger-taken-light@1x.png) launcher, [06c](../../../docs/design/fix-portal-shortcut-bindings/png/06c-welcome-trigger-taken-light@1x.png) welcome | capture: Trigger taken by GNOME |
 
 Each in light and dark, 1× and 2×, built on add-screen-capture 01/09/11 and bootstrap-app-shell
 01. Scenarios with no screen ("Trigger changed in GNOME Settings", "No takeover…", "Hotkey on
 GNOME 46") are covered by a live check (`manual-checks.md`) or by existing tests.
 
-Design approved: 2026-11-14 (mockups 01-05; mockup 06 for D7 pending)
+Design approved: 2026-11-14 (mockups 01-05; mockup 06 for D7 also 2026-11-14, with the Capture button dropping its key hint while the key is taken by GNOME)
 
 ## Risks / Trade-offs
 

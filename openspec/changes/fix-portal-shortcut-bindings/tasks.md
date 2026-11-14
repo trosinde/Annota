@@ -13,7 +13,7 @@
       `specs/` appears in it or in `index.md`.
 - [x] 1.3 Maintainer approval recorded in design.md (`Design approved: <date>`). No code before.
 
-- [ ] 1.4 `designer`: mockup 06 for D7 (trigger taken by GNOME) on Preferences, launcher and
+- [x] 1.4 `designer`: mockup 06 for D7 (trigger taken by GNOME) on Preferences, launcher and
       welcome; link it in design.md; maintainer approval of 06 recorded. No D7 UI code before.
 
 ## 2. Portal measurements (before building on them, CLAUDE.md §5)
