@@ -1,0 +1,120 @@
+name: Release
+
+# A tag vX.Y.Z builds the .deb, attaches it to a GitHub Release and publishes the signed APT
+# repository on GitHub Pages. A tag with a suffix (vX.Y.Z-rc.1) becomes a prerelease and does
+# not touch the APT repository.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build-deps
+
+      # The version comes from Cargo.toml and debian/changelog, never from the tag. Both have to
+      # say what the tag says (Debian writes a prerelease 0.2.0-rc.1 as 0.2.0~rc.1).
+      - name: Tag matches Cargo.toml and debian/changelog
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          cargo_version=$(cargo metadata --no-deps --format-version 1 --locked \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')
+          deb_version=$(dpkg-parsechangelog -S Version)
+          echo "tag $TAG, Cargo.toml $cargo_version, debian/changelog $deb_version"
+          [ "$TAG" = "v$cargo_version" ] || { echo "::error::tag $TAG != Cargo.toml $cargo_version"; exit 1; }
+          [ "$deb_version" = "$(echo "$cargo_version" | sed 's/-/~/')" ] \
+            || { echo "::error::debian/changelog $deb_version does not match $cargo_version"; exit 1; }
+          case "$TAG" in *-*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
+
+      # make-deb.sh runs the test suite (dh_auto_test) and lintian; it decides what ships.
+      - name: Build .deb
+        run: |
+          build-aux/make-deb.sh
+          mkdir -p dist && cp ../annota_*.deb dist/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: annota-deb-ubuntu-24.04
+          path: dist/*.deb
+          if-no-files-found: error
+
+  github-release:
+    needs: build-deb
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: annota-deb-ubuntu-24.04
+          path: dist
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*.deb
+          prerelease: ${{ needs.build-deb.outputs.prerelease == 'true' }}
+          fail_on_unmatched_files: true
+
+  publish-apt-repo:
+    needs: [build-deb, github-release]
+    if: needs.build-deb.outputs.prerelease == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install apt-ftparchive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends apt-utils
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: annota-deb-ubuntu-24.04
+          path: dist
+
+      - name: Import release signing key
+        env:
+          SIGNING_KEY: ${{ secrets.ANNOTA_RELEASE_SIGNING_KEY }}
+        run: |
+          [ -n "$SIGNING_KEY" ] || { echo "::error::secret ANNOTA_RELEASE_SIGNING_KEY is not set"; exit 1; }
+          echo "$SIGNING_KEY" | base64 -d | gpg --batch --import
+          echo "ANNOTA_SIGNING_KEYID=$(gpg --with-colons --list-secret-keys | awk -F: '/^sec/ {print $5; exit}')" >> "$GITHUB_ENV"
+
+      - name: Assemble signed APT repo
+        run: build-aux/make-apt-repo.sh dist/annota_*.deb docs/apt "$ANNOTA_SIGNING_KEYID"
+
+      - name: Publish keyring alongside the repo
+        run: cp packaging/annota-archive-keyring.asc docs/annota-archive-keyring.asc
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
