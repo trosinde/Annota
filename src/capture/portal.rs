@@ -37,6 +37,11 @@ pub enum CaptureError {
     /// The permission is undecided and GNOME could not show its question.
     #[error("GNOME could not ask for screen access")]
     CouldNotAsk,
+    /// The interactive picker ended without an image. GNOME's screenshot UI answers the same
+    /// response code whether the user closed it or it never managed to open, so this says only
+    /// what is certain: no image came back.
+    #[error("nothing was captured")]
+    NothingCaptured,
     /// No xdg-desktop-portal Screenshot implementation is running.
     #[error("no screenshot portal is available")]
     PortalUnavailable,

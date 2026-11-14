@@ -161,9 +161,13 @@ pub enum Refusal {
 /// permission for an interactive request at all (see [`first_step`]). What it does do is answer
 /// response code 2 when GNOME's screenshot UI ends without an image — `xdg-desktop-portal-gnome`
 /// logs "InteractiveScreenshot didn't return a file" and maps `success: false` to 2, not to the
-/// cancel code 1. So in window mode a refusal means the user closed the picker, which must be as
-/// silent as `Esc` in Annota's own overlay. Observed on the maintainer's desktop 2026-11-13:
-/// two window captures, two "The capture failed" toasts, nothing wrong with either of them.
+/// cancel code 1. That happens both when the user closes the UI and when the UI never opens at
+/// all, because its modal grab failed (`gnome-shell`'s `screenshot.js`: a failed
+/// `_grabHelper.grab` goes straight to `close(true)`, which emits `closed`). The permission is
+/// not the reason either way, so this is neither a denial nor a failure: see
+/// [`CaptureError::NothingCaptured`](super::portal::CaptureError::NothingCaptured) for what the
+/// user is told. Observed on the maintainer's desktop on 2026-11-10, -13 and -14: five
+/// interactive requests, five without a file.
 pub fn after_refusal(mode: CaptureMode, store: StoreState, asked: bool) -> Refusal {
     match (mode, store) {
         (CaptureMode::Window, _) => Refusal::PickerClosed,

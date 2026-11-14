@@ -97,6 +97,7 @@ pub fn start(app: &adw::Application, request: Request) {
                     CaptureError::CouldNotAsk => gettext(
                         "GNOME could not ask for screen access. Click this window and try again.",
                     ),
+                    CaptureError::NothingCaptured => gettext("Nothing was captured"),
                     _ => gettext("The capture failed. Nothing was captured."),
                 };
                 application::show_toast(&window, &adw::Toast::new(&text));
@@ -161,12 +162,14 @@ async fn with_permission(
         match permission::after_refusal(request.mode, store, asked) {
             Refusal::Denied => return Err(CaptureError::PermissionDenied),
             Refusal::CouldNotAsk => return Err(CaptureError::CouldNotAsk),
-            // The user closed GNOME's screenshot UI. Silent, like `Esc` in Annota's overlay —
-            // but still a line in the journal, because the portal answers a genuine failure of
-            // the interactive request with the very same code and nothing tells them apart.
+            // GNOME's screenshot UI ended without an image. Measured against the live portal
+            // on 2026-11-14: a UI the user closes answers after seconds, a UI that never opens
+            // (its modal grab failed) answers in milliseconds — and both carry response code 2
+            // with nothing to tell them apart. So Annota says the one thing that is true either
+            // way, and never calls it a failure or passes it off as a cancel.
             Refusal::PickerClosed => {
                 eprintln!("annota: the window picker ended without an image");
-                return Err(CaptureError::Cancelled);
+                return Err(CaptureError::NothingCaptured);
             }
             Refusal::Failed => {
                 return Err(CaptureError::Failed(String::from(

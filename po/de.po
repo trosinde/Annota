@@ -2345,6 +2345,10 @@ msgstr ""
 "Fenster und versuchen Sie es erneut."
 
 #: src/capture/mod.rs:100
+msgid "Nothing was captured"
+msgstr "Es wurde nichts aufgenommen"
+
+#: src/capture/mod.rs:101
 msgid "The capture failed. Nothing was captured."
 msgstr "Die Aufnahme ist fehlgeschlagen. Es wurde nichts aufgenommen."
 

@@ -241,6 +241,20 @@ Every user-visible feature goes through these gates. No gate may be skipped.
 
 Bugfixes without visible behaviour change skip step 2–3 but still need a test.
 
+**Verification rules, each paid for with a shipped defect:**
+- A requirement whose only evidence is a row in `manual-checks.md` must have that row run before
+  the change is archived. `add-screen-capture` was archived with its window-capture row unrun;
+  the mode had never once delivered an image, and nothing in the repository could have said so.
+- Never change what the user is told about a failure without evidence of which failure it is.
+  Where the causes cannot be told apart — the Screenshot portal answers response code 2 both for
+  a picker the user closed and for one that never opened — the message must be true for all of
+  them. Turning a wrong message into no message is not a fix.
+- Assumptions about the portal are *measured*, with `tools/portal-probe.py`, never believed. The
+  live tests in `src/capture/live_tests.rs` answer every portal call themselves, so they prove
+  what Annota sends and how it sorts the answers, and can never catch a wrong assumption about
+  what the real portal does. Every sentence in a spec that describes portal behaviour needs one
+  probe run behind it.
+
 ---
 
 ## 6. OpenSpec conventions

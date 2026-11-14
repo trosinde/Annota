@@ -78,6 +78,9 @@ const NOT_FOUND: &str = "org.freedesktop.portal.Error.NotFound";
 const COULD_NOT_ASK: &str =
     "GNOME could not ask for screen access. Click this window and try again.";
 
+const NOTHING_CAPTURED: &str = "Nothing was captured";
+const CAPTURE_FAILED: &str = "The capture failed. Nothing was captured.";
+
 struct Portal {
     /// The `screenshot` entry of the `screenshot` table: the answer per app ID.
     store: Rc<RefCell<HashMap<String, &'static str>>>,
@@ -1175,15 +1178,16 @@ fn window_mode_never_asks_first() {
     );
 }
 
-/// Closing GNOME's screenshot UI says nothing, like `Esc` in Annota's own overlay.
+/// A picker that ends without an image is reported as exactly that, and not as a failure.
 ///
-/// The regression test for the defect reported on 2026-11-13: the UI answers response code 2
-/// when it ends without an image, Annota read that as a failure and showed "The capture failed.
-/// Nothing was captured." — twice, for two pickers the maintainer had simply closed. One
-/// portal call, no second attempt, and no window opened to carry a message.
+/// Both halves matter, and each of them was wrong once. GNOME's screenshot UI answers response
+/// code 2 whether the user closed it or it never opened, so "The capture failed" (until
+/// 2026-11-13) claimed more than Annota knows, and saying nothing at all (2026-11-14) left the
+/// user pressing a menu entry that did nothing visible. One portal call, no second attempt, and
+/// one message that holds either way.
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
-fn closing_the_picker_says_nothing() {
+fn a_picker_without_an_image_says_so() {
     let scene = scene("picker-closed", None, Question::CannotShow);
     scene.portal.picker_closed.set(true);
     set_after_capture_to_clipboard();
@@ -1192,6 +1196,9 @@ fn closing_the_picker_says_nothing() {
     assert_eq!(calls.len(), 1, "{calls:?}");
     assert!(calls[0].interactive);
     assert!(calls[0].file.is_none(), "{calls:?}");
-    assert!(scene.app.windows().is_empty(), "a window was opened");
+    let windows = scene.visible();
+    assert_eq!(windows.len(), 1, "no window to carry the message");
+    assert!(scene.shows_toast(&windows[0], NOTHING_CAPTURED));
+    assert!(!scene.shows_toast(&windows[0], CAPTURE_FAILED));
     assert!(scene.dialog().is_none());
 }
