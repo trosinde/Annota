@@ -6,8 +6,9 @@ On Ubuntu 24.04 (or Debian 13):
 
 ```bash
 sudo apt install -y debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
-  libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext desktop-file-utils \
-  appstream libglib2.0-bin lintian devscripts
+  libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  blueprint-compiler gettext desktop-file-utils \
+  appstream libglib2.0-bin lintian devscripts gstreamer1.0-pipewire
 export PATH=/usr/lib/rust-1.85/bin:$PATH          # Ubuntu 24.04 only
 meson setup _build -Dprofile=development           # also generates src/config.rs
 meson compile -C _build && meson test -C _build

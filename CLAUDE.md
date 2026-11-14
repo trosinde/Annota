@@ -199,8 +199,9 @@ annota/
 **Build dependencies (Ubuntu 24.04)**
 ```bash
 sudo apt install -y debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
-  libgtk-4-dev libadwaita-1-dev blueprint-compiler gettext desktop-file-utils \
-  appstream libglib2.0-bin lintian devscripts
+  libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  blueprint-compiler gettext desktop-file-utils \
+  appstream libglib2.0-bin lintian devscripts gstreamer1.0-pipewire
 ```
 
 **Develop**
