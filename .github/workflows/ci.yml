@@ -31,8 +31,15 @@ jobs:
       - name: Clippy
         run: PATH=/usr/lib/rust-1.85/bin:$PATH cargo clippy --locked --all-targets -- -D warnings
 
+      # `--verbose` streams each test's own output instead of capturing it. Without it a failing
+      # cargo-test run says only "exit status 101": the run of 2026-11-14 could not be diagnosed
+      # from its log at all, and the three before it had been red since 2026-11-01 unnoticed.
       - name: Tests
-        run: PATH=/usr/lib/rust-1.85/bin:$PATH meson test -C _build --print-errorlogs
+        run: PATH=/usr/lib/rust-1.85/bin:$PATH meson test -C _build --print-errorlogs --verbose
+
+      - name: Test log
+        if: failure()
+        run: cat _build/meson-logs/testlog.txt
 
       - name: OpenSpec validation
         run: npx --yes @fission-ai/openspec@1.15.0 validate --all --strict
