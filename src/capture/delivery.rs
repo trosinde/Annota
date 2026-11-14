@@ -517,6 +517,7 @@ mod tests {
 
     // spec: capture / After-capture destination / Both
     // spec: capture / After-capture destination / Copy to clipboard
+    // spec: capture / After-capture destination / Copy to clipboard on Wayland
     #[test]
     fn a_copy_lands_on_wayland_only_with_focus_and_an_input_serial() {
         // Measured on GNOME 50.1 (2026-11-14, fix-window-capture-screencast "Decided during
@@ -541,6 +542,7 @@ mod tests {
 
     // spec: capture / After-capture destination / Both
     // spec: capture / After-capture destination / Copy to clipboard
+    // spec: capture / After-capture destination / A copy that cannot be made
     #[test]
     fn the_toast_claims_a_copy_only_when_it_landed() {
         // A copy asked for but not made never says "Copied to clipboard" and offers Copy.

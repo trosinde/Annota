@@ -88,3 +88,34 @@ The user SHALL be able to include or exclude the mouse pointer; default is exclu
 - **WHEN** include-cursor is disabled
 - **THEN** no pointer is drawn in any capture mode, and window captures ask the stream to hide it
 - **AND** the image is the unmodified portal frame for the captured area
+
+### Requirement: After-capture destination
+The system SHALL deliver every capture per the `after-capture` preference: "Copy to Clipboard" puts it on the clipboard; "Open in Editor" opens it in the editor as a new document (add-screen-capture mockup 12); "Both" does both. On X11, "Copy to Clipboard" opens no window, apart from the first-use permission question. On Wayland the desktop accepts a clipboard copy only from an Annota window that has keyboard focus and after Annota has received a key press or click, so "Copy to Clipboard" shows an Annota window to take focus and says in a toast whether the image was copied. A toast SHALL say "Copied to clipboard" only when the image is on the clipboard. Where the copy cannot be made, such as a window or screen capture started from a global shortcut or the command line on Wayland, where Annota has received no key press or click, the toast SHALL offer Copy instead. A new capture is autosaved like any unsaved document (`document-format`) until saved or exported (add-export-share).
+
+#### Scenario: Copy to clipboard
+- **WHEN** the after-capture preference is "Copy to Clipboard" on X11 and the user captures a region with the global shortcut while no Annota window is open
+- **THEN** the image is on the clipboard
+- **AND** no window opens, except the one for the first-use permission question, which is gone before the capture
+
+#### Scenario: Copy to clipboard on Wayland
+- **WHEN** the after-capture preference is "Copy to Clipboard" on Wayland and the user captures a region
+- **THEN** the image is on the clipboard
+- **AND** an Annota window shows the toast "Region captured · W × H · Copied to clipboard"
+
+#### Scenario: Editor destination
+- **WHEN** the after-capture preference is "Open in Editor" and the user captures a 400×300 region
+- **THEN** the editor window shows a new 400 × 300 document, subtitle `400 × 300 · Not saved`, as the current one
+- **AND** a toast "Region captured · 400 × 300" offers Copy
+
+#### Scenario: Both
+- **WHEN** the after-capture preference is "Both" and the user captures a region
+- **THEN** the capture opens in the editor and the image is on the clipboard
+
+#### Scenario: A copy that cannot be made
+- **WHEN** the after-capture preference includes the clipboard and the user starts a window capture with `annota --capture window` on Wayland
+- **THEN** the editor's toast "Window captured · W × H" offers Copy and does not say "Copied to clipboard"
+- **AND** the clipboard keeps its previous content until Copy is activated, and then holds the image
+
+#### Scenario: Editor unavailable
+- **WHEN** the after-capture preference includes "Open in Editor" but the editor window cannot be shown
+- **THEN** the capture is saved as PNG into the save folder instead, never overwriting a file, with a toast naming it
