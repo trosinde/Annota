@@ -34,7 +34,7 @@
 
 ## 3. Dependencies
 
-- [x] 3.1 Add `gstreamer` (+ `gstreamer-app`, `gstreamer-video` if D3 uses crop meta) in the newest Built and tested with Rust 1.85 in CI run 43612609079 (ubuntu-24.04).
+- [x] 3.1 Add `gstreamer` (+ `gstreamer-app`, `gstreamer-video` if D3 uses crop meta) in the newest
       version whose MSRV ≤ 1.85 and whose feature level ≤ `v1_24`. Enable `ashpd` feature
       `screencast`. Verify: `cargo +1.85 build` (or `/usr/lib/rust-1.85/bin/cargo`) succeeds and
       `Cargo.lock` stays 1.85-compatible.
@@ -47,6 +47,7 @@
       rust-version above 1.85. `build-aux/vendor.sh` re-run (241 crates). **Open:** no Rust 1.85
       toolchain on the dev machine (built with 1.93); the 1.85 build proof comes from CI on
       ubuntu-24.04.
+      Proven: built and tested with Rust 1.85 in CI run 43612609079 (ubuntu-24.04).
 - [x] 3.2 `debian/control`: Build-Depends `libgstreamer1.0-dev`,
       `libgstreamer-plugins-base1.0-dev`. Depends `gstreamer1.0-pipewire`,
       `gstreamer1.0-plugins-base`. Run `build-aux/vendor.sh` and `build-aux/update-copyright.py`.
