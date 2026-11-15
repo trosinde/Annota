@@ -18,8 +18,8 @@ matters, hide what is private, and change your mind until the moment you share i
 It is a native GNOME app for Ubuntu and Debian, and it never sends anything anywhere.
 
 > **Status: pre-alpha.** Capture, the editor, the annotation tools, styles and export work today.
-> There is no release yet – [build it from source](#get-started). The capture library, screen
-> recording and text recognition are [planned](#roadmap).
+> Version 0.1.0 is out – [install it from the APT repository](#get-started). The capture
+> library, screen recording and text recognition are [planned](#roadmap).
 
 ## Why Annota
 
@@ -55,21 +55,24 @@ Quick styles and themes give every arrow, callout and step the same colours and 
 
 ## Get started
 
-Annota has no release yet, so you build it from source. On Ubuntu 24.04:
+Install Annota from its signed APT repository. On Ubuntu 24.04 or newer, or Debian 13:
 
 ```bash
-sudo apt install -y meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
-  libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-  blueprint-compiler gettext desktop-file-utils \
-  appstream libglib2.0-bin gstreamer1.0-pipewire
-git clone https://github.com/trosinde/Annota.git && cd Annota
-export PATH=/usr/lib/rust-1.85/bin:$PATH
-meson setup _build -Dprofile=development && meson compile -C _build
-meson devenv -C _build ./src/annota
+curl -fsSL https://trosinde.github.io/Annota/annota-archive-keyring.asc \
+  | sudo tee /usr/share/keyrings/annota-archive-keyring.asc
+echo "deb [signed-by=/usr/share/keyrings/annota-archive-keyring.asc] \
+  https://trosinde.github.io/Annota/apt noble main" \
+  | sudo tee /etc/apt/sources.list.d/annota.list
+sudo apt update && sudo apt install annota
 ```
 
-On Ubuntu 26.04 or Debian 13, install `cargo rustc` instead of the `-1.85` packages and skip the
-`export` line.
+`apt` checks every download against Annota's release key, and `sudo apt upgrade` brings you
+new releases.
+
+Prefer not to add a repository? Download the `.deb` from the
+[latest release](https://github.com/trosinde/Annota/releases/latest) and install it with
+`sudo apt install ./annota_*_amd64.deb`. You then install updates by hand. To build from
+source instead, see [Install Annota](docs/how-to/install.md#build-from-source).
 
 Annota opens with three buttons: **Region**, **Window** and **Screen**. Pick one, and the capture
 opens in the editor. Next: [your first annotated screenshot](docs/tutorials/first-steps.md).
