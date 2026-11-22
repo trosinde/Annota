@@ -90,11 +90,11 @@ Feasibility: 🟢 straightforward · 🟡 platform limits/extra work · 🔴 har
 |---|---|---|---|
 | Screen/region/window recording | P2 | add-screen-recording | 🟢 ScreenCast portal |
 | Mic + system audio | P2 | add-screen-recording | 🟢 |
-| Webcam overlay, shapes, swap | P2 | add-screen-recording | 🟡 |
-| Cursor highlight, click ripple | P2 | add-screen-recording | 🟡 |
-| Draw on screen while recording | P2 | add-screen-recording | 🟡 |
-| Trim, cut, combine, frame grab | P2 | add-screen-recording | 🟢 |
-| MP4 / WebM / GIF export | P2 | add-screen-recording | 🟢 |
+| Webcam overlay, shapes, swap | P2 | add-recording-extras | 🟡 |
+| Cursor highlight, click ripple | P2 | add-recording-extras | 🔴 Wayland exposes no global clicks; highlight via cursor metadata |
+| Draw on screen while recording | P2 | add-recording-extras | 🔴 no always-on-top overlay on Wayland |
+| Trim, cut, combine, frame grab | P2 | add-recording-extras | 🟢 |
+| MP4 / WebM / GIF export | P2 | add-screen-recording (MP4, WebM), add-recording-extras (GIF) | 🟢 MP4/WebM · 🟡 GIF: gifski is AGPL-3.0 |
 
 ## Organise & share (library, export)
 

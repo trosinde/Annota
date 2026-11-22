@@ -94,6 +94,6 @@ None.
   arrow is now drawn where the pointer is instead of ~400 px off, and the probe takes ~0.5 s
   longer when the pointer is drawn. The order of countdown, grab and probe is unchanged.
 - The drawn pointer's appearance (shape, size, scaling) — `frame::pointer_path` stays as it is.
-- Cursor highlight and click ripple (Phase 2, `add-screen-recording`).
+- Cursor highlight and click ripple (Phase 2, `add-recording-extras`).
 - Any X11-specific pointer picking; CLAUDE.md §2 rules out direct X11 window access without an ADR.
 - Capturing the *real* system cursor bitmap instead of Annota's drawn arrow.

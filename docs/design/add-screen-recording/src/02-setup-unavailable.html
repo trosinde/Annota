@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Recording setup, sources unavailable</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+.keys{display:inline-flex;gap:4px;align-items:center}
+kbd.okey{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:5px;background:var(--osd-fill-hover);color:var(--osd-fg);font-family:var(--font-ui);font-size:var(--fs-caption);font-weight:var(--fw-bold)}
+.scene{position:relative;width:1280px;height:800px;overflow:hidden;background:var(--desktop-bg)}
+.topbar{position:absolute;left:0;right:0;top:0;height:32px;background:#000006;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;font-weight:700;z-index:40}
+.topbar .ws{display:flex;gap:5px;align-items:center;width:120px}
+.topbar .ws i{width:7px;height:7px;border-radius:4px;background:rgb(255 255 255 / 45%)}
+.topbar .ws i.on{width:28px;background:#fff}
+.topbar .sys{display:flex;gap:12px;align-items:center;width:120px;justify-content:flex-end}
+.topbar .gind{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:11px;background:rgb(255 255 255 / 22%);box-shadow:inset 0 0 0 2px rgb(255 255 255 / 55%)}
+.app{position:absolute;left:0;top:32px;width:1280px;height:768px;overflow:hidden}
+.app img{display:block;width:1280px;height:800px}
+.ptr{position:absolute;width:22px;height:30px;z-index:45}
+.ann{position:absolute;z-index:46;padding:12px 14px;border-radius:var(--radius-l);background:var(--view-bg);color:var(--view-fg);box-shadow:0 0 0 2px var(--annota-violet),var(--shadow-popover);font-size:var(--fs-small);line-height:1.45}
+.ann b{display:block;font-size:var(--fs-body);margin-bottom:3px;color:var(--annota-violet)}
+.ann kbd.key{height:18px;min-width:18px}
+.lead{position:absolute;z-index:45;border-top:2px dashed var(--annota-violet);height:0}
+.leadv{position:absolute;z-index:45;border-left:2px dashed var(--annota-violet);width:0}
+.tagl{position:absolute;z-index:46;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--radius-s);background:var(--view-bg);color:var(--window-fg);font-size:var(--fs-caption);font-weight:var(--fw-bold);box-shadow:inset 0 0 0 2px var(--annota-violet)}
+code{font-family:var(--font-mono);font-size:12px;padding:1px 5px;border-radius:4px;background:var(--fill-1)}
+
+.ovdim{position:absolute;inset:0;z-index:20}
+.selr{position:absolute;z-index:21;border:1px solid #fff;box-shadow:0 0 0 1px rgb(0 0 6 / 40%),0 0 0 9999px rgb(0 0 6 / 48%)}
+.selr .h{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#fff;border:2px solid var(--accent-bg);box-shadow:0 1px 3px rgb(0 0 6 / 35%);box-sizing:border-box}
+.ochip{position:absolute;z-index:22;display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:var(--radius-s);background:var(--accent-bg);color:var(--accent-fg);font-size:var(--fs-small);font-weight:var(--fw-bold);font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:0 1px 4px rgb(0 0 6 / 35%)}
+.ochip .dimt{opacity:.75;font-weight:400}
+.setup{position:absolute;z-index:23;width:380px;box-sizing:border-box;padding:12px;display:flex;flex-direction:column;gap:12px}
+.setup .toggle-group{display:flex}
+.setup .toggle-group .toggle{flex:1;gap:6px}
+.setup .toggle.insens{opacity:var(--dim-opacity)}
+.setup .boxed-list{box-shadow:0 0 0 1px var(--borders)}
+.setup .row{min-height:50px;padding:4px 12px}
+.setup .row .title{font-size:var(--fs-small)}
+.setup .row .subtitle{font-size:var(--fs-caption)}
+.setup .row.disabled .prefix,.setup .row.disabled .text{opacity:var(--dim-opacity)}
+.setup .meter{display:inline-flex;gap:2px;align-items:center;margin-right:6px}
+.setup .meter i{width:4px;height:10px;background:var(--fill-2)}
+.setup .meter i.on{background:var(--success-bg)}
+.setup .meter i.hot{background:var(--warning-bg)}
+.setup .meter.off i{opacity:.6}
+.setup .start{width:100%;min-height:40px;gap:8px}
+.setup .start kbd.key{background:rgb(255 255 255 / 22%);box-shadow:none;color:#fff}
+.setup .start.focus{outline:2px solid var(--accent-a50);outline-offset:2px}
+.modepill{position:absolute;z-index:23;left:50%;transform:translateX(-50%);bottom:24px;display:inline-flex;align-items:center;gap:10px;padding:6px 14px 6px 6px;border-radius:var(--radius-pill);background:var(--osd-bg);color:var(--osd-fg);box-shadow:var(--shadow-osd);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);white-space:nowrap;font-size:var(--fs-small)}
+.modepill .tg{display:inline-flex;gap:3px;padding:3px;border-radius:var(--radius-pill);background:var(--osd-fill)}
+.modepill .tg span{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:var(--radius-pill);font-weight:700;font-size:var(--fs-body)}
+.modepill .tg span.active{background:var(--osd-fill-active)}
+.modepill .h{display:inline-flex;align-items:center;gap:6px;opacity:.9}
+.modepill .dt{opacity:.5}
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="scene"><div class="topbar"><span class="ws"><i class="on"></i><i></i><i></i></span><span>Sun 22 Nov 10:42</span><span class="sys"><svg class="icon"><use href="#i-speaker"/></svg><svg class="icon"><use href="#i-settings"/></svg></span></div><div class="app"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div>
+<div class="selr" style="left:130px;top:92px;width:700px;height:470px"><span class="h" style="left:0px;top:0px"></span><span class="h" style="left:350.0px;top:0px"></span><span class="h" style="left:700px;top:0px"></span><span class="h" style="left:0px;top:235.0px"></span><span class="h" style="left:700px;top:235.0px"></span><span class="h" style="left:0px;top:470px"></span><span class="h" style="left:350.0px;top:470px"></span><span class="h" style="left:700px;top:470px"></span></div>
+<span class="ochip" style="left:130px;top:58px">700 × 470 <span class="dimt">at 130, 92</span></span>
+
+<div class="popover arrow-left setup" style="left:848px;top:92px;--arrow-y:44px">
+  <div class="toggle-group">
+    <span class="toggle active"><svg class="icon"><use href="#i-capture-region"/></svg>Region</span>
+    <span class="toggle insens"><svg class="icon"><use href="#i-capture-window"/></svg>Window</span>
+    <span class="toggle"><svg class="icon"><use href="#i-capture-screen"/></svg>Screen</span>
+  </div>
+  <div class="boxed-list"><div class="row disabled"><div class="prefix"><svg class="icon"><use href="#i-microphone"/></svg></div><div class="text"><span class="title">Microphone</span><span class="subtitle">No microphone found</span></div><div class="suffix"><span class="switch disabled"></span></div></div><div class="row"><div class="prefix"><svg class="icon"><use href="#i-speaker"/></svg></div><div class="text"><span class="title">System audio</span><span class="subtitle">Built-in Speakers</span></div><div class="suffix"><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></span><span class="switch on"></span></div></div></div>
+  <div class="boxed-list">
+    <div class="row"><div class="prefix"><svg class="icon"><use href="#i-cursor"/></svg></div><div class="text"><span class="title">Include pointer</span><span class="subtitle">Same setting as for captures</span></div><div class="suffix"><span class="switch on"></span></div></div>
+    <div class="row"><div class="prefix"><svg class="icon"><use href="#i-timer"/></svg></div><div class="text"><span class="title">Countdown</span></div><div class="suffix"><span class="spin" style="width:108px"><span class="value">3 s</span><button class="btn"><svg class="icon"><use href="#i-minus"/></svg></button><button class="btn"><svg class="icon"><use href="#i-plus"/></svg></button></span></div></div>
+  </div>
+  <button class="btn pill destructive-action start"><svg class="icon"><use href="#i-record"/></svg>Start Recording<kbd class="key">Enter</kbd></button>
+</div><div class="modepill"><span class="tg"><span><svg class="icon"><use href="#i-camera"/></svg>Screenshot</span><span class="active"><svg class="icon"><use href="#i-record"/></svg>Video</span></span><span class="h">Drag to change the area</span><span class="dt">·</span><span class="h"><kbd class="okey">Enter</kbd>Start</span><span class="dt">·</span><span class="h"><kbd class="okey">Esc</kbd>Cancel</span></div><div class="tooltip" style="left:748px;top:62px;z-index:50">Screen sharing for this source is not available on this desktop</div><svg class="ptr" style="left:1023px;top:118px" viewBox="0 0 22 30"><path d="M2 2v22l6-5.5 4 9 4-1.8-4-8.7h8z" fill="#000006" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+<div class="ann" style="left:18px;top:582px;width:290px"><b>Variant · no audio output</b>
+<div class="boxed-list" style="margin:6px 0 8px;box-shadow:0 0 0 1px var(--borders)"><div class="row disabled" style="min-height:50px;padding:4px 12px"><div class="prefix" style="opacity:var(--dim-opacity)"><svg class="icon"><use href="#i-speaker"/></svg></div><div class="text" style="opacity:var(--dim-opacity)"><span class="title" style="font-size:var(--fs-small)">System audio</span><span class="subtitle" style="font-size:var(--fs-caption)">No audio output found</span></div><div class="suffix"><span class="switch disabled"></span></div></div></div>
+Insensitive rows keep their place; meter hidden, switch off and insensitive. An insensitive source segment cannot be chosen; if the saved source is not offered, Region is selected.</div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

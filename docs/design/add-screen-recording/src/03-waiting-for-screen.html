@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Waiting for a screen</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+.keys{display:inline-flex;gap:4px;align-items:center}
+kbd.okey{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:5px;background:var(--osd-fill-hover);color:var(--osd-fg);font-family:var(--font-ui);font-size:var(--fs-caption);font-weight:var(--fw-bold)}
+.scene{position:relative;width:1280px;height:800px;overflow:hidden;background:var(--desktop-bg)}
+.topbar{position:absolute;left:0;right:0;top:0;height:32px;background:#000006;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;font-weight:700;z-index:40}
+.topbar .ws{display:flex;gap:5px;align-items:center;width:120px}
+.topbar .ws i{width:7px;height:7px;border-radius:4px;background:rgb(255 255 255 / 45%)}
+.topbar .ws i.on{width:28px;background:#fff}
+.topbar .sys{display:flex;gap:12px;align-items:center;width:120px;justify-content:flex-end}
+.topbar .gind{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:11px;background:rgb(255 255 255 / 22%);box-shadow:inset 0 0 0 2px rgb(255 255 255 / 55%)}
+.app{position:absolute;left:0;top:32px;width:1280px;height:768px;overflow:hidden}
+.app img{display:block;width:1280px;height:800px}
+.ptr{position:absolute;width:22px;height:30px;z-index:45}
+.ann{position:absolute;z-index:46;padding:12px 14px;border-radius:var(--radius-l);background:var(--view-bg);color:var(--view-fg);box-shadow:0 0 0 2px var(--annota-violet),var(--shadow-popover);font-size:var(--fs-small);line-height:1.45}
+.ann b{display:block;font-size:var(--fs-body);margin-bottom:3px;color:var(--annota-violet)}
+.ann kbd.key{height:18px;min-width:18px}
+.lead{position:absolute;z-index:45;border-top:2px dashed var(--annota-violet);height:0}
+.leadv{position:absolute;z-index:45;border-left:2px dashed var(--annota-violet);width:0}
+.tagl{position:absolute;z-index:46;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--radius-s);background:var(--view-bg);color:var(--window-fg);font-size:var(--fs-caption);font-weight:var(--fw-bold);box-shadow:inset 0 0 0 2px var(--annota-violet)}
+code{font-family:var(--font-mono);font-size:12px;padding:1px 5px;border-radius:4px;background:var(--fill-1)}
+
+:root{--sch-bg:#ececef;--sch-bar:rgb(0 0 6 / 16%);--sch-line:#8e8e96;--sch-sel:#55555d;--sch-fg:#3a3a40}
+:root[data-theme="dark"]{--sch-bg:#2e2e33;--sch-bar:rgb(255 255 255 / 20%);--sch-line:#8e8e96;--sch-sel:#c4c4cc;--sch-fg:#e4e4ea}
+.sch{position:absolute;z-index:31;box-sizing:border-box;border-radius:18px;background:repeating-linear-gradient(135deg,transparent 0 22px,rgb(128 128 136 / 7%) 22px 24px),var(--sch-bg);border:3px dashed var(--sch-line);box-shadow:0 12px 48px rgb(0 0 6 / 38%);padding:22px 24px;display:flex;flex-direction:column;gap:12px;color:var(--sch-fg)}
+.sch .lbl{font-size:18px;font-weight:800;line-height:1.25}
+.sch .lbl small{display:block;font-size:14px;font-weight:600;opacity:.75}
+.sch .bar{height:14px;border-radius:7px;background:var(--sch-bar)}
+.sch .rows{display:flex;flex-direction:column;gap:10px;margin-top:2px}
+.sch .r{display:flex;align-items:center;gap:16px;padding:8px;border-radius:12px;border:3px solid transparent}
+.sch .r.sel{border-color:var(--sch-sel)}
+.sch .r .th{width:136px;height:85px;flex:none;border-radius:6px;overflow:hidden;box-shadow:0 0 0 2px var(--sch-bar)}
+.sch .r .th img{width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(.85);opacity:.8;display:block}
+.sch .r .tx{flex:1;display:flex;flex-direction:column;gap:9px}
+.sch .r .mk{width:26px;height:26px;border-radius:50%;flex:none;border:3px solid var(--sch-line);box-sizing:border-box}
+.sch .r.sel .mk{background:var(--sch-sel);border-color:var(--sch-sel)}
+.sch .btns{margin-top:auto;display:flex;justify-content:flex-end;gap:12px}
+.sch .btns span{width:110px;height:38px;border-radius:10px;box-sizing:border-box;border:3px solid var(--sch-line)}
+.sch .btns span.pri{background:var(--sch-sel);border-color:var(--sch-sel)}
+.tagl.sch-t{box-shadow:inset 0 0 0 2px var(--sch-line)}
+.wosd{position:absolute;z-index:30;display:flex;flex-direction:column;align-items:center;gap:18px;width:300px;box-sizing:border-box;padding:30px 36px 24px;border-radius:30px;background:var(--osd-bg);color:#fff;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:var(--shadow-osd)}
+.wosd .wring{position:relative;width:72px;height:72px}
+.wosd .wring svg.r{position:absolute;inset:0}
+.wosd .wring .icon{position:absolute;left:20px;top:20px;width:32px;height:32px;color:#fff}
+.wosd .t{font-size:var(--fs-body);font-weight:700}
+.wosd .obtn{display:inline-flex;align-items:center;justify-content:center;min-width:120px;height:34px;padding:0 18px;border-radius:var(--radius-pill);background:var(--osd-fill-hover);color:#fff;font-size:var(--fs-body);font-weight:700;box-sizing:border-box}
+.wosd .obtn.focus{outline:2px solid rgb(120 174 237 / 80%);outline-offset:1px}
+.wosd .s{display:flex;gap:8px;align-items:center;font-size:var(--fs-small);opacity:.85;margin-top:-6px}
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="scene"><div class="topbar"><span class="ws"><i class="on"></i><i></i><i></i></span><span>Sun 22 Nov 10:42</span><span class="sys"><svg class="icon"><use href="#i-speaker"/></svg><svg class="icon"><use href="#i-settings"/></svg></span></div><div class="app"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div>
+<div class="wosd" style="left:490px;top:273px">
+  <div class="wring"><svg class="r" viewBox="0 0 72 72"><circle cx="36" cy="36" r="32" fill="none" stroke="rgb(255 255 255 / 18%)" stroke-width="6"/><circle cx="36" cy="36" r="32" fill="none" stroke="var(--annota-coral)" stroke-width="6" stroke-linecap="round" stroke-dasharray="50 151" transform="rotate(-30 36 36)"/></svg><svg class="icon"><use href="#i-capture-screen"/></svg></div>
+  <span class="t">Waiting for a screen…</span>
+  <span class="obtn focus">Cancel</span>
+  <span class="s"><span class="keys"><kbd class="okey">Esc</kbd></span> Cancel</span>
+</div>
+<div class="sch" style="left:84px;top:200px;width:440px;height:420px">
+  <div class="lbl">Desktop screen chooser<small>(GNOME, not drawn by Annota)</small></div>
+  <div class="bar" style="width:200px"></div>
+  <div class="rows">
+    <div class="r sel"><span class="th"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></span><span class="tx"><span class="bar" style="width:150px"></span><span class="bar" style="width:96px;height:11px"></span></span><span class="mk"></span></div>
+    <div class="r"><span class="th"><img src="../../kit/sample-content/png/c-code-editor.png" alt=""></span><span class="tx"><span class="bar" style="width:130px"></span><span class="bar" style="width:80px;height:11px"></span></span><span class="mk"></span></div>
+  </div>
+  <div class="btns"><span></span><span class="pri"></span></div>
+</div>
+<span class="tagl sch-t" style="left:84px;top:166px">Desktop screen chooser (GNOME, not drawn by Annota) · child of the OSD</span>
+<svg class="ptr" style="left:470px;top:590px" viewBox="0 0 22 30"><path d="M2 2v22l6-5.5 4 9 4-1.8-4-8.7h8z" fill="#000006" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+<div class="lead" style="left:790px;top:330px;width:52px"></div>
+<div class="ann" style="left:842px;top:200px;width:400px"><b>Waiting OSD — same component as "Waiting for a window…"</b>fix-window-capture-screencast 02, with icon <code>capture-screen</code> and label "Waiting for a screen…". Shown after Start Recording for <b style="display:inline;color:inherit;font-size:inherit">Region</b> and <b style="display:inline;color:inherit;font-size:inherit">Screen</b> (both request a monitor source) and for <code>annota --record screen</code>. The region overlay is already closed; the selection is kept. Window recordings show "Waiting for a window…" unchanged.</div>
+<div class="ann" style="left:842px;top:470px;width:400px"><b>Ends</b>Screen granted → OSD goes → countdown (04), or recording at once with 0 s. Region whose selection is not inside the granted monitor → session closed, toast (13). Cancel, <kbd class="key">Esc</kbd> or chooser closed → session closed, nothing written, no message. Where GNOME puts its chooser is GNOME's choice; it may cover the OSD.</div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>
