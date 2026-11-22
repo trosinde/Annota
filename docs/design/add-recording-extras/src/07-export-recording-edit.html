@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Export Recording with Edit</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+.keys{display:inline-flex;gap:4px;align-items:center}
+kbd.okey{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:5px;background:var(--osd-fill-hover);color:var(--osd-fg);font-family:var(--font-ui);font-size:var(--fs-caption);font-weight:var(--fw-bold)}
+.scene{position:relative;width:1280px;height:800px;overflow:hidden;background:var(--desktop-bg)}
+.topbar{position:absolute;left:0;right:0;top:0;height:32px;background:#000006;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;font-weight:700;z-index:40}
+.topbar .ws{display:flex;gap:5px;align-items:center;width:120px}
+.topbar .ws i{width:7px;height:7px;border-radius:4px;background:rgb(255 255 255 / 45%)}
+.topbar .ws i.on{width:28px;background:#fff}
+.topbar .sys{display:flex;gap:12px;align-items:center;width:120px;justify-content:flex-end}
+.topbar .gind{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:11px;background:rgb(255 255 255 / 22%);box-shadow:inset 0 0 0 2px rgb(255 255 255 / 55%)}
+.app{position:absolute;left:0;top:32px;width:1280px;height:768px;overflow:hidden}
+.app img{display:block;width:1280px;height:800px}
+.ptr{position:absolute;width:22px;height:30px;z-index:45}
+.ann{position:absolute;z-index:46;padding:12px 14px;border-radius:var(--radius-l);background:var(--view-bg);color:var(--view-fg);box-shadow:0 0 0 2px var(--annota-violet),var(--shadow-popover);font-size:var(--fs-small);line-height:1.45}
+.ann b{display:block;font-size:var(--fs-body);margin-bottom:3px;color:var(--annota-violet)}
+.ann b.in{display:inline;color:inherit;font-size:inherit;margin:0}
+.ann kbd.key{height:18px;min-width:18px}
+.lead{position:absolute;z-index:45;border-top:2px dashed var(--annota-violet);height:0}
+.leadv{position:absolute;z-index:45;border-left:2px dashed var(--annota-violet);width:0}
+.tagl{position:absolute;z-index:46;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--radius-s);background:var(--view-bg);color:var(--window-fg);font-size:var(--fs-caption);font-weight:var(--fw-bold);box-shadow:inset 0 0 0 2px var(--annota-violet);white-space:nowrap}
+code{font-family:var(--font-mono);font-size:12px;padding:1px 5px;border-radius:4px;background:var(--fill-1)}
+/* "In the recording" frame-preview inset (designer note, not UI) */
+.inrec{position:absolute;z-index:46;padding:10px 12px 12px;border-radius:var(--radius-l);background:var(--view-bg);color:var(--view-fg);box-shadow:0 0 0 2px var(--annota-violet),var(--shadow-popover);font-size:var(--fs-small);line-height:1.4;display:flex;flex-direction:column;gap:8px}
+.inrec .h{display:flex;align-items:baseline;gap:8px}
+.inrec .h b{color:var(--annota-violet);font-size:var(--fs-body)}
+.inrec .h span{color:var(--dim-label);font-size:var(--fs-caption)}
+.inrec .fr{position:relative;overflow:hidden;border-radius:4px;box-shadow:0 0 0 1px var(--borders);background:#000}
+.inrec .fr > .sc{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;background:var(--desktop-bg)}
+.inrec p{margin:0;font-size:var(--fs-caption);color:var(--dim-label);max-width:100%}
+/* composited elements (inside the frame) */
+.cam{position:absolute;overflow:hidden;box-shadow:0 2px 10px rgb(0 0 6 / 30%)}
+.cam svg{display:block;width:100%;height:100%}
+.ring{position:absolute;border-radius:50%;box-sizing:border-box;border:4px solid rgb(245 165 36 / 95%);background:rgb(245 165 36 / 20%)}
+/* recording control (core 05) */
+.rctl{display:inline-flex;align-items:center;gap:6px;height:52px;box-sizing:border-box;padding:0 8px 0 18px;border-radius:26px;background:var(--osd-bg-solid);color:#fff;box-shadow:0 0 0 1px rgb(255 255 255 / 8%),0 2px 6px rgb(0 0 6 / 30%),0 10px 30px rgb(0 0 6 / 28%);white-space:nowrap}
+.rctl.at{position:absolute;z-index:44}
+.rctl .dot{width:10px;height:10px;border-radius:50%;background:var(--destructive-bg);box-shadow:0 0 0 3px rgb(224 27 36 / 35%);flex:none}
+.rctl .time{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;min-width:40px;padding-left:4px}
+.rctl .sep{width:1px;height:24px;background:rgb(255 255 255 / 20%);margin:0 4px;flex:none}
+.rctl .b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;min-width:36px;box-sizing:border-box;padding:0 10px;border-radius:18px;background:transparent;color:#fff;position:relative;font-size:var(--fs-small);font-weight:700}
+.rctl .b.circ{width:36px;padding:0}
+.rctl .b.fill{background:var(--osd-fill)}
+.rctl .b.stop{background:var(--destructive-bg)}
+.rctl .b.hover{background:var(--osd-fill-hover)}
+.rctl .b.active{background:var(--osd-fill-active)}
+.rctl .b.active.hover{background:rgb(255 255 255 / 34%)}
+.rctl .b.insens > *:not(.tooltip){opacity:.4}
+.rctl .b.done{background:var(--accent-bg);padding:0 14px}
+.rctl .b.focus{outline:2px solid rgb(120 174 237 / 85%);outline-offset:1px}
+.rctl .b .tooltip{position:absolute;top:50px;left:50%;transform:translateX(-50%);font-weight:400;font-size:var(--fs-small)}
+.rctl .b .tooltip.tip-r{left:auto;right:-8px;transform:none}
+.rctl .b .tooltip.tip-l{left:-8px;transform:none}
+.rctl .warnl{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px 0 10px;border-radius:18px;color:var(--annota-amber);font-size:var(--fs-small);font-weight:700;position:relative;background:rgb(245 165 36 / 14%)}
+.rctl .warnl .tooltip{position:absolute;top:50px;left:50%;transform:translateX(-50%);font-weight:400;color:var(--tooltip-fg)}
+.rctl .dgroup{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 4px;border-radius:22px;background:rgb(255 255 255 / 6%)}
+.rctl .sw{width:22px;height:22px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgb(255 255 255 / 25%);margin:0 1px}
+.rctl .sw.sel{box-shadow:0 0 0 2px var(--osd-bg-solid),0 0 0 4px #fff}
+.rctl .fade{display:inline-flex;align-items:center;gap:4px;height:36px;padding:0 8px 0 12px;border-radius:18px;background:var(--osd-fill);font-size:var(--fs-small);font-weight:400;position:relative}
+.meter{display:inline-flex;gap:2px;align-items:center}
+.meter i{width:3px;height:12px;border-radius:1px;background:rgb(255 255 255 / 25%)}
+.meter i.on{background:var(--success-bg)}
+.ic{position:relative;display:inline-flex}
+/* states band (core 05) */
+body.mock-frame{display:block;background:var(--window-bg)}
+.band{padding:24px 24px 30px;display:flex;flex-direction:column;gap:18px;background:var(--window-bg);color:var(--window-fg)}
+.band h2{margin:0;font-size:var(--fs-title-4);font-weight:var(--fw-bold)}
+.band h2 small{font-size:var(--fs-body);font-weight:400;color:var(--dim-label);margin-left:9px}
+.states{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.st{background:var(--card-bg);border-radius:var(--radius-l);box-shadow:var(--shadow-card);padding:12px 18px 18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.st.wide{grid-column:1 / -1}
+.st .sl{font-size:var(--fs-caption);font-weight:var(--fw-bold);color:var(--dim-label)}
+.st .stage{height:150px;border-radius:var(--radius-m);background:var(--desktop-bg);display:flex;align-items:flex-start;justify-content:center;padding-top:22px;box-sizing:border-box;position:relative;overflow:hidden}
+.st p{margin:0;font-size:var(--fs-small);line-height:1.5}
+/* strokes */
+.stroke{position:absolute;z-index:30;overflow:visible}
+.stepn{position:absolute;z-index:30;width:34px;height:34px;border-radius:50%;background:var(--annota-coral);color:#fff;display:grid;place-items:center;font-weight:800;font-size:17px;box-shadow:0 0 0 2px #fff,0 2px 6px rgb(0 0 6 / 30%);font-variant-numeric:tabular-nums}
+
+.exw{position:absolute;z-index:30;left:360px;top:110px;width:560px;display:flex;flex-direction:column}
+.exw .headerbar{background:var(--window-bg)}
+.exw .xbody{display:flex;flex-direction:column;gap:18px;padding:18px 24px 24px;background:var(--window-bg)}
+.poster-row{display:flex;gap:18px;align-items:center}
+.poster{position:relative;width:192px;height:120px;flex:none;border-radius:var(--radius-m);overflow:hidden;box-shadow:0 0 0 1px var(--borders)}
+.poster img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block}
+.poster .dur{position:absolute;right:6px;bottom:6px;padding:2px 7px;border-radius:var(--radius-s);background:var(--osd-bg-solid);color:#fff;font-size:var(--fs-caption);font-weight:700;font-variant-numeric:tabular-nums}
+.meta{display:flex;flex-direction:column;gap:4px;min-width:0;align-items:flex-start}
+.meta .heading{font-size:var(--fs-body);font-weight:700}
+.meta .caption{font-size:var(--fs-small);color:var(--dim-label);font-variant-numeric:tabular-nums}
+.meta .editline{display:flex;align-items:center;gap:10px;margin-top:8px;position:relative}
+.edtag{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:var(--radius-pill);background:var(--accent-a12);color:var(--accent);font-size:var(--fs-caption);font-weight:700}
+.exw .row .subtitle{font-size:var(--fs-small)}
+.exw .row.disabled{opacity:1}
+.exw .row.disabled > *{opacity:var(--dim-opacity)}
+.exw .row.disabled .switch{opacity:var(--disabled-opacity)}
+.exw .ext{opacity:var(--dim-opacity)}
+.footer{display:flex;align-items:center;gap:12px;padding:0 24px 24px;background:var(--window-bg)}
+.footer .btn{min-height:34px}
+.exw .tooltip{z-index:60;font-weight:400}
+</style>
+</head>
+<body class="mock-frame flush">
+
+<div class="scene"><div class="topbar"><span class="ws"><i class="on"></i><i></i><i></i></span><span>Sun 22 Nov 10:42</span><span class="sys"><svg class="icon"><use href="#i-speaker"/></svg><svg class="icon"><use href="#i-settings"/></svg></span></div><div class="app"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div><div class="window exw" style="top:110px">
+<div class="headerbar"><div class="start"></div><div class="title-widget"><span class="title">Export Recording</span></div><div class="end"><div class="window-controls"><span class="wc"><svg class="icon"><use href="#i-close"/></svg></span></div></div></div>
+<div class="xbody"><div class="poster-row"><div class="poster"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""><span class="dur">0:20</span></div>
+<div class="meta"><span class="heading">Recording 2026-11-22 10-42-07</span><span class="caption">1280 × 800 · 0:20 · Microphone + system audio</span>
+<span class="editline"><button class="btn hover">Edit…<span class="tooltip" style="top:42px;left:0">Edit Recording<span class="shortcut">Ctrl+E</span></span></button></span></div></div><div class="boxed-list">
+<div class="row entry-row focus"><div class="text"><span class="title">File name</span><span class="subtitle" style="font-size:var(--fs-body);opacity:1">Recording 2026-11-22 10-42-07<span class="caret" style="display:inline-block;width:1px;height:17px;background:currentColor;vertical-align:-3px;margin:0 1px"></span><span class="ext">.mp4</span></span></div></div>
+<div class="row"><div class="text"><span class="title">Folder</span><span class="subtitle">~/Videos/Annota</span></div><div class="suffix"><button class="btn flat image-button"><svg class="icon"><use href="#i-folder"/></svg></button></div></div>
+</div>
+<div class="boxed-list">
+<div class="row"><div class="text"><span class="title">Format</span><span class="subtitle">H.264 + AAC · plays almost everywhere</span></div><div class="suffix"><span class="toggle-group"><span class="toggle active">MP4</span><span class="toggle ">WebM</span><span class="toggle ">GIF</span></span></div></div>
+<div class="row"><div class="text"><span class="title">Include audio</span><span class="subtitle">Mixes microphone and system audio into one track</span></div><div class="suffix"><span class="switch on"></span></div></div>
+</div></div><div class="footer"><button class="btn flat destructive-action" style="background:transparent;color:var(--destructive)">Discard</button><span class="grow"></span><button class="btn text-button suggested-action">Export</button></div>
+</div>
+<div class="ann" style="left:948px;top:150px;width:300px"><b>Edit… beside the recording</b>Below the name and caption, a normal text button <b class="in">Edit…</b> (<kbd class="key">Ctrl+E</kbd>). It acts on the recording shown in the poster row, not on the file being written, so it sits with the recording, not in the footer. Discard / Export stay the footer pair of the core.</div>
+<div class="lead" style="left:664px;top:262px;width:284px"></div>
+<div class="ann" style="left:948px;top:420px;width:300px"><b>Format: MP4 | WebM | GIF</b>Three-segment toggle. GIF adds rows (13). Every format exports the edited result.</div>
+<div class="lead" style="left:900px;top:450px;width:48px"></div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>
