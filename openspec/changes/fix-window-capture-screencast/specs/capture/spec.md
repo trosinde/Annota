@@ -48,7 +48,7 @@ The system SHALL capture a single window without its shadow. Where the ScreenCas
 - **THEN** window mode opens the Screenshot portal's interactive screenshot UI as before
 
 ### Requirement: Cursor inclusion
-The user SHALL be able to include or exclude the mouse pointer; default is exclude. When it is included, Annota SHALL draw it into region and screen captures itself: for a region at its position on confirming the selection (`Enter` or drag release), and only when its hot spot lies inside the selection. For a ScreenCast window capture Annota SHALL ask the stream to embed the pointer when included and offered by the portal, else to hide it; the Screenshot-portal fallback leaves it to the desktop.
+The user SHALL be able to include or exclude the mouse pointer; default is exclude. When included, Annota SHALL draw it into region and screen captures itself; a region uses its position at confirmation (`Enter` or the Capture button) and only if its hot spot is inside the selection, so a Capture-button confirmation has no pointer. ScreenCast window captures SHALL ask the stream to embed it when included and offered, else to hide it; the Screenshot-portal fallback leaves it to the desktop.
 
 #### Scenario: Include cursor
 - **WHEN** include-cursor is enabled and the user captures the screen
@@ -65,7 +65,7 @@ The user SHALL be able to include or exclude the mouse pointer; default is exclu
 - **AND** the captured image is otherwise exactly the selected region
 
 #### Scenario: Pointer on the selection edge
-- **WHEN** include-cursor is enabled and the user confirms by releasing the drag, leaving the pointer on the selection's edge
+- **WHEN** include-cursor is enabled, the user releases the drag, leaving the pointer on the selection's edge, and presses `Enter` without moving the pointer
 - **THEN** the pointer is drawn only if its hot spot lies inside the selection, so a release at the lower-right corner yields no pointer
 - **AND** no part of a pointer is silently cut off at the image border
 

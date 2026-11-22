@@ -140,6 +140,13 @@
       rewritten for the 500-character limit but keeps the region change's SHALLs; `fix/region-pointer-inclusion` was not pushed, so its final text
       could not be read. **Stays open** until `fix-region-pointer-inclusion` is archived (or its
       final "Cursor inclusion" is known and re-checked against this delta).
+      Rebased the same day onto the region change's final text (`origin/fix/region-pointer-inclusion`
+      a14d89a, PR #6): confirmation is `Enter` or the Capture button (no longer the drag
+      release), a Capture-button confirmation has no pointer, and "Pointer on the selection edge"
+      takes its new WHEN. The scenarios now equal a14d89a's six plus "Pointer in a window capture"
+      and the window clause in "Cursor excluded". Simulation re-run with a14d89a's change dir:
+      region first (+1 ~1), then this change (~4), 20/20 strict-valid. Still unticked until #6 is
+      merged and archived; if its "Cursor inclusion" changes again, rebase again.
 - [x] 7.3 No frame touches disk: reviewer greps `screencast.rs` for file writes and checks that
       no temp file is created during a window capture (`strace -e trace=openat` during one live
       capture, or an equivalent).

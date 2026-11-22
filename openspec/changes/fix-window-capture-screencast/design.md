@@ -319,7 +319,8 @@ Design approved: 2026-11-14
   `fix-region-pointer-inclusion`'s version. Archive that change first. If it changes again,
   rebase this delta before archiving. Simulated 2026-11-22 on a copy of `openspec/` (task 7.2):
   region first, then this change, applies and validates; the reverse order is refused, because
-  the region delta's "Cursor inclusion" lacks "Pointer in a window capture".
+  the region delta's "Cursor inclusion" lacks "Pointer in a window capture". Rebased onto the
+  region change's final wording (a14d89a, PR #6: `Enter` or the Capture button) and re-simulated.
 
 Open after the review of 2026-11-22 (task 7.5), none blocking:
 
