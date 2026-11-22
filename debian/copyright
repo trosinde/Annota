@@ -16,11 +16,10 @@ License: CC-BY-SA-4.0
 # BEGIN VENDORED CRATES
 Files: vendor/*
 Copyright: the respective crate authors
-License: ((MIT OR Apache-2.0) AND IJG) AND ((MIT OR Apache-2.0) AND Unicode-3.0) AND (0BSD OR MIT OR Apache-2.0) AND (Apache-2.0) AND (Apache-2.0 OR MIT) AND (Apache-2.0 WITH LLVM-exception) AND (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT) AND (BSD-2-Clause OR Apache-2.0 OR MIT) AND (MIT) AND (MIT OR Apache-2.0) AND (MIT OR Apache-2.0 OR LGPL-2.1-or-later) AND (MIT OR Zlib OR Apache-2.0) AND (Unicode-3.0) AND (Unlicense OR MIT)
+License: ((MIT OR Apache-2.0) AND IJG) AND ((MIT OR Apache-2.0) AND Unicode-3.0) AND (0BSD OR MIT OR Apache-2.0) AND (Apache-2.0) AND (Apache-2.0 OR MIT) AND (Apache-2.0 WITH LLVM-exception) AND (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT) AND (BSD-2-Clause OR Apache-2.0 OR MIT) AND (CC0-1.0 OR MIT-0 OR Apache-2.0) AND (MIT) AND (MIT OR Apache-2.0) AND (MIT OR Apache-2.0 OR LGPL-2.1-or-later) AND (MIT OR Zlib OR Apache-2.0) AND (Unicode-3.0) AND (Unlicense OR MIT)
  Rust crates statically linked into the annota binary:
  adler2 2.0.1: 0BSD OR MIT OR Apache-2.0
  aho-corasick 1.1.5: Unlicense OR MIT
- arbitrary 1.5.0: MIT OR Apache-2.0
  ashpd 0.11.1: MIT
  async-broadcast 0.7.2: MIT OR Apache-2.0
  async-channel 2.5.0: Apache-2.0 OR MIT
@@ -47,10 +46,11 @@ License: ((MIT OR Apache-2.0) AND IJG) AND ((MIT OR Apache-2.0) AND Unicode-3.0)
  cc 1.10.0: MIT OR Apache-2.0
  cfg-expr 0.20.10: MIT OR Apache-2.0
  cfg-if 1.0.5: MIT OR Apache-2.0
+ cfg_aliases 0.2.2: MIT
  concurrent-queue 2.5.0: Apache-2.0 OR MIT
+ constant_time_eq 0.6.1: CC0-1.0 OR MIT-0 OR Apache-2.0
  crc32fast 1.5.3: MIT OR Apache-2.0
  crossbeam-utils 0.8.23: MIT OR Apache-2.0
- derive_arbitrary 1.5.0: MIT OR Apache-2.0
  displaydoc 0.2.7: MIT OR Apache-2.0
  either 1.19.0: MIT OR Apache-2.0
  endi 1.1.1: MIT
@@ -143,6 +143,7 @@ License: ((MIT OR Apache-2.0) AND IJG) AND ((MIT OR Apache-2.0) AND Unicode-3.0)
  memoffset 0.9.1: MIT
  miniz_oxide 0.9.1: MIT OR Zlib OR Apache-2.0
  muldiv 1.0.1: MIT
+ nix 0.32.0: MIT
  num-integer 0.1.47: MIT OR Apache-2.0
  num-rational 0.4.2: MIT OR Apache-2.0
  num-traits 0.2.19: MIT OR Apache-2.0
@@ -211,6 +212,7 @@ License: ((MIT OR Apache-2.0) AND IJG) AND ((MIT OR Apache-2.0) AND Unicode-3.0)
  tracing 0.1.44: MIT
  tracing-attributes 0.1.31: MIT
  tracing-core 0.1.36: MIT
+ typed-path 0.13.0: MIT OR Apache-2.0
  uds_windows 1.2.1: MIT
  unicode-ident 1.0.27: (MIT OR Apache-2.0) AND Unicode-3.0
  url 2.5.8: MIT OR Apache-2.0
@@ -251,10 +253,12 @@ License: ((MIT OR Apache-2.0) AND IJG) AND ((MIT OR Apache-2.0) AND Unicode-3.0)
  zerocopy-derive 0.8.63: BSD-2-Clause OR Apache-2.0 OR MIT
  zerofrom 0.1.8: Unicode-3.0
  zerofrom-derive 0.1.8: Unicode-3.0
+ zeroize 1.9.2: Apache-2.0 OR MIT
+ zeroize_derive 1.5.0: Apache-2.0 OR MIT
  zerotrie 0.2.5: Unicode-3.0
  zerovec 0.11.9: Unicode-3.0
  zerovec-derive 0.11.7: Unicode-3.0
- zip 6.0.0: MIT
+ zip 9.8.1: MIT
  zmij 1.0.23: MIT
  zvariant 5.9.2: MIT
  zvariant_derive 5.9.2: MIT

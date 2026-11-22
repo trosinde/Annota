@@ -13,8 +13,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Everything runs on Ubuntu 24.04 with the distro's Rust 1.85: the oldest platform and the
-# MSRV Annota is packaged for (CLAUDE.md §2), so no separate MSRV job is needed.
+# Everything runs on Ubuntu 24.04 with the distro's Rust 1.91 (noble-updates): the oldest
+# platform and the MSRV Annota is packaged for (CLAUDE.md §2, ADR 0003), so no separate MSRV job
+# is needed.
 jobs:
   scenario-gate:
     name: scenario gate

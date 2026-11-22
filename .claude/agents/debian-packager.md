@@ -12,14 +12,14 @@ Rules:
 - debhelper-compat 13, `dh $@ --buildsystem=meson`, `Rules-Requires-Root: no`.
 - Offline build: `build-aux/vendor.sh` vendors crates into `vendor/` and writes `.cargo/config.toml`
   (both git-ignored); `build-aux/make-deb.sh` = vendor + `dpkg-buildpackage -us -uc -b` + lintian.
-  Toolchain: Rust 1.85 (`rustc-1.85`/`cargo-1.85` on Ubuntu 24.04, default on Debian 13).
+  Toolchain: Rust 1.91 (`rustc-1.91`/`cargo-1.91` on Ubuntu 24.04 from noble-updates; ADR 0003).
 - `debian/copyright` in DEP-5 format incl. all vendored crate licenses: run
   `build-aux/update-copyright.py` after every dependency change; review license compatibility
   with MIT (code) and CC-BY-SA-4.0 (artwork, docs) — flag any dependency that would force a
   stronger copyleft on the whole binary.
 - Validate: `lintian -I --pedantic`, `appstreamcli validate --pedantic`, `desktop-file-validate`.
-- Target suites: Ubuntu noble (24.04), Ubuntu 26.04, Debian trixie. Build in clean chroots
-  (`sbuild` or `pbuilder`) before calling something releasable.
+- Target suites: Ubuntu noble (24.04), Ubuntu 26.04 (Debian trixie's Rust 1.85 is below the
+  MSRV). Build in clean chroots (`sbuild` or `pbuilder`) before calling something releasable.
 - Release: tag `vX.Y.Z` → CI builds `.deb` for each suite and attaches them to the GitHub release.
   A Launchpad PPA upload (`debuild -S`) is prepared on request only.
 

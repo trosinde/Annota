@@ -31,7 +31,7 @@ Do not change these without an approved OpenSpec change that says so (record it 
 
 | Area | Decision |
 |---|---|
-| Language | Rust, edition 2021, **MSRV 1.85** (Ubuntu 24.04 package `rustc-1.85`, Debian 13 default). Keep `Cargo.lock` compatible with 1.85. |
+| Language | Rust, edition 2021, **MSRV 1.91** (Ubuntu 24.04 package `rustc-1.91` from noble-updates; [ADR 0003](docs/adr/0003-msrv-1-91.md)). Keep `Cargo.lock` compatible with 1.91. Debian 13 (Rust 1.85) is no longer a build platform. |
 | UI toolkit | GTK 4 (`gtk4` crate) + libadwaita (`libadwaita` crate), GNOME HIG |
 | Minimum platform | Ubuntu 24.04 LTS (GNOME 46, GTK 4.14, libadwaita 1.5); also Ubuntu 26.04 LTS and Debian 13 |
 | Display server | Wayland first, X11 must keep working |
@@ -198,7 +198,7 @@ annota/
 
 **Build dependencies (Ubuntu 24.04)**
 ```bash
-sudo apt install -y debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
+sudo apt install -y debhelper meson ninja-build pkgconf cargo-1.91 rustc-1.91 \
   libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
   blueprint-compiler gettext desktop-file-utils \
   appstream libglib2.0-bin lintian devscripts gstreamer1.0-pipewire
@@ -206,7 +206,7 @@ sudo apt install -y debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
 
 **Develop**
 ```bash
-export PATH=/usr/lib/rust-1.85/bin:$PATH          # Ubuntu 24.04 only
+export PATH=/usr/lib/rust-1.91/bin:$PATH          # Ubuntu 24.04 only
 meson setup _build -Dprofile=development           # also generates src/config.rs
 meson compile -C _build && meson test -C _build
 _build/src/annota                                  # needs the gresource installed: use meson devenv
@@ -218,7 +218,7 @@ meson devenv -C _build ./src/annota
 build-aux/make-deb.sh                              # → ../annota_<version>_amd64.deb, lintian-checked
 sudo apt install ../annota_*.deb
 ```
-After adding or updating crates: `cargo update` with Rust 1.85, then `build-aux/update-copyright.py`.
+After adding or updating crates: `cargo update` with Rust 1.91, then `build-aux/update-copyright.py`.
 
 **Mockups**: `python3 tools/render-mockups.py docs/design/<change>` (needs `pip install playwright`
 and `playwright install chromium`).
@@ -329,7 +329,7 @@ scenario the bug violated (add the scenario first if the spec had none).
 - Package name `annota`, section `graphics`, `Architecture: any`.
 - Source format `3.0 (native)`. Build offline: `build-aux/vendor.sh` vendors crates into `vendor/`
   and writes `.cargo/config.toml` (both git-ignored); `debian/rules` refuses to build without them
-  and uses `dh $@ --buildsystem=meson` with the Rust 1.85 toolchain.
+  and uses `dh $@ --buildsystem=meson` with the Rust 1.91 toolchain.
 - `debian/copyright` lists all vendored crate licenses; refresh with `build-aux/update-copyright.py`.
 - `lintian -I --pedantic` must show no errors or warnings.
 - Runtime deps from `${shlibs:Depends}` plus `xdg-desktop-portal`, `xdg-desktop-portal-gnome`;
