@@ -1544,6 +1544,11 @@ fn cancelling_the_wait_closes_the_session() {
     pump(100);
     assert_eq!(screencast.count("CreateSession"), 1);
     assert!(BUSY.with(Cell::get));
+    assert!(osd.is_visible(), "the OSD stays up");
+    assert!(
+        super::window_wait::shown().as_ref() == Some(&osd),
+        "the same OSD, raised"
+    );
 
     cancel.emit_clicked();
     scene.capture_ends();
@@ -1631,9 +1636,10 @@ fn a_stream_without_a_frame_fails_without_blocking_annota() {
     );
 }
 
-/// Scenario "Editor unavailable": a capture that could not open in the editor is saved as PNG
-/// into the save folder, beside a file of the same name instead of over it, and the toast names
-/// the new file (review of fix-window-capture-screencast, task 7.5).
+/// Scenario "Editor unavailable", its THEN: the fallback that `deliver` falls through to saves
+/// the capture as PNG into the save folder, beside a file of the same name instead of over it, and
+/// the toast names the new file (review of fix-window-capture-screencast, task 7.5). The WHEN, an
+/// editor that cannot be built, is not provoked here.
 // spec: capture / After-capture destination / Editor unavailable
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]

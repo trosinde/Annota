@@ -336,6 +336,9 @@ Open after the review of 2026-11-22 (task 7.5), none blocking:
   pipeline is playing, or await the init thread first, if that is ever seen.
 - Mockup fidelity of the OSD (sheet 02) was not compared by the reviewer, who could not run
   Annota; `cancelling_the_wait_closes_the_session` saves `window-wait-osd.png` for a comparison.
+- "Editor destination" is proven in parts: the live editor test checks the new 400 × 300 "Not
+  saved" document, the toast offering Copy only by unit test. "Editor unavailable"'s live test
+  calls the save fallback directly; no test makes the editor fail to build first.
 - CLAUDE.md §4 still lists `.deb` dependencies, the live suite and the Rust 1.85 build as open for
   this change, and the region change's design gate as open; all are done.
 

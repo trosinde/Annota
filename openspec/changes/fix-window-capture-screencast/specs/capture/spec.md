@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Window capture
-The system SHALL capture a single window without its shadow. With a window source in the ScreenCast portal, the window SHALL be chosen in the desktop's chooser for screen sharing; Annota SHALL take one frame, cut it to the window, close the session at once, and keep no stream or restore token, while a cancellable waiting indicator is the chooser's parent. Otherwise window mode SHALL use the Screenshot portal's interactive UI, where an ending without an image says "Nothing was captured".
+The system SHALL capture a single window without its shadow. Where the ScreenCast portal offers windows, the window SHALL be chosen in the desktop's chooser for screen sharing; Annota SHALL take one frame, cut it to the window, close the session at once, keep no stream, and request no restore token, while a cancellable waiting indicator is the chooser's parent. Otherwise window mode SHALL use the Screenshot portal's interactive UI, where an ending without an image says "Nothing was captured".
 
 #### Scenario: Window on Wayland
 - **WHEN** the user chooses window mode on GNOME Wayland
@@ -22,7 +22,7 @@ The system SHALL capture a single window without its shadow. With a window sourc
 
 #### Scenario: Cancel while waiting
 - **WHEN** the waiting indicator is shown and the user clicks Cancel or presses `Esc`
-- **THEN** the screen-sharing session is closed, no image is created and no message is shown
+- **THEN** the screen-sharing session is closed, no image is created, no further window opens and no message is shown
 - **AND** a following capture starts normally
 
 #### Scenario: Chooser closed
@@ -40,7 +40,7 @@ The system SHALL capture a single window without its shadow. With a window sourc
 - **THEN** no image is created and the screen-sharing session is closed
 
 #### Scenario: No frame arrives
-- **WHEN** a window was chosen but no stream starts, or no frame arrives within 5 seconds
+- **WHEN** a window was chosen but no stream starts, or no frame arrives within 5 seconds of the stream starting
 - **THEN** the session is closed and "The capture failed. Nothing was captured." is shown
 
 #### Scenario: No window source
@@ -48,7 +48,7 @@ The system SHALL capture a single window without its shadow. With a window sourc
 - **THEN** window mode opens the Screenshot portal's interactive screenshot UI as before
 
 ### Requirement: Cursor inclusion
-The user SHALL be able to include or exclude the mouse pointer; default is exclude. Annota SHALL draw the pointer into region and screen captures itself: for a region at its position when the selection is confirmed (`Enter` or releasing the drag), and only when its hot spot lies inside the selection. For a ScreenCast window capture Annota SHALL ask the stream to embed the pointer when include-cursor is on and the portal offers it, else to hide it.
+The user SHALL be able to include or exclude the mouse pointer; default is exclude. When it is included, Annota SHALL draw it into region and screen captures itself: for a region at its position on confirming the selection (`Enter` or drag release), and only when its hot spot lies inside the selection. For a ScreenCast window capture Annota SHALL ask the stream to embed the pointer when included and offered by the portal, else to hide it; the Screenshot-portal fallback leaves it to the desktop.
 
 #### Scenario: Include cursor
 - **WHEN** include-cursor is enabled and the user captures the screen
@@ -80,7 +80,7 @@ The user SHALL be able to include or exclude the mouse pointer; default is exclu
 
 #### Scenario: Cursor excluded
 - **WHEN** include-cursor is disabled
-- **THEN** no pointer is drawn in any capture mode, and window captures ask the stream to hide it
+- **THEN** Annota draws no pointer in any capture mode, and window captures through the ScreenCast portal ask the stream to hide it
 - **AND** the image is the unmodified portal frame for the captured area
 
 ### Requirement: After-capture destination

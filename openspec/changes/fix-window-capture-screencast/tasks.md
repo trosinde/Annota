@@ -135,8 +135,9 @@
       arrives"). After that the simulation ends with 20/20 valid, and the merged "Cursor
       inclusion" has the region change's six scenarios plus "Pointer in a window capture". The
       reverse order is refused (the region delta would drop that scenario). This delta's
-      "Cursor inclusion" equals the region change's text as of `main` 8fcf4ab plus the window
-      sentence and scenario; `fix/region-pointer-inclusion` was not pushed, so its final text
+      "Cursor inclusion" scenarios are the region change's six as of `main` 8fcf4ab plus "Pointer
+      in a window capture" and a window clause in "Cursor excluded"; its requirement text was
+      rewritten for the 500-character limit but keeps the region change's SHALLs; `fix/region-pointer-inclusion` was not pushed, so its final text
       could not be read. **Stays open** until `fix-region-pointer-inclusion` is archived (or its
       final "Cursor inclusion" is known and re-checked against this delta).
 - [x] 7.3 No frame touches disk: reviewer greps `screencast.rs` for file writes and checks that
@@ -159,7 +160,7 @@
       Limit: the fake portal's stream never delivers a frame, so (a) and (b) together, not one
       run, cover the path from the portal to a `Frame`.
 - [x] 7.4 `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean. CI run 43612609079 (ubuntu-24.04, Rust 1.85): build, tests, .deb + lintian green.
-- [ ] 7.5 `reviewer` agent (fresh context): specs vs. tests, ADR vs. code, no blocking findings.
+- [x] 7.5 `reviewer` agent (fresh context): specs vs. tests, ADR vs. code, no blocking findings.
       2026-11-22, pass 1: code matches the ADR and D1-D9. Blocking: (B1) the change's own
       MODIFIED scenarios "Editor destination", "Editor unavailable" and "Dependencies resolved"
       leaned on the baseline; (B2) open manual rows and tasks; (B3) `spec:` tags that claimed
@@ -174,6 +175,12 @@
       from [live-run.md](live-run.md) (2026-11-14). New unit test for crop meta and stride read
       from a real `gst::Buffer` (N2). B2 is the maintainer's 6.1/6.2 and the X11 row, which stay
       open. Non-blocking findings: design.md "Risks / Trade-offs".
+      Pass 2 (fresh reviewer, commits 8fcf4ab..73483b1): nothing blocking; it re-ran the 7.2
+      simulation with the same result. Its non-blocking points on the shortened requirement
+      texts are taken up (request no restore token; "no further window" in "Cancel while
+      waiting"; "5 seconds of the stream starting"; pointer drawing only when included; the
+      Screenshot-portal fallback left to the desktop), the second-request test now asserts the
+      same OSD stays up, and the rest is in design.md.
 
 ## Workflow follow-up
 
