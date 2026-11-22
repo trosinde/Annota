@@ -66,11 +66,15 @@ After the source is granted, the capture countdown OSD SHALL run with "Recording
 - **THEN** recording starts as soon as the source is granted, with no OSD
 
 ### Requirement: Recording control
-While recording, Annota SHALL show a small "Recording" window: elapsed time without paused time (`M:SS`), Pause/Resume (`Space`), Stop, Microphone mute (`M`) and System audio mute (`S`), each with a level meter. GNOME places it; the user can move or minimise it. Annota does not keep it above other windows or out of the recorded area. A second recording request SHALL raise it and start nothing.
+While recording, Annota SHALL show a small "Recording" window: elapsed time without paused time (`M:SS`), Pause/Resume (`Space`), Stop, Microphone mute (`M`), System audio mute (`S`), each with a level meter, and Minimize. GNOME places it; the user can move it. Annota does not keep it above other windows or out of the recorded area. A second recording request SHALL raise it and start nothing.
 
 #### Scenario: Elapsed time
 - **WHEN** a recording has run for 12 s
 - **THEN** the control shows `0:12`
+
+#### Scenario: Minimize the control
+- **WHEN** a recording runs and the user activates Minimize in the control
+- **THEN** the control window is minimised and the recording continues
 
 #### Scenario: Second recording request
 - **WHEN** a recording runs and the user activates the Record card or runs `annota --record screen`
@@ -143,6 +147,10 @@ Annota SHALL register a global shortcut "Record video" (ID `record`, preferred `
 #### Scenario: Record row shows the portal's trigger
 - **WHEN** the GlobalShortcuts portal reports `record` bound to `Super+Alt+R`
 - **THEN** the "Record video" row in Preferences › Capture and the Record card show `Super+Alt+R`
+
+#### Scenario: Record trigger taken by GNOME
+- **WHEN** the GlobalShortcuts portal reports `record` bound to `Shift+Ctrl+Print` and GNOME's keybinding settings assign `Shift+Ctrl+Print` to one of GNOME's own actions
+- **THEN** the "Record video" row shows `Shift+Ctrl+Print` with "Used by GNOME: <action>", and the Record card marks its keycaps as used by GNOME
 
 ### Requirement: Recording on the command line
 `annota --record region|window|screen` SHALL open the recording flow in that mode: region opens the overlay in Video mode, window and screen request the source with the saved choices. `annota --record toggle` SHALL act as the Record shortcut. Any other value SHALL exit with status 2 and print the valid values.

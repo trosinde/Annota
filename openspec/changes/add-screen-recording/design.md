@@ -26,7 +26,20 @@ core scope). Scenario-to-mockup mapping, redlines and platform notes:
 Dark and 2× renders sit next to each file (`-dark@1x.png`, `@2x.png`). The out-of-scope screens
 of the first set moved to `docs/design/add-recording-extras/`.
 
-Design approved: _pending_
+Design approved: 2026-11-22 (maintainer)
+
+Decisions recorded with the approval (the maintainer answered them on 2026-11-22; relayed to
+this branch by the coordinating session):
+
+| # | Question | Decision |
+|---|---|---|
+| Q1 | Post-recording flow | **D1**: the Export Recording window opens right after stop. Alternatives A and B rejected. |
+| Q2 | H.264 encoder | **x264** (`x264enc`, `gstreamer1.0-plugins-ugly`), libx264 loaded by GStreamer at runtime, never linked. |
+| Q3 | AAC encoder | **`voaacenc`** (`gstreamer1.0-plugins-bad`). |
+| Q4 | Working-file location | **Visible in `~/Videos/Annota`** (the recordings folder). |
+| Q5 | Record shortcut | Preferred trigger **`Shift+Ctrl+Print`**. Probe P11 decides what GNOME does with it; if GNOME holds the key, the row and the Record card show "Used by GNOME" exactly as for the capture shortcuts. |
+| Q6 | Control and countdown | The control gets a **Minimize** button (mockups 05, 06); the recording countdown ring is **red** (`--destructive-bg`, mockup 04). |
+| — | Designer assumptions | Accepted as drawn: Pause has the initial focus in the control; Cancel is the default in "Discard Recording?"; an unavailable saved source falls back to Region; Discard/Export sit in the Export Recording footer. |
 
 ## Context
 
@@ -39,7 +52,7 @@ its waiting indicator (`fix-window-capture-screencast`, ADR 0002), the countdown
 
 ## Decisions
 
-### D1 — After stop: the Export Recording window (PROPOSED, needs the maintainer's approval)
+### D1 — After stop: the Export Recording window (approved 2026-11-22)
 
 Without the video editor there is nothing to edit, but the user still has to pick a format and
 a place. Proposal: stopping opens a small **Export Recording** window at once (mockup 07):
@@ -115,7 +128,7 @@ pulsesrc (default sink .monitor)   ─ volume(mute) ─ level ─ opusenc ──
 
 A small undecorated toplevel window (OSD pill look) titled "Recording". On Wayland Annota can
 neither place nor keep a window above others, so: GNOME places it; the user drags it by its body
-or minimises it via GNOME (`Super+H`); it is **in the video** of a screen recording and of a
+or minimises it with its Minimize button (`gtk_window_minimize`) or via GNOME (`Super+H`); it is **in the video** of a screen recording and of a
 region recording it overlaps. In a window recording it is not (the stream shows that window
 only, measured for stills). The global Record shortcut is therefore the stop path that always
 works; the desktop's own screen-sharing indicator may offer another (probe P5). No red frame
@@ -125,7 +138,8 @@ dashed outline is drawn only during the countdown, whose frames are never record
 ### D5 — Countdown
 
 The capture countdown OSD (`countdown.rs`, transparent maximised window, empty input region) with
-the label "Recording starts in N s". The stream is already open during the countdown; buffers are
+the label "Recording starts in N s" and a red ring (`--destructive-bg`) instead of the capture's
+Coral one (Q6). The stream is already open during the countdown; buffers are
 dropped until the OSD is gone plus `countdown::SETTLE` (200 ms), then recording starts. 0 s skips
 the OSD.
 
@@ -170,13 +184,17 @@ Notes:
 - Universe packages are fine as `Depends` for Annota's own APT repository, since universe is
   enabled on a standard Ubuntu desktop; the Debian 13 names are all in main.
 - GPL question (CLAUDE.md §10): Annota never links libx264. The plugin is a separate package
-  loaded by GStreamer at runtime. The maintainer still has to confirm this (Q2). The fallback is
-  `openh264enc`, which is BSD-2 but slower and gives lower quality.
-- The `.deb` `Depends` line grows by `gstreamer1.0-plugins-good, gstreamer1.0-plugins-ugly,
-  gstreamer1.0-plugins-bad` (plus `gstreamer1.0-pulseaudio` if 24.04 needs it). The scenario
+  loaded by GStreamer at runtime. The maintainer accepted this on 2026-11-22 (Q2); `openh264enc`
+  (BSD-2) stays the documented fallback.
+- The `.deb` `Depends` line grows by `gstreamer1.0-plugins-good, gstreamer1.0-plugins-ugly
+  (x264enc), gstreamer1.0-plugins-bad (voaacenc)` (plus `gstreamer1.0-pulseaudio` if 24.04
+  ships `pulsesrc` there; `tools/recording-probe.py env` prints the owning package). The scenario
   "Recording elements installed" checks each element on a clean 24.04.
 
 ## Portal assumptions that need a probe (CLAUDE.md §5)
+
+Tool: `tools/recording-probe.py` (task 2.1; commands and the dialogs they show in
+`manual-checks.md`). Results go to `probe-results/`.
 
 No sentence in the spec describes what the portal or GNOME does; the spec states what Annota
 sends and how it handles each answer. The behaviour below is **assumed and unmeasured**. Each
@@ -208,17 +226,8 @@ Non-portal measurements in the same group: `pulsesrc` default source and
   sources are insensitive (scenario "Source not offered").
 
 ## Risks / open questions
-- **Q1 (maintainer):** approve D1 (Export Recording window) or choose alternative A or B.
-- **Q2 (maintainer):** depend on `gstreamer1.0-plugins-ugly` (x264, GPL-2+ library loaded at
-  runtime) or use `openh264enc` (BSD-2, weaker)?
-- **Q3 (maintainer):** AAC through `voaacenc` (plugins-bad) or `avenc_aac` (libav), or Opus
-  inside MP4 (no extra package; plays in browsers, VLC and GNOME Videos, not in every player)?
-- **Q4 (maintainer):** working file in `~/Videos/Annota` (visible, survives crashes where the
-  user can find it) vs. `~/.cache/annota/recordings` (hidden, like autosave).
-- **Q5 (maintainer):** is `Shift+Ctrl+Print` the preferred trigger? GNOME may hold it (P11).
-- **Q6 (design):** a minimise button on the control (undecorated window), and the countdown ring
-  colour (capture Coral vs. destructive red) — see the designer's notes in the mockup index.
+- Q1-Q6 are decided (see "Design approved" above).
 - Region mapping (P2/P3) may turn out unreliable under fractional scaling; then D2's rejected
-  alternative becomes the plan and the setup flow needs new mockups.
-- Live VP9 is avoided by D3, but 4K H.264 at 30 fps on weak CPUs may drop frames (P8). A
-  hardware encoder (VA-API) is out of scope for now.
+  alternative becomes the plan and the setup flow needs new mockups (a new design gate).
+- Live 4K H.264 at 30 fps on weak CPUs may drop frames (P8). A hardware encoder (VA-API) is out
+  of scope for now.

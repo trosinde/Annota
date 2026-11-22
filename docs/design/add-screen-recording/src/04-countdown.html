@@ -38,12 +38,12 @@ code{font-family:var(--font-mono);font-size:12px;padding:1px 5px;border-radius:4
 <div class="scene"><div class="topbar"><span class="ws"><i class="on"></i><i></i><i></i></span><span>Sun 22 Nov 10:42</span><span class="sys"><svg class="icon"><use href="#i-speaker"/></svg><svg class="icon"><use href="#i-settings"/></svg></span></div><div class="app"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div>
 <div class="rframe" style="left:130px;top:92px;width:700px;height:470px"></div>
 <div class="cd"><div class="ring"><svg viewBox="0 0 148 148"><circle cx="74" cy="74" r="66" fill="none" stroke="rgb(255 255 255 / 18%)" stroke-width="8"/>
-<circle cx="74" cy="74" r="66" fill="none" stroke="var(--annota-coral)" stroke-width="8" stroke-linecap="round" stroke-dasharray="248.8 414.7" transform="rotate(-90 74 74)"/></svg><span class="num">3</span></div>
+<circle cx="74" cy="74" r="66" fill="none" stroke="var(--destructive-bg)" stroke-width="8" stroke-linecap="round" stroke-dasharray="248.8 414.7" transform="rotate(-90 74 74)"/></svg><span class="num">3</span></div>
 <span class="t">Recording starts in 3 s</span>
 <span class="s"><span class="keys"><kbd class="okey">Enter</kbd></span> Start now <span style="opacity:.5">·</span> <span class="keys"><kbd class="okey">Esc</kbd></span> Cancel</span></div>
 <svg class="ptr" style="left:980px;top:640px" viewBox="0 0 22 30"><path d="M2 2v22l6-5.5 4 9 4-1.8-4-8.7h8z" fill="#000006" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
 <div class="lead" style="left:834px;top:120px;width:40px"></div>
-<div class="ann" style="left:874px;top:76px;width:370px"><b>Countdown OSD — capture countdown (add-screen-capture 07)</b>Transparent, maximised Annota window; OSD centred on the monitor. Label "Recording starts in N s", ring runs down once per second. The dashed outline marks the selected region and exists <b style="display:inline;color:inherit;font-size:inherit">only during the countdown</b>.</div>
+<div class="ann" style="left:874px;top:76px;width:370px"><b>Countdown OSD — capture countdown (add-screen-capture 07)</b>Transparent, maximised Annota window; OSD centred on the monitor. Label "Recording starts in N s", ring runs down once per second. The arc is red (<code>--destructive-bg</code>), not Coral: it tells a recording countdown from a capture countdown. The dashed outline marks the selected region and exists <b style="display:inline;color:inherit;font-size:inherit">only during the countdown</b>.</div>
 <div class="ann" style="left:874px;top:610px;width:370px"><b>Not recorded</b>The pipeline takes its first frame only after the OSD and the outline are gone. Countdown 0 s → no OSD, recording starts as soon as the source is granted. <kbd class="key">Esc</kbd> or the Record shortcut cancels: session closed, nothing written, no message.</div>
 </div>
 <script src="../../kit/icons.js"></script>

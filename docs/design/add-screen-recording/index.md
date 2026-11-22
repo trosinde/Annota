@@ -37,13 +37,14 @@ Titles are *Requirement › Scenario* exactly as in the spec files of this chang
 | Recording countdown › Cancel the countdown | [04](png/04-countdown-light@1x.png) | Hint `Esc` Cancel. No message afterwards. |
 | Recording countdown › No countdown | [01](png/01-recording-setup-light@1x.png) | Countdown spin at `0 s` → no OSD, the control (05) appears directly. |
 | Recording control › Elapsed time | [05](png/05-recording-control-light@1x.png) | `0:12`, `M:SS`, tabular figures. |
-| Recording control › Second recording request | [05](png/05-recording-control-light@1x.png) | State card "Second request": the control is presented (raised), nothing new starts. |
+| Recording control › Minimize the control | [05](png/05-recording-control-light@1x.png) | State card "Hover · Minimize": the window is minimised, recording continues. |
+| Recording control › Second recording request | [05](png/05-recording-control-light@1x.png) | State card "Microphone only · second request": the control is presented (raised), nothing new starts. |
 | Pause and resume › Paused time is not recorded | — (no UI; pipeline test) | |
 | Pause and resume › Paused state | [06](png/06-paused-mic-muted-light@1x.png) | "Paused", Resume (play), time frozen at `0:27`. |
 | Audio › Mute the microphone | [06](png/06-paused-mic-muted-light@1x.png) | Slashed microphone, grey meter, tooltip "Microphone muted" `M`. Silence: pipeline test. |
 | Audio › Mute system audio | [05](png/05-recording-control-light@1x.png) | State card "Hover · System audio" (`S`); muted look as the microphone in 06. |
 | Audio › No microphone | [02](png/02-setup-unavailable-light@1x.png) | Microphone row insensitive, "No microphone found". Note shows the "No audio output found" variant. |
-| Audio › No audio selected | [05](png/05-recording-control-light@1x.png) | No audio buttons in the control (state card "Microphone only" explains). Track layout: pipeline test. |
+| Audio › No audio selected | [05](png/05-recording-control-light@1x.png) | No audio buttons in the control (state card "Microphone only · second request" explains). Track layout: pipeline test. |
 | Stop recording › Stop by button | [05](png/05-recording-control-light@1x.png) → [07](png/07-export-recording-light@1x.png) | Control closes, Export Recording opens. |
 | Stop recording › Stop by hotkey | [05](png/05-recording-control-light@1x.png) → [07](png/07-export-recording-light@1x.png) | Stop tooltip shows the Record trigger. Also works while paused (06). |
 | Stop recording › Session ended by the desktop | [07](png/07-export-recording-light@1x.png) | Same window, no banner (a normal end). |
@@ -52,6 +53,7 @@ Titles are *Requirement › Scenario* exactly as in the spec files of this chang
 | Record shortcut › Shortcut cancels the countdown | [04](png/04-countdown-light@1x.png) | Note "Not recorded". |
 | Record shortcut › Record shortcut on GNOME 46 | — (reuses add-screen-capture 09/10) | GNOME-keybinding path of Preferences › Capture gains a "Record video" row with the same layout as the Region/Window/Screen rows there. |
 | Record shortcut › Record row shows the portal's trigger | [14](png/14-preferences-record-shortcut-light@1x.png), [12](png/12-welcome-record-card-light@1x.png) | Drawn with the preferred `Shift+Ctrl+Print`; any reported trigger (e.g. `Super+Alt+R`) replaces it on both. |
+| Record shortcut › Record trigger taken by GNOME | [14](png/14-preferences-record-shortcut-light@1x.png), [12](png/12-welcome-record-card-light@1x.png) | Not drawn separately: same "Used by GNOME: <action>" treatment as the capture rows (fix-portal-shortcut-bindings 06a–06c). |
 | Recording on the command line › Record a screen from the command line | [03](png/03-waiting-for-screen-light@1x.png) → [04](png/04-countdown-light@1x.png) | |
 | Recording on the command line › Invalid record mode | — (no UI; CLI test) | |
 | Working file › Recording survives a crash | — (no UI; pipeline test) | |
@@ -89,7 +91,7 @@ Titles are *Requirement › Scenario* exactly as in the spec files of this chang
 | 02 | Setup with no microphone and the Window source not offered (tooltip) | [light](png/02-setup-unavailable-light@1x.png) | [dark](png/02-setup-unavailable-dark@1x.png) |
 | 03 | "Waiting for a screen…" OSD + GNOME's screen chooser (schematic) | [light](png/03-waiting-for-screen-light@1x.png) | [dark](png/03-waiting-for-screen-dark@1x.png) |
 | 04 | Countdown OSD "Recording starts in 3 s" + dashed region outline | [light](png/04-countdown-light@1x.png) | [dark](png/04-countdown-dark@1x.png) |
-| 05 | Recording control window + states band (hover, focus, tooltips, mic only, second request) | [light](png/05-recording-control-light@1x.png) | [dark](png/05-recording-control-dark@1x.png) |
+| 05 | Recording control window + states band (hover, focus, tooltips, Minimize, mic only + second request) | [light](png/05-recording-control-light@1x.png) | [dark](png/05-recording-control-dark@1x.png) |
 | 06 | Paused, microphone muted | [light](png/06-paused-mic-muted-light@1x.png) | [dark](png/06-paused-mic-muted-dark@1x.png) |
 | 07 | Export Recording window (MP4, File name focused) | [light](png/07-export-recording-light@1x.png) | [dark](png/07-export-recording-dark@1x.png) |
 | 08 | Exporting WebM, progress + Cancel | [light](png/08-export-progress-light@1x.png) | [dark](png/08-export-progress-dark@1x.png) |
@@ -112,13 +114,14 @@ Titles are *Requirement › Scenario* exactly as in the spec files of this chang
 | Recording control (window focused) | `Space` | Pause / Resume |
 | Recording control | `M` | Mute / unmute microphone |
 | Recording control | `S` | Mute / unmute system audio |
+| Recording control | — (button only; GNOME's own `Super+H` also works) | Minimize |
 | Global, ID `record` | `Shift+Ctrl+Print` (preferred; show the trigger the portal reports, none if unbound) | Open the setup · cancel a countdown · stop a running or paused recording |
 | Export Recording | `Enter` | Export (default widget, also from the File name entry) |
 | Export Recording | `Esc` / close button | Same as closing: asks "Discard Recording?" before an export finished |
 
 Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume" `Space`,
 "Stop" `<Record trigger>`, "Mute microphone" `M` / "Microphone muted" `M`,
-"Mute system audio" `S` / "System audio muted" `S`.
+"Mute system audio" `S` / "System audio muted" `S`, "Minimize" (no shortcut chip).
 
 ### 01–02 Recording setup (region overlay, Video mode)
 
@@ -160,9 +163,10 @@ Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume"
 
 ### 04 Countdown
 
-- Capture countdown OSD of add-screen-capture 07 unchanged except the label: ring 148 px, stroke
-  8, `--annota-coral` arc, numeral 72 px heavy tabular; label "Recording starts in N s"; hints
-  `Enter` Start now · `Esc` Cancel.
+- Capture countdown OSD of add-screen-capture 07 except label and arc colour: ring 148 px,
+  stroke 8, **`--destructive-bg` (red) arc** — the capture countdown keeps `--annota-coral`, so the
+  colour tells a recording countdown from a capture countdown; numeral 72 px heavy tabular; label
+  "Recording starts in N s"; hints `Enter` Start now · `Esc` Cancel.
 - Region only: 2 px dashed `--destructive-bg` outline, offset 2 px outside the selection, drawn
   by the same transparent maximised countdown window. Screen and Window: no outline.
 - Both vanish before the first frame is taken. Countdown 0 → no OSD.
@@ -172,7 +176,8 @@ Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume"
 - Own small toplevel window (not a popover, not an overlay), undecorated, title "Recording",
   `--osd-bg-solid` background, radius 26 (pill), height 52, padding 0 8 0 18, gap 6, shadow as an
   OSD plus a soft 30 px drop shadow. Draggable by its whole body (window drag on any non-button area).
-- Order: rec dot · time | Pause · Stop | Microphone · System audio.
+- Order: rec dot · time | Pause · Stop | Microphone · System audio | Minimize. Width ≈ 403 px with
+  both audio sources (≈ 346 px before Minimize was added), height 52.
   - Rec dot 10 px `--destructive-bg` with a 3 px 35 % halo. Time 15 px bold, tabular, min 40 px, `M:SS`
     (`H:MM:SS` from one hour), without paused time.
   - Separators 1 × 24 px `rgb(255 255 255 / 20%)`, margin 0 4.
@@ -180,9 +185,12 @@ Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume"
   - Stop: circular 36 px `--destructive-bg`, icon `stop`.
   - Microphone / System audio: 36 px high pill buttons, padding 0 10, icon + 5-bar meter (3×12 px,
     gap 2, `--success-bg`, last bar `--warning-bg` when hot, unlit `rgb(255 255 255 / 25%)`).
-    A source not recorded has no button; with no audio, the second separator goes too.
+    A source not recorded has no button; with no audio, that group and its separator go.
+  - Minimize: flat circular 36 px button (transparent, hover `--osd-fill-hover`), glyph
+    `window-minimize` (page-local, see "Kit gaps"), tooltip "Minimize". Minimises the window
+    (`gtk_window_minimize`); the recording continues. Always last, after its own separator.
   - Hover `--osd-fill-hover`; Stop hover a lighter red. Keyboard focus 2 px `rgb(120 174 237 / 85%)`
-    ring, offset 1. Tab order Pause, Stop, Microphone, System audio. Initial focus: Pause.
+    ring, offset 1. Tab order Pause, Stop, Microphone, System audio, Minimize. Initial focus: Pause.
 - Paused (06): rec dot → `pause` icon in `--annota-amber`, then the frozen time, then "Paused"
   (13 px bold, `--annota-amber`). Pause → Resume (`play`). Keyboard focus stays on that button.
 - Muted: slashed icon (2 px line at −45°, see "Kit gaps"), meter unlit, tooltip "Microphone muted"
@@ -236,7 +244,7 @@ Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume"
 ## Platform notes (Wayland)
 
 - Annota cannot position its windows or keep them on top. The Recording control is an ordinary
-  toplevel: GNOME places it, the user drags or minimises it. The positions drawn in 05/06 are
+  toplevel: GNOME places it, the user drags it, and minimises it with its Minimize button or via GNOME. The positions drawn in 05/06 are
   examples only.
 - The control is not excluded from the recording: if it sits inside the recorded area it is in
   the video. Users move it outside or record a window.
@@ -256,3 +264,20 @@ Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume"
   `tools/build-icons.py` before implementation (the engineer uses Adwaita's
   `microphone-disabled-symbolic` / `audio-volume-muted-symbolic` in code).
 - No success/check-circle icon: 09 uses `check` on a `--success-bg` circle.
+- No `window-minimize` icon: 05/06 use a page-local glyph (10 × 2 px bar, radius 1, at y 10 of the
+  16 px grid). Add `window-minimize` to the kit; in code use Adwaita's `window-minimize-symbolic`.
+
+## Decisions (2026-11-22)
+
+Maintainer approval of this set, with two changes now drawn:
+
+- The Recording control gets a Minimize button at the end (05, 06), in the Tab order after System audio.
+- The recording countdown ring is red (`--destructive-bg`), unlike the Coral capture countdown (04).
+
+Designer assumptions accepted as drawn:
+
+- Pause has the initial keyboard focus in the Recording control.
+- Cancel is the default response of "Discard Recording?".
+- If the saved source is not offered, the setup falls back to Region.
+- The Export Recording window keeps its footer buttons (Discard left, Export right) instead of the
+  header-bar actions of the add-export-share dialog.
