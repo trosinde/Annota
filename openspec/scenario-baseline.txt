@@ -46,8 +46,6 @@ uncovered-scenario: app-shell / Local-only operation / No outgoing connections
 uncovered-scenario: app-shell / Preferences / Setting persists
 uncovered-scenario: app-shell / Single application instance / Second launch forwards request
 uncovered-scenario: app-shell / Single application instance / Second launch starts a capture
-uncovered-scenario: capture / After-capture destination / Editor destination
-uncovered-scenario: capture / After-capture destination / Editor unavailable
 uncovered-scenario: capture / Delayed capture / Countdown
 uncovered-scenario: capture / Full-screen capture / Multi-monitor
 uncovered-scenario: capture / Image from clipboard or file / Drop an image file
@@ -83,7 +81,6 @@ uncovered-scenario: debian-packaging / Desktop integration / App grid
 uncovered-scenario: debian-packaging / Installable package / Offline build
 uncovered-scenario: debian-packaging / Key rotation and revocation documented / Maintainer rotates the signing key
 uncovered-scenario: debian-packaging / Published signing key / User imports the key before adding the repository
-uncovered-scenario: debian-packaging / Runtime dependencies / Dependencies resolved
 uncovered-scenario: debian-packaging / Signed APT repository / Direct .deb download still available
 uncovered-scenario: debian-packaging / Signed APT repository / Install from the signed repository
 uncovered-scenario: document-format / Autosave and recovery / Crash recovery
@@ -210,13 +207,10 @@ untagged-test: src/capture/countdown.rs::counts_down_whole_seconds
 untagged-test: src/capture/countdown.rs::messages_name_the_mode
 untagged-test: src/capture/countdown.rs::osd_is_gone_before_the_grab
 untagged-test: src/capture/countdown.rs::ring_shrinks_to_zero
-untagged-test: src/capture/delivery.rs::after_capture_plans
-untagged-test: src/capture/delivery.rs::editor_documents_are_named_and_announced_like_the_mockups
 untagged-test: src/capture/delivery.rs::imports_always_become_a_new_capture
 untagged-test: src/capture/delivery.rs::setting_values_map_to_enum
 untagged-test: src/capture/delivery.rs::stems_are_sanitised
 untagged-test: src/capture/delivery.rs::titles_carry_the_size
-untagged-test: src/capture/delivery.rs::unique_path_never_overwrites
 untagged-test: src/capture/frame.rs::crop_has_exact_size_and_content
 untagged-test: src/capture/frame.rs::crop_is_clipped_to_the_frame
 untagged-test: src/capture/frame.rs::filled_frame_reports_its_colour
@@ -682,7 +676,6 @@ untagged-test: src/ui/editor/glyphs.rs::swatches_show_their_colour_and_the_curre
 untagged-test: src/ui/editor/glyphs.rs::the_dial_points_where_the_shadow_falls
 untagged-test: src/ui/editor/mod.rs::batch_export_on_a_live_display
 untagged-test: src/ui/editor/mod.rs::copy_drag_and_share_on_a_live_display
-untagged-test: src/ui/editor/mod.rs::editor_window_on_a_live_display
 untagged-test: src/ui/editor/mod.rs::export_and_save_on_a_live_display
 untagged-test: src/ui/editor/mod.rs::first_capture_offers_recovery_on_a_live_display
 untagged-test: src/ui/editor/mod.rs::new_capture_toast_copies_the_current_document_on_a_live_display

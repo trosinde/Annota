@@ -211,7 +211,7 @@ impl Chosen {
         match pulled {
             Some(result) => result.map_err(CaptureError::Failed),
             None => Err(CaptureError::Failed(String::from(
-                "no frame within 5 s (the stream did not start)",
+                "no frame before the deadline (the stream did not start)",
             ))),
         }
     }
@@ -788,6 +788,43 @@ mod tests {
             Some(IRect::new(16, 18, 685, 383)),
             "without the meta the stray pixel counts"
         );
+    }
+
+    // spec: capture / Window capture / Window on Wayland
+    #[test]
+    fn a_stream_sample_is_cut_by_its_crop_meta_and_stride() {
+        // Review of task 7.5 (N2): the crop meta and the stride are read from a real GStreamer
+        // buffer, as `pipewiresrc` hands it over, not passed in as numbers.
+        gst::init().unwrap();
+        let mut image = measured_window(0);
+        let stray = 400 * image.stride + 700 * BPP + ALPHA;
+        image.data[stray] = 255;
+        let format = gst_video::VideoFormat::from_string(FRAME_FORMAT);
+        let mut buffer = gst::Buffer::from_slice(image.data.clone());
+        {
+            let buffer = buffer.get_mut().unwrap();
+            gst_video::VideoMeta::add_full(
+                buffer,
+                gst_video::VideoFrameFlags::empty(),
+                format,
+                image.width,
+                image.height,
+                &[0],
+                &[i32::try_from(image.stride).unwrap()],
+            )
+            .unwrap();
+            gst_video::VideoCropMeta::add(buffer, (4, 6, 304, 244));
+        }
+        let caps = gst_video::VideoInfo::builder(format, image.width, image.height)
+            .build()
+            .unwrap()
+            .to_caps()
+            .unwrap();
+        let sample = gst::Sample::builder().buffer(&buffer).caps(&caps).build();
+        let frame = window_frame(&sample).unwrap();
+        assert_eq!((frame.width(), frame.height()), (280, 220));
+        let first = 18 * image.stride + 16 * BPP;
+        assert_eq!(&frame.data()[..BPP], &image.data[first..first + BPP]);
     }
 
     // spec: capture / Window capture / Window on Wayland

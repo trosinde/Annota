@@ -3790,6 +3790,7 @@ mod tests {
         pump(50);
     }
 
+    // spec: capture / After-capture destination / Editor destination
     #[test]
     #[ignore = "opens a window; run under xvfb-run with GDK_BACKEND=x11"]
     fn editor_window_on_a_live_display() {
