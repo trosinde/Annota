@@ -65,11 +65,29 @@
       in `manual-checks.md`
 - [x] 5.4 Screen and window modes unchanged — `screen()` keeps the pointer it draws today;
       verified: `git diff` over this change's commits shows no line in `screen()` added or removed
-- [ ] 5.5 `reviewer` agent (fresh context, did not write the code): specs, mockup fidelity,
-      tests, quality gates
+- [x] 5.5 `reviewer` agent (fresh context, did not write the code): specs, mockup fidelity,
+      tests, quality gates — 2026-11-22. First pass: blocking B1 (fractional release on the
+      edge drew a sliver) and B2 (preview tags without an on-screen test), both fixed. Second
+      pass on the fixes, same day: no blocking findings; its non-blocking notes (Capture-button
+      wording, proposal wording, sub-pixel note) are folded in. See design.md "Review findings,
+      task 5.5". Mockup fidelity compared by reading, not by screenshot; the `.deb` (5.6) was
+      not rebuilt
 - [x] 5.6 `.deb` builds via `build-aux/make-deb.sh`, `lintian -I --pedantic` clean —
       `../annota_0.1.0~dev1_amd64.deb` (2.4 MB, 2026-11-10), lintian silent. Built on the
       maintainer's Ubuntu 26.04 with cargo 1.93, not the pinned 1.85; the 24.04 gap is the
       CI job's, shared with every other change
 - [ ] 5.7 Maintainer: live check on a real desktop — region capture with include-cursor on,
       pointer inside the selection, confirmed with `Enter`; and the same with the pointer outside
+
+## 6. Follow-ups from the 5.5 review (not part of this change)
+
+Recorded so they are not lost; none blocks archiving this change, so they are plain notes, not
+tasks. Details in design.md "Risks / Trade-offs".
+
+- Scenario gate: build `_build/data/resources.gresource` (or fail with a clear message) before
+  the live run; install `libgstreamer1.0-dev` on the maintainer's desktop.
+- `fix-window-capture-screencast`: take over the corrected "Cursor inclusion" wording in its
+  delta (`specs/capture/spec.md:57`, the requirement, and `:74`, the WHEN of "Pointer on the
+  selection edge"), and archive it after this change.
+- Minor mockup deviations of the pointer chip (keyline, suffix opacity, joint flip with the
+  loupe) and `accessible-role: presentation` on its decorative glyphs.

@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Cursor inclusion
-The user SHALL be able to include or exclude the mouse pointer; default is exclude. For region and screen captures Annota draws the pointer into the image itself, since the Screenshot portal has no pointer option for non-interactive captures; in window mode the desktop's picker decides. A region capture SHALL use the pointer position at the moment the selection is confirmed (`Enter`, or releasing the drag), and SHALL draw the pointer only when its hot spot lies inside the selection.
+The user SHALL be able to include or exclude the mouse pointer; default is exclude. For region and screen captures Annota draws the pointer into the image itself, since the Screenshot portal has no pointer option for non-interactive captures; in window mode the desktop's picker decides. A region capture SHALL use the pointer position at the moment the selection is confirmed (`Enter` or the Capture button), and SHALL draw the pointer only when its hot spot lies inside the selection. Confirming with the Capture button puts the pointer on Annota's own toolbar, not over the frozen image, so such a capture contains no pointer.
 
 #### Scenario: Include cursor
 - **WHEN** include-cursor is enabled and the user captures the screen
@@ -20,7 +20,7 @@ The user SHALL be able to include or exclude the mouse pointer; default is exclu
 - **AND** the captured image is otherwise exactly the selected region
 
 #### Scenario: Pointer on the selection edge
-- **WHEN** include-cursor is enabled and the user confirms by releasing the drag, leaving the pointer on the selection's edge
+- **WHEN** include-cursor is enabled, the user releases the drag, leaving the pointer on the selection's edge, and presses `Enter` without moving the pointer
 - **THEN** the pointer is drawn only if its hot spot lies inside the selection, so a release at the lower-right corner yields no pointer
 - **AND** no part of a pointer is silently cut off at the image border
 

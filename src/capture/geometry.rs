@@ -20,6 +20,13 @@ pub const HANDLE_DIAMETER: f64 = 12.0;
 /// Space kept free at the bottom edge for the hint bar.
 pub const HINT_RESERVE: f64 = 80.0;
 
+/// The image pixel a logical coordinate falls on. The one mapping for the overlay's selection
+/// edges and for the pointer's hot spot, so the two can never disagree about which side of an
+/// edge a position lies on.
+pub fn image_px(logical: f64, scale: f64) -> i32 {
+    (logical * scale).round() as i32
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct IRect {
     pub x: i32,
@@ -66,9 +73,15 @@ impl IRect {
     ///
     /// The capture (`capture::region`) and the overlay's preview both go through this, so what
     /// the preview promises and what the image contains cannot disagree.
+    ///
+    /// The hot spot is mapped to its image pixel with [`image_px`], the same rounding the
+    /// overlay uses for the selection's edges. A drag released at a fractional position (Wayland
+    /// reports them, and at 125 % almost every position is one) therefore always puts the hot
+    /// spot exactly on the selection's right or bottom edge, never one pixel inside it, so a
+    /// release at the lower-right corner cannot leave a sliver of arrow in the image.
     pub fn pointer_inside(&self, logical: (f64, f64), scale: f64) -> Option<(f64, f64)> {
         let (x, y) = (logical.0 * scale, logical.1 * scale);
-        self.contains(x as i32, y as i32)
+        self.contains(image_px(logical.0, scale), image_px(logical.1, scale))
             .then(|| (x - f64::from(self.x), y - f64::from(self.y)))
     }
 
@@ -517,7 +530,7 @@ mod tests {
     #[test]
     fn the_hot_spot_decides_not_the_whole_arrow() {
         // Redline: a hot spot one pixel inside the lower-right corner still draws, even though
-        // the arrow body (right and down, 22 x 15 px) is then almost entirely clipped.
+        // the arrow body (right and down, about 12.6 x 19.5 px) is then almost entirely clipped.
         let rect = IRect::new(0, 0, 800, 600);
         assert_eq!(
             rect.pointer_inside((799.0, 599.0), 1.0),
