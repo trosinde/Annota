@@ -47,7 +47,6 @@ uncovered-scenario: app-shell / Preferences / Setting persists
 uncovered-scenario: app-shell / Single application instance / Second launch forwards request
 uncovered-scenario: app-shell / Single application instance / Second launch starts a capture
 uncovered-scenario: capture / Delayed capture / Countdown
-uncovered-scenario: capture / Full-screen capture / Multi-monitor
 uncovered-scenario: capture / Image from clipboard or file / Drop an image file
 uncovered-scenario: capture / Image from clipboard or file / File already open
 uncovered-scenario: capture / Image from clipboard or file / Paste

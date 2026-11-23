@@ -8,6 +8,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use futures_channel::oneshot;
+use futures_util::StreamExt;
 use gettextrs::gettext;
 use gtk::{cairo, gdk, gio, glib, prelude::*};
 
@@ -42,6 +43,14 @@ const DIM_RGB: (f64, f64, f64) = (0.0, 0.0, 6.0 / 255.0);
 const LOUPE_CHIP_GAP: f64 = 8.0;
 /// How long the pointer probe waits for the pointer to enter one of its windows.
 const PROBE_TIMEOUT_MS: u64 = 400;
+/// How long a freshly mapped probe window may still be animated in by the compositor. GNOME
+/// Shell scales a new window up from its bottom centre (150 ms), and the pointer coordinates it
+/// reports meanwhile are those of the scaled window: measured 2026-11-23 on GNOME Shell 50.1,
+/// the first `enter` came ~120 ms after `present()` at 1107.7,179.9 for a pointer at 1200,500;
+/// events from ~270 ms on were exact.
+const PROBE_SETTLE_MS: u64 = 300;
+/// How long the probe waits for its cover windows to take the pointer (measured: ~210 ms).
+const PROBE_COVER_TIMEOUT_MS: u64 = 1000;
 
 /// One monitor's part of the frozen desktop.
 pub struct MonitorShot {
@@ -1420,65 +1429,257 @@ pub async fn select_region(
     receiver.await.unwrap_or(Outcome::Cancelled)
 }
 
+/// What a probe window reports.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ProbeEvent {
+    /// The pointer entered or moved on the probe window of `PointerAt::monitor`.
+    At(PointerAt),
+    /// The pointer left a probe window.
+    Left,
+}
+
+/// What `probe_pointer` found.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Probed {
+    /// The monitor is always right; `x`, `y` only when `exact`.
+    pub at: PointerAt,
+    /// Whether the position was reported for a settled window, so the pointer may be drawn
+    /// there. Otherwise only the monitor counts.
+    pub exact: bool,
+}
+
+/// What `probe_pointer` does next.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ProbeStep {
+    /// Keep waiting, with the current phase's deadline.
+    Stay,
+    /// A new phase began; wait with its own deadline.
+    Settle,
+    /// Map the cover windows over the probe windows.
+    Cover,
+    /// Remove the cover windows.
+    Uncover,
+    /// The probe is over.
+    Done(Option<Probed>),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProbePhase {
+    /// The probe windows are being mapped; waiting for the pointer to reach one.
+    Mapping,
+    /// The pointer is on a probe window, which may still be animated in.
+    Settling,
+    /// The cover windows are mapped; waiting for them to take the pointer.
+    Covering,
+    /// The cover windows are gone; waiting for the pointer to come back to a probe window.
+    Uncovered,
+}
+
+/// The decisions of `probe_pointer`, apart from its windows.
+///
+/// A position the compositor reports while it is still animating the probe window in is the
+/// position on the scaled window, not on the screen (see `PROBE_SETTLE_MS`), and a pointer that
+/// does not move gets no second event once the animation is over. So the first event only says
+/// that the pointer is on one of the probe windows. After the animation, cover windows showing
+/// the same frozen image are mapped over the probe windows and removed again as soon as they have
+/// the pointer: the compositor then hands the pointer back to the settled probe window with an
+/// exact position, whether the pointer moves or not.
+#[derive(Debug)]
+struct PointerProbe {
+    phase: ProbePhase,
+    /// Whether the position counts, or only the monitor (see `probe_pointer`).
+    exact: bool,
+    /// The first event: its monitor is right, its position may be a scaled one.
+    first: Option<PointerAt>,
+}
+
+impl PointerProbe {
+    fn new(exact: bool) -> Self {
+        Self {
+            phase: ProbePhase::Mapping,
+            exact,
+            first: None,
+        }
+    }
+
+    /// How long the current phase may last.
+    fn deadline(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(match self.phase {
+            ProbePhase::Mapping | ProbePhase::Uncovered => PROBE_TIMEOUT_MS,
+            ProbePhase::Settling => PROBE_SETTLE_MS,
+            ProbePhase::Covering => PROBE_COVER_TIMEOUT_MS,
+        })
+    }
+
+    fn event(&mut self, event: ProbeEvent) -> ProbeStep {
+        match (self.phase, event) {
+            // The monitor is right even while the window is scaled in; the position is not.
+            (ProbePhase::Mapping, ProbeEvent::At(at)) if !self.exact => {
+                ProbeStep::Done(Some(Probed { at, exact: false }))
+            }
+            (ProbePhase::Mapping, ProbeEvent::At(at)) => {
+                self.first = Some(at);
+                self.phase = ProbePhase::Settling;
+                ProbeStep::Settle
+            }
+            (ProbePhase::Covering, ProbeEvent::Left) => {
+                self.phase = ProbePhase::Uncovered;
+                ProbeStep::Uncover
+            }
+            // Only the compositor's look at the probe windows after the covers are gone is known
+            // to see a settled window; before that, even a moving pointer is not taken.
+            (ProbePhase::Uncovered, ProbeEvent::At(at)) => {
+                ProbeStep::Done(Some(Probed { at, exact: true }))
+            }
+            (ProbePhase::Mapping | ProbePhase::Uncovered, ProbeEvent::Left)
+            | (ProbePhase::Settling | ProbePhase::Covering, _) => ProbeStep::Stay,
+        }
+    }
+
+    fn timed_out(&mut self) -> ProbeStep {
+        match self.phase {
+            // The pointer is on none of the probe windows.
+            ProbePhase::Mapping => ProbeStep::Done(None),
+            // The cover step did not bring an exact position back. The first event's monitor
+            // still holds, so a screen capture keeps the right monitor; nothing is drawn.
+            ProbePhase::Uncovered => {
+                ProbeStep::Done(self.first.map(|at| Probed { at, exact: false }))
+            }
+            ProbePhase::Settling => {
+                self.phase = ProbePhase::Covering;
+                ProbeStep::Cover
+            }
+            // The covers never took the pointer; removing them still makes the compositor look
+            // at the probe windows again.
+            ProbePhase::Covering => {
+                self.phase = ProbePhase::Uncovered;
+                ProbeStep::Uncover
+            }
+        }
+    }
+}
+
+/// A fullscreen window on `shot`'s monitor showing the frozen image, so that mapping it changes
+/// nothing the user sees.
+fn frozen_window(
+    app: &adw::Application,
+    shot: &MonitorShot,
+) -> Option<(gtk::Window, gtk::DrawingArea)> {
+    let surface = shot.frame.to_surface().ok()?;
+    let scale = shot.scale;
+    let canvas = gtk::DrawingArea::new();
+    canvas.set_draw_func(move |_, cr, _, _| {
+        cr.scale(1.0 / scale, 1.0 / scale);
+        if cr.set_source_surface(&surface, 0.0, 0.0).is_ok() {
+            let _ = cr.paint();
+        }
+    });
+    let window = gtk::Window::builder()
+        .application(app)
+        .decorated(false)
+        .child(&canvas)
+        .build();
+    window.add_css_class("annota-overlay");
+    match &shot.monitor {
+        Some(monitor) => window.fullscreen_on_monitor(monitor),
+        None => window.fullscreen(),
+    }
+    Some((window, canvas))
+}
+
 /// Finds the monitor under the pointer (and where the pointer is) by showing the frozen
 /// image full-screen on every monitor for a moment: the compositor reports the pointer to
 /// whichever window it enters. Applications cannot query the global pointer position on
 /// Wayland otherwise. Visually nothing changes, since the windows show the frozen screen.
-pub async fn probe_pointer(app: &adw::Application, desktop: &Desktop) -> Option<PointerAt> {
-    let (sender, receiver) = oneshot::channel::<PointerAt>();
-    let sender = Rc::new(RefCell::new(Some(sender)));
-    let mut windows = Vec::new();
+/// `PointerProbe` says why it takes a second set of windows to get an exact position; with
+/// `exact` false only the monitor counts, and the first event is enough.
+pub async fn probe_pointer(
+    app: &adw::Application,
+    desktop: &Desktop,
+    exact: bool,
+) -> Option<Probed> {
+    let (sender, mut events) = futures_channel::mpsc::unbounded::<ProbeEvent>();
+    let mut windows = ProbeWindows::default();
     for (index, shot) in desktop.monitors.iter().enumerate() {
-        let Ok(surface) = shot.frame.to_surface() else {
+        let Some((window, canvas)) = frozen_window(app, shot) else {
             continue;
         };
-        let scale = shot.scale;
-        let canvas = gtk::DrawingArea::new();
-        canvas.set_draw_func(move |_, cr, _, _| {
-            cr.scale(1.0 / scale, 1.0 / scale);
-            if cr.set_source_surface(&surface, 0.0, 0.0).is_ok() {
-                let _ = cr.paint();
-            }
-        });
         let motion = gtk::EventControllerMotion::new();
         let report = glib::clone!(
             #[strong]
             sender,
             move |_: &gtk::EventControllerMotion, x: f64, y: f64| {
-                if let Some(sender) = sender.borrow_mut().take() {
-                    let _ = sender.send(PointerAt {
-                        monitor: index,
-                        x,
-                        y,
-                    });
-                }
+                let _ = sender.unbounded_send(ProbeEvent::At(PointerAt {
+                    monitor: index,
+                    x,
+                    y,
+                }));
             }
         );
         motion.connect_enter(report.clone());
         motion.connect_motion(report);
+        motion.connect_leave(glib::clone!(
+            #[strong]
+            sender,
+            move |_| {
+                let _ = sender.unbounded_send(ProbeEvent::Left);
+            }
+        ));
         canvas.add_controller(motion);
-        let window = gtk::Window::builder()
-            .application(app)
-            .decorated(false)
-            .child(&canvas)
-            .build();
-        window.add_css_class("annota-overlay");
-        match &shot.monitor {
-            Some(monitor) => window.fullscreen_on_monitor(monitor),
-            None => window.fullscreen(),
-        }
         window.present();
-        windows.push(window);
+        windows.probes.push(window);
     }
-    let found =
-        glib::future_with_timeout(std::time::Duration::from_millis(PROBE_TIMEOUT_MS), receiver)
-            .await
-            .ok()
-            .and_then(Result::ok);
-    for window in windows {
-        window.destroy();
-    }
+    drop(sender);
+
+    let mut probe = PointerProbe::new(exact);
+    let mut phase_end = std::time::Instant::now() + probe.deadline();
+    let found = loop {
+        let left = phase_end.saturating_duration_since(std::time::Instant::now());
+        let step = match glib::future_with_timeout(left, events.next()).await {
+            Ok(Some(event)) => probe.event(event),
+            // Every probe window is gone.
+            Ok(None) => ProbeStep::Done(None),
+            Err(_) => probe.timed_out(),
+        };
+        match step {
+            ProbeStep::Stay => continue,
+            ProbeStep::Settle => {}
+            ProbeStep::Cover => {
+                windows.covers = desktop
+                    .monitors
+                    .iter()
+                    .filter_map(|shot| frozen_window(app, shot).map(|(window, _)| window))
+                    .collect();
+                for cover in &windows.covers {
+                    cover.present();
+                }
+            }
+            ProbeStep::Uncover => {
+                for cover in windows.covers.drain(..) {
+                    cover.destroy();
+                }
+            }
+            ProbeStep::Done(found) => break found,
+        }
+        phase_end = std::time::Instant::now() + probe.deadline();
+    };
     found
+}
+
+/// The probe's windows, destroyed on every way out of `probe_pointer`, a dropped future
+/// included.
+#[derive(Default)]
+struct ProbeWindows {
+    probes: Vec<gtk::Window>,
+    covers: Vec<gtk::Window>,
+}
+
+impl Drop for ProbeWindows {
+    fn drop(&mut self) {
+        for window in self.covers.drain(..).chain(self.probes.drain(..)) {
+            window.destroy();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1563,6 +1764,126 @@ mod tests {
             preview_for(true, Some(at(1, 100.0, 100.0)), 0, rect, 1.0),
             None,
             "pointer on another monitor"
+        );
+    }
+
+    fn probe_at(x: f64, y: f64) -> ProbeEvent {
+        ProbeEvent::At(PointerAt { monitor: 0, x, y })
+    }
+
+    // spec: capture / Cursor inclusion / Delayed region capture places the pointer
+    #[test]
+    fn the_probe_ignores_positions_from_a_window_still_animating_in() {
+        // Live check 8 (2026-11-23, GNOME Shell 50.1, 3840×2160 at 125 %), pointer still at
+        // 1200,500 after the countdown. The probe window's first `enter` came while GNOME Shell
+        // was still scaling the window in and said 1107.7,179.9; one more event during the
+        // animation said 1184.5,442.1. Neither may become the result: taken as is, the arrow
+        // lands outside the selection and is dropped, which was the defect.
+        let mut probe = PointerProbe::new(true);
+        assert_eq!(probe.event(probe_at(1107.7, 179.9)), ProbeStep::Settle);
+        assert_eq!(probe.event(probe_at(1184.5, 442.1)), ProbeStep::Stay);
+        // After the settle time the covers go up, take the pointer and come down again; the
+        // compositor then reports the exact position to the settled probe window.
+        assert_eq!(probe.timed_out(), ProbeStep::Cover);
+        assert_eq!(probe.event(ProbeEvent::Left), ProbeStep::Uncover);
+        assert_eq!(
+            probe.event(probe_at(1200.0, 500.0)),
+            ProbeStep::Done(Some(Probed {
+                at: PointerAt {
+                    monitor: 0,
+                    x: 1200.0,
+                    y: 500.0
+                },
+                exact: true
+            }))
+        );
+    }
+
+    // spec: capture / Cursor inclusion / Delayed region capture places the pointer
+    #[test]
+    fn a_moving_pointer_also_waits_for_the_covers() {
+        // The settle time is a guess at the animation's length; a position before the covers
+        // came down might still be a scaled one on a slow machine, so none is taken.
+        let mut probe = PointerProbe::new(true);
+        assert_eq!(probe.event(probe_at(10.0, 10.0)), ProbeStep::Settle);
+        assert_eq!(probe.timed_out(), ProbeStep::Cover);
+        assert_eq!(probe.event(probe_at(1201.0, 500.0)), ProbeStep::Stay);
+        assert_eq!(probe.event(ProbeEvent::Left), ProbeStep::Uncover);
+        assert_eq!(
+            probe.event(probe_at(1200.0, 500.0)),
+            ProbeStep::Done(Some(Probed {
+                at: PointerAt {
+                    monitor: 0,
+                    x: 1200.0,
+                    y: 500.0
+                },
+                exact: true
+            }))
+        );
+    }
+
+    // spec: capture / Cursor inclusion / Delayed region capture places the pointer
+    #[test]
+    fn without_a_pointer_on_its_windows_the_probe_finds_none() {
+        // The pointer on no monitor of the desktop, or held by another client.
+        let mut probe = PointerProbe::new(true);
+        assert_eq!(probe.timed_out(), ProbeStep::Done(None));
+        // Covers that never take the pointer are removed, and the probe still ends.
+        let mut probe = PointerProbe::new(true);
+        assert_eq!(probe.event(probe_at(10.0, 10.0)), ProbeStep::Settle);
+        assert_eq!(probe.timed_out(), ProbeStep::Cover);
+        assert_eq!(probe.timed_out(), ProbeStep::Uncover);
+        assert_eq!(probe.event(ProbeEvent::Left), ProbeStep::Stay);
+        // The first event's monitor survives, its position is not to be drawn.
+        assert_eq!(
+            probe.timed_out(),
+            ProbeStep::Done(Some(Probed {
+                at: PointerAt {
+                    monitor: 0,
+                    x: 10.0,
+                    y: 10.0
+                },
+                exact: false
+            }))
+        );
+    }
+
+    // spec: capture / Full-screen capture / Multi-monitor
+    #[test]
+    fn a_failed_cover_step_keeps_the_monitor() {
+        // Exact mode (include-pointer on), pointer on monitor 2, covers that never bring an
+        // exact position back: the screen capture must still take monitor 2, without an arrow.
+        let mut probe = PointerProbe::new(true);
+        let first = PointerAt {
+            monitor: 1,
+            x: 1107.7,
+            y: 179.9,
+        };
+        assert_eq!(probe.event(ProbeEvent::At(first)), ProbeStep::Settle);
+        assert_eq!(probe.timed_out(), ProbeStep::Cover);
+        assert_eq!(probe.timed_out(), ProbeStep::Uncover);
+        assert_eq!(
+            probe.timed_out(),
+            ProbeStep::Done(Some(Probed {
+                at: first,
+                exact: false
+            }))
+        );
+    }
+
+    // spec: capture / Full-screen capture / Multi-monitor
+    #[test]
+    fn a_probe_for_the_monitor_takes_the_first_event() {
+        // The monitor of a window being scaled in is right; only its position is not.
+        let mut probe = PointerProbe::new(false);
+        let at = PointerAt {
+            monitor: 1,
+            x: 1107.7,
+            y: 179.9,
+        };
+        assert_eq!(
+            probe.event(ProbeEvent::At(at)),
+            ProbeStep::Done(Some(Probed { at, exact: false }))
         );
     }
 

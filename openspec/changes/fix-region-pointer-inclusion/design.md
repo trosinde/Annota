@@ -101,6 +101,9 @@ decision made here.
 time and is the one gesture that reliably places the pointer. Its scenario is written down so a
 later refactor cannot drop it silently.
 
+*Amended 2026-11-23:* `region()` is still left alone, but the probe it calls was wrong on GNOME
+Shell, so the delay path never placed the pointer. Fixed in `probe_pointer`; see "Live check 8".
+
 ## Mockups
 
 `docs/design/fix-region-pointer-inclusion/index.md` — 7 screens, light + dark, 1x + 2x, with the full
@@ -182,6 +185,66 @@ requirement states that a Capture-button confirmation never contains a pointer (
 the pointer on the toolbar, `pointer_left` clears the position). A second reviewer pass on the
 fixes, 2026-11-22, found nothing blocking. Two stale
 test comments (arrow size, window mode's pointer).
+
+## Live check 8: the probe's positions during the map animation (2026-11-23)
+
+Live check 8 failed: a delayed region capture never contained the arrow (4 of 4 runs). Measured
+with temporary logging on the maintainer's desktop (GNOME Shell 50.1, Wayland, one monitor
+3840 × 2160 at 1.25), pointer resting at 1200, 500 after the countdown:
+
+- `probe_pointer` was not too slow. Its window got the first `enter` ~120 ms after `present()`,
+  well inside `PROBE_TIMEOUT_MS` (400 ms), already fullscreen (canvas 3072 × 1728).
+- The position was wrong: 1107.7, 179.9 (two runs; 1113.0, 197.9 in two others). With the
+  pointer moving, the next events said 1184.5, 442.1 and then exactly 1200.0, 500.0 from ~270 ms
+  on. The errors fit GNOME Shell's map animation (`windowManager.js` `_mapWindow`: pivot at the
+  bottom centre, scale from 0.01 × 0.05 to 1 in 150 ms, `EASE_OUT_EXPO`): the compositor maps the
+  pointer through the scaled actor, so 1107.7, 179.9 is 1200, 500 seen through a scale of
+  ~0.79. The same happens with a plain GTK window outside Annota.
+- A pointer that does not move gets no second event after the animation, so the distorted first
+  `enter` was the result; the hot spot landed outside the selection and `pointer_inside` dropped
+  it. Screen mode probes the same way and drew its arrow at such a distorted position too; it was
+  only ever checked for presence.
+- Changing the probe window's input region does not help: committed empty at map and full after
+  the animation (`WAYLAND_DEBUG` shows the requests), mutter never sends it a new `enter`, not
+  even on motion. Mapping a second fullscreen window over it and destroying it does: the settled
+  probe window gets an exact `enter` (1200.0, 500.0) ~2 ms after the cover is destroyed.
+
+**Fix, in `probe_pointer` only** (`PointerProbe` holds the decisions, unit-tested apart from the
+windows): the first event only says that the pointer is on a probe window. After
+`PROBE_SETTLE_MS` (300 ms) cover windows showing the same frozen image are mapped over the probe
+windows; once the pointer has left the probe window for them (`PROBE_COVER_TIMEOUT_MS`, measured
+~210 ms) they are destroyed and the next event on the probe window is the result. No position
+from before the covers came down is taken, not even from a moving pointer: the settle time is a
+margin over the 150 ms animation, not a measurement of when it ends on a loaded machine. Nothing
+visible changes, since every window shows the frozen screen. The probe now takes ~0.5 s longer;
+the image is grabbed before it, so only the editor opens later. The windows are destroyed on
+every way out, a dropped future included. `capture_pointer`, `region()` and the countdown are
+unchanged.
+
+**Screen mode** calls the same probe and had the same defect: before the fix a screen capture
+with the pointer resting at 1200, 500 drew the arrow at 1383, 224 image px (1106, 179 logical);
+after it, at 1499, 624 (hot spot 1500, 625). When screen mode probes only to pick the monitor
+(include-pointer off, several monitors, not `capture-all-monitors`), the first event is still
+enough, because the event's monitor is right even while the window is scaled; that path keeps
+its old speed. If the cover step brings no exact position back, the probe still returns the first
+event's monitor, marked not exact (`Probed::exact`): a screen capture keeps the right monitor
+and draws no arrow, and a delayed region capture draws none either. Neither the monitor choice
+on two monitors nor X11 was run live: this desktop has one monitor on Wayland (manual-checks.md
+row 11).
+
+**Maintainer decision, 2026-11-23:** fixing screen mode with the delay path ("Ja, mitkorrigieren"),
+although the proposal had left screen mode out of scope; recorded in proposal.md.
+
+Tests (decision logic only, no windows): `overlay::the_probe_ignores_positions_from_a_window_still_animating_in`
+(the measured event sequence; checked to fail when `PointerProbe` is given the old "first event
+wins" rule, with `left: Done(Some(PointerAt { x: 1107.7, y: 179.9 }))`),
+`a_moving_pointer_also_waits_for_the_covers`, `without_a_pointer_on_its_windows_the_probe_finds_none`,
+`a_probe_for_the_monitor_takes_the_first_event`, `a_failed_cover_step_keeps_the_monitor` with
+`capture::a_screen_capture_keeps_only_the_monitor_under_the_pointer` (spec "Multi-monitor", whose
+baseline entry is gone). Whether the positions the compositor reports are
+right only a real compositor shows, so the end-to-end proof is `tools/live-region-pointer.py`
+(manual-checks.md row 8): it fails all three of its scenarios on the build before the fix and
+passes them after it.
 
 ## Risks / Trade-offs
 

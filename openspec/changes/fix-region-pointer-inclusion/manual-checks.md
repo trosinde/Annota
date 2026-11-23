@@ -62,9 +62,10 @@ Region capture with "Include pointer" on, on a real session. Reported 2026-11-10
 | 5 | With the pointer inside the selection, nudge the selection out from under it with `Shift+→` | The preview flips to "not in capture" without confirming anything (mockup 03). |
 | 6 | Toggle "Include pointer" off | Arrow, chip and hint segment all disappear; the hint bar is the one from add-screen-capture (mockup 04). |
 | 7 | Move the pointer over the overlay toolbar, then press `Enter` | No arrow: that chrome is not in the frozen image, so the position is forgotten rather than kept stale. |
-| 8 | Region capture with a delay: select, then move the pointer into the region during the countdown | The arrow is where it stood when the countdown ended — the path this change deliberately left alone (design.md D4). |
+| 8 | Region capture with a delay: select, then move the pointer into the region during the countdown | The arrow is where it stood when the countdown ended (design.md D4; the probe it relies on was fixed for this check, see design.md "Live check 8"). **pass, 2026-11-23**: `tools/live-region-pointer.py --runs 3`, GNOME Shell 50.1 Wayland, 3840 × 2160 at 1.25, selection 750 × 500 px at 1000, 400, delay 3 s. Pointer outside at confirmation and moved to 1200, 500 during the countdown: arrow drawn from 249, 124 (hot spot expected 250, 125), 3 of 3; pointer inside throughout: same, 3 of 3; screen capture, pointer at rest at 1200, 500: arrow from 1499, 624 (expected 1500, 625), 3 of 3. The same tool on the build before the fix: "no arrow in the image, expected its hot spot at 250,125" for both region scenarios, "no arrow near 1500,625" for screen (drawn at 1383, 224). |
 | 9 | Two monitors: selection on one, pointer on the other, `Enter` | No arrow. |
 | 10 | Chip and hint segment in dark and at 2× | Legible; icons recoloured by GTK, not stuck dark. |
+| 11 | Two monitors, screen capture with Include Pointer on and off, pointer resting on monitor 2 | Only monitor 2 is captured; with the pointer on, the arrow is where the pointer rests (the probe's cover step on two monitors, design.md "Live check 8"). **Open**: not run, this desktop has one monitor. X11 was not run either. |
 
 ## Known, not covered
 

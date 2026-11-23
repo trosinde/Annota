@@ -38,8 +38,12 @@ and it lands in the image. That is a deliberate, useful gesture — it is simply
   tell **before** confirming whether the pointer will end up in the image, and can learn the
   gesture that puts it there.
 - The delay path keeps its current behaviour (re-grab and re-probe after the countdown).
-- Screen and window modes are untouched. Not a breaking change: the setting, its default
-  (exclude) and the overlay's pointer toggle all keep their meaning.
+- The pointer probe (`overlay::probe_pointer`) SHALL report a position only once the compositor
+  has stopped animating its window in, for the delay path and for screen mode alike. Added
+  2026-11-23 after live check 8 failed; screen mode brought into scope by the maintainer
+  ("Ja, mitkorrigieren", 2026-11-23). See design.md "Live check 8".
+- Window mode is untouched. Not a breaking change: the setting, its default (exclude) and the
+  overlay's pointer toggle all keep their meaning.
 
 **Known limitation this change must design around, not hide:** confirming by releasing the drag (superseded: releasing only ends the drag, confirmation is `Enter` or the Capture button; see design.md "Review findings, task 5.5")
 leaves the pointer exactly on the selection edge, where the arrow body extends outside the crop
@@ -64,7 +68,10 @@ None.
 **Code**
 - `src/capture/overlay.rs` — `Session::first_pointer` / `note_pointer` are replaced by the
   position at confirmation; the region toolbar's pointer toggle gains its preview state.
-- `src/capture/mod.rs` — `region()` gains the `contains` guard, mirroring `screen()`.
+- `src/capture/mod.rs` — `region()` gains the `contains` guard, mirroring `screen()`; `screen()`
+  draws the pointer only at an exact probed position (2026-11-23).
+- `src/capture/overlay.rs` — `probe_pointer` waits out the map animation and re-picks the pointer
+  with cover windows (2026-11-23).
 - `data/ui/region-overlay.blp` — whatever the approved mockups add.
 - Tests: the silent-clipping case and the confirm-time position need unit coverage; today nothing
   fails when the pointer is dropped.
@@ -78,8 +85,14 @@ None.
 
 ## Out of scope
 
-- Screen and window capture modes — screen mode is verified working and keeps its code path.
-- The delay path's re-probe, which already does the right thing.
+- Window capture mode. ~~Screen mode~~: moved into scope 2026-11-23 by the maintainer's
+  decision ("Ja, mitkorrigieren"); its pointer probe is fixed with the delay path's, see below.
+- ~~The delay path's re-probe, which already does the right thing.~~ Amended 2026-11-23: live
+  check 8 showed it did not. `overlay::probe_pointer` took a position GNOME Shell reports while
+  it is still animating the probe window in, so the delayed arrow landed outside the selection
+  (design.md "Live check 8"). The fix is in `probe_pointer`, which screen mode also uses: its
+  arrow is now drawn where the pointer is instead of ~400 px off, and the probe takes ~0.5 s
+  longer when the pointer is drawn. The order of countdown, grab and probe is unchanged.
 - The drawn pointer's appearance (shape, size, scaling) — `frame::pointer_path` stays as it is.
 - Cursor highlight and click ripple (Phase 2, `add-screen-recording`).
 - Any X11-specific pointer picking; CLAUDE.md §2 rules out direct X11 window access without an ADR.
