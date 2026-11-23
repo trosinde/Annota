@@ -133,7 +133,7 @@ The user SHALL be able to record the default microphone, the system audio (monit
 - **THEN** the recording has a video track and no audio track
 
 ### Requirement: Stop recording
-Stop, the Record shortcut, the desktop ending the screen-sharing session and the end of a recorded window's stream SHALL each end the recording, finish the working file and open the Export Recording window. Stopping SHALL close the screen-sharing session. Annota's own stop is the only guaranteed one: whether GNOME's ■ stop or closing a recorded window ends the session or stream is unmeasured (design.md P5, P6); those two scenarios are required paths for when the signal comes.
+Stop, the Record shortcut, the desktop ending the screen-sharing session and the end of a recorded window's stream SHALL each end the recording, finish the working file and open the Export Recording window. Stopping SHALL close the screen-sharing session. GNOME's own stop reaches Annota only as `Session.Closed`, with no end of stream (design.md P5); Annota SHALL finish the recording on it without waiting for one. Whether closing a recorded window ends its stream is unmeasured (P6).
 
 #### Scenario: Stop by button
 - **WHEN** a recording runs and the user activates Stop in the control
@@ -144,8 +144,8 @@ Stop, the Record shortcut, the desktop ending the screen-sharing session and the
 - **THEN** the recording ends as with Stop
 
 #### Scenario: Session ended by the desktop
-- **WHEN** a recording runs and the portal reports the session closed (unmeasured: P5)
-- **THEN** what was recorded is kept and the Export Recording window opens
+- **WHEN** a recording runs and the portal reports the session closed while the stream has sent no end of stream
+- **THEN** the recording is finished at once without waiting for an end of stream, what was recorded is kept and the Export Recording window opens
 
 #### Scenario: Recorded window closed
 - **WHEN** a window recording runs and the window's stream ends (unmeasured: P6)

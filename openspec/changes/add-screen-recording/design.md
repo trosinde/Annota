@@ -142,10 +142,11 @@ neither place nor keep a window above others, so: GNOME places it; the user drag
 or minimises it with its Minimize button (`gtk_window_minimize`) or via GNOME (`Super+H`); it is **in the video** of a screen recording and of a
 region recording it overlaps. In a window recording it is not (the stream shows that window
 only, measured for stills). The global Record shortcut is therefore the stop path that always
-works and the only one Annota can guarantee. GNOME's screen-sharing indicator in GNOME's panel
-(a screen-cast icon with a small ■ stop button; on the maintainer's desktop in the bottom panel)
-may offer another, but whether pressing ■ sends `Session.Closed` or ends the stream is
-unmeasured (P5); Annota handles both signals as required paths. The indicator itself is in the
+works. GNOME's screen-sharing indicator in GNOME's panel (a screen-cast icon with a small ■ stop
+button; on the maintainer's desktop in the bottom panel) offers another: pressing ■ sends
+`Session.Closed` (3.27 s after the stream started in the probe), buffers simply stop (last at
+3.05 s), and there is no EOS and no error (P5). Annota therefore finishes the recording on
+`Session.Closed` and never waits for an EOS. The indicator itself is in the
 video of a screen recording (P12, seen in the P4 frames). No red frame
 around the region while recording: an overlay window could not be kept on top either. The
 dashed outline is drawn only during the countdown, whose frames are never recorded.
@@ -228,7 +229,7 @@ PipeWire 1.6.2 / GStreamer 1.28.2, Wayland, one monitor HDMI-4 3072×1728 logica
 | P2 | Monitor stream properties: are `position` and `size` present? Logical or physical px? | region → stream crop mapping, "Region not on the chosen screen" | measured at 1.25 | `position` (0, 0), `size` (3072, 1728) = GDK logical geometry; `mapping_id` absent. Scale 1.0 and multi-monitor not measured. |
 | P3 | Monitor stream buffer size vs. `size` | crop factors | measured at 1.25 | Buffer 3840×2160 = `size` × 1.25 (monitor scale); crop meta (0, 0, 3840, 2160) = whole buffer; caps `framerate=0/1`, `max-framerate=60/1`; first frame after 64–73 ms → scenario "Record a region on a scaled monitor". |
 | P4 | `AvailableCursorModes` for monitor sources; does Embedded draw the pointer? | "Pointer in the recording" | measured (monitor) | Modes 7. Hidden: no pointer; Embedded: pointer drawn; Metadata: no pointer + `GstVideoRegionOfInterestMeta` (frames looked at, not committed). Window sources not measured. |
-| P5 | Does GNOME offer a stop control for a portal ScreenCast session (GNOME's panel / quick settings), and does Annota then receive `Session::Closed`? | "Session ended by the desktop" | unmeasured | The indicator exists (screen-cast icon + ■ in the bottom panel, visible in the P4 frames) but was not found during the runs at 18:00 and 18:33, so ■ was never pressed: no `Session.Closed`, no EOS, buffers without a gap until the 60 s limit. Rerun pressing ■. Scenario unmeasured; Annota's own stop is the guaranteed path, `Session.Closed` handling stays required. |
+| P5 | Does GNOME offer a stop control for a portal ScreenCast session (GNOME's panel / quick settings), and does Annota then receive `Session::Closed`? | "Session ended by the desktop" | measured | Run 18:46: ■ next to the screen-cast icon in the bottom panel pressed → `Session.Closed` after 3.27 s, last buffer at 3.05 s, no EOS, no error. Runs 18:00/18:33: ■ not found, so not pressed; no `Session.Closed`, buffers until 60 s → scenario "Session ended by the desktop" (finish on `Session.Closed`, no EOS wait). |
 | P6 | Window stream when the window is closed (EOS, error, frozen?) and when it is resized | "Recorded window closed", D2 scaling | inconclusive | Buffer 6144×3456 = 2× `size` (3072, 1728), crop (0, 0, 3152, 1760), `position` absent. After resizes and close: no size change, no EOS, no `Session.Closed`, buffers until 60 s — but crop and content were read only once. Rerun 18:35 with the tracking `window-end`: after the window was chosen and Share pressed, `Session.Closed` arrived and Start never answered (120 s timeout); cause unknown (window type? parent window? GNOME race?) → scenario "Session closed while waiting". Resize/close still unmeasured; rerun with an ordinary application window. Scenario unmeasured. |
 | P7 | Frame delivery on a static screen | constant frame rate | invalid run; informational | A video played in both phases (~35 buffers/s with and without keepalive). Settled by design instead (D3, "Recording frame rate"); a rerun is optional. |
 | P8 | 30 min continuous monitor stream at 4K: dropped frames, memory, CPU with `x264enc superfast` | performance budget | moved to Verify | Measured with the real implementation (task 6.2), not with the probe. |
