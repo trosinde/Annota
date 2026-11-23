@@ -1,6 +1,6 @@
 # Add recording extras — mockups
 
-Design approved: _pending_
+Design approved: 2026-11-22 (maintainer)
 
 Extras on top of the core recording (`add-screen-recording`, `docs/design/add-screen-recording/`):
 webcam overlay with layout and Swap, pointer highlight, drawing while recording, the video editor
@@ -39,6 +39,7 @@ Titles are *Requirement › Scenario* exactly as in
 | Pointer highlight › Metadata cursor not offered | [02](png/02-setup-extras-unavailable-light@1x.png) | Row insensitive, "Not available on this desktop". |
 | Draw while recording › Arrow in the recording | [06](png/06-draw-while-recording-light@1x.png) | Arrow tool, Coral. Positions in the frame: pipeline test. |
 | Draw while recording › Input returns after drawing | [06](png/06-draw-while-recording-light@1x.png) → [04](png/04-recording-control-extras-light@1x.png) | `Esc`, `D`, Done or the pressed Draw button: surface closes, control returns to its narrow form. |
+| Draw while recording › Region outline while drawing | [06](png/06-draw-while-recording-light@1x.png) | 2 px dashed outline 2 px outside the selection, drawn by the surface only, outside the crop, so never in the video. Screen recordings: no outline. |
 | Draw while recording › Draw in a window recording | [04](png/04-recording-control-extras-light@1x.png) | State card "Window recording · Draw insensitive" with the tooltip text. |
 | Draw while recording › Strokes outside the region | — (no UI; pipeline test) | The surface covers the whole monitor; the region crop drops strokes outside the selection. See open question 2. |
 | Drawing tools and fade › Drawing fades | [06](png/06-draw-while-recording-light@1x.png) | Fade menu card; the rectangle drawn at 0:14 is shown fading. Timing: pipeline test. |
