@@ -52,7 +52,7 @@ Titles are *Requirement › Scenario* exactly as in the spec files of this chang
 | Record shortcut › Shortcut opens the setup | [01](png/01-recording-setup-light@1x.png) | |
 | Record shortcut › Shortcut cancels the countdown | [04](png/04-countdown-light@1x.png) | Note "Not recorded". |
 | Record shortcut › Record shortcut on GNOME 46 | — (reuses add-screen-capture 09/10) | GNOME-keybinding path of Preferences › Capture gains a "Record video" row with the same layout as the Region/Window/Screen rows there. |
-| Record shortcut › Record row shows the portal's trigger | [14](png/14-preferences-record-shortcut-light@1x.png), [12](png/12-welcome-record-card-light@1x.png) | Drawn with the preferred `Shift+Ctrl+Print`; any reported trigger (e.g. `Super+Alt+R`) replaces it on both. |
+| Record shortcut › Record row shows the portal's trigger | [14](png/14-preferences-record-shortcut-light@1x.png), [12](png/12-welcome-record-card-light@1x.png) | Drawn with the preferred `Super+Alt+R` (design.md Q7); any reported trigger (e.g. `Ctrl+W`) replaces it on both. |
 | Record shortcut › Record trigger taken by GNOME | [14](png/14-preferences-record-shortcut-light@1x.png), [12](png/12-welcome-record-card-light@1x.png) | Not drawn separately: same "Used by GNOME: <action>" treatment as the capture rows (fix-portal-shortcut-bindings 06a–06c). |
 | Recording on the command line › Record a screen from the command line | [03](png/03-waiting-for-screen-light@1x.png) → [04](png/04-countdown-light@1x.png) | |
 | Recording on the command line › Invalid record mode | — (no UI; CLI test) | |
@@ -115,7 +115,7 @@ Titles are *Requirement › Scenario* exactly as in the spec files of this chang
 | Recording control | `M` | Mute / unmute microphone |
 | Recording control | `S` | Mute / unmute system audio |
 | Recording control | — (button only; GNOME's own `Super+H` also works) | Minimize |
-| Global, ID `record` | `Shift+Ctrl+Print` (preferred; show the trigger the portal reports, none if unbound) | Open the setup · cancel a countdown · stop a running or paused recording |
+| Global, ID `record` | `Super+Alt+R` (preferred, Q7; show the trigger the portal reports, none if unbound) | Open the setup · cancel a countdown · stop a running or paused recording |
 | Export Recording | `Enter` | Export (default widget, also from the File name entry) |
 | Export Recording | `Esc` / close button | Same as closing: asks "Discard Recording?" before an export finished |
 

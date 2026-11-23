@@ -82,7 +82,7 @@ CODES = {0: "success", 1: "cancelled by the user", 2: "other"}
 ELEMENTS = ("pipewiresrc", "pulsesrc", "level", "audiomixer", "videocrop", "videorate",
             "videoscale", "videoconvert", "x264enc", "opusenc", "matroskamux", "mp4mux",
             "vp9enc", "webmmux", "voaacenc", "h264parse", "matroskademux")
-RECORD_TRIGGER = "SHIFT+CTRL+Print"
+RECORD_TRIGGER = "LOGO+ALT+r"  # Super+Alt+R, design.md Q7 (2026-11-23)
 
 GLib = Gio = Gst = None  # imported lazily, so `--help` touches nothing
 

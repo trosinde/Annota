@@ -16,7 +16,7 @@ so that the recording pipeline can be built, probed and released on its own.
   (0–10 s, default 3).
 - A small "Recording" control window: elapsed time, pause/resume, stop, microphone and
   system-audio mute with level meters.
-- A global "Record video" shortcut (ID `record`, preferred `Shift+Ctrl+Print`) that opens the
+- A global "Record video" shortcut (ID `record`, preferred `Super+Alt+R`) that opens the
   setup and stops a running recording; `annota --record region|window|screen|toggle`.
 - A crash-safe Matroska working file in the recordings folder (default `~/Videos/Annota`).
 - After stop, the Export Recording window: MP4 (H.264 + AAC) or WebM (VP9 + Opus), Include

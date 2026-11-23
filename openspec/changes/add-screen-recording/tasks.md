@@ -33,8 +33,9 @@ capability is named. Every test carries a `spec:` tag for the scenarios it prove
 - [ ] 4.2 Waiting indicator "Waiting for a screen…" reusing the window-wait OSD (mockup 03)
 - [ ] 4.3 Countdown label and recording start after the waiting indicator and the OSD have gone — Recording countdown / Countdown is not recorded, Cancel the countdown, No countdown, Waiting indicator is not recorded (mockup 04)
 - [ ] 4.4 Control window: time, pause, stop, mutes, meters, `Space`/`M`/`S`, second request raises it — Recording control / Elapsed time, Second recording request; Recording control / Minimize the control; Pause and resume / Paused state (mockups 05, 06)
-- [ ] 4.5 Record shortcut (portal ID `record` + GNOME-keybinding fallback), Preferences › Capture row — Record shortcut / all six scenarios incl. Portal assigns a different record trigger and Record trigger taken by GNOME (mockup 14); preferred trigger per the maintainer's answer (design.md open question)
+- [ ] 4.5 Record shortcut (portal ID `record` + GNOME-keybinding fallback), Preferences › Capture row — Record shortcut / all six scenarios incl. Portal assigns a different record trigger and Record trigger taken by GNOME (mockup 14); preferred trigger `Super+Alt+R` (design.md Q7)
 - [ ] 4.6 Welcome page Record card — `app-shell` / Welcome page / Record card starts the recording setup, and the existing Welcome page scenarios stay green (mockup 12); region-not-on-screen toast (mockup 13)
+- [ ] 4.7 `designer` agent: mockup for the toast "The desktop ended the screen-sharing request. Nothing was recorded." in the style of mockup 13 (design.md Q9), light + dark, 1x + 2x, mapped in `index.md` to Recording source / Session closed while waiting; then implement it
 
 ## 5. Export and integration
 - [ ] 5.1 Export Recording window: poster frame and duration (discoverer), name, folder, format, include audio (mockup 07)

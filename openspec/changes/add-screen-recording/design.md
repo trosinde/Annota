@@ -37,8 +37,11 @@ this branch by the coordinating session):
 | Q2 | H.264 encoder | **x264** (`x264enc`, `gstreamer1.0-plugins-ugly`), libx264 loaded by GStreamer at runtime, never linked. |
 | Q3 | AAC encoder | **`voaacenc`** (`gstreamer1.0-plugins-bad`). |
 | Q4 | Working-file location | **Visible in `~/Videos/Annota`** (the recordings folder). |
-| Q5 | Record shortcut | Preferred trigger **`Shift+Ctrl+Print`**. Probe P11 decides what GNOME does with it; if GNOME holds the key, the row and the Record card show "Used by GNOME" exactly as for the capture shortcuts. |
+| Q5 | Record shortcut | ~~Preferred trigger `Shift+Ctrl+Print`~~ — superseded by Q7 (2026-11-23). If GNOME holds the key, the row and the Record card show "Used by GNOME" exactly as for the capture shortcuts. |
 | Q6 | Control and countdown | The control gets a **Minimize** button (mockups 05, 06); the recording countdown ring is **red** (`--destructive-bg`, mockup 04). |
+| Q7 | Preferred Record trigger (2026-11-23, after P11) | **`Super+Alt+R`** (XDG `LOGO+ALT+r`, GTK `<Super><Alt>r`), outside the Print family of Annota's capture defaults. `Shift+Ctrl+Print` had collided with a stored `screen` trigger and GNOME moved `record` to `Ctrl+W`. The UI still shows only the trigger the portal reports. Mockups 05, 06, 12, 13, 14 redrawn. |
+| Q8 | Region recording resolution (2026-11-23, after P2/P3) | **Buffer pixel density**: an 800×600 logical selection on a 1.25 monitor is stored as 1000×750; never downscaled to logical size. |
+| Q9 | Desktop ends the request during Start (2026-11-23, after the P6 rerun) | Text approved: toast "The desktop ended the screen-sharing request. Nothing was recorded." in the style of mockup 13; its mockup is drawn during apply (task 4.7). |
 | — | Designer assumptions | Accepted as drawn: Pause has the initial focus in the control; Cancel is the default in "Discard Recording?"; an unavailable saved source falls back to Region; Discard/Export sit in the Export Recording footer. |
 
 ## Context
@@ -84,7 +87,7 @@ Alternatives considered:
   `position` and `size` are logical (`(0, 0)`, 3072×1728), its buffers physical (3840×2160),
   and the crop meta covers the whole buffer. So: selection − `position`, times the factor
   buffer size ÷ `size` (per axis, from the first buffer), gives the buffer crop; the recording
-  keeps the buffer's pixel density (an 800×600 selection at 1.25 records 1000×750). Not yet
+  keeps the buffer's pixel density (an 800×600 selection at 1.25 records 1000×750; Q8). Not yet
   measured at scale 1.0 or with several monitors. If the chosen monitor does not contain the
   whole selection, the session is closed with a toast (mockup 13).
   Rejected alternative: ScreenCast first and the overlay drawn on the stream's first frame. That
@@ -170,12 +173,12 @@ recording pipeline). No device picker in this change.
 
 ### D7 — Shortcut and command line
 
-GlobalShortcuts ID `record`, description "Record video", preferred trigger `Shift+Ctrl+Print`,
+GlobalShortcuts ID `record`, description "Record video", preferred trigger `Super+Alt+R` (Q7),
 bound together with `region`/`window`/`screen` and shown only as the portal reports it (same
 code path as `fix-portal-shortcut-bindings`). Measured (P11): GNOME bound `record` to `Ctrl+W`
 when the preferred `Shift+Ctrl+Print` was already a stored trigger of `screen` on that machine,
 so the preferred trigger is a request, never a promise; nothing in the UI names it as the
-user's key. Which preferred trigger to ask for is open (see "Risks / open questions"). Fallback on GNOME 46: custom keybinding running
+user's key. The maintainer therefore moved the preferred trigger out of the Print family (Q7). Fallback on GNOME 46: custom keybinding for `<Super><Alt>r` running
 `annota --record toggle`. Toggle semantics: idle → overlay in Video mode; countdown → cancel;
 recording/paused → stop. `--record region|window|screen|toggle` is parsed in `src/cli.rs`
 (status 2 on an invalid value, as `--capture`).
@@ -248,21 +251,8 @@ Non-portal measurements in the same group: `pulsesrc` default source and
   sources are insensitive (scenario "Source not offered").
 
 ## Risks / open questions
-- Q1-Q6 are decided (see "Design approved" above).
-- **Open (maintainer): preferred Record trigger.** `Shift+Ctrl+Print` collides on any machine
-  where an earlier binding gave it to another Annota shortcut (P11: GNOME then moved `record` to
-  `Ctrl+W`, a key every editor uses for "close"). Annota's own defaults are `Print`, `Alt+Print`,
-  `Shift+Print`; `Shift+Ctrl+Print` is free on a default install. Options: keep it; pick a key
-  outside the Print family (e.g. `Super+Alt+R`); or send no preferred trigger and let the user
-  choose in GNOME's dialog. Not decided here.
-- **Open (maintainer/designer): message when the desktop ends the request.** Scenario "Session
-  closed while waiting" shows "The desktop ended the screen-sharing request. Nothing was
-  recorded." as a toast in the style of mockup 13. The cause of P6's early `Session.Closed` is
-  unknown, so the text says only what is true for every cause (CLAUDE.md §5); it has no mockup
-  of its own yet.
-- **Open (maintainer): region recording resolution.** D2 now records a region at the buffer's
-  pixel density (1000×750 for an 800×600 selection at 1.25), as the stream delivers it.
-  Downscaling to logical size would lose detail; confirm.
+- Q1-Q9 are decided (see "Design approved" above). Q9's text says only what is true for every
+  cause of an early `Session.Closed`, which is unknown (CLAUDE.md §5).
 - Region mapping (P2/P3) may turn out unreliable under fractional scaling; then D2's rejected
   alternative becomes the plan and the setup flow needs new mockups (a new design gate).
 - Live 4K H.264 at 30 fps on weak CPUs may drop frames (P8). A hardware encoder (VA-API) is out

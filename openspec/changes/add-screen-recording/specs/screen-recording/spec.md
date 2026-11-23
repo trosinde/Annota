@@ -152,7 +152,7 @@ Stop, the Record shortcut, the desktop ending the screen-sharing session and the
 - **THEN** what was recorded is kept and the Export Recording window opens
 
 ### Requirement: Record shortcut
-Annota SHALL register a global shortcut "Record video" (ID `record`, preferred `Shift+Ctrl+Print`) under the rules of `capture` "Global capture hotkey": Preferences › Capture and the Record card show only the trigger the portal reports, which may differ from the preferred one; without the portal, a GNOME custom keybinding running `annota --record toggle`. It SHALL open the overlay in Video mode, cancel a running countdown, or stop a running or paused recording.
+Annota SHALL register a global shortcut "Record video" (ID `record`, preferred `Super+Alt+R`) under the rules of `capture` "Global capture hotkey": Preferences › Capture and the Record card show only the trigger the portal reports, which may differ from the preferred one; without the portal, a GNOME custom keybinding running `annota --record toggle`. It SHALL open the overlay in Video mode, cancel a running countdown, or stop a running or paused recording.
 
 #### Scenario: Shortcut opens the setup
 - **WHEN** no recording runs and the user presses the Record shortcut
@@ -164,20 +164,20 @@ Annota SHALL register a global shortcut "Record video" (ID `record`, preferred `
 
 #### Scenario: Record shortcut on GNOME 46
 - **WHEN** the GlobalShortcuts portal is unavailable and the user enables the Record shortcut in Preferences › Capture
-- **THEN** a GNOME custom keybinding for `Shift+Ctrl+Print` running `annota --record toggle` is created
+- **THEN** a GNOME custom keybinding for `Super+Alt+R` running `annota --record toggle` is created
 
 #### Scenario: Record row shows the portal's trigger
-- **WHEN** the GlobalShortcuts portal reports `record` bound to `Super+Alt+R`
-- **THEN** the "Record video" row in Preferences › Capture and the Record card show `Super+Alt+R`
+- **WHEN** the GlobalShortcuts portal reports `record` bound to `Ctrl+Alt+R`
+- **THEN** the "Record video" row in Preferences › Capture and the Record card show `Ctrl+Alt+R`
 
 #### Scenario: Portal assigns a different record trigger
-- **WHEN** the GlobalShortcuts portal reports `record` bound to `Ctrl+W` after Annota asked for `Shift+Ctrl+Print`
+- **WHEN** the GlobalShortcuts portal reports `record` bound to `Ctrl+W` after Annota asked for `Super+Alt+R`
 - **THEN** the "Record video" row and the Record card show `Ctrl+W`
-- **AND** neither shows `Shift+Ctrl+Print`
+- **AND** neither shows `Super+Alt+R`
 
 #### Scenario: Record trigger taken by GNOME
-- **WHEN** the GlobalShortcuts portal reports `record` bound to `Shift+Ctrl+Print` and GNOME's keybinding settings assign `Shift+Ctrl+Print` to one of GNOME's own actions
-- **THEN** the "Record video" row shows `Shift+Ctrl+Print` with "Used by GNOME: <action>", and the Record card marks its keycaps as used by GNOME
+- **WHEN** the GlobalShortcuts portal reports `record` bound to `Super+Alt+R` and GNOME's keybinding settings assign `Super+Alt+R` to one of GNOME's own actions
+- **THEN** the "Record video" row shows `Super+Alt+R` with "Used by GNOME: <action>", and the Record card marks its keycaps as used by GNOME
 
 ### Requirement: Recording on the command line
 `annota --record region|window|screen` SHALL open the recording flow in that mode: region opens the overlay in Video mode, window and screen request the source with the saved choices. `annota --record toggle` SHALL act as the Record shortcut. Any other value SHALL exit with status 2 and print the valid values.
