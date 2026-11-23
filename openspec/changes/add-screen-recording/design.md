@@ -80,9 +80,13 @@ Alternatives considered:
   Screenshot | Video mode pill; Video shows the setup. Start Recording closes the overlay and
   requests a ScreenCast **monitor** source (`types` = MONITOR, `multiple` = false, no
   `persist_mode`). The stream is cropped (`videocrop`) to the selection. The selection is
-  in overlay (logical) coordinates; the mapping to stream pixels uses the stream's `position`
-  and `size` and the buffer size — all unmeasured (probes P2, P3). If the chosen monitor does
-  not contain the whole selection, the session is closed with a toast (mockup 13).
+  in overlay (logical) coordinates. Measured (P2/P3, GNOME 50, scale 1.25): the stream's
+  `position` and `size` are logical (`(0, 0)`, 3072×1728), its buffers physical (3840×2160),
+  and the crop meta covers the whole buffer. So: selection − `position`, times the factor
+  buffer size ÷ `size` (per axis, from the first buffer), gives the buffer crop; the recording
+  keeps the buffer's pixel density (an 800×600 selection at 1.25 records 1000×750). Not yet
+  measured at scale 1.0 or with several monitors. If the chosen monitor does not contain the
+  whole selection, the session is closed with a toast (mockup 13).
   Rejected alternative: ScreenCast first and the overlay drawn on the stream's first frame. That
   avoids the coordinate mapping but changes the capture flow and the order of dialogs; revisit if
   P2/P3 show the mapping is unreliable.
@@ -95,7 +99,10 @@ Alternatives considered:
   pointer; the desktop's chooser decides.
 - No restore token anywhere, as for window stills: the chooser is the user's consent each time.
 - Pointer: `cursor_mode` Embedded when Include pointer is on and `AvailableCursorModes` offers
-  it, else Hidden (`screencast::cursor_mode`, reused).
+  it, else Hidden (`screencast::cursor_mode`, reused). Measured (P4): Hidden draws no pointer,
+  Embedded draws it into the frame. Metadata draws no pointer and adds a
+  `GstVideoRegionOfInterestMeta` per buffer (the pointer position) — noted for
+  `add-recording-extras` E1, not used here.
 
 ### D3 — Pipeline and working file
 
@@ -120,9 +127,13 @@ pulsesrc (default sink .monitor)   ─ volume(mute) ─ level ─ opusenc ──
 - Error on the bus (disk full, element error, stream gone with error) → stop as in "Stop
   recording", keep what was written, banner in the Export window (mockup 11). The log names the
   element and error, never content (CLAUDE.md §7).
-- Frame rate: the ScreenCast stream may be damage-driven (no frames while nothing changes).
-  `videorate` produces a constant 30 fps; whether `pipewiresrc` needs `keepalive-time` or
-  `always-copy` is part of probe P7.
+- Frame rate (settled without a measurement, requirement "Recording frame rate"): the
+  pipeline assumes nothing about the stream's rate. Caps say `framerate=0/1` (variable,
+  measured P2/P3, `max-framerate=60/1`); the stream may be damage-driven, deliver bursts or
+  stop while nothing changes. Frames keep the stream's timestamps, and `videorate` (with a
+  repeat of the last frame across gaps) produces the constant 30 fps the encoder needs. A
+  `keepalive-time` on `pipewiresrc` is allowed as an optimisation, never relied on. P7 stays
+  informational.
 
 ### D4 — The control window (Wayland limits stated, not hidden)
 
@@ -131,7 +142,8 @@ neither place nor keep a window above others, so: GNOME places it; the user drag
 or minimises it with its Minimize button (`gtk_window_minimize`) or via GNOME (`Super+H`); it is **in the video** of a screen recording and of a
 region recording it overlaps. In a window recording it is not (the stream shows that window
 only, measured for stills). The global Record shortcut is therefore the stop path that always
-works; the desktop's own screen-sharing indicator may offer another (probe P5). No red frame
+works; GNOME's screen-sharing indicator in GNOME's panel / quick settings may offer another
+(probe P5, inconclusive: on the maintainer's desktop with a bottom panel none was found). No red frame
 around the region while recording: an overlay window could not be kept on top either. The
 dashed outline is drawn only during the countdown, whose frames are never recorded.
 
@@ -156,7 +168,10 @@ recording pipeline). No device picker in this change.
 
 GlobalShortcuts ID `record`, description "Record video", preferred trigger `Shift+Ctrl+Print`,
 bound together with `region`/`window`/`screen` and shown only as the portal reports it (same
-code path as `fix-portal-shortcut-bindings`). Fallback on GNOME 46: custom keybinding running
+code path as `fix-portal-shortcut-bindings`). Measured (P11): GNOME bound `record` to `Ctrl+W`
+when the preferred `Shift+Ctrl+Print` was already a stored trigger of `screen` on that machine,
+so the preferred trigger is a request, never a promise; nothing in the UI names it as the
+user's key. Which preferred trigger to ask for is open (see "Risks / open questions"). Fallback on GNOME 46: custom keybinding running
 `annota --record toggle`. Toggle semantics: idle → overlay in Video mode; countdown → cancel;
 recording/paused → stop. `--record region|window|screen|toggle` is parsed in `src/cli.rs`
 (status 2 on an invalid value, as `--capture`).
@@ -197,24 +212,27 @@ Tool: `tools/recording-probe.py` (task 2.1; commands and the dialogs they show i
 `manual-checks.md`). Results go to `probe-results/`.
 
 No sentence in the spec describes what the portal or GNOME does; the spec states what Annota
-sends and how it handles each answer. The behaviour below is **assumed and unmeasured**. Each
-item gets a `tools/portal-probe.py` run on GNOME 46 (Ubuntu 24.04) and GNOME 50 (the
-maintainer's desktop) in task group 1, before any code relies on it:
+sends and how it handles each answer. Each item gets a probe run on GNOME 46 (Ubuntu 24.04) and
+GNOME 50 (the maintainer's desktop) before any code relies on it.
 
-| # | Probe | Why it matters |
-|---|---|---|
-| P1 | `SelectSources` types=MONITOR, multiple=false: is a chooser shown (also with one monitor)? Response codes for close vs. cancel. | waiting indicator, "Source request cancelled" |
-| P2 | Monitor stream properties: are `position` and `size` present? Logical or physical px, at scale 1.0 and at 1.25 with `scale-monitor-framebuffer`? | region → stream crop mapping, "Region not on the chosen screen" |
-| P3 | Monitor stream buffer size vs. `size` (the window probe saw a 2× buffer with a transparent margin) | crop factors |
-| P4 | `AvailableCursorModes` for monitor and window sources; does Embedded draw the pointer into a monitor stream? | "Pointer in the recording" |
-| P5 | Does GNOME offer a stop control for a portal ScreenCast session (top-bar indicator / quick settings), and does Annota then receive `Session::Closed`? | "Session ended by the desktop" |
-| P6 | Window stream when the window is closed (EOS, error, frozen?) and when it is resized (caps renegotiation, buffer size) | "Recorded window closed", D2 scaling |
-| P7 | Frame delivery on a static screen (damage-driven?) over 60 s; does `videorate` get enough buffers, does `pipewiresrc` need `keepalive-time`? | constant frame rate, "Paused time is not recorded" timing |
-| P8 | 30 min continuous monitor stream at 4K: dropped frames, memory, CPU with `x264enc superfast` | performance budget |
-| P9 | ScreenCast on a GNOME X11 session: is the portal / MONITOR / WINDOW offered? (also `fix-window-capture-screencast` task 2.4) | X11 behaviour, "Source not offered" |
-| P10 | Waiting indicator as the chooser's parent for MONITOR (as measured for WINDOW) | D2 |
-| P11 | GlobalShortcuts: binding a 4th ID `record` in an existing session — does GNOME show its bind dialog again, which trigger does it report for `Shift+Ctrl+Print`, does GNOME Shell hold that key itself ("Used by GNOME")? | "Record shortcut", "Record row shows the portal's trigger" |
-| P12 | Does GNOME's screen-sharing indicator appear in a monitor stream (top bar in the video)? | documentation only |
+Measured on GNOME Shell 50.1 / xdg-desktop-portal 1.21.1 / xdg-desktop-portal-gnome 50.0 /
+PipeWire 1.6.2 / GStreamer 1.28.2, Wayland, one monitor HDMI-4 3072×1728 logical at scale 1.25
+(`probe-results/2026-11-23-ubuntu26.04-wayland.md`, runs 17:53 and 18:00). GNOME 46 not run.
+
+| # | Probe | Why it matters | Status (GNOME 50) | Evidence |
+|---|---|---|---|---|
+| P1 | `SelectSources` types=MONITOR, multiple=false: is a chooser shown (also with one monitor)? Response codes for close vs. cancel. | waiting indicator, "Source request cancelled" | measured | Chooser shown with a single monitor; Start 0 after 4.3–4.8 s. Cancel: Start 1 after 5.0–9.8 s, and the portal has already removed the session (`Session.Close` → UnknownMethod) → scenarios "Chooser cancelled in the desktop", "Waiting indicator with one monitor". Close vs. Esc not told apart. |
+| P2 | Monitor stream properties: are `position` and `size` present? Logical or physical px? | region → stream crop mapping, "Region not on the chosen screen" | measured at 1.25 | `position` (0, 0), `size` (3072, 1728) = GDK logical geometry; `mapping_id` absent. Scale 1.0 and multi-monitor not measured. |
+| P3 | Monitor stream buffer size vs. `size` | crop factors | measured at 1.25 | Buffer 3840×2160 = `size` × 1.25 (monitor scale); crop meta (0, 0, 3840, 2160) = whole buffer; caps `framerate=0/1`, `max-framerate=60/1`; first frame after 64–73 ms → scenario "Record a region on a scaled monitor". |
+| P4 | `AvailableCursorModes` for monitor sources; does Embedded draw the pointer? | "Pointer in the recording" | measured (monitor) | Modes 7. Hidden: no pointer; Embedded: pointer drawn; Metadata: no pointer + `GstVideoRegionOfInterestMeta` (frames looked at, not committed). Window sources not measured. |
+| P5 | Does GNOME offer a stop control for a portal ScreenCast session (GNOME's panel / quick settings), and does Annota then receive `Session::Closed`? | "Session ended by the desktop" | inconclusive | No sharing indicator or stop control found in the bottom panel or quick settings; no `Session.Closed`, buffers until the 60 s limit. Rerun with `session-close --stop-hint`. Scenario unmeasured. |
+| P6 | Window stream when the window is closed (EOS, error, frozen?) and when it is resized | "Recorded window closed", D2 scaling | inconclusive | Buffer 6144×3456 = 2× `size` (3072, 1728), crop (0, 0, 3152, 1760), `position` absent. After resizes and close: no size change, no EOS, no `Session.Closed`, buffers until 60 s — but crop and content were read only once. Rerun with the tracking `window-end`. Scenario unmeasured. |
+| P7 | Frame delivery on a static screen | constant frame rate | invalid run; informational | A video played in both phases (~35 buffers/s with and without keepalive). Settled by design instead (D3, "Recording frame rate"); a rerun is optional. |
+| P8 | 30 min continuous monitor stream at 4K: dropped frames, memory, CPU with `x264enc superfast` | performance budget | moved to Verify | Measured with the real implementation (task 6.2), not with the probe. |
+| P9 | ScreenCast on a GNOME X11 session (also `fix-window-capture-screencast` task 2.4) | X11 behaviour, "Source not offered" | later | GNOME 50 has no X11 session; needs Ubuntu 24.04 (task 2.1c). |
+| P10 | Waiting indicator as the chooser's parent for MONITOR | D2, "Waiting indicator is not recorded" | measured | Start with the probe window's handle as parent answered 0 as for WINDOW. The parent window and its text are visible in the recorded frames → the waiting indicator must be gone before the first recorded frame. `--no-parent` not run. |
+| P11 | GlobalShortcuts: binding a 4th ID `record` in an existing session — dialog, reported trigger for `Shift+Ctrl+Print`, "Used by GNOME"? | "Record shortcut", "Portal assigns a different record trigger" | measured | Bind 0 after 17.3 s (dialog shown). `record` → `Ctrl+W`, because `Shift+Ctrl+Print` was already this machine's stored trigger of `screen`; GNOME's keybindings hold none of these keys. `Activated` not seen (key not pressed). |
+| P12 | Does GNOME's screen-sharing indicator appear in a monitor stream (GNOME's panel in the video)? | documentation only | later / informational | Not run. |
 
 Non-portal measurements in the same group: `pulsesrc` default source and
 `@DEFAULT_MONITOR@` through pipewire-pulse on 24.04; `GstDeviceMonitor` with no microphone.
@@ -227,6 +245,15 @@ Non-portal measurements in the same group: `pulsesrc` default source and
 
 ## Risks / open questions
 - Q1-Q6 are decided (see "Design approved" above).
+- **Open (maintainer): preferred Record trigger.** `Shift+Ctrl+Print` collides on any machine
+  where an earlier binding gave it to another Annota shortcut (P11: GNOME then moved `record` to
+  `Ctrl+W`, a key every editor uses for "close"). Annota's own defaults are `Print`, `Alt+Print`,
+  `Shift+Print`; `Shift+Ctrl+Print` is free on a default install. Options: keep it; pick a key
+  outside the Print family (e.g. `Super+Alt+R`); or send no preferred trigger and let the user
+  choose in GNOME's dialog. Not decided here.
+- **Open (maintainer): region recording resolution.** D2 now records a region at the buffer's
+  pixel density (1000×750 for an 800×600 selection at 1.25), as the stream delivers it.
+  Downscaling to logical size would lose detail; confirm.
 - Region mapping (P2/P3) may turn out unreliable under fractional scaling; then D2's rejected
   alternative becomes the plan and the setup flow needs new mockups (a new design gate).
 - Live 4K H.264 at 30 fps on weak CPUs may drop frames (P8). A hardware encoder (VA-API) is out

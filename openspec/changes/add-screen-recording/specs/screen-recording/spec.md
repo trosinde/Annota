@@ -18,11 +18,15 @@ Switching the region overlay's mode pill to Video SHALL show the recording setup
 - **THEN** the overlay closes, no screen-sharing session is requested and nothing is written
 
 ### Requirement: Recording source
-Start Recording SHALL request one ScreenCast source without a restore token. Region: a monitor source, and only the selected area of it is recorded. Window: the window chooser flow of `capture` "Window capture", keeping the stream. Screen: a monitor source, recorded whole. While the request is open, a waiting indicator with Cancel (`Esc`) SHALL be shown. Pointer: embedded when Include pointer is on and offered, else hidden.
+Start Recording SHALL request one ScreenCast source without a restore token. Region: a monitor source; only the selection is recorded, mapped to buffer pixels by buffer size ÷ stream `size`. Window: the window chooser flow of `capture` "Window capture", keeping the stream. Screen: a monitor source, recorded whole. While the request is open, a waiting indicator with Cancel (`Esc`) SHALL be shown, also with one monitor. Pointer: embedded when Include pointer is on and offered, else hidden.
 
 #### Scenario: Record a region
-- **WHEN** the user selects a 800×600 region, starts recording and the portal answers with a monitor stream containing it
+- **WHEN** the user selects a 800×600 region, starts recording and the portal answers with a monitor stream containing it whose buffers have the same size as its `size`
 - **THEN** the recording's frames are 800×600 and show only that area
+
+#### Scenario: Record a region on a scaled monitor
+- **WHEN** the user selects a 800×600 region at (100, 100) and the portal answers with a monitor stream of `size` 3072×1728 whose buffers are 3840×2160
+- **THEN** the buffer area (125, 125, 1000, 750) is recorded and the recording's frames are 1000×750
 
 #### Scenario: Region not on the chosen screen
 - **WHEN** the portal answers a region recording with a monitor stream that does not contain the whole selection
@@ -37,8 +41,16 @@ Start Recording SHALL request one ScreenCast source without a restore token. Reg
 - **THEN** the recording's frames have the stream's full size
 
 #### Scenario: Source request cancelled
-- **WHEN** the waiting indicator is shown and the user presses `Esc`, or the portal reports the chooser closed
+- **WHEN** the waiting indicator is shown and the user presses `Esc`
 - **THEN** the session is closed, nothing is written and no message is shown
+
+#### Scenario: Chooser cancelled in the desktop
+- **WHEN** the portal answers Start with response code 1 (cancelled)
+- **THEN** the session counts as already closed: Annota sends no `Session.Close`, writes nothing and shows no message
+
+#### Scenario: Waiting indicator with one monitor
+- **WHEN** a screen recording is started on a desktop with a single monitor
+- **THEN** the waiting indicator is shown until the portal answers Start
 
 #### Scenario: Pointer in the recording
 - **WHEN** Include pointer is on and the portal offers an embedded pointer
@@ -50,7 +62,7 @@ Start Recording SHALL request one ScreenCast source without a restore token. Reg
 - **THEN** that source is insensitive in the setup, with "Screen sharing for this source is not available on this desktop"
 
 ### Requirement: Recording countdown
-After the source is granted, the capture countdown OSD SHALL run with "Recording starts in N s" for the configured time. `Enter` starts at once, `Esc` cancels. No frame from before the countdown has ended and the OSD is gone SHALL be in the recording. A countdown of 0 starts at once.
+After the source is granted, the waiting indicator SHALL close and the capture countdown OSD SHALL run with "Recording starts in N s" for the configured time. `Enter` starts at once, `Esc` cancels. No frame from before the waiting indicator and the OSD are gone SHALL be in the recording. A countdown of 0 starts at once.
 
 #### Scenario: Countdown is not recorded
 - **WHEN** a recording starts with a 3 s countdown
@@ -64,6 +76,11 @@ After the source is granted, the capture countdown OSD SHALL run with "Recording
 #### Scenario: No countdown
 - **WHEN** the countdown is set to 0 s
 - **THEN** recording starts as soon as the source is granted, with no OSD
+
+#### Scenario: Waiting indicator is not recorded
+- **WHEN** the portal grants a screen source while the waiting indicator is shown
+- **THEN** the waiting indicator is closed before the countdown OSD appears
+- **AND** the recording's first frame is taken after the waiting indicator has gone, also with a countdown of 0 s
 
 ### Requirement: Recording control
 While recording, Annota SHALL show a small "Recording" window: elapsed time without paused time (`M:SS`), Pause/Resume (`Space`), Stop, Microphone mute (`M`), System audio mute (`S`), each with a level meter, and Minimize. GNOME places it; the user can move it. Annota does not keep it above other windows or out of the recorded area. A second recording request SHALL raise it and start nothing.
@@ -111,7 +128,7 @@ The user SHALL be able to record the default microphone, the system audio (monit
 - **THEN** the recording has a video track and no audio track
 
 ### Requirement: Stop recording
-Stop, the Record shortcut, the desktop ending the screen-sharing session and the end of a recorded window's stream SHALL each end the recording, finish the working file and open the Export Recording window. Stopping SHALL close the screen-sharing session.
+Stop, the Record shortcut, the desktop ending the screen-sharing session and the end of a recorded window's stream SHALL each end the recording, finish the working file and open the Export Recording window. Stopping SHALL close the screen-sharing session. Whether GNOME ends a session from its own UI, or a closed window's stream, is unmeasured (design.md P5, P6); those two scenarios state only how Annota handles the signal if it comes.
 
 #### Scenario: Stop by button
 - **WHEN** a recording runs and the user activates Stop in the control
@@ -122,15 +139,15 @@ Stop, the Record shortcut, the desktop ending the screen-sharing session and the
 - **THEN** the recording ends as with Stop
 
 #### Scenario: Session ended by the desktop
-- **WHEN** a recording runs and the portal reports the session closed
+- **WHEN** a recording runs and the portal reports the session closed (unmeasured: P5)
 - **THEN** what was recorded is kept and the Export Recording window opens
 
 #### Scenario: Recorded window closed
-- **WHEN** a window recording runs and the window's stream ends
+- **WHEN** a window recording runs and the window's stream ends (unmeasured: P6)
 - **THEN** what was recorded is kept and the Export Recording window opens
 
 ### Requirement: Record shortcut
-Annota SHALL register a global shortcut "Record video" (ID `record`, preferred `Shift+Ctrl+Print`) under the same rules as `capture` "Global capture hotkey": reported triggers shown in Preferences › Capture and on the Record card, else a GNOME custom keybinding running `annota --record toggle`. It SHALL open the overlay in Video mode, cancel a running countdown, or stop a running or paused recording.
+Annota SHALL register a global shortcut "Record video" (ID `record`, preferred `Shift+Ctrl+Print`) under the rules of `capture` "Global capture hotkey": Preferences › Capture and the Record card show only the trigger the portal reports, which may differ from the preferred one; without the portal, a GNOME custom keybinding running `annota --record toggle`. It SHALL open the overlay in Video mode, cancel a running countdown, or stop a running or paused recording.
 
 #### Scenario: Shortcut opens the setup
 - **WHEN** no recording runs and the user presses the Record shortcut
@@ -148,6 +165,11 @@ Annota SHALL register a global shortcut "Record video" (ID `record`, preferred `
 - **WHEN** the GlobalShortcuts portal reports `record` bound to `Super+Alt+R`
 - **THEN** the "Record video" row in Preferences › Capture and the Record card show `Super+Alt+R`
 
+#### Scenario: Portal assigns a different record trigger
+- **WHEN** the GlobalShortcuts portal reports `record` bound to `Ctrl+W` after Annota asked for `Shift+Ctrl+Print`
+- **THEN** the "Record video" row and the Record card show `Ctrl+W`
+- **AND** neither shows `Shift+Ctrl+Print`
+
 #### Scenario: Record trigger taken by GNOME
 - **WHEN** the GlobalShortcuts portal reports `record` bound to `Shift+Ctrl+Print` and GNOME's keybinding settings assign `Shift+Ctrl+Print` to one of GNOME's own actions
 - **THEN** the "Record video" row shows `Shift+Ctrl+Print` with "Used by GNOME: <action>", and the Record card marks its keycaps as used by GNOME
@@ -162,6 +184,17 @@ Annota SHALL register a global shortcut "Record video" (ID `record`, preferred `
 #### Scenario: Invalid record mode
 - **WHEN** the user runs `annota --record banana`
 - **THEN** the process exits with status 2 and prints `region`, `window`, `screen` and `toggle`
+
+### Requirement: Recording frame rate
+The recording SHALL have a constant 30 fps whatever rate the screen-sharing stream delivers: frames are timed by the stream's timestamps and repeated or dropped to 30 fps before encoding, so a still screen (no buffers), a variable rate or a burst of buffers never changes the recording's length or timing.
+
+#### Scenario: Still screen
+- **WHEN** a 20 s recording runs and the stream delivers no buffer between 0:05 and 0:15
+- **THEN** the recording lasts 20 s ± 0.2 s at 30 fps and shows the last frame from before 0:05 until 0:15
+
+#### Scenario: Burst of buffers
+- **WHEN** the stream delivers 60 buffers per second for 5 s of a recording
+- **THEN** that part of the recording lasts 5 s ± 0.1 s at 30 fps
 
 ### Requirement: Working file
 While recording, Annota SHALL write a Matroska working file `Recording YYYY-MM-DD HH-MM-SS.mkv` into the recordings folder (default `~/Videos/Annota`, created if missing), never overwriting a file. It SHALL stay playable up to its last written second if Annota ends unexpectedly. On a write or pipeline error the recording SHALL stop, keep what was written and open the Export Recording window with a banner.
