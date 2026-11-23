@@ -42,6 +42,7 @@ this branch by the coordinating session):
 | Q7 | Preferred Record trigger (2026-11-23, after P11) | **`Super+Alt+R`** (XDG `LOGO+ALT+r`, GTK `<Super><Alt>r`), outside the Print family of Annota's capture defaults. `Shift+Ctrl+Print` had collided with a stored `screen` trigger and GNOME moved `record` to `Ctrl+W`. The UI still shows only the trigger the portal reports. Mockups 05, 06, 12, 13, 14 redrawn. |
 | Q8 | Region recording resolution (2026-11-23, after P2/P3) | **Buffer pixel density**: an 800×600 logical selection on a 1.25 monitor is stored as 1000×750; never downscaled to logical size. |
 | Q9 | Desktop ends the request during Start (2026-11-23, after the P6 rerun) | Text approved: toast "The desktop ended the screen-sharing request. Nothing was recorded." in the style of mockup 13; its mockup is drawn during apply (task 4.7). |
+| D2 | Encoded frame size of a window recording (confirmed 2026-11-23) | **Fixed at start**: the first trimmed window (even-sized) sets the frame size for the whole recording; a later, larger window is scaled down to fit and letterboxed, never stretched. The alternative (frame fixed at the window's monitor size) is rejected. |
 | — | Designer assumptions | Accepted as drawn: Pause has the initial focus in the control; Cancel is the default in "Discard Recording?"; an unavailable saved source falls back to Region; Discard/Export sit in the Export Recording footer. |
 
 ## Context
@@ -110,7 +111,7 @@ Alternatives considered:
   `screencast::window_rect`'s alpha rule, computed on the first buffer and again only when the
   crop meta changes (a full alpha scan per 4K buffer is too costly). The encoded frame size is
   fixed at start (the first trimmed window, even-sized for x264); later frames are scaled to fit
-  and letterboxed, never stretched (as approved with D2; see "Risks / open questions"). Window
+  and letterboxed, never stretched (D2 confirmed by the maintainer 2026-11-23). Window
   streams are damage-driven: no buffers while the window is still, so `videorate` repeats the
   last frame (requirement "Recording frame rate").
 - **Screen**: monitor source, recorded whole. Annota cannot preselect the monitor under the
@@ -267,11 +268,8 @@ Non-portal measurements in the same group: `pulsesrc` default source and
 
 ## Risks / open questions
 - Q1-Q9 are decided (see "Design approved" above).
-- **Open (maintainer): encoded size of a window recording.** Fixed at the first frame (D2 as
-  approved): a small window that is maximized mid-recording is scaled down into the small frame
-  and letterboxed. Alternative: fix the frame at the window's monitor size from the start, so a
-  maximized window keeps full detail but a small window sits in a large letterboxed frame and
-  the file is larger. D2 stays the plan until the maintainer says otherwise. Q9's text says only what is true for every
+- Encoded size of a window recording: settled, D2 confirmed 2026-11-23 (frame fixed at start,
+  larger windows scaled down and letterboxed). Q9's text says only what is true for every
   cause of an early `Session.Closed`, which is unknown (CLAUDE.md §5).
 - Region mapping (P2/P3) may turn out unreliable under fractional scaling; then D2's rejected
   alternative becomes the plan and the setup flow needs new mockups (a new design gate).
