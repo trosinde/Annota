@@ -39,9 +39,9 @@ Titles are *Requirement › Scenario* exactly as in
 | Pointer highlight › Metadata cursor not offered | [02](png/02-setup-extras-unavailable-light@1x.png) | Row insensitive, "Not available on this desktop". |
 | Draw while recording › Arrow in the recording | [06](png/06-draw-while-recording-light@1x.png) | Arrow tool, Coral. Positions in the frame: pipeline test. |
 | Draw while recording › Input returns after drawing | [06](png/06-draw-while-recording-light@1x.png) → [04](png/04-recording-control-extras-light@1x.png) | `Esc`, `D`, Done or the pressed Draw button: surface closes, control returns to its narrow form. |
-| Draw while recording › Region outline while drawing | [06](png/06-draw-while-recording-light@1x.png) | 2 px dashed outline 2 px outside the selection, drawn by the surface only, outside the crop, so never in the video. Screen recordings: no outline. |
 | Draw while recording › Draw in a window recording | [04](png/04-recording-control-extras-light@1x.png) | State card "Window recording · Draw insensitive" with the tooltip text. |
-| Draw while recording › Strokes outside the region | — (no UI; pipeline test) | The surface covers the whole monitor; the region crop drops strokes outside the selection. See open question 2. |
+| Draw while recording › Region outline while drawing | [06](png/06-draw-while-recording-light@1x.png) | Region recording: 2 px dashed outline 2 px outside the selection, drawn by the surface, outside the crop. Not in the video: pipeline test. Screen recordings: no outline. |
+| Draw while recording › Strokes outside the region | [06](png/06-draw-while-recording-light@1x.png) | The rectangle crossing the right edge of the selection: visible on the surface, dropped by the region crop. Frame contents: pipeline test. |
 | Drawing tools and fade › Drawing fades | [06](png/06-draw-while-recording-light@1x.png) | Fade menu card; the rectangle drawn at 0:14 is shown fading. Timing: pipeline test. |
 | Drawing tools and fade › Keep until cleared | [06](png/06-draw-while-recording-light@1x.png) | "Keep until cleared" item; Clear `C` (hover card). |
 | Drawing tools and fade › Step numbers count up | [06](png/06-draw-while-recording-light@1x.png) | Steps 1 and 2 on screen; Step tool card. |
@@ -69,7 +69,7 @@ Titles are *Requirement › Scenario* exactly as in
 | 03 | Webcam expanded: Shape, Position (top right picked, focused), Size; preview moved | [light](png/03-webcam-options-light@1x.png) | [dark](png/03-webcam-options-dark@1x.png) |
 | 04 | Recording control with Swap + Draw, "In the recording" frame (camera + ring) + states band (Swap hover, Draw focus, window recording, webcam off, webcam unavailable) | [light](png/04-recording-control-extras-light@1x.png) | [dark](png/04-recording-control-extras-dark@1x.png) |
 | 05 | Swapped to the webcam ("Show Screen"), frame = camera only, letterboxed | [light](png/05-swapped-webcam-light@1x.png) | [dark](png/05-swapped-webcam-dark@1x.png) |
-| 06 | Draw while recording: strokes on the surface, widened control + states band (Fade menu, Step tool / Clear hover) | [light](png/06-draw-while-recording-light@1x.png) | [dark](png/06-draw-while-recording-dark@1x.png) |
+| 06 | Draw while recording (region recording): region outline, strokes on the surface (one partly outside the selection), widened control + states band (Fade menu, Step tool / Clear hover) | [light](png/06-draw-while-recording-light@1x.png) | [dark](png/06-draw-while-recording-dark@1x.png) |
 | 07 | Export Recording with Edit… (hover tooltip) and MP4 \| WebM \| GIF | [light](png/07-export-recording-edit-light@1x.png) | [dark](png/07-export-recording-edit-dark@1x.png) |
 | 08 | Export Recording after Done: 0:13 · Edited, focus on Edit… | [light](png/08-export-recording-edited-light@1x.png) | [dark](png/08-export-recording-edited-dark@1x.png) |
 | 09 | Edit Recording: trimmed 0:02–0:15, end handle hover, Play tooltip | [light](png/09-video-editor-trim-light@1x.png) | [dark](png/09-video-editor-trim-dark@1x.png) |
@@ -177,7 +177,17 @@ Tooltips (label + `.shortcut` chip): "Show webcam only" `W` / "Show Screen" `W`,
   number 34 px disc, white 17 px heavy numeral, 2 px white ring; all with the annotation tools'
   white halo/shadow. Fade: full opacity for the fade time, then 0.5 s linear fade-out.
 - Drawing surface: undecorated, transparent, fullscreen on the recorded monitor, input region =
-  whole monitor, cursor `crosshair`. No border, no hints, no toolbar.
+  whole monitor, cursor `crosshair`. No hints, no toolbar; the only non-stroke pixels are the
+  region outline below.
+- **Region outline** (region recordings only, approved 2026-11-22): the surface draws a 2 px
+  dashed line, dash 6 / gap 4, `--destructive-bg` at 60 % opacity, offset 2 px *outside* the
+  selection (stroke centre 3 px out, i.e. the inner edge sits 2 px from the selection edge), square
+  corners. It lies outside the crop, so no recorded frame contains it. Same colour family as the
+  core countdown outline (core 04: 2 px dashed `--destructive-bg`, offset 2 px), quieter at 60 %
+  so it reads as a guide and not as a Coral Rectangle stroke. Shown for as long as Draw is on;
+  hidden with the surface. Screen recordings: no outline (the whole monitor is recorded).
+- Strokes partly or fully outside the selection are drawn on the surface like any other stroke;
+  the region crop removes them from the video. No dimming, no warning.
 
 ### 07–08, 13 Export Recording additions
 
@@ -253,7 +263,9 @@ Tooltips (label + `.shortcut` chip): "Show webcam only" `W` / "Show Screen" `W`,
   user cannot interact with the recorded app until Draw is off. Hence Done, `Esc` and `D`.
 - **Its own pixels are in a screen recording.** The surface sits on the recorded monitor, so the
   ScreenCast stream captures whatever it renders. It therefore renders nothing but strokes (no
-  chrome). See open question 1 on strokes being both rendered and composited.
+  chrome) — plus, in a region recording, the region outline, which sits 2 px outside the selection
+  and therefore outside the crop of the monitor stream. See open question 1 on strokes being both
+  rendered and composited.
 - **The control may be hidden by the surface** — GNOME decides stacking of two Annota windows,
   one fullscreen. Probe E3; every drawing action also has a key, so drawing works with the control
   hidden.
@@ -270,9 +282,8 @@ Tooltips (label + `.shortcut` chip): "Show webcam only" `W` / "Show Screen" `W`,
    by the pipeline"), (b) both render, pipeline copy identical and drawn on top, (c) the surface is
    excluded from the stream (not possible on GNOME without compositor-private API). Needs a design.md
    decision / probe.
-2. While drawing in a **region** recording the user cannot see where the region is (no frame, no
-   chrome). An outline drawn by the surface 2 px *outside* the selection would not be in the
-   cropped video (like the countdown outline). Not drawn; proposal for the maintainer.
+2. ~~Region outline while drawing~~ — resolved 2026-11-22: approved by the maintainer, drawn in
+   06 (redlines 04–06 "Region outline", spec scenario "Region outline while drawing").
 3. "Recordings folder" for saved frames: the folder of the working files or the export folder
    (`~/Videos/Annota`)? The spec says "recordings folder"; drawn as the latter.
 4. Editor keyboard navigation beyond the spec (←/→ frame step, Home/End, `[`/`]` for trim at the
