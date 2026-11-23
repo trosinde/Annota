@@ -3702,6 +3702,10 @@ msgid "Start"
 msgstr "Starten"
 
 #: data/ui/region-overlay.blp
+msgid "Mode"
+msgstr "Modus"
+
+#: data/ui/region-overlay.blp
 msgid "Source"
 msgstr "Quelle"
 

@@ -355,7 +355,10 @@ mod tests {
         );
     }
 
-    // spec: screen-recording / Recording source / Window crop meta in buffer pixels
+    /// "Record a window" says the recording shows only that window: whichever scale the
+    /// fallback finds, the content rectangle lies inside the converted crop meta, so a window
+    /// frame never takes pixels from outside it.
+    // spec: screen-recording / Recording source / Record a window
     #[test]
     fn without_a_matching_monitor_the_crop_meta_still_bounds_the_window() {
         // The matching monitor's scale wins; else the scale all monitors share; else 1.
@@ -396,6 +399,26 @@ mod tests {
             ),
             Some(IRect::new(4, 4, 24, 16))
         );
+        // Every scale the fallback can give: the window's rectangle inside the converted crop
+        // meta, never reaching the undefined pixels at x ≥ 40.
+        let (meta, size, buffer) = (
+            IRect::new(0, 0, 20, 15),
+            Size::new(32, 16),
+            Size::new(64, 32),
+        );
+        for (matching, all) in [
+            (&[1.25][..], &[1.0, 1.25][..]),
+            (&[], &[1.25, 1.25]),
+            (&[1.0, 2.0], &[1.0, 2.0]),
+            (&[], &[1.0, 1.5]),
+            (&[], &[]),
+        ] {
+            let scale = fallback_scale(matching, all);
+            let crop = window_crop_in_buffer(meta, size, buffer, Some(scale)).unwrap();
+            let content = window_content(&pixels, Some(meta), size, Some(scale)).unwrap();
+            assert_eq!(content.intersect(crop), Some(content), "scale {scale}");
+            assert!(content.right() <= 40, "scale {scale}: {content:?}");
+        }
     }
 
     // spec: screen-recording / Recording source / Recorded window resized

@@ -50,6 +50,9 @@ const DIM_RGB: (f64, f64, f64) = (0.0, 0.0, 6.0 / 255.0);
 const SETUP_GAP: f64 = 18.0;
 const SETUP_MARGIN: f64 = 8.0;
 const SETUP_ARROW_Y: f64 = 40.0;
+/// The mode pill's distance from the bottom edge (redline 01), or from the top edge while the
+/// bottom would cover the selection's bottom handles.
+const PILL_EDGE: f64 = 24.0;
 /// Gap between loupe and its colour chip.
 const LOUPE_CHIP_GAP: f64 = 8.0;
 /// How long the pointer probe waits for the pointer to enter one of its windows.
@@ -245,6 +248,9 @@ struct Session {
     mode: Cell<Mode>,
     /// The recording setup, made when Video mode is first shown.
     setup: RefCell<Option<Rc<Setup>>>,
+    /// Keeps the capture toolbar's Include Pointer on the saved setting, which the setup's
+    /// Include pointer row changes (add-screen-recording: "Same setting as for captures").
+    pointer_setting: RefCell<Option<(gio::Settings, glib::SignalHandlerId)>>,
 }
 
 impl Session {
@@ -256,12 +262,34 @@ impl Session {
             pointer: Cell::new(None),
             mode: Cell::new(Mode::Screenshot),
             setup: RefCell::new(None),
+            pointer_setting: RefCell::new(None),
         }
+    }
+
+    /// The capture toolbar's Include Pointer follows the saved setting while the overlay is
+    /// open, so a change in the setup's row shows when the user goes back to Screenshot.
+    fn follow_pointer_setting(self: &Rc<Self>) {
+        let settings = gio::Settings::new(crate::config::APP_ID);
+        let weak = Rc::downgrade(self);
+        let handler = settings.connect_changed(Some("include-pointer"), move |settings, key| {
+            let Some(session) = weak.upgrade() else {
+                return;
+            };
+            let on = settings.boolean(key);
+            let overlays = session.overlays.borrow().clone();
+            for overlay in overlays {
+                overlay.w.pointer_button.set_active(on);
+            }
+        });
+        self.pointer_setting.replace(Some((settings, handler)));
     }
 
     fn finish(&self, outcome: Outcome) {
         if let Some(sender) = self.sender.borrow_mut().take() {
             let _ = sender.send(outcome);
+        }
+        if let Some((settings, handler)) = self.pointer_setting.take() {
+            settings.disconnect(handler);
         }
         // The level preview goes with the setup.
         let setup = self.setup.borrow_mut().take();
@@ -322,6 +350,10 @@ impl Session {
                 Mode::Video => &overlay.w.mode_video_button,
             };
             button.set_active(true);
+            // `Enter` in the setup is Start Recording (redline "Shortcuts": the default widget;
+            // the countdown spin activates it after taking its typed value).
+            let default = (mode == Mode::Video).then_some(&overlay.w.record_start_button);
+            overlay.w.window.set_default_widget(default);
             overlay.update_ui();
         }
         if mode == Mode::Video {
@@ -411,10 +443,12 @@ struct Widgets {
     capture_button: gtk::Button,
     mode_screenshot_button: gtk::ToggleButton,
     mode_video_button: gtk::ToggleButton,
+    mode_pill: gtk::Box,
     hint_video: gtk::Box,
     record_setup: gtk::Box,
     record_setup_arrow: gtk::Box,
     record_start_button: gtk::Button,
+    record_countdown_spin: gtk::SpinButton,
 }
 
 fn set_class(widget: &impl IsA<gtk::Widget>, class: &str, on: bool) {
@@ -473,10 +507,12 @@ impl Widgets {
             capture_button: object(&b, "capture_button")?,
             mode_screenshot_button: object(&b, "mode_screenshot_button")?,
             mode_video_button: object(&b, "mode_video_button")?,
+            mode_pill: object(&b, "mode_pill")?,
             hint_video: object(&b, "hint_video")?,
             record_setup: object(&b, "record_setup")?,
             record_setup_arrow: object(&b, "record_setup_arrow")?,
             record_start_button: object(&b, "record_start_button")?,
+            record_countdown_spin: object(&b, "record_countdown_spin")?,
         };
         Some((widgets, b))
     }
@@ -844,11 +880,25 @@ impl MonitorOverlay {
         self.w
             .toolbar
             .set_visible(!video && matches!(phase, Phase::Adjusting) && rect.is_some());
+        // The pill moves to the top edge while it would cover a bottom handle of the selection.
+        let top = self.pill_top();
+        let edge = PILL_EDGE as i32;
+        self.w.mode_pill.set_valign(if top {
+            gtk::Align::Start
+        } else {
+            gtk::Align::End
+        });
+        self.w.mode_pill.set_margin_top(if top { edge } else { 0 });
+        self.w
+            .mode_pill
+            .set_margin_bottom(if top { 0 } else { edge });
         let setup = self.shows_setup(phase);
         self.w.record_setup.set_visible(setup);
+        // Without an arrow (no selection, or no room beside, below or above it) the arrow's
+        // widget would have no position and GtkOverlay would put it at (0, 0).
         self.w
             .record_setup_arrow
-            .set_visible(setup && rect.is_some());
+            .set_visible(setup && self.setup_placement().arrow.is_some());
         if let Some(session) = self.session() {
             if let Some(setup) = session.setup.borrow().as_ref() {
                 self.w
@@ -931,6 +981,42 @@ impl MonitorOverlay {
         }
     }
 
+    /// This monitor's selection in logical px.
+    fn selection_rect(&self) -> Option<FRect> {
+        self.state
+            .borrow()
+            .selection
+            .rect()
+            .map(|r| FRect::from_image(r, self.scale))
+    }
+
+    /// Whether the mode pill sits at the top edge ([`pill_at_top`]).
+    fn pill_top(&self) -> bool {
+        pill_at_top(
+            self.selection_rect(),
+            natural_size(self.w.mode_pill.upcast_ref()),
+            self.area(),
+        )
+    }
+
+    /// Where the recording setup and its arrow go on this monitor ([`setup_placement`]).
+    fn setup_placement(&self) -> SetupPlacement {
+        let area = self.area();
+        let pill = self.w.mode_pill.is_visible().then(|| {
+            pill_rect(
+                self.pill_top(),
+                natural_size(self.w.mode_pill.upcast_ref()),
+                area,
+            )
+        });
+        setup_placement(
+            self.selection_rect(),
+            natural_size(self.w.record_setup.upcast_ref()),
+            area,
+            pill,
+        )
+    }
+
     /// Positions of the floating chips and the toolbar (redlines 02–04).
     fn child_position(&self, child: &gtk::Widget) -> Option<gdk::Rectangle> {
         let area = self.area();
@@ -979,13 +1065,13 @@ impl MonitorOverlay {
         }
         if child == self.w.record_setup.upcast_ref::<gtk::Widget>() {
             let size = natural(child);
-            let placed = setup_placement(selection, size, area);
-            return Some(rect_at(placed.position, size));
+            drop(state);
+            return Some(rect_at(self.setup_placement().position, size));
         }
         if child == self.w.record_setup_arrow.upcast_ref::<gtk::Widget>() {
             let size = natural(child);
-            let setup = natural(self.w.record_setup.upcast_ref());
-            let (x, y) = setup_placement(selection, setup, area).arrow?;
+            drop(state);
+            let (x, y) = self.setup_placement().arrow?;
             return Some(rect_at((x - size.0 / 2.0, y - size.1 / 2.0), size));
         }
         if child == self.w.snap_chip.upcast_ref::<gtk::Widget>() {
@@ -1249,11 +1335,17 @@ impl MonitorOverlay {
 
 /// Where the recording setup and its arrow go (redline 01).
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct SetupPlacement {
+pub(crate) struct SetupPlacement {
     /// The setup's top-left corner.
-    position: (f64, f64),
-    /// The centre of the arrow, on the setup's edge facing the selection.
-    arrow: Option<(f64, f64)>,
+    pub(crate) position: (f64, f64),
+    /// The centre of the arrow, on the setup's edge facing the selection. `None`: no arrow.
+    pub(crate) arrow: Option<(f64, f64)>,
+}
+
+/// A widget's natural size in logical px.
+fn natural_size(widget: &gtk::Widget) -> (f64, f64) {
+    let (_, natural) = widget.preferred_size();
+    (f64::from(natural.width()), f64::from(natural.height()))
 }
 
 /// `v` within `lo..=hi`, or their middle when the range is empty.
@@ -1265,52 +1357,145 @@ fn between(v: f64, lo: f64, hi: f64) -> f64 {
     }
 }
 
+/// Whether `a` and `b` come closer than `gap` to each other.
+fn near_each_other(a: FRect, b: FRect, gap: f64) -> bool {
+    a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap
+}
+
 /// The setup 18 px right of the selection, top-aligned with it; where there is no room, left of
-/// it, else below it; where there is no room at all, at the monitor's right edge without an
-/// arrow. Without a selection it is centred.
-fn setup_placement(selection: Option<FRect>, size: (f64, f64), area: (f64, f64)) -> SetupPlacement {
+/// it, else below it, else above it; where there is no room at all, at the monitor's right edge
+/// without an arrow. It never covers the mode pill (`pill`, kept `SETUP_MARGIN` clear): beside
+/// the selection it moves up or down to clear it, below or above it moves sideways. Without a
+/// selection it is centred.
+pub(crate) fn setup_placement(
+    selection: Option<FRect>,
+    size: (f64, f64),
+    area: (f64, f64),
+    pill: Option<FRect>,
+) -> SetupPlacement {
     let (w, h) = size;
     let fit_x = |x: f64| between(x, SETUP_MARGIN, area.0 - w - SETUP_MARGIN);
     let fit_y = |y: f64| between(y, SETUP_MARGIN, area.1 - h - SETUP_MARGIN);
+    let inside = |x: f64, y: f64| {
+        x >= SETUP_MARGIN
+            && y >= SETUP_MARGIN
+            && x + w + SETUP_MARGIN <= area.0
+            && y + h + SETUP_MARGIN <= area.1
+    };
+    let clear = |x: f64, y: f64| {
+        pill.is_none_or(|pill| !near_each_other(FRect { x, y, w, h }, pill, SETUP_MARGIN))
+    };
+    // Where the setup goes along one axis to clear the pill: before it or after it.
+    let around_pill = |start: f64, len: f64, vertical: bool| -> [f64; 3] {
+        match pill {
+            Some(p) if vertical => [start, p.y - SETUP_MARGIN - len, p.y + p.h + SETUP_MARGIN],
+            Some(p) => [start, p.x - SETUP_MARGIN - len, p.x + p.w + SETUP_MARGIN],
+            None => [start; 3],
+        }
+    };
     let Some(sel) = selection else {
+        let (x, y) = (fit_x((area.0 - w) / 2.0), fit_y((area.1 - h) / 2.0));
+        let y = around_pill(y, h, true)
+            .into_iter()
+            .find(|y| inside(x, *y) && clear(x, *y))
+            .unwrap_or(y);
         return SetupPlacement {
-            position: (fit_x((area.0 - w) / 2.0), fit_y((area.1 - h) / 2.0)),
+            position: (x, y),
             arrow: None,
         };
     };
-    // Beside: the arrow near the setup's top, never beyond the selection's height.
-    let side_arrow = |y: f64| {
-        let along = between(y + SETUP_ARROW_Y, sel.y + 12.0, sel.y + sel.h - 12.0);
-        between(along, y + 20.0, y + h - 20.0)
+
+    // Beside: the arrow near the setup's top and within the selection's height, so the setup
+    // must overlap the selection's height by the arrow's room.
+    let (sel_top, sel_bottom) = (sel.y + 12.0, sel.y + sel.h - 12.0);
+    let beside = |x: f64, edge: f64| {
+        around_pill(fit_y(sel.y), h, true)
+            .into_iter()
+            .filter(|y| inside(x, *y) && clear(x, *y))
+            .find(|y| {
+                y + 20.0 <= sel_bottom.max(sel.y + sel.h / 2.0)
+                    && y + h - 20.0 >= sel_top.min(sel.y + sel.h / 2.0)
+            })
+            .map(|y| {
+                let along = between(y + SETUP_ARROW_Y, sel_top, sel_bottom);
+                SetupPlacement {
+                    position: (x, y),
+                    arrow: Some((edge, between(along, y + 20.0, y + h - 20.0))),
+                }
+            })
+    };
+    // Below or above: centred on the selection, the arrow within the selection's width.
+    let (sel_left, sel_right) = (sel.x + 12.0, sel.x + sel.w - 12.0);
+    let centre = sel.x + sel.w / 2.0;
+    let vertical = |y: f64, edge: f64| {
+        around_pill(fit_x(centre - w / 2.0), w, false)
+            .into_iter()
+            .filter(|x| inside(*x, y) && clear(*x, y))
+            .find(|x| x + 20.0 <= sel_right.max(centre) && x + w - 20.0 >= sel_left.min(centre))
+            .map(|x| SetupPlacement {
+                position: (x, y),
+                arrow: Some((between(centre, x + 20.0, x + w - 20.0), edge)),
+            })
     };
     let right = sel.x + sel.w + SETUP_GAP;
-    if right + w + SETUP_MARGIN <= area.0 {
-        let y = fit_y(sel.y);
-        return SetupPlacement {
-            position: (right, y),
-            arrow: Some((right, side_arrow(y))),
-        };
-    }
     let left = sel.x - SETUP_GAP - w;
-    if left >= SETUP_MARGIN {
-        let y = fit_y(sel.y);
-        return SetupPlacement {
-            position: (left, y),
-            arrow: Some((left + w, side_arrow(y))),
-        };
-    }
     let below = sel.y + sel.h + SETUP_GAP;
-    if below + h + SETUP_MARGIN <= area.1 {
-        let x = fit_x(sel.x + sel.w / 2.0 - w / 2.0);
-        let along = between(sel.x + sel.w / 2.0, x + 20.0, x + w - 20.0);
-        return SetupPlacement {
-            position: (x, below),
-            arrow: Some((along, below)),
-        };
-    }
-    SetupPlacement {
-        position: (fit_x(area.0 - w), fit_y(sel.y)),
-        arrow: None,
+    let above = sel.y - SETUP_GAP - h;
+    beside(right, right)
+        .or_else(|| beside(left, left + w))
+        .or_else(|| vertical(below, below))
+        .or_else(|| vertical(above, above + h))
+        .unwrap_or_else(|| {
+            let x = fit_x(area.0 - w);
+            let y = around_pill(fit_y(sel.y), h, true)
+                .into_iter()
+                .find(|y| inside(x, *y) && clear(x, *y))
+                .unwrap_or_else(|| fit_y(sel.y));
+            SetupPlacement {
+                position: (x, y),
+                arrow: None,
+            }
+        })
+}
+
+/// Whether the mode pill goes to the top edge: at the bottom (24 px above the edge, centred) it
+/// would cover one of the selection's bottom handles. It stays at the bottom when the top would
+/// cover a top handle as well.
+pub(crate) fn pill_at_top(selection: Option<FRect>, pill: (f64, f64), area: (f64, f64)) -> bool {
+    let Some(sel) = selection else {
+        return false;
+    };
+    let covers = |top: bool, y: f64| {
+        let rect = pill_rect(top, pill, area);
+        let r = HANDLE_DIAMETER / 2.0;
+        [sel.x, sel.x + sel.w / 2.0, sel.x + sel.w].iter().any(|x| {
+            near_each_other(
+                FRect {
+                    x: x - r,
+                    y: y - r,
+                    w: 2.0 * r,
+                    h: 2.0 * r,
+                },
+                rect,
+                0.0,
+            )
+        })
+    };
+    covers(false, sel.bottom()) && !covers(true, sel.y)
+}
+
+/// The mode pill's rectangle: centred, `PILL_EDGE` px from the bottom (or top) edge.
+pub(crate) fn pill_rect(top: bool, pill: (f64, f64), area: (f64, f64)) -> FRect {
+    let y = if top {
+        PILL_EDGE
+    } else {
+        area.1 - PILL_EDGE - pill.1
+    };
+    FRect {
+        x: (area.0 - pill.0) / 2.0,
+        y,
+        w: pill.0,
+        h: pill.1,
     }
 }
 
@@ -1445,6 +1630,46 @@ fn connect(overlay: &Rc<MonitorOverlay>) {
         }
     ));
     w.window.add_controller(keys);
+
+    // `Enter` anywhere in the setup starts the recording, also on a source toggle or a switch,
+    // whose own `Enter` binding would toggle them (they keep `Space`), and in the countdown spin
+    // after taking its typed value.
+    let enter = gtk::EventControllerKey::new();
+    enter.set_propagation_phase(gtk::PropagationPhase::Capture);
+    enter.connect_key_pressed(glib::clone!(
+        #[strong]
+        weak,
+        move |_, key, _, _| {
+            let Some(this) = weak.upgrade() else {
+                return glib::Propagation::Proceed;
+            };
+            let enter = matches!(
+                key,
+                gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::ISO_Enter
+            );
+            if !enter || this.mode() != Mode::Video {
+                return glib::Propagation::Proceed;
+            }
+            let inside = |focus: &gtk::Widget, widget: &gtk::Widget| {
+                focus == widget || focus.is_ancestor(widget)
+            };
+            let Some(focus) = GtkWindowExt::focus(&this.w.window) else {
+                return glib::Propagation::Proceed;
+            };
+            if !inside(&focus, this.w.record_setup.upcast_ref()) {
+                return glib::Propagation::Proceed;
+            }
+            let spin = &this.w.record_countdown_spin;
+            if inside(&focus, spin.upcast_ref()) {
+                // GTK's spin commits typed text on the first `Enter` and activates the default
+                // widget only on a second one (measured, GTK 4.22): take the value, then start.
+                spin.update();
+            }
+            this.start_recording();
+            glib::Propagation::Stop
+        }
+    ));
+    w.window.add_controller(enter);
 
     for text in [&w.width_text, &w.height_text] {
         text.connect_changed(glib::clone!(
@@ -1598,6 +1823,20 @@ fn connect(overlay: &Rc<MonitorOverlay>) {
     w.window.insert_action_group("overlay", Some(&actions));
 }
 
+fn is_arrow(key: gdk::Key) -> bool {
+    matches!(
+        key,
+        gdk::Key::Left
+            | gdk::Key::KP_Left
+            | gdk::Key::Right
+            | gdk::Key::KP_Right
+            | gdk::Key::Up
+            | gdk::Key::KP_Up
+            | gdk::Key::Down
+            | gdk::Key::KP_Down
+    )
+}
+
 fn key_pressed(
     this: &Rc<MonitorOverlay>,
     key: gdk::Key,
@@ -1624,6 +1863,11 @@ fn key_pressed(
                 Mode::Video => target.start_recording(),
             }
             true
+        }
+        // In Video mode the arrows nudge only from the selection area; in the setup they move
+        // the focus as everywhere else.
+        _ if is_arrow(key) && session.mode.get() == Mode::Video && !this.w.canvas.has_focus() => {
+            false
         }
         gdk::Key::Left | gdk::Key::KP_Left => target.nudge(Direction::Left, shift),
         gdk::Key::Right | gdk::Key::KP_Right => target.nudge(Direction::Right, shift),
@@ -1718,6 +1962,7 @@ pub async fn select_region(
         overlay.w.window.present();
         overlay.w.canvas.grab_focus();
     }
+    session.follow_pointer_setting();
     if mode == Mode::Video {
         session.set_mode(Mode::Video);
     }
@@ -1749,6 +1994,14 @@ pub(crate) fn test_select(monitor: usize, rect: IRect) -> bool {
     }
     overlay.drag_end();
     true
+}
+
+/// The selection on `monitor` of the overlay on the screen (image px), for live tests.
+#[cfg(test)]
+pub(crate) fn test_selection(monitor: usize) -> Option<IRect> {
+    let session = OPEN.with(|open| open.borrow().upgrade())?;
+    let rect = session.overlay(monitor)?.state.borrow().selection.rect();
+    rect
 }
 
 /// What a probe window reports.
@@ -2308,37 +2561,6 @@ mod tests {
         session.note_pointer(at(1, 20.0, 20.0));
         session.clear_pointer(0);
         assert_eq!(session.pointer.get(), Some(at(1, 20.0, 20.0)));
-    }
-
-    // spec: screen-recording / Recording setup / Switch the overlay to video
-    #[test]
-    fn the_recording_setup_sits_beside_the_selection() {
-        let area = (1280.0, 800.0);
-        let size = (380.0, 334.0);
-        let sel = |x, y, w, h| Some(FRect { x, y, w, h });
-        // Mockup 01: 18 px right of the selection, top-aligned, the arrow on the setup's left
-        // edge near its top and within the selection's height.
-        let placed = setup_placement(sel(130.0, 92.0, 700.0, 470.0), size, area);
-        assert_eq!(placed.position, (848.0, 92.0));
-        assert_eq!(placed.arrow, Some((848.0, 132.0)));
-        // No room on the right: on the left, the arrow on its right edge.
-        let placed = setup_placement(sel(700.0, 100.0, 500.0, 300.0), size, area);
-        assert_eq!(placed.position, (700.0 - 18.0 - 380.0, 100.0));
-        assert_eq!(placed.arrow.map(|a| a.0), Some(700.0 - 18.0));
-        // Neither side: below, the arrow on its top edge.
-        let placed = setup_placement(sel(100.0, 40.0, 1080.0, 300.0), size, area);
-        assert_eq!(placed.position.1, 40.0 + 300.0 + 18.0);
-        assert_eq!(placed.arrow.map(|a| a.1), Some(358.0));
-        // Nowhere (the whole monitor): inside the monitor, no arrow.
-        let placed = setup_placement(sel(0.0, 0.0, 1280.0, 800.0), size, area);
-        assert!(placed.arrow.is_none());
-        assert!(placed.position.0 + size.0 <= area.0 && placed.position.0 >= 0.0);
-        // Without a selection: centred.
-        let placed = setup_placement(None, size, area);
-        assert_eq!(placed.position, (450.0, 233.0));
-        // Kept on the monitor when the selection is near its bottom.
-        let placed = setup_placement(sel(100.0, 700.0, 200.0, 90.0), size, area);
-        assert!(placed.position.1 + size.1 <= area.1);
     }
 
     /// One uniformly grey monitor of `w` x `h` image px at `scale`.

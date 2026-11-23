@@ -403,18 +403,17 @@ Phase C1 (recording setup and countdown, tasks 4.1 and 4.3, plus the Phase B rev
   and region overlay as a region capture, opened in Video mode. Start Recording ends the overlay
   with `Outcome::Record` (source + selection in logical desktop px); the capture flow hands it to
   `recording::start_from_setup` once it has ended. `Esc` is the overlay's ordinary cancel: no
-  ScreenCast call, nothing written. As for a capture, the Annota windows hidden for the grab
-  are shown again before the recording's source is requested (open for the maintainer: they
-  are then in a screen recording).
+  ScreenCast call, nothing written. The Annota windows hidden for the grab stay hidden after
+  Start Recording (superseded by the Phase C1 review below).
 - **The mode pill holds the hint bar.** In Screenshot mode the capture hints sit in the pill
   after the Screenshot | Video toggle; the pill is 24 px above the bottom edge in both modes
   (the capture hint bar was 36 px), so it does not jump when the mode changes.
 - **The setup is an overlay child, not a `GtkPopover`.** It is drawn in the overlay window like
   the capture toolbar (kit `.popover` look, the arrow a rotated 14 px square behind its edge), so
   it needs no popup grab inside a full-screen window and is in the window's own screenshots.
-  Placement (`overlay::setup_placement`, unit-tested): 18 px right of the selection and
-  top-aligned; else left; else below; with no room at all at the monitor's right edge without an
-  arrow. It shows on the monitor holding the selection, hides while the selection is dragged,
+  Placement (`overlay::setup_placement`): 18 px right of the selection and top-aligned; else
+  left; else below; else above (Phase C1 review); with no room at all at the monitor's right
+  edge without an arrow, and then the arrow widget is hidden. It shows on the monitor holding the selection, hides while the selection is dragged,
   and before any selection is centred on every monitor with Start Recording insensitive for
   Region. Start Recording gets the focus once a selection exists.
 - **Choices are written as they change** (GSettings bindings; the source toggles and the
@@ -442,6 +441,38 @@ Phase C1 (recording setup and countdown, tasks 4.1 and 4.3, plus the Phase B rev
   the window crop meta is always converted, with the matching monitor's scale, else the one scale
   all monitors share, else 1 (`geometry::fallback_scale`), never alpha over the whole buffer; the
   waiting indicator of a window recording is titled "Record Window".
+
+Phase C1 review fixes (2026-11-24):
+- **Annota stays hidden while a recording starts and runs** (decided by the lead; reversible,
+  pending the maintainer's confirmation). The windows the capture flow hid for the frozen
+  desktop are not shown again after Start Recording: the user chose the area on a desktop
+  without Annota, and the waiting indicator is the chooser's parent. They come back when the
+  start ends without a recording (`Esc`/Cancel in the indicator, the chooser cancelled, a
+  failure, "region not on the screen" / "desktop ended", whose toast is shown in the main
+  window) or once the recording has ended (`Ended`; from Phase D the Export Recording window
+  opens there instead). `capture::run_hidden` hands them to `recording::start_from_setup`;
+  a request that starts nothing (another flow runs, no region) shows them at once.
+- **Placement:** the setup also goes above the selection (arrow on its bottom edge) before the
+  no-room fallback, and it never covers the mode pill: beside the selection it moves up or down
+  to clear the pill (as long as the arrow still meets the selection's height), below or above
+  it moves sideways. Without an arrow position the arrow widget is hidden (GtkOverlay put it at
+  the monitor's (0, 0) before).
+- **Mode pill at the top:** where the pill (24 px above the bottom edge) would cover one of the
+  selection's bottom handles, it moves to 24 px below the top edge (unless it would cover a top
+  handle there as well), in both modes.
+- **Keys:** in Video mode the arrow keys nudge the selection only while the selection area has
+  the keyboard focus; in the setup they move the focus. `Enter` anywhere in the setup is Start
+  Recording (a capture-phase key handler; the toggles and switches keep `Space`). Start
+  Recording is the window's default widget and the countdown spin has `activates-default`, but
+  GTK's spin button (4.22, measured) only commits typed text on the first `Enter` and
+  activates the default on a second one, so the handler takes the spin's value (`update`) and
+  starts at once. The countdown row is no focus stop of its own.
+- **Include pointer:** the capture toolbar's Include Pointer follows the `include-pointer`
+  setting while the overlay is open, so the setup's row shows there in Screenshot mode.
+- **Level preview:** rebuilt once per change on the next idle (each monitor's switch reports
+  the same setting change); its state changes run in order on a thread of their own, so a
+  hanging audio server cannot stall the overlay; after a preview error the pipeline is set to
+  `Null`.
 
 Phase C2 (Recording control, task 4.4, and the kit icons; `src/recording/control.rs`,
 `data/ui/recording-control.blp`, 2026-11-24):

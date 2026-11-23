@@ -629,6 +629,28 @@ fn rec_cancel_in_the_indicator_closes_the_session() {
     cast.reaches("Session.Close", 4);
     wait_for(|| window_wait::shown().is_none(), "the indicator to go");
     assert!(files_in(&folder).is_empty());
+
+    // Started from the setup: Annota's window, hidden for the setup, stays hidden while the
+    // indicator waits and comes back with the cancel.
+    gio::Settings::new(config::APP_ID)
+        .set_enum("record-source", CaptureMode::Screen.index())
+        .unwrap();
+    let main = crate::application::present_window(&scene.app);
+    pump(200);
+    capture::start_recording_setup(&scene.app);
+    let window = wait_for_overlay(&scene.app);
+    let start_button = setup_view(&window).start;
+    wait_for(|| start_button.is_sensitive(), "Start Recording");
+    start_button.emit_clicked();
+    cast.reaches("Start", 5);
+    let osd = window_wait::shown().expect("the waiting indicator");
+    assert!(!main.is_visible(), "hidden while waiting");
+    assert!(press(&osd, gdk::Key::Escape));
+    cast.reaches("Session.Close", 5);
+    wait_for(|| outcomes(&seen).len() == 4, "the outcome");
+    assert_eq!(outcomes(&seen)[3], StartOutcome::Cancelled);
+    assert!(main.is_visible(), "back after the cancel");
+    assert!(files_in(&folder).is_empty());
 }
 
 /// Scenario "Session closed while waiting": `Session.Closed` before Start answers takes the
@@ -992,18 +1014,8 @@ fn fill_the_monitor(window: &gtk::Window) -> bool {
     if fills() {
         return true;
     }
-    let Some(id) = glib::MainContext::default()
-        .block_on(ashpd::WindowIdentifier::from_native(window))
-        .map(|id| id.to_string())
-        .and_then(|id| id.strip_prefix("x11:").map(String::from))
-    else {
+    let Some(id) = x_window(window) else {
         return false;
-    };
-    let xdotool = |args: &[&str]| {
-        std::process::Command::new("xdotool")
-            .args(args)
-            .status()
-            .is_ok_and(|status| status.success())
     };
     let (w, h) = (monitor.width().to_string(), monitor.height().to_string());
     let (x, y) = (monitor.x().to_string(), monitor.y().to_string());
@@ -1013,6 +1025,37 @@ fn fill_the_monitor(window: &gtk::Window) -> bool {
     wait_for(fills, "the window to fill the monitor");
     pump(300);
     true
+}
+
+/// `window`'s X window id.
+fn x_window(window: &gtk::Window) -> Option<String> {
+    glib::MainContext::default()
+        .block_on(ashpd::WindowIdentifier::from_native(window))
+        .map(|id| id.to_string())
+        .and_then(|id| id.strip_prefix("x11:").map(String::from))
+}
+
+fn xdotool(args: &[&str]) -> bool {
+    std::process::Command::new("xdotool")
+        .args(args)
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+/// Types `key` (an X keysym name) into `window` as a real key press through the X server
+/// (`xdotool`, XTEST): GTK delivers it as any typed key, to the focused widget and its key
+/// bindings first, then the window's controllers. `false`: no `xdotool`, nothing typed.
+fn type_key(window: &gtk::Window, key: &str) -> bool {
+    let Some(id) = x_window(window) else {
+        return false;
+    };
+    if !xdotool(&["windowfocus", &id]) {
+        return false;
+    }
+    pump(200);
+    let typed = xdotool(&["key", key]);
+    pump(300);
+    typed
 }
 
 /// The recording countdown's window, if one is open.
@@ -1037,6 +1080,7 @@ struct SetupView {
     pointer: adw::ActionRow,
     pointer_switch: gtk::Switch,
     countdown: gtk::SpinButton,
+    countdown_row: adw::ActionRow,
     start: gtk::Button,
     video: gtk::ToggleButton,
     screenshot: gtk::ToggleButton,
@@ -1061,6 +1105,7 @@ fn setup_view(window: &gtk::Window) -> SetupView {
         pointer: cast("record_pointer_row").downcast().unwrap(),
         pointer_switch: cast("record_pointer_switch").downcast().unwrap(),
         countdown: cast("record_countdown_spin").downcast().unwrap(),
+        countdown_row: cast("record_countdown_row").downcast().unwrap(),
         start: cast("record_start_button").downcast().unwrap(),
         video: cast("mode_video_button").downcast().unwrap(),
         screenshot: cast("mode_screenshot_button").downcast().unwrap(),
@@ -1122,8 +1167,13 @@ fn set_scheme(dark: bool) {
 /// the mode pill shows the setup beside the selection (source, both audio rows with their device
 /// names and meters, Include pointer bound to the capture setting, Countdown, Start Recording
 /// with the initial focus) and the Video hints instead of the capture toolbar; Screenshot brings
-/// the toolbar back. `Enter` then starts a region recording of the selection, which ends the
-/// overlay with the selection in desktop px.
+/// the toolbar back. Along the way: the redline's heights (source group 34 px, rows 50 px, setup
+/// 334 px), where the setup goes for other selections (above, or without an arrow) and that it
+/// leaves the mode pill free, the pill at the top for a selection near the bottom, the arrows
+/// nudging only from the selection area, and Tab order. `Enter` typed in the countdown spin then
+/// starts a region recording of the selection, which ends the overlay with the selection in
+/// desktop px; `Enter` on a source toggle starts one too; the setup's Include pointer shows in
+/// the capture toolbar and the screenshot.
 // spec: screen-recording / Recording setup / Switch the overlay to video
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
@@ -1190,6 +1240,105 @@ fn rec_video_in_the_mode_pill_shows_the_setup() {
         (arrow.x() + arrow.width() / 2.0).round() as i32,
         130 + 700 + 18
     );
+    // Redline 01: the source toggle group 34 px, the rows 50 px, the setup 334 px.
+    let height = |widget: &gtk::Widget| widget.compute_bounds(&window).unwrap().height();
+    let sources: gtk::Box = find(&window, "record_source_group").unwrap();
+    let measured = [
+        height(sources.upcast_ref()),
+        height(view.microphone.upcast_ref()),
+        height(view.system.upcast_ref()),
+        height(view.pointer.upcast_ref()),
+        height(view.countdown_row.upcast_ref()),
+        bounds.height(),
+    ];
+    eprintln!("measured heights (sources, 4 rows, setup): {measured:?}");
+    assert_eq!(measured[0].round() as i32, 34, "the source toggle group");
+    for row in &measured[1..5] {
+        assert_eq!(row.round() as i32, 50, "a row");
+    }
+    assert!(
+        (measured[5] - 334.0).abs() <= 2.0,
+        "the setup: {}",
+        measured[5]
+    );
+    // Groups for assistive technology: "Source" and the mode pill's "Mode".
+    assert_eq!(sources.accessible_role(), gtk::AccessibleRole::Group);
+    let modes = view.screenshot.parent().unwrap();
+    assert_eq!(modes.accessible_role(), gtk::AccessibleRole::Group);
+    // The countdown row is no focus stop: Tab goes from Include pointer to the spin.
+    assert!(!view.countdown_row.is_focusable());
+    view.pointer_switch.grab_focus();
+    assert!(window.child_focus(gtk::DirectionType::TabForward));
+    let focus = gtk::prelude::GtkWindowExt::focus(&window).unwrap();
+    assert!(
+        focus.is_ancestor(&view.countdown),
+        "Tab reaches the spin: {focus:?}"
+    );
+
+    // Arrows in the setup move the focus, never the selection; on the selection area they nudge.
+    let selected = IRect::new(130, 92, 700, 470);
+    view.region.grab_focus();
+    assert!(!press(&window, gdk::Key::Left), "not the overlay's key");
+    assert_eq!(overlay::test_selection(0), Some(selected));
+    let canvas: gtk::DrawingArea = find(&window, "canvas").unwrap();
+    canvas.grab_focus();
+    assert!(press(&window, gdk::Key::Left));
+    assert_eq!(overlay::test_selection(0).map(|r| r.x), Some(129));
+    assert!(press(&window, gdk::Key::Right));
+    assert_eq!(overlay::test_selection(0), Some(selected));
+    view.start.grab_focus();
+
+    // No room beside the selection and none below it: above, the arrow on the setup's bottom
+    // edge facing it (never an arrow left at the monitor's (0, 0)).
+    the_setup_is_placed_clear_of_the_pill();
+    let monitor = the_monitor();
+    assert!(overlay::test_select(0, IRect::new(100, 450, 1000, 300)));
+    pump(200);
+    let bounds = view.setup.compute_bounds(&window).unwrap();
+    assert_eq!(
+        (bounds.y() + bounds.height()).round() as i32,
+        450 - 18,
+        "above the selection"
+    );
+    assert!(on_screen(&view.arrow));
+    let arrow = view.arrow.compute_bounds(&window).unwrap();
+    assert_eq!(
+        (arrow.y() + arrow.height() / 2.0).round() as i32,
+        450 - 18,
+        "on the setup's bottom edge"
+    );
+    // The whole monitor: no room anywhere, no arrow at all.
+    assert!(overlay::test_select(
+        0,
+        IRect::new(0, 0, monitor.width(), monitor.height())
+    ));
+    pump(200);
+    assert!(on_screen(&view.setup));
+    assert!(!on_screen(&view.arrow), "no arrow without room");
+    // A selection whose bottom handles the pill would cover: the pill goes to the top.
+    let pill: gtk::Box = find(&window, "mode_pill").unwrap();
+    let bottom = monitor.height() - 40;
+    assert!(overlay::test_select(
+        0,
+        IRect::new(300, bottom - 260, 700, 260)
+    ));
+    pump(200);
+    assert_eq!(pill.compute_bounds(&window).unwrap().y().round() as i32, 24);
+    let setup = view.setup.compute_bounds(&window).unwrap();
+    let at = pill.compute_bounds(&window).unwrap();
+    assert!(
+        setup.y() >= at.y() + at.height() || setup.y() + setup.height() <= at.y(),
+        "the setup leaves the pill free"
+    );
+    assert!(overlay::test_select(0, selected));
+    pump(200);
+    let at = pill.compute_bounds(&window).unwrap();
+    assert_eq!(
+        (at.y() + at.height()).round() as i32,
+        monitor.height() - 24,
+        "back at the bottom"
+    );
+
     // The pointer row is the capture setting itself.
     view.pointer_switch.set_active(false);
     assert!(!settings.boolean("include-pointer"));
@@ -1209,13 +1358,21 @@ fn rec_video_in_the_mode_pill_shows_the_setup() {
     pump(200);
     assert!(on_screen(&view.setup));
 
-    // Enter: Start Recording with Region ends the overlay with the selection.
-    assert!(press(&window, gdk::Key::Return));
+    // Enter in the countdown spin, as typed: the spin takes "7" and Start Recording starts a
+    // region recording of the selection.
+    view.countdown.grab_focus();
+    view.countdown.set_text("7");
+    let ok = type_key(&window, "Return");
+    if !ok {
+        eprintln!("no xdotool: Enter emitted on the window's controllers instead");
+        view.countdown.update();
+        assert!(press(&window, gdk::Key::Return));
+    }
     wait_for(|| outcome.borrow().is_some(), "the overlay's outcome");
+    assert_eq!(settings.int("record-countdown"), 7, "the typed countdown");
     match outcome.borrow_mut().take().unwrap() {
         Outcome::Record { source, selection } => {
             assert_eq!(source, CaptureMode::Region);
-            let monitor = the_monitor();
             assert_eq!(
                 selection,
                 Some(IRect::new(monitor.x() + 130, monitor.y() + 92, 700, 470))
@@ -1225,6 +1382,141 @@ fn rec_video_in_the_mode_pill_shows_the_setup() {
     }
     pump(200);
     assert!(overlay_window(&scene.app).is_none(), "the overlay closed");
+
+    // Enter on a source toggle starts the recording too (Space stays the toggle's own key).
+    let outcome = open_overlay(&scene.app, Mode::Video);
+    let window = wait_for_overlay(&scene.app);
+    let view = setup_view(&window);
+    assert!(overlay::test_select(0, selected));
+    pump(200);
+    view.window.grab_focus();
+    if !type_key(&window, "Return") {
+        assert!(press(&window, gdk::Key::Return));
+    }
+    wait_for(|| outcome.borrow().is_some(), "the overlay's outcome");
+    assert!(matches!(
+        outcome.borrow_mut().take().unwrap(),
+        Outcome::Record {
+            source: CaptureMode::Region,
+            ..
+        }
+    ));
+    assert_eq!(settings.enum_("record-source"), CaptureMode::Region.index());
+    pump(200);
+
+    // Include pointer switched off in Video shows in the capture toolbar, and the screenshot
+    // takes it.
+    let outcome = open_overlay(&scene.app, Mode::Video);
+    let window = wait_for_overlay(&scene.app);
+    let view = setup_view(&window);
+    assert!(overlay::test_select(0, selected));
+    pump(200);
+    let toolbar_pointer: gtk::ToggleButton = find(&window, "pointer_button").unwrap();
+    view.pointer_switch.set_active(false);
+    assert!(!toolbar_pointer.is_active());
+    view.pointer_switch.set_active(true);
+    assert!(
+        toolbar_pointer.is_active(),
+        "the toolbar follows the setting"
+    );
+    view.pointer_switch.set_active(false);
+    view.screenshot.set_active(true);
+    pump(200);
+    assert!(
+        !toolbar_pointer.is_active(),
+        "the toolbar follows the setting"
+    );
+    assert!(press(&window, gdk::Key::Return));
+    wait_for(|| outcome.borrow().is_some(), "the overlay's outcome");
+    match outcome.borrow_mut().take().unwrap() {
+        Outcome::Region {
+            include_pointer, ..
+        } => assert!(!include_pointer),
+        other => panic!("not a screenshot: {other:?}"),
+    }
+    pump(200);
+}
+
+/// Placement of the setup (redline 01) on a 1280 × 800 monitor with the mode pill at the
+/// bottom: right of the selection, else left, else below, else above, else at the monitor's
+/// right edge without an arrow; never on the pill. The pill goes to the top edge while it would
+/// cover a bottom handle of the selection.
+fn the_setup_is_placed_clear_of_the_pill() {
+    use crate::capture::geometry::FRect;
+    use overlay::{pill_at_top, pill_rect, setup_placement};
+    let area = (1280.0, 800.0);
+    let size = (380.0, 334.0);
+    let pill_size = (430.0, 42.0);
+    let pill = pill_rect(false, pill_size, area);
+    assert_eq!((pill.x, pill.y), (425.0, 734.0));
+    let sel = |x, y, w, h| Some(FRect { x, y, w, h });
+    let place = |selection| setup_placement(selection, size, area, Some(pill));
+    let clear_of_the_pill = |p: (f64, f64)| {
+        p.1 + size.1 + 8.0 <= pill.y
+            || p.1 >= pill.y + pill.h + 8.0
+            || p.0 + size.0 + 8.0 <= pill.x
+            || p.0 >= pill.x + pill.w + 8.0
+    };
+    // Mockup 01: 18 px right of the selection, top-aligned, the arrow on the setup's left
+    // edge near its top and within the selection's height.
+    let placed = place(sel(130.0, 92.0, 700.0, 470.0));
+    assert_eq!(placed.position, (848.0, 92.0));
+    assert_eq!(placed.arrow, Some((848.0, 132.0)));
+    // No room on the right: on the left, the arrow on its right edge.
+    let placed = place(sel(700.0, 100.0, 500.0, 300.0));
+    assert_eq!(placed.position, (302.0, 100.0));
+    assert_eq!(placed.arrow.map(|a| a.0), Some(682.0));
+    // Neither side: below, the arrow on its top edge.
+    let placed = place(sel(100.0, 40.0, 1080.0, 300.0));
+    assert_eq!(placed.position, (450.0, 358.0));
+    assert_eq!(placed.arrow, Some((640.0, 358.0)));
+    // Neither side nor below (the review's repro): above, the arrow on its bottom edge.
+    let placed = place(sel(100.0, 450.0, 1000.0, 300.0));
+    assert_eq!(placed.position, (410.0, 98.0));
+    assert_eq!(placed.arrow, Some((600.0, 432.0)));
+    // Nowhere (the whole monitor): inside the monitor, no arrow, the pill free.
+    let placed = place(sel(0.0, 0.0, 1280.0, 800.0));
+    assert!(placed.arrow.is_none());
+    assert_eq!(placed.position, (892.0, 8.0));
+    assert!(clear_of_the_pill(placed.position));
+    // Right of the selection but down on the pill: moved up to clear it, the arrow still
+    // within the selection's height.
+    let placed = place(sel(100.0, 450.0, 400.0, 300.0));
+    assert_eq!(placed.position, (518.0, 392.0));
+    assert_eq!(placed.arrow, Some((518.0, 462.0)));
+    assert!(clear_of_the_pill(placed.position));
+    // Near the bottom with no room beside it that clears the pill: above.
+    let placed = place(sel(100.0, 700.0, 200.0, 90.0));
+    assert_eq!(placed.position, (10.0, 348.0));
+    assert_eq!(placed.arrow, Some((200.0, 682.0)));
+    // Without a selection: centred.
+    let placed = place(None);
+    assert_eq!(placed.position, (450.0, 233.0));
+    assert!(placed.arrow.is_none());
+    // Without a pill the old rules hold.
+    let placed = setup_placement(sel(100.0, 450.0, 400.0, 300.0), size, area, None);
+    assert_eq!(placed.position, (518.0, 450.0));
+
+    // The pill: at the top while it would cover a bottom handle, unless a top handle is then
+    // covered too.
+    assert!(pill_at_top(
+        sel(300.0, 600.0, 700.0, 150.0),
+        pill_size,
+        area
+    ));
+    assert!(!pill_at_top(
+        sel(300.0, 40.0, 700.0, 720.0),
+        pill_size,
+        area
+    ));
+    assert!(!pill_at_top(
+        sel(130.0, 92.0, 700.0, 470.0),
+        pill_size,
+        area
+    ));
+    assert!(!pill_at_top(sel(0.0, 0.0, 1280.0, 800.0), pill_size, area));
+    assert!(!pill_at_top(None, pill_size, area));
+    assert_eq!(pill_rect(true, pill_size, area).y, 24.0);
 }
 
 /// Scenarios "Shortcut opens the setup" and "Cancel the setup": `--record toggle` with nothing
@@ -1239,6 +1531,8 @@ fn rec_the_record_shortcut_opens_the_setup_and_esc_cancels_it() {
     let (scene, seen, folder) = recording_scene("rec-shortcut-setup", false);
     let cast = add_cast(&scene, 7, screen_stream());
     crate::application::setup_actions(&scene.app);
+    let main = crate::application::present_window(&scene.app);
+    pump(200);
     scene
         .app
         .activate_action("record", Some(&RecordMode::Toggle.as_str().to_variant()));
@@ -1257,6 +1551,7 @@ fn rec_the_record_shortcut_opens_the_setup_and_esc_cancels_it() {
     assert!(files_in(&folder).is_empty(), "nothing written");
     assert!(outcomes(&seen).is_empty());
     assert!(!is_active());
+    assert!(main.is_visible(), "Annota's window is back");
 
     // `--record region` opens the same setup.
     scene
@@ -1274,7 +1569,8 @@ fn rec_the_record_shortcut_opens_the_setup_and_esc_cancels_it() {
 /// Scenario "Choices are remembered": System audio on, countdown 5 s and source Screen, then
 /// `Esc`; the setup opens again with exactly those. Start Recording with Screen then closes the
 /// overlay and requests a monitor source with the waiting indicator (the selection plays no
-/// part), and the countdown gets the saved 5 s.
+/// part), and the countdown gets the saved 5 s. Annota's main window is hidden for the setup,
+/// back after `Esc`, and stays hidden from Start Recording until the recording has ended.
 // spec: screen-recording / Recording setup / Choices are remembered
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
@@ -1282,8 +1578,12 @@ fn rec_setup_choices_are_remembered() {
     let (scene, seen, _folder) = recording_scene("rec-remembered", false);
     let cast = add_cast(&scene, 7, screen_stream());
     let settings = gio::Settings::new(config::APP_ID);
+    // Annota's main window, hidden for the frozen desktop like for a capture.
+    let main = crate::application::present_window(&scene.app);
+    pump(200);
     capture::start_recording_setup(&scene.app);
     let window = wait_for_overlay(&scene.app);
+    assert!(!main.is_visible(), "hidden for the setup");
     let view = setup_view(&window);
     wait_for(
         || view.system.subtitle().is_some_and(|s| !s.is_empty()),
@@ -1302,6 +1602,7 @@ fn rec_setup_choices_are_remembered() {
     assert!(cast.calls().is_empty());
     assert!(settings.boolean("record-system-audio"));
     assert_eq!(settings.int("record-countdown"), 5);
+    assert!(main.is_visible(), "back after the cancelled setup");
 
     capture::start_recording_setup(&scene.app);
     let window = wait_for_overlay(&scene.app);
@@ -1318,16 +1619,23 @@ fn rec_setup_choices_are_remembered() {
     let osd = window_wait::shown().expect("the waiting indicator");
     assert_eq!(indicator_text(&osd).0, "Waiting for a screen…");
     assert_eq!(osd.title().as_deref(), Some("Record Screen"));
+    // Annota stays off the screen from Start Recording on: waiting, counting down, recording
+    // (design.md, "Decided during apply", Phase C1 review).
+    assert!(!main.is_visible(), "hidden while waiting for the source");
     cast.answer(0);
     wait_for(|| !seen.countdown.borrow().is_empty(), "the countdown");
+    assert!(!main.is_visible(), "hidden during the countdown");
     let countdown = seen.countdown.borrow().clone();
     assert_eq!((countdown[0].0, countdown[0].1), (Target::Screen, 5));
     wait_for(|| running().is_some(), "the recording");
+    pump(300);
+    assert!(!main.is_visible(), "hidden while recording");
     assert!(stop());
     wait_for(
         || !seen.ended.borrow().is_empty(),
         "the recording to finish",
     );
+    assert!(main.is_visible(), "back once the recording has ended");
 }
 
 /// Scenarios "Source not offered" and "No microphone": a portal that offers monitors only and a

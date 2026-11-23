@@ -315,7 +315,12 @@ Window overlay_window {
       styles ["annota-hint", "annota-mode-pill"]
 
       Box {
+        accessible-role: group;
         styles ["annota-mode-pill-toggle"]
+
+        accessibility {
+          label: _("Mode");
+        }
 
         ToggleButton mode_screenshot_button {
           active: true;
@@ -651,6 +656,7 @@ Window overlay_window {
 
       Box record_source_group {
         homogeneous: true;
+        accessible-role: group;
         styles ["annota-segmented", "annota-record-sources"]
 
         accessibility {
@@ -813,6 +819,8 @@ Window overlay_window {
         Adw.ActionRow record_countdown_row {
           title: _("Countdown");
           activatable: false;
+          // Not a focus stop of its own: Tab goes straight to the spin.
+          focusable: false;
 
           [prefix]
           Image {
@@ -825,6 +833,7 @@ Window overlay_window {
             valign: center;
             width-request: 108;
             numeric: false;
+            activates-default: true;
 
             accessibility {
               label: _("Countdown in seconds");

@@ -263,6 +263,23 @@ enum Active {
 thread_local! {
     static ACTIVE: RefCell<Active> = const { RefCell::new(Active::Idle) };
     static HOOKS: RefCell<Hooks> = RefCell::new(Hooks::default());
+    /// Annota's windows the capture flow hid for the setup: off the screen while the recording
+    /// starts and runs, back when the start ends without a recording or the recording has
+    /// ended ([`show_hidden`]).
+    static HIDDEN: RefCell<Vec<gtk::Window>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Shows the windows hidden for the setup again (those still open).
+fn show_hidden(app: &adw::Application) {
+    let hidden = HIDDEN.with(RefCell::take);
+    show_windows(app, &hidden);
+}
+
+fn show_windows(app: &adw::Application, windows: &[gtk::Window]) {
+    let open = app.windows();
+    for window in windows.iter().filter(|w| open.contains(w)) {
+        window.set_visible(true);
+    }
 }
 
 /// Changes the hooks (later phases, tests).
@@ -345,8 +362,29 @@ pub fn start(app: &adw::Application, request: RecordRequest) {
 }
 
 /// Start Recording in the overlay's setup: `source` as chosen there; a region records
-/// `selection` (logical desktop px).
-pub fn start_from_setup(app: &adw::Application, source: CaptureMode, selection: Option<IRect>) {
+/// `selection` (logical desktop px). `hidden`: Annota's windows the capture flow hid; they stay
+/// hidden until this start ends without a recording or the recording has ended.
+pub fn start_from_setup(
+    app: &adw::Application,
+    source: CaptureMode,
+    selection: Option<IRect>,
+    hidden: Vec<gtk::Window>,
+) {
+    if is_active() {
+        // Another flow runs (its control or indicator comes up): nothing starts here.
+        show_windows(app, &hidden);
+        route_setup(app, source, selection);
+        return;
+    }
+    HIDDEN.with(|h| h.replace(hidden));
+    route_setup(app, source, selection);
+    if !is_active() {
+        // Nothing started (no region).
+        show_hidden(app);
+    }
+}
+
+fn route_setup(app: &adw::Application, source: CaptureMode, selection: Option<IRect>) {
     match (source, selection) {
         (CaptureMode::Region, Some(selection)) => start_region(app, selection),
         (CaptureMode::Region, None) => eprintln!("annota: recording: no region selected"),
@@ -385,6 +423,8 @@ fn spawn(app: &adw::Application, target: Target) {
         let outcome = record(&app, target).await;
         if outcome != StartOutcome::Recording {
             set_active(Active::Idle);
+            // Before the outcome: its message is shown in Annota's main window.
+            show_hidden(&app);
         }
         if let StartOutcome::Failed(cause) = &outcome {
             eprintln!("annota: recording did not start: {cause}");
@@ -487,6 +527,8 @@ async fn record(app: &adw::Application, target: Target) -> StartOutcome {
         move |ended: Ended| {
             control::close();
             set_active(Active::Idle);
+            // Phase D opens the Export Recording window here instead (D1).
+            show_hidden(&app);
             on_ended(&app, ended);
         }
     };

@@ -13,6 +13,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::mpsc;
 
 use adw::prelude::*;
 use gettextrs::gettext;
@@ -143,15 +144,36 @@ impl View {
 }
 
 /// The level preview: `pulsesrc ! level ! fakesink` per recorded, present source.
+///
+/// Its state changes run in order on a thread of its own ([`state_worker`]), never on the main
+/// loop: a hanging audio server must not stall the overlay.
 struct Preview {
-    pipeline: gst::Pipeline,
+    states: mpsc::Sender<gst::State>,
     _watch: gst::bus::BusWatchGuard,
 }
 
 impl Drop for Preview {
     fn drop(&mut self) {
-        let _ = self.pipeline.set_state(gst::State::Null);
+        let _ = self.states.send(gst::State::Null);
     }
+}
+
+/// A thread that sets `pipeline` to each state it is sent, in order, and to `Null` once every
+/// sender is gone.
+fn state_worker(pipeline: gst::Pipeline) -> Result<mpsc::Sender<gst::State>, String> {
+    let (sender, states) = mpsc::channel::<gst::State>();
+    std::thread::Builder::new()
+        .name(String::from("annota-level-preview"))
+        .spawn(move || {
+            for state in states {
+                if let Err(err) = pipeline.set_state(state) {
+                    eprintln!("annota: recording setup: level preview to {state:?}: {err}");
+                }
+            }
+            let _ = pipeline.set_state(gst::State::Null);
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(sender)
 }
 
 /// The setup of one overlay session (all monitors).
@@ -165,6 +187,9 @@ pub struct Setup {
     /// Peak dB per [`AudioSource::index`] from the preview.
     levels: Rc<RefCell<[Option<f64>; 2]>>,
     syncing: Cell<bool>,
+    /// A rebuild of the preview is queued for the next idle (one per change, however many
+    /// monitors' switches report it).
+    rebuild_queued: Cell<bool>,
     tasks: RefCell<Vec<glib::JoinHandle<()>>>,
     /// The overlay redraws its chrome (Start Recording's sensitivity) after a change.
     on_change: Box<dyn Fn()>,
@@ -187,6 +212,7 @@ impl Setup {
             preview: RefCell::new(None),
             levels: Rc::new(RefCell::new([None, None])),
             syncing: Cell::new(false),
+            rebuild_queued: Cell::new(false),
             tasks: RefCell::new(Vec::new()),
             on_change: Box::new(on_change),
         });
@@ -316,7 +342,7 @@ impl Setup {
         self.syncing.set(false);
     }
 
-    fn apply_devices(&self, devices: SystemDevices) {
+    fn apply_devices(self: &Rc<Self>, devices: SystemDevices) {
         for view in &self.views {
             for (source, row, meter, switch) in &view.rows {
                 let present = match source {
@@ -356,7 +382,7 @@ impl Setup {
     }
 
     /// The setup is on the screen (`true`) or not: the level preview runs only meanwhile.
-    pub fn set_shown(&self, shown: bool) {
+    pub fn set_shown(self: &Rc<Self>, shown: bool) {
         if self.shown.replace(shown) != shown {
             self.restart_preview();
         }
@@ -383,8 +409,28 @@ impl Setup {
                 .is_some_and(|view| view.switch(source).is_active())
     }
 
+    /// Queues a rebuild of the preview: every monitor's switch reports a change of the same
+    /// setting, and the preview is rebuilt once for all of them. While the setup is not shown
+    /// the preview goes at once.
+    fn restart_preview(self: &Rc<Self>) {
+        if !self.shown.get() {
+            self.rebuild_preview();
+            return;
+        }
+        if self.rebuild_queued.replace(true) {
+            return;
+        }
+        let weak = Rc::downgrade(self);
+        glib::idle_add_local_once(move || {
+            if let Some(setup) = weak.upgrade() {
+                setup.rebuild_queued.set(false);
+                setup.rebuild_preview();
+            }
+        });
+    }
+
     /// (Re)builds the preview for the sources whose switch is on, while the setup is shown.
-    fn restart_preview(&self) {
+    fn rebuild_preview(&self) {
         self.preview.replace(None);
         self.levels.replace([None, None]);
         let sources: Vec<AudioSource> = AudioSource::ALL
@@ -432,6 +478,8 @@ impl Setup {
             .map(|view| [view.rows[0].2.clone(), view.rows[1].2.clone()])
             .collect();
         let shared = self.levels.clone();
+        let states = state_worker(pipeline.clone())?;
+        let on_error = states.clone();
         let watch = bus
             .add_watch_local(move |_, message| {
                 match message.view() {
@@ -452,6 +500,7 @@ impl Setup {
                             err.src().map(|s| s.name().to_string()).unwrap_or_default(),
                             err.error()
                         );
+                        let _ = on_error.send(gst::State::Null);
                         return glib::ControlFlow::Break;
                     }
                     _ => {}
@@ -459,11 +508,11 @@ impl Setup {
                 glib::ControlFlow::Continue
             })
             .map_err(|e| e.to_string())?;
-        pipeline
-            .set_state(gst::State::Playing)
+        states
+            .send(gst::State::Playing)
             .map_err(|e| e.to_string())?;
         Ok(Preview {
-            pipeline,
+            states,
             _watch: watch,
         })
     }

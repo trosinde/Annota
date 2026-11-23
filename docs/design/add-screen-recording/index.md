@@ -150,6 +150,12 @@ Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume"
   on this desktop" (tooltips show on insensitive widgets). If the saved source is unavailable,
   Region is selected.
 - No webcam, cursor-highlight, click-animation or quality options in this change.
+- As built (Phase C1 review, 2026-11-24; for design sign-off): the capture overlay now shows the
+  mode pill in Screenshot mode too, holding the capture hints after the Screenshot | Video
+  toggle, 24 px above the bottom edge (the add-screen-capture hint bar was 36 px). Where the
+  pill would cover one of the selection's bottom handles it moves to 24 px below the top edge.
+  The setup also goes above the selection (arrow down) when there is no room beside or below
+  it, and never covers the pill.
 
 ### 03 Waiting for a screen
 

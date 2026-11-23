@@ -18,7 +18,7 @@ pub mod snap;
 pub mod texture;
 pub mod window_wait;
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::time::Duration;
 
 use adw::prelude::*;
@@ -68,6 +68,10 @@ thread_local! {
     /// Start Recording in the overlay's Video mode: what to record, handed to the recording
     /// flow once the capture flow has ended (add-screen-recording).
     static RECORD: Cell<Option<(CaptureMode, Option<geometry::IRect>)>> = const { Cell::new(None) };
+    /// The windows `run_hidden` hid, when Start Recording ended the flow: they stay hidden and
+    /// go to the recording flow, which shows them again once it ends (design.md, "Decided
+    /// during apply", Phase C1 review).
+    static HIDDEN_FOR_RECORDING: RefCell<Vec<gtk::Window>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Starts a capture. Annota's own windows are hidden first so they are not captured, except for
@@ -114,7 +118,8 @@ fn start_in(app: &adw::Application, request: Request, overlay_mode: Mode) {
         let result = with_permission(&app, request).await;
         BUSY.with(|busy| busy.set(false));
         if let Some((source, selection)) = RECORD.with(Cell::take) {
-            crate::recording::start_from_setup(&app, source, selection);
+            let hidden = HIDDEN_FOR_RECORDING.with(RefCell::take);
+            crate::recording::start_from_setup(&app, source, selection, hidden);
         }
 
         match result {
@@ -259,8 +264,15 @@ async fn run_hidden(
     let result = run(app, request).await;
     // Anything can have closed one of them by now, and showing a destroyed window is not safe.
     let open = app.windows();
-    for window in visible.iter().filter(|w| open.contains(w)) {
-        window.set_visible(true);
+    let hidden = visible.into_iter().filter(|w| open.contains(w));
+    if RECORD.with(Cell::get).is_some() {
+        // Start Recording: the area was chosen on a frozen desktop without Annota, so Annota
+        // stays off the screen until the recording flow ends.
+        HIDDEN_FOR_RECORDING.with(|keep| keep.replace(hidden.collect()));
+    } else {
+        for window in hidden {
+            window.set_visible(true);
+        }
     }
     result
 }
