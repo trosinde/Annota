@@ -48,6 +48,11 @@ Start Recording SHALL request one ScreenCast source without a restore token. Reg
 - **WHEN** the portal answers Start with response code 1 (cancelled)
 - **THEN** the session counts as already closed: Annota sends no `Session.Close`, writes nothing and shows no message
 
+#### Scenario: Session closed while waiting
+- **WHEN** the waiting indicator is shown and the portal reports the session closed before it answers Start
+- **THEN** the waiting indicator closes at once without waiting for Start's answer, nothing is written, a later answer to that Start is ignored
+- **AND** "The desktop ended the screen-sharing request. Nothing was recorded." is shown
+
 #### Scenario: Waiting indicator with one monitor
 - **WHEN** a screen recording is started on a desktop with a single monitor
 - **THEN** the waiting indicator is shown until the portal answers Start
@@ -128,7 +133,7 @@ The user SHALL be able to record the default microphone, the system audio (monit
 - **THEN** the recording has a video track and no audio track
 
 ### Requirement: Stop recording
-Stop, the Record shortcut, the desktop ending the screen-sharing session and the end of a recorded window's stream SHALL each end the recording, finish the working file and open the Export Recording window. Stopping SHALL close the screen-sharing session. Whether GNOME ends a session from its own UI, or a closed window's stream, is unmeasured (design.md P5, P6); those two scenarios state only how Annota handles the signal if it comes.
+Stop, the Record shortcut, the desktop ending the screen-sharing session and the end of a recorded window's stream SHALL each end the recording, finish the working file and open the Export Recording window. Stopping SHALL close the screen-sharing session. Annota's own stop is the only guaranteed one: whether GNOME's ■ stop or closing a recorded window ends the session or stream is unmeasured (design.md P5, P6); those two scenarios are required paths for when the signal comes.
 
 #### Scenario: Stop by button
 - **WHEN** a recording runs and the user activates Stop in the control

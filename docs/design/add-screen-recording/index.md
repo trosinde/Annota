@@ -252,8 +252,9 @@ Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume"
   would be recorded. The dashed outline exists only during the countdown, inside the countdown's
   own transparent maximised window, and nothing before the countdown's end is recorded.
 - GNOME shows its own screen-sharing indicator in GNOME's panel / quick settings (wherever the
-  system status area is) while a ScreenCast session is open; on the maintainer's desktop with a
-  bottom panel none was found (probe P5, inconclusive). It is drawn generically in 05/06 and
+  system status area is) while a ScreenCast session is open: a screen-cast icon with a small ■
+  stop button (on the maintainer's desktop in the bottom panel), and it is in the video of a
+  screen recording (probe P12). Whether ■ ends Annota's session is unmeasured (P5). It is drawn generically in 05/06 and
   labelled "GNOME's indicator, not drawn by Annota". Annota draws nothing in GNOME's panel.
 - GNOME's window and screen choosers are GNOME UI; they appear only as labelled schematic
   placeholders (03, fix-window-capture-screencast 02). Their position and look are GNOME's.
