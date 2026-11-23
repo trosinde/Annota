@@ -11,9 +11,9 @@ capability is named. Every test carries a `spec:` tag for the scenarios it prove
 ## 2. Foundation (probes before code)
 - [ ] 2.1 Probes P1–P12 of design.md with `tools/recording-probe.py` (written 2026-11-22, syntax-checked only — it has never touched a portal). The maintainer runs the commands in `manual-checks.md` § "Probe run (task 2.1)" on GNOME 50 (own desktop) and, where possible, GNOME 46 (Ubuntu 24.04, Wayland and "GNOME on Xorg" for P9); the tool appends to `probe-results/<date>-<os>-<session>.md`, which is committed. Then correct spec and design wherever a result contradicts them before any code relies on it
   - [x] 2.1a Script written, `python3 -m py_compile` and `--help` pass
-  - [ ] 2.1b Maintainer run on GNOME 50 (Wayland), log committed — runs of 2026-11-23 committed; P5 measured (18:46, ■ → `Session.Closed`, no EOS). P6 still unmeasured: rerun `window-end` with an ordinary application window (tool sharpened 2026-11-23: `selftest` checks the frame analysis offline; `window-end` stops waiting when `Session.Closed` arrives during Start and saves downscaled frames to /tmp for the coordinating session). P12 measured from the P4 frames, P7 settled by design (D3), P8 moved to 6.2, P9 later
+  - [x] 2.1b Maintainer run on GNOME 50 (Wayland), log committed — runs of 2026-11-23 committed: P1-P5, P10-P12 measured; P6 measured at 20:48 with no human through `tools/recording-probe-drive.py window-end` (RemoteDesktop token + AT-SPI drive the chooser). P7 settled by design (D3), P8 moved to 6.2, P9 with 2.1c
   - [ ] 2.1c Run on GNOME 46 (Ubuntu 24.04), Wayland and X11 (P9), log committed
-  - [ ] 2.1d Spec/design corrected from the results (or "no contradiction" noted in design.md) — done for P1-P5, P10, P11, P12, the early `Session.Closed` of the P6 rerun and the P7 decision (2026-11-23, probe table with status and evidence); open until the P6 rerun
+  - [x] 2.1d Spec/design corrected from the results — probe table with status and evidence for P1-P12 (2026-11-23); P6: per-buffer crop meta, close → `Session.Closed`, damage-driven window streams
 - [ ] 2.2 Measure `pulsesrc` default source, `@DEFAULT_MONITOR@` and `GstDeviceMonitor` on Ubuntu 24.04 (pipewire-pulse): `tools/recording-probe.py audio`
 - [ ] 2.3 Verify every element of "Recording runtime dependencies" and its package on clean Ubuntu 24.04, Ubuntu 26.04 and Debian 13 containers; settle Q2/Q3 with the result
 - [ ] 2.4 Crates: `gstreamer-pbutils`/`gstreamer-audio` if needed, MSRV 1.85 and GStreamer 1.24 checked, `Cargo.lock` with Rust 1.85, `build-aux/update-copyright.py`
@@ -22,11 +22,11 @@ capability is named. Every test carries a `spec:` tag for the scenarios it prove
 ## 3. Recording pipeline
 - [ ] 3.1 `screencast.rs`: keep a stream for recording (monitor and window sources, no restore token, cursor mode) — Recording source / Pointer in the recording, Source request cancelled, Chooser cancelled in the desktop, Session closed while waiting, Waiting indicator with one monitor, Source not offered (fake portal)
 - [ ] 3.2 Region crop mapping from probe P2/P3 (logical selection × buffer size ÷ `size`) — Recording source / Record a region, Record a region on a scaled monitor, Region not on the chosen screen
-- [ ] 3.3 Window and screen recording incl. per-frame window crop and scaling to the first frame — Recording source / Record a window, Record the screen
+- [ ] 3.3 Window and screen recording incl. per-buffer crop from the crop meta (shadow trim recomputed only on a crop change) and scaling to the first frame — Recording source / Record a window, Recorded window resized, Record the screen
 - [ ] 3.4 Pipeline to the Matroska working file (videotestsrc/audiotestsrc in tests), stream timestamps + `videorate` 30 fps — Working file / Recording survives a crash, Name already taken, Recording error; Recording frame rate / Still screen, Burst of buffers
 - [ ] 3.5 Pause/resume via drop probe + running-time offset — Pause and resume / Paused time is not recorded
 - [ ] 3.6 Audio: device presence, mute, level — Audio / Mute the microphone, Mute system audio, No microphone, No audio selected
-- [ ] 3.7 Stop paths: button, shortcut, `Session::Closed`, window stream end — Stop recording / Stop by button, Stop by hotkey, Session ended by the desktop, Recorded window closed
+- [ ] 3.7 Stop paths: button, shortcut, `Session::Closed`, window stream end — Stop recording / Stop by button, Stop by hotkey, Session ended by the desktop, Recorded window closed (both measured as `Session.Closed` without EOS, P5/P6)
 
 ## 4. UI chrome
 - [ ] 4.1 Overlay mode pill + recording setup (Blueprint), settings persisted — Recording setup / Switch the overlay to video, Choices are remembered, Cancel the setup (mockups 01, 02)

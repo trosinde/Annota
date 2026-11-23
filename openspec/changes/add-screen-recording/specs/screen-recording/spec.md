@@ -18,7 +18,7 @@ Switching the region overlay's mode pill to Video SHALL show the recording setup
 - **THEN** the overlay closes, no screen-sharing session is requested and nothing is written
 
 ### Requirement: Recording source
-Start Recording SHALL request one ScreenCast source without a restore token. Region: a monitor source; only the selection is recorded, mapped to buffer pixels by buffer size ÷ stream `size`. Window: the window chooser flow of `capture` "Window capture", keeping the stream. Screen: a monitor source, recorded whole. While the request is open, a waiting indicator with Cancel (`Esc`) SHALL be shown, also with one monitor. Pointer: embedded when Include pointer is on and offered, else hidden.
+Start Recording SHALL request one ScreenCast source without a restore token. Region: a monitor source; only the selection is recorded, mapped to buffer pixels by buffer size ÷ stream `size`. Window: the `capture` window chooser flow, keeping the stream, each buffer cropped to its crop meta. Screen: a monitor source, recorded whole. While the request is open, a waiting indicator with Cancel (`Esc`) SHALL be shown. Pointer: embedded if Include pointer is on and offered, else hidden.
 
 #### Scenario: Record a region
 - **WHEN** the user selects a 800×600 region, starts recording and the portal answers with a monitor stream containing it whose buffers have the same size as its `size`
@@ -35,6 +35,11 @@ Start Recording SHALL request one ScreenCast source without a restore token. Reg
 #### Scenario: Record a window
 - **WHEN** the user starts a window recording and a window is chosen
 - **THEN** the "Waiting for a window…" indicator disappears and the recording shows only that window
+
+#### Scenario: Recorded window resized
+- **WHEN** a window recording runs with buffers of a fixed 6144×3456 whose crop meta changes from (0, 0, 928, 628) to (0, 0, 3840, 2100) and back
+- **THEN** every frame is taken from inside that buffer's crop meta only, never from pixels outside it
+- **AND** the recording keeps the frame size it had at start, the larger window scaled down to fit and letterboxed, never stretched
 
 #### Scenario: Record the screen
 - **WHEN** the user starts a screen recording and the portal answers with a monitor stream
@@ -133,7 +138,7 @@ The user SHALL be able to record the default microphone, the system audio (monit
 - **THEN** the recording has a video track and no audio track
 
 ### Requirement: Stop recording
-Stop, the Record shortcut, the desktop ending the screen-sharing session and the end of a recorded window's stream SHALL each end the recording, finish the working file and open the Export Recording window. Stopping SHALL close the screen-sharing session. GNOME's own stop reaches Annota only as `Session.Closed`, with no end of stream (design.md P5); Annota SHALL finish the recording on it without waiting for one. Whether closing a recorded window ends its stream is unmeasured (P6).
+Stop, the Record shortcut, the desktop ending the screen-sharing session and the end of a recorded window's stream SHALL each end the recording, finish the working file and open the Export Recording window. Stopping SHALL close the screen-sharing session. GNOME's own stop and closing a recorded window reach Annota only as `Session.Closed`, with no end of stream (design.md P5, P6); Annota SHALL finish the recording on it without waiting for one.
 
 #### Scenario: Stop by button
 - **WHEN** a recording runs and the user activates Stop in the control
@@ -148,8 +153,8 @@ Stop, the Record shortcut, the desktop ending the screen-sharing session and the
 - **THEN** the recording is finished at once without waiting for an end of stream, what was recorded is kept and the Export Recording window opens
 
 #### Scenario: Recorded window closed
-- **WHEN** a window recording runs and the window's stream ends (unmeasured: P6)
-- **THEN** what was recorded is kept and the Export Recording window opens
+- **WHEN** a window recording runs, the recorded window is closed and the portal reports the session closed while the stream has sent no end of stream
+- **THEN** the recording is finished at once without waiting for an end of stream, what was recorded is kept and the Export Recording window opens
 
 ### Requirement: Record shortcut
 Annota SHALL register a global shortcut "Record video" (ID `record`, preferred `Super+Alt+R`) under the rules of `capture` "Global capture hotkey": Preferences › Capture and the Record card show only the trigger the portal reports, which may differ from the preferred one; without the portal, a GNOME custom keybinding running `annota --record toggle`. It SHALL open the overlay in Video mode, cancel a running countdown, or stop a running or paused recording.
