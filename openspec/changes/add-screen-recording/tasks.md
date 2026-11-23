@@ -17,14 +17,14 @@ capability is named. Every test carries a `spec:` tag for the scenarios it prove
 - [ ] 2.2 Measure `pulsesrc` default source, `@DEFAULT_MONITOR@` and `GstDeviceMonitor` on Ubuntu 24.04 (pipewire-pulse): `tools/recording-probe.py audio`
 - [ ] 2.3 Verify every element of "Recording runtime dependencies" and its package on clean Ubuntu 24.04, Ubuntu 26.04 and Debian 13 containers; settle Q2/Q3 with the result
 - [ ] 2.4 Crates: `gstreamer-pbutils`/`gstreamer-audio` if needed, MSRV 1.85 and GStreamer 1.24 checked, `Cargo.lock` with Rust 1.85, `build-aux/update-copyright.py`
-- [ ] 2.5 GSettings keys of design.md D8 with defaults; `cli.rs` `--record region|window|screen|toggle` — Recording on the command line / Invalid record mode
+- [x] 2.5 GSettings keys of design.md D8 with defaults; `cli.rs` `--record region|window|screen|toggle` — Recording on the command line / Invalid record mode
 
 ## 3. Recording pipeline
 - [ ] 3.1 `screencast.rs`: keep a stream for recording (monitor and window sources, no restore token, cursor mode) — Recording source / Pointer in the recording, Source request cancelled, Chooser cancelled in the desktop, Session closed while waiting, Waiting indicator with one monitor, Source not offered (fake portal)
-- [ ] 3.2 Region crop mapping from probe P2/P3 (logical selection × buffer size ÷ `size`) — Recording source / Record a region, Record a region on a scaled monitor, Region not on the chosen screen
+- [x] 3.2 Region crop mapping from probe P2/P3 (logical selection × buffer size ÷ `size`) — Recording source / Record a region, Record a region on a scaled monitor, Region not on the chosen screen
 - [ ] 3.3 Window and screen recording incl. per-buffer crop from the crop meta (shadow trim recomputed only on a crop change) and scaling to the first frame — Recording source / Record a window, Window crop meta in buffer pixels (unit test of crop meta × (buffer ÷ `size`) ÷ monitor scale), Recorded window resized, Record the screen
-- [ ] 3.4 Pipeline to the Matroska working file (videotestsrc/audiotestsrc in tests), stream timestamps + `videorate` 30 fps — Working file / Recording survives a crash, Name already taken, Recording error; Recording frame rate / Still screen, Burst of buffers
-- [ ] 3.5 Pause/resume via drop probe + running-time offset — Pause and resume / Paused time is not recorded
+- [x] 3.4 Pipeline to the Matroska working file (videotestsrc/audiotestsrc in tests), stream timestamps + `videorate` 30 fps — Working file / Recording survives a crash, Name already taken, Recording error; Recording frame rate / Still screen, Burst of buffers
+- [x] 3.5 Pause/resume via drop probe + running-time offset — Pause and resume / Paused time is not recorded
 - [ ] 3.6 Audio: device presence, mute, level — Audio / Mute the microphone, Mute system audio, No microphone, No audio selected
 - [ ] 3.7 Stop paths: button, shortcut, `Session::Closed`, window stream end — Stop recording / Stop by button, Stop by hotkey, Session ended by the desktop, Recorded window closed (both measured as `Session.Closed` without EOS, P5/P6)
 

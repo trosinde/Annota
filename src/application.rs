@@ -7,9 +7,10 @@ use gettextrs::gettext;
 use gtk::{gdk, gio, glib};
 
 use crate::capture::{self, import, shortcuts};
-use crate::cli::{CaptureMode, DELAY_RANGE, EXIT_USAGE};
+use crate::cli::{CaptureMode, RecordMode, DELAY_RANGE, EXIT_USAGE};
 use crate::config;
 use crate::preferences;
+use crate::recording;
 
 const UI_WINDOW: &str = "/io/github/trosinde/Annota/ui/window.ui";
 /// Style class of the editor window (`data/ui/editor-window.blp`), which is not the main window.
@@ -49,6 +50,14 @@ fn add_options(app: &adw::Application) {
         glib::OptionFlags::NONE,
         glib::OptionArg::String,
         "Start a capture: region, window or screen",
+        Some("MODE"),
+    );
+    app.add_main_option(
+        "record",
+        glib::Char::from(b'r'),
+        glib::OptionFlags::NONE,
+        glib::OptionArg::String,
+        "Start a recording: region, window or screen; toggle acts as the Record shortcut",
         Some("MODE"),
     );
     app.add_main_option(
@@ -93,22 +102,47 @@ fn handle_local_options(_app: &adw::Application, options: &glib::VariantDict) ->
         println!("annota {}", version_string());
         return 0;
     }
+    handle_local_options_status(options)
+}
+
+/// [`handle_local_options`] after `--version`: [`EXIT_USAGE`] with the message printed, or -1 to
+/// continue.
+fn handle_local_options_status(options: &glib::VariantDict) -> i32 {
+    match usage_error(options) {
+        Some(message) => {
+            eprintln!("{message}");
+            EXIT_USAGE
+        }
+        None => -1, // continue: forward to the primary instance
+    }
+}
+
+/// What is wrong with the command line, as printed before exiting with [`EXIT_USAGE`].
+fn usage_error(options: &glib::VariantDict) -> Option<String> {
     if let Some(mode) = options.lookup::<String>("capture").ok().flatten() {
         if CaptureMode::parse(&mode).is_none() {
-            eprintln!(
+            return Some(format!(
                 "annota: invalid capture mode '{mode}'. Valid modes: {}",
                 CaptureMode::VALID
-            );
-            return EXIT_USAGE;
+            ));
+        }
+    }
+    if let Some(mode) = options.lookup::<String>("record").ok().flatten() {
+        if RecordMode::parse(&mode).is_none() {
+            return Some(format!(
+                "annota: invalid record mode '{mode}'. Valid modes: {}",
+                RecordMode::VALID
+            ));
         }
     }
     if let Some(delay) = options.lookup::<i32>("delay").ok().flatten() {
         if !DELAY_RANGE.contains(&delay) {
-            eprintln!("annota: delay must be between 0 and 60 seconds, got {delay}");
-            return EXIT_USAGE;
+            return Some(format!(
+                "annota: delay must be between 0 and 60 seconds, got {delay}"
+            ));
         }
     }
-    -1 // continue: forward to the primary instance
+    None
 }
 
 /// Runs in the primary instance (also for requests forwarded from a second launch).
@@ -132,6 +166,17 @@ fn handle_command_line(app: &adw::Application, cmdline: &gio::ApplicationCommand
             .filter(|d| DELAY_RANGE.contains(d))
             .map(|d| d as u32);
         capture::start(app, capture::Request::with_defaults(mode, delay));
+        return 0;
+    }
+
+    // `--record` starts the recording flow like `--capture`, without raising the window.
+    if let Some(mode) = options
+        .lookup::<String>("record")
+        .ok()
+        .flatten()
+        .and_then(|m| RecordMode::parse(&m))
+    {
+        app.activate_action("record", Some(&mode.as_str().to_variant()));
         return 0;
     }
 
@@ -686,6 +731,18 @@ fn setup_actions(app: &adw::Application) {
             }
         })
         .build();
+    // `--record`, and later the Record shortcut and the Record card (add-screen-recording).
+    let record = gio::ActionEntry::builder("record")
+        .parameter_type(Some(glib::VariantTy::STRING))
+        .activate(|app: &adw::Application, _, parameter| {
+            let mode = parameter
+                .and_then(|p| p.get::<String>())
+                .and_then(|m| RecordMode::parse(&m));
+            if let Some(mode) = mode {
+                recording::start(app, recording::RecordRequest { mode });
+            }
+        })
+        .build();
     let paste = gio::ActionEntry::builder("paste-image")
         .activate(|app: &adw::Application, _, _| import::paste(app))
         .build();
@@ -707,7 +764,7 @@ fn setup_actions(app: &adw::Application) {
             }
         })
         .build();
-    app.add_action_entries([quit, about, prefs, capture, paste, open, library]);
+    app.add_action_entries([quit, about, prefs, capture, record, paste, open, library]);
     app.set_accels_for_action("app.quit", &["<Control>q"]);
     app.set_accels_for_action("app.preferences", &["<Control>comma"]);
     app.set_accels_for_action("app.paste-image", &["<Shift><Control>v"]);
@@ -782,5 +839,30 @@ mod message_window_tests {
         assert_eq!(message_window(&main_only), None, "the main window");
         let hidden = [(false, true, true)];
         assert_eq!(message_window(&hidden), None, "a hidden window is no place");
+    }
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::{glib, handle_local_options_status, usage_error, EXIT_USAGE};
+
+    // spec: screen-recording / Recording on the command line / Invalid record mode
+    #[test]
+    fn an_invalid_record_mode_exits_2_and_names_the_valid_ones() {
+        let options = glib::VariantDict::new(None);
+        options.insert("record", "banana");
+        assert_eq!(handle_local_options_status(&options), EXIT_USAGE);
+        assert_eq!(EXIT_USAGE, 2);
+        let message = usage_error(&options).unwrap();
+        assert!(message.contains("'banana'"), "{message}");
+        for valid in ["region", "window", "screen", "toggle"] {
+            assert!(message.contains(valid), "{message} lacks {valid}");
+        }
+        for valid in ["region", "window", "screen", "toggle"] {
+            let options = glib::VariantDict::new(None);
+            options.insert("record", valid);
+            assert_eq!(usage_error(&options), None, "{valid}");
+            assert_eq!(handle_local_options_status(&options), -1);
+        }
     }
 }

@@ -275,3 +275,38 @@ Non-portal measurements in the same group: `pulsesrc` default source and
   alternative becomes the plan and the setup flow needs new mockups (a new design gate).
 - Live 4K H.264 at 30 fps on weak CPUs may drop frames (P8). A hardware encoder (VA-API) is out
   of scope for now.
+
+## Decided during apply
+
+Phase A (display-independent core, `src/recording/`, 2026-11-23):
+- **Two pipelines, joined in code.** Sources (`pipewiresrc`, `pulsesrc` → `appsink`) and encoder
+  (`appsrc` → … → `matroskamux` → `filesink`) are separate pipelines. The glue between them drops
+  buffers while paused and shifts later timestamps by the paused time (D5), and `stop` sends the
+  end of stream into the encoder itself, so finishing never depends on the source (P5/P6).
+  Pause, resume and mute are kept as timestamped intervals, not as "from now on" flags, so they
+  apply to the right buffers whatever is still queued.
+- **Still screen:** `videorate` fills a gap with whichever neighbour is closer in time, which
+  would show the *next* frame for the second half of a still period. The glue therefore repeats
+  the previous frame one frame before a buffer that follows a gap, and up to the stop time on
+  stop (requirement "Recording frame rate").
+- **Region check before anything is written:** the stream's logical `position`/`size` are known
+  before the first buffer, so a selection that is not inside it is refused by `start` before the
+  working file exists. The buffer crop itself is computed from the first caps.
+- **Window frames:** each buffer's content rectangle sets `videocrop` from a pad probe; the frame
+  size is fixed by the first rectangle (even-sized), and `videoscale add-borders=true` into fixed
+  I420 caps letterboxes later ones (`geometry::letterbox` states the expected placement). A window
+  that becomes *smaller* than at start is scaled up to fit as well — D2 only speaks of larger
+  windows; open for the maintainer if 1:1 centred is wanted instead.
+- **Crash safety:** `matroskamux` non-streamable (cues and duration written on a clean stop),
+  `filesink buffer-mode=unbuffered` (nothing held in a userspace buffer), `x264enc key-int-max=60`
+  (at most 2 s per group). The crash test abandons both pipelines without end of stream in-process
+  (equivalent to a kill for what is on disk) instead of killing a child process.
+- **Errors:** the first bus error (element name + error text, logged without content) is
+  reported as `RecordingEvent::Error`; the glue stops passing data at once and the caller calls
+  `stop`, which then skips the end of stream and keeps what was written.
+- **Countdown (D5):** the core has no "drop until armed" state. Phase C either creates the
+  `Recording` after the OSD and `SETTLE` are gone (the PipeWire fd stays open meanwhile), or adds
+  that state to the glue.
+- **Crates:** none added in Phase A (durations in tests are measured by decoding). Task 2.4 stays
+  open for `gstreamer-pbutils` (Discoverer) in the export window, which needs a re-vendor.
+
