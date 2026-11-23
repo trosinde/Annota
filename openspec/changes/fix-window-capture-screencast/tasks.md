@@ -100,6 +100,11 @@
       - A maximised and a small window.
 - [ ] 6.2 Fresh Ubuntu 24.04 (VM or container with GNOME): install the `.deb` with apt, window
       capture delivers an image (debian-packaging "Window capture works on a fresh install").
+      2026-11-22, helper only: the v0.1.0 release `.deb` installs with apt in a plain
+      `ubuntu:24.04` container and brings `gstreamer1.0-pipewire`, `gstreamer1.0-plugins-base`
+      and both portals; `pipewiresrc`, `videoconvert` and `appsink` are found
+      ([manual-checks.md](manual-checks.md), "Helper note for 6.2"). The GNOME part, a window
+      image on a fresh 24.04 desktop, is still the maintainer's.
 
 ## 6a. Automated live tests (design.md D9)
 
@@ -120,11 +125,69 @@
       green.
 - [ ] 7.2 `openspec validate --all --strict` passes. `fix-region-pointer-inclusion` is archived
       first, or this delta is rebased onto its final "Cursor inclusion".
-- [ ] 7.3 No frame touches disk: reviewer greps `screencast.rs` for file writes and checks that
+      2026-11-22: `validate --all --strict` passes (22/22). Simulated on a copy of `openspec/`:
+      `openspec archive fix-region-pointer-inclusion --yes`, then this change, applies
+      (+1 ~1, then ~4) but the merged `capture` spec failed `--strict`: "Window capture",
+      "Cursor inclusion" and "After-capture destination" exceeded 500 characters of requirement
+      text (deltas are not length-checked, merged specs are). Fixed by tightening the three
+      requirement texts; what they dropped is in their scenarios (a second request raising the
+      indicator moved into "Waiting for the chooser", "no stream starts" into "No frame
+      arrives"). After that the simulation ends with 20/20 valid, and the merged "Cursor
+      inclusion" has the region change's six scenarios plus "Pointer in a window capture". The
+      reverse order is refused (the region delta would drop that scenario). This delta's
+      "Cursor inclusion" scenarios are the region change's six as of `main` 8fcf4ab plus "Pointer
+      in a window capture" and a window clause in "Cursor excluded"; its requirement text was
+      rewritten for the 500-character limit but keeps the region change's SHALLs; `fix/region-pointer-inclusion` was not pushed, so its final text
+      could not be read. **Stays open** until `fix-region-pointer-inclusion` is archived (or its
+      final "Cursor inclusion" is known and re-checked against this delta).
+      Rebased the same day onto the region change's final text (`origin/fix/region-pointer-inclusion`
+      a14d89a, PR #6): confirmation is `Enter` or the Capture button (no longer the drag
+      release), a Capture-button confirmation has no pointer, and "Pointer on the selection edge"
+      takes its new WHEN. The scenarios now equal a14d89a's six plus "Pointer in a window capture"
+      and the window clause in "Cursor excluded". Simulation re-run with a14d89a's change dir:
+      region first (+1 ~1), then this change (~4), 20/20 strict-valid. Still unticked until #6 is
+      merged and archived; if its "Cursor inclusion" changes again, rebase again.
+- [x] 7.3 No frame touches disk: reviewer greps `screencast.rs` for file writes and checks that
       no temp file is created during a window capture (`strace -e trace=openat` during one live
       capture, or an equivalent).
+      2026-11-22, equivalent without a real portal. Static: outside `#[cfg(test)]`,
+      `screencast.rs`, `window_wait.rs`, `frame.rs` and `capture/mod.rs` have no `std::fs`,
+      `File`, `OpenOptions`, temp-file, `save_to_png` or file-sink use; the pipeline is
+      `pipewiresrc ! videoconvert ! appsink` into memory (`Pixels::copy` → `Frame`). The only
+      write on the capture path is `delivery::quick_save` into the user's save folder, the spec'd
+      "Editor unavailable" fallback. Dynamic: `strace -f -e trace=openat,creat,open,rename*,link*,
+      mkdir*,memfd_create` over (a) the fake-portal test
+      `a_stream_without_a_frame_fails_without_blocking_annota` (CreateSession → Start →
+      OpenPipeWireRemote → `pipewiresrc` started → deadline → Session.Close; isolated bus, Xvfb,
+      empty `XDG_RUNTIME_DIR`) and (b) `a_stream_sample_is_cut_by_its_crop_meta_and_stride`
+      (a GStreamer buffer with video and crop meta through `window_frame`). Every file opened for
+      writing is one of: the test's own GSettings schema, the GStreamer plugin registry cache,
+      mesa/NVIDIA GL shader caches, liborc's `orcexec.*` JIT-code file, `/proc/self/task/*/comm`
+      and `/dev` GPU nodes. No image file, no file in a save or temp location with frame data.
+      Limit: the fake portal's stream never delivers a frame, so (a) and (b) together, not one
+      run, cover the path from the portal to a `Frame`.
 - [x] 7.4 `build-aux/make-deb.sh` builds and `lintian -I --pedantic` is clean. CI run 43612609079 (ubuntu-24.04, Rust 1.85): build, tests, .deb + lintian green.
-- [ ] 7.5 `reviewer` agent (fresh context): specs vs. tests, ADR vs. code, no blocking findings.
+- [x] 7.5 `reviewer` agent (fresh context): specs vs. tests, ADR vs. code, no blocking findings.
+      2026-11-22, pass 1: code matches the ADR and D1-D9. Blocking: (B1) the change's own
+      MODIFIED scenarios "Editor destination", "Editor unavailable" and "Dependencies resolved"
+      leaned on the baseline; (B2) open manual rows and tasks; (B3) `spec:` tags that claimed
+      more than their tests prove. Handled: existing delivery and editor tests tagged with
+      "Editor destination"; new live test `a_capture_the_editor_cannot_take_is_saved_beside_not_over`
+      and `unique_path_never_overwrites` for "Editor unavailable"; "Dependencies resolved" from
+      the 24.04 container install (manual row); their baseline entries removed. The OSD ring
+      checks moved from two over-tagged unit tests into `cancelling_the_wait_closes_the_session`;
+      "No frame arrives" dropped from the code-2 test; "Waiting for the chooser" added to the
+      no-frame test; "Window mode from the welcome page" moved to the fake-portal test that
+      proves window mode makes no Screenshot-portal call, with the GNOME half as a manual row
+      from [live-run.md](live-run.md) (2026-11-14). New unit test for crop meta and stride read
+      from a real `gst::Buffer` (N2). B2 is the maintainer's 6.1/6.2 and the X11 row, which stay
+      open. Non-blocking findings: design.md "Risks / Trade-offs".
+      Pass 2 (fresh reviewer, commits 8fcf4ab..73483b1): nothing blocking; it re-ran the 7.2
+      simulation with the same result. Its non-blocking points on the shortened requirement
+      texts are taken up (request no restore token; "no further window" in "Cancel while
+      waiting"; "5 seconds of the stream starting"; pointer drawing only when included; the
+      Screenshot-portal fallback left to the desktop), the second-request test now asserts the
+      same OSD stays up, and the rest is in design.md.
 
 ## Workflow follow-up
 

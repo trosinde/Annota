@@ -412,7 +412,7 @@ fn copy_toast(
 /// The capture could not open in the editor: it is quick-saved as PNG into the save folder and
 /// a toast names the file, so it is not lost. A capture is not copied on this path, also not with
 /// "Both", so its toast offers Copy.
-fn save_instead(
+pub(super) fn save_instead(
     app: &adw::Application,
     texture: &gdk::Texture,
     settings: &gio::Settings,
@@ -472,6 +472,7 @@ fn save_instead(
 mod tests {
     use super::*;
 
+    // spec: capture / After-capture destination / Editor destination
     #[test]
     fn after_capture_plans() {
         let capture = Source::Region;
@@ -498,6 +499,7 @@ mod tests {
         );
     }
 
+    // spec: capture / After-capture destination / Editor destination
     #[test]
     fn editor_documents_are_named_and_announced_like_the_mockups() {
         // Mockup 13: "Pasted Image", toast with Undo; mockup 12: the pattern name, toast with
@@ -594,6 +596,7 @@ mod tests {
         assert_eq!(sanitize_stem("..hidden"), "hidden");
     }
 
+    // spec: capture / After-capture destination / Editor unavailable
     #[test]
     fn unique_path_never_overwrites() {
         let dir = std::env::temp_dir().join(format!("annota-test-{}", std::process::id()));
@@ -617,7 +620,7 @@ mod tests {
         assert_eq!(title(Source::Clipboard, 1, 1), "New capture from clipboard");
     }
 
-    // spec: capture / Window capture / Window mode from the welcome page
+    // spec: capture / After-capture destination / Editor destination
     #[test]
     fn a_window_capture_is_delivered_like_region_and_screen() {
         // fix-window-capture-screencast task 4.3: the ScreenCast frame goes through the same

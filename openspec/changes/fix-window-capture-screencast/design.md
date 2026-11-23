@@ -317,7 +317,31 @@ Design approved: 2026-11-14
   signal that a stream is open.
 - [Two active changes modify `capture` "Cursor inclusion"] → this delta is written on top of
   `fix-region-pointer-inclusion`'s version. Archive that change first. If it changes again,
-  rebase this delta before archiving.
+  rebase this delta before archiving. Simulated 2026-11-22 on a copy of `openspec/` (task 7.2):
+  region first, then this change, applies and validates; the reverse order is refused, because
+  the region delta's "Cursor inclusion" lacks "Pointer in a window capture". Rebased onto the
+  region change's final wording (a14d89a, PR #6: `Enter` or the Capture button) and re-simulated.
+
+Open after the review of 2026-11-22 (task 7.5), none blocking:
+
+- `Esc` on the waiting OSD (`window_wait.rs`) has no automated test; the live test covers Cancel
+  and the window's close request. Send an `Escape` key event in
+  `cancelling_the_wait_closes_the_session` when a reliable way to synthesise one under Xvfb is
+  at hand.
+- Whether mutter's window frames are premultiplied is unmeasured (`Pixels::copy` hands them to
+  cairo's premultiplied `ARGB32` as they are). One `tools/portal-probe.py --screencast-window`
+  run by the maintainer should record it in D3 (CLAUDE.md §5).
+- The 7 s worker deadline (`FRAME_TIMEOUT` + `WORKER_GRACE`) also counts `gst::init()`. On the
+  first capture after install, a plugin-registry scan still running from `choose_window` could
+  use up part of it on a slow machine and fail a capture spuriously. Start the deadline once the
+  pipeline is playing, or await the init thread first, if that is ever seen.
+- Mockup fidelity of the OSD (sheet 02) was not compared by the reviewer, who could not run
+  Annota; `cancelling_the_wait_closes_the_session` saves `window-wait-osd.png` for a comparison.
+- "Editor destination" is proven in parts: the live editor test checks the new 400 × 300 "Not
+  saved" document, the toast offering Copy only by unit test. "Editor unavailable"'s live test
+  calls the save fallback directly; no test makes the editor fail to build first.
+- CLAUDE.md §4 still lists `.deb` dependencies, the live suite and the Rust 1.85 build as open for
+  this change, and the region change's design gate as open; all are done.
 
 ## Migration Plan
 

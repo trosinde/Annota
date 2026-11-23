@@ -13,8 +13,9 @@ by the maintainer on 2026-11-14, and CLAUDE.md §5 records that it never worked.
 The ScreenCast portal with source type WINDOW shows the desktop's own window chooser. It was
 measured on 2026-11-14 (GNOME Shell 50.1, xdg-desktop-portal 1.21.1, ScreenCast version 5,
 GStreamer 1.28.2): the chooser appeared, the chosen window's first frame arrived 397 ms after the
-stream started, and it was clean window content without a shadow, inside a larger
-transparent-margin buffer.
+stream started, and it was clean window content inside a larger transparent-margin buffer. (The
+later measurement in the change's design.md D3 found a faint shadow, alpha 28-41, inside the
+buffer's crop area; the cut to the window drops it.)
 
 ## Decision
 

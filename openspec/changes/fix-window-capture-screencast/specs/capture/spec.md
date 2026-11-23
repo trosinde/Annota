@@ -1,14 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Window capture
-The system SHALL capture a single window, without its shadow. Where the ScreenCast portal offers a window source, the window SHALL be chosen in the desktop's own window chooser for screen sharing. Annota SHALL take exactly one frame of the chosen window, cut it to the window's content, close the screen-sharing session straight away, and hand the image to the after-capture destination. Annota SHALL NOT record, store or keep a stream, and SHALL NOT request or store a restore token, so the chooser appears for every window capture.
-
-The flow, in this order:
-1. Without a delay, the chooser opens at once.
-2. With a delay set, the chooser opens first and the countdown starts once a window is chosen.
-3. The frame is taken when the countdown ends.
-
-While the chooser is open, Annota SHALL show its own small waiting indicator, "Waiting for a window…", with a Cancel button. `Esc` also cancels. The indicator SHALL be the chooser's parent window, so a chooser can be opened even when no other Annota window is open. Cancel or `Esc` ends the attempt and closes the screen-sharing session: no image, no further window, no message. Closing the chooser without choosing is a cancel in the same way, as soon as the desktop reports it. A second window-capture request while the indicator is shown SHALL raise the indicator and start nothing new. If no stream starts, or no frame arrives within 5 seconds of the stream starting, the capture fails with "The capture failed. Nothing was captured." Where the ScreenCast portal offers no window source, window mode SHALL fall back to the Screenshot portal's interactive screenshot UI, and an ending without an image there SHALL say "Nothing was captured". An Annota-drawn click-to-pick overlay for X11 (add-screen-capture mockup 06) is not part of this requirement. It would need direct X11 window enumeration, which the fixed screen-access decision (portal only) rules out.
+The system SHALL capture a single window without its shadow. Where the ScreenCast portal offers windows, the window SHALL be chosen in the desktop's chooser for screen sharing; Annota SHALL take one frame, cut it to the window, close the session at once, keep no stream, and request no restore token, while a cancellable waiting indicator is the chooser's parent. Otherwise window mode SHALL use the Screenshot portal's interactive UI, where an ending without an image says "Nothing was captured".
 
 #### Scenario: Window on Wayland
 - **WHEN** the user chooses window mode on GNOME Wayland
@@ -25,10 +18,11 @@ While the chooser is open, Annota SHALL show its own small waiting indicator, "W
 - **WHEN** the user starts a window capture from a global shortcut with no Annota window open
 - **THEN** the indicator "Waiting for a window…" with Cancel appears together with the desktop's window chooser
 - **AND** the indicator disappears once a window is chosen
+- **AND** a second window-capture request while the indicator is shown raises it and starts nothing new
 
 #### Scenario: Cancel while waiting
 - **WHEN** the waiting indicator is shown and the user clicks Cancel or presses `Esc`
-- **THEN** the screen-sharing session is closed, no image is created and no message is shown
+- **THEN** the screen-sharing session is closed, no image is created, no further window opens and no message is shown
 - **AND** a following capture starts normally
 
 #### Scenario: Chooser closed
@@ -46,7 +40,7 @@ While the chooser is open, Annota SHALL show its own small waiting indicator, "W
 - **THEN** no image is created and the screen-sharing session is closed
 
 #### Scenario: No frame arrives
-- **WHEN** a window was chosen but no frame arrives within 5 seconds
+- **WHEN** a window was chosen but no stream starts, or no frame arrives within 5 seconds of the stream starting
 - **THEN** the session is closed and "The capture failed. Nothing was captured." is shown
 
 #### Scenario: No window source
@@ -54,7 +48,7 @@ While the chooser is open, Annota SHALL show its own small waiting indicator, "W
 - **THEN** window mode opens the Screenshot portal's interactive screenshot UI as before
 
 ### Requirement: Cursor inclusion
-The user SHALL be able to include or exclude the mouse pointer; default is exclude. For region and screen captures Annota draws the pointer into the image itself, since the Screenshot portal has no pointer option for non-interactive captures. For window captures through the ScreenCast portal, Annota SHALL ask the stream to embed the pointer when include-cursor is enabled and the portal offers that, and SHALL ask it to hide the pointer otherwise. Annota draws no pointer into window captures itself. In the Screenshot-portal fallback for window mode, the desktop's screenshot UI decides. A region capture SHALL use the pointer position at the moment the selection is confirmed (`Enter`, or releasing the drag), and SHALL draw the pointer only when its hot spot lies inside the selection.
+The user SHALL be able to include or exclude the mouse pointer; default is exclude. When included, Annota SHALL draw it into region and screen captures itself; a region uses its position at confirmation (`Enter` or the Capture button) and only if its hot spot is inside the selection, so a Capture-button confirmation has no pointer. ScreenCast window captures SHALL ask the stream to embed it when included and offered, else to hide it; the Screenshot-portal fallback leaves it to the desktop.
 
 #### Scenario: Include cursor
 - **WHEN** include-cursor is enabled and the user captures the screen
@@ -71,7 +65,7 @@ The user SHALL be able to include or exclude the mouse pointer; default is exclu
 - **AND** the captured image is otherwise exactly the selected region
 
 #### Scenario: Pointer on the selection edge
-- **WHEN** include-cursor is enabled and the user confirms by releasing the drag, leaving the pointer on the selection's edge
+- **WHEN** include-cursor is enabled, the user releases the drag, leaving the pointer on the selection's edge, and presses `Enter` without moving the pointer
 - **THEN** the pointer is drawn only if its hot spot lies inside the selection, so a release at the lower-right corner yields no pointer
 - **AND** no part of a pointer is silently cut off at the image border
 
@@ -86,11 +80,11 @@ The user SHALL be able to include or exclude the mouse pointer; default is exclu
 
 #### Scenario: Cursor excluded
 - **WHEN** include-cursor is disabled
-- **THEN** no pointer is drawn in any capture mode, and window captures ask the stream to hide it
+- **THEN** Annota draws no pointer in any capture mode, and window captures through the ScreenCast portal ask the stream to hide it
 - **AND** the image is the unmodified portal frame for the captured area
 
 ### Requirement: After-capture destination
-The system SHALL deliver every capture per the `after-capture` preference: "Copy to Clipboard" puts it on the clipboard; "Open in Editor" opens it in the editor as a new document (add-screen-capture mockup 12); "Both" does both. On X11, "Copy to Clipboard" opens no window, apart from the first-use permission question. On Wayland the desktop accepts a clipboard copy only from an Annota window that has keyboard focus and after Annota has received a key press or click, so "Copy to Clipboard" shows an Annota window to take focus and says in a toast whether the image was copied. A toast SHALL say "Copied to clipboard" only when the image is on the clipboard. Where the copy cannot be made, such as a window or screen capture started from a global shortcut or the command line on Wayland, where Annota has received no key press or click, the toast SHALL offer Copy instead. A new capture is autosaved like any unsaved document (`document-format`) until saved or exported (add-export-share).
+The system SHALL deliver every capture per the `after-capture` preference: "Copy to Clipboard", "Open in Editor" (a new document, add-screen-capture mockup 12) or "Both". On Wayland, a copy needs a focused Annota window that has received a key press or click, so "Copy to Clipboard" shows one. A toast SHALL say "Copied to clipboard" only when the image is on the clipboard, and SHALL offer Copy where the copy could not be made. New captures are autosaved until saved or exported.
 
 #### Scenario: Copy to clipboard
 - **WHEN** the after-capture preference is "Copy to Clipboard" on X11 and the user captures a region with the global shortcut while no Annota window is open

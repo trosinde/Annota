@@ -23,8 +23,8 @@ const UI_WINDOW_WAIT: &str = "/io/github/trosinde/Annota/ui/window-wait.ui";
 /// One turn of the activity ring (redline: 1.2 s).
 const TURN: Duration = Duration::from_millis(1200);
 /// Ring geometry (redline: 72 × 72, stroke 6, a quarter turn of arc, round caps).
-const RING_STROKE: f64 = 6.0;
-const RING_RADIUS: f64 = 32.0;
+pub(super) const RING_STROKE: f64 = 6.0;
+pub(super) const RING_RADIUS: f64 = 32.0;
 const ARC: f64 = std::f64::consts::FRAC_PI_2;
 const CORAL: (f64, f64, f64) = (1.0, 0x5a as f64 / 255.0, 0x4e as f64 / 255.0);
 
@@ -205,26 +205,4 @@ fn draw_ring(cr: &cairo::Context, width: f64, height: f64, angle: f64) -> Result
     cr.set_source_rgb(CORAL.0, CORAL.1, CORAL.2);
     cr.arc(cx, cy, RING_RADIUS, start, start + ARC);
     cr.stroke()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // spec: capture / Window capture / Waiting for the chooser
-    #[test]
-    fn the_ring_turns_once_per_1_2_s() {
-        assert_eq!(ring_angle(0), 0.0);
-        assert!((ring_angle(300_000) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
-        assert!((ring_angle(600_000) - std::f64::consts::PI).abs() < 1e-9);
-        assert_eq!(ring_angle(1_200_000), 0.0);
-        assert_eq!(ring_angle(2_400_000), 0.0);
-    }
-
-    // spec: capture / Window capture / Waiting for the chooser
-    #[test]
-    fn the_ring_fits_its_72_px_box() {
-        // Redline: 72 × 72 with a 6 px stroke; the stroke's outer edge stays inside.
-        const { assert!(RING_RADIUS + RING_STROKE / 2.0 <= 36.0) };
-    }
 }

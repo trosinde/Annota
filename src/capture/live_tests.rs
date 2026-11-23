@@ -1450,6 +1450,7 @@ impl Scene {
 /// Scenario "Chooser closed": `Start` answers 1 → no image, no window, no message; the session
 /// is closed and the next capture is free to start (task 4.4).
 // spec: capture / Window capture / Chooser closed
+// spec: capture / Window capture / Window mode from the welcome page
 // spec: capture / Cursor inclusion / Pointer in a window capture
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
@@ -1486,7 +1487,6 @@ fn a_closed_chooser_is_a_silent_cancel() {
 
 /// Response code 2 from the chooser is a failure, with the failure toast (task 4.4, design.md
 /// D6), and never the Screenshot portal's "Nothing was captured".
-// spec: capture / Window capture / No frame arrives
 // spec: capture / Cursor inclusion / Cursor excluded
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
@@ -1527,6 +1527,15 @@ fn cancelling_the_wait_closes_the_session() {
         "the OSD is the only Annota window"
     );
     shot(&osd, "window-wait-osd");
+    // Sheet 02's ring: 72 x 72 with a 6 px stroke whose outer edge stays inside, one turn per
+    // 1.2 s.
+    use super::window_wait::{ring_angle, RING_RADIUS, RING_STROKE};
+    const { assert!(RING_RADIUS + RING_STROKE / 2.0 <= 36.0) };
+    assert_eq!(ring_angle(0), 0.0);
+    assert!((ring_angle(300_000) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
+    assert!((ring_angle(600_000) - std::f64::consts::PI).abs() < 1e-9);
+    assert_eq!(ring_angle(1_200_000), 0.0);
+    assert_eq!(ring_angle(2_400_000), 0.0);
     let cancel: gtk::Button = find(&osd, "cancel_button").expect("Cancel");
     assert!(cancel.has_focus(), "Cancel has the default focus");
 
@@ -1535,6 +1544,11 @@ fn cancelling_the_wait_closes_the_session() {
     pump(100);
     assert_eq!(screencast.count("CreateSession"), 1);
     assert!(BUSY.with(Cell::get));
+    assert!(osd.is_visible(), "the OSD stays up");
+    assert!(
+        super::window_wait::shown().as_ref() == Some(&osd),
+        "the same OSD, raised"
+    );
 
     cancel.emit_clicked();
     scene.capture_ends();
@@ -1579,6 +1593,7 @@ fn without_a_window_source_the_screenshot_ui_is_used() {
 /// `pipewiresrc` waits 30 s for a stream that never starts, sometimes twice; the worker lets go
 /// of the pipeline and the fd only then.
 // spec: capture / Window capture / No frame arrives
+// spec: capture / Window capture / Waiting for the chooser
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
 fn a_stream_without_a_frame_fails_without_blocking_annota() {
@@ -1619,6 +1634,49 @@ fn a_stream_without_a_frame_fails_without_blocking_annota() {
             "Session.Close"
         ]
     );
+}
+
+/// Scenario "Editor unavailable", its THEN: the fallback that `deliver` falls through to saves
+/// the capture as PNG into the save folder, beside a file of the same name instead of over it, and
+/// the toast names the new file (review of fix-window-capture-screencast, task 7.5). The WHEN, an
+/// editor that cannot be built, is not provoked here.
+// spec: capture / After-capture destination / Editor unavailable
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_capture_the_editor_cannot_take_is_saved_beside_not_over() {
+    let scene = scene("editor-unavailable", Some("yes"), Question::CannotShow);
+    let folder = scene.dir.join("save");
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join("Shot.png"), b"keep").unwrap();
+    let settings = gio::Settings::new(config::APP_ID);
+    settings
+        .set_string("save-folder", folder.to_str().unwrap())
+        .unwrap();
+    settings.set_string("filename-pattern", "Shot").unwrap();
+    let texture = gdk::MemoryTexture::new(
+        4,
+        3,
+        gdk::MemoryFormat::B8g8r8a8Premultiplied,
+        &glib::Bytes::from_owned(vec![255u8; 4 * 4 * 3]),
+        16,
+    );
+    super::delivery::save_instead(
+        &scene.app,
+        texture.upcast_ref(),
+        &settings,
+        super::delivery::Source::Window,
+        "Window captured \u{b7} 4 \u{d7} 3",
+    );
+    pump(100);
+    assert_eq!(std::fs::read(folder.join("Shot.png")).unwrap(), b"keep");
+    let saved = gdk::Texture::from_filename(folder.join("Shot (2).png")).unwrap();
+    assert_eq!((saved.width(), saved.height()), (4, 3));
+    let windows = scene.visible();
+    assert_eq!(windows.len(), 1, "a window to carry the toast");
+    assert!(scene.shows_toast(
+        &windows[0],
+        "Window captured \u{b7} 4 \u{d7} 3 \u{b7} Saved as Shot (2).png"
+    ));
 }
 
 // --- Global shortcuts through the GlobalShortcuts portal (fix-portal-shortcut-bindings) ------
