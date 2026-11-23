@@ -15,7 +15,9 @@ measured on 2026-11-14 (GNOME Shell 50.1, xdg-desktop-portal 1.21.1, ScreenCast 
 GStreamer 1.28.2): the chooser appeared, the chosen window's first frame arrived 397 ms after the
 stream started, and it was clean window content inside a larger transparent-margin buffer. (The
 later measurement in the change's design.md D3 found a faint shadow, alpha 28-41, inside the
-buffer's crop area; the cut to the window drops it.)
+buffer's crop area; the cut to the window drops it. On 2026-11-23 the crop area was found to be
+in monitor pixels for some windows while the buffer is at a higher scale, so it may cover only part
+of the window; the cut then follows the window's own pixels past it, D3 amendment.)
 
 ## Decision
 
