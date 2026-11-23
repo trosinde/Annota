@@ -3644,3 +3644,30 @@ msgstr "Belegt durch GNOME"
 
 #~ msgid "PNG, JPG or WebP images"
 #~ msgstr "PNG-, JPG- oder WebP-Bilder"
+
+#: src/capture/window_wait.rs
+msgid "Waiting for a screen…"
+msgstr "Warte auf einen Bildschirm …"
+
+#: src/capture/window_wait.rs
+msgid "Record Screen"
+msgstr "Bildschirm aufnehmen"
+
+#: src/recording/mod.rs
+msgid "The desktop ended the screen-sharing request. Nothing was recorded."
+msgstr ""
+"Die Arbeitsumgebung hat die Bildschirmfreigabe beendet. Es wurde nichts "
+"aufgenommen."
+
+#: src/recording/mod.rs
+msgid ""
+"The selected area is not on the screen you chose. Nothing was recorded."
+msgstr ""
+"Der ausgewählte Bereich liegt nicht auf dem gewählten Bildschirm. Es wurde "
+"nichts aufgenommen."
+
+#: src/recording/source.rs
+msgid "Screen sharing for this source is not available on this desktop"
+msgstr ""
+"Bildschirmfreigabe ist für diese Quelle in dieser Arbeitsumgebung nicht "
+"verfügbar"

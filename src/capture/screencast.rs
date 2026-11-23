@@ -487,7 +487,7 @@ pub(super) trait Stop {
 }
 
 /// The portal session, closed last.
-pub(super) trait Close {
+pub(crate) trait Close {
     /// Closes the session and waits for the portal's answer.
     fn close(self) -> LocalBoxFuture<'static, ()>;
     /// Closes the session from a `Drop`, where nothing can be awaited.
@@ -500,7 +500,7 @@ impl Stop for gst::Pipeline {
     }
 }
 
-pub(super) struct PortalSession(Session<'static, Screencast<'static>>);
+pub(crate) struct PortalSession(pub(crate) Session<'static, Screencast<'static>>);
 
 impl Close for PortalSession {
     fn close(self) -> LocalBoxFuture<'static, ()> {

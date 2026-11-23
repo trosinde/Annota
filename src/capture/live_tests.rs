@@ -52,7 +52,7 @@ const PORTAL_XML: &str = r#"<node>
 
 /// What the user does with the question, if it can be shown at all.
 #[derive(Clone, Copy, PartialEq)]
-enum Question {
+pub(crate) enum Question {
     Allow,
     Deny,
     /// Closes the question without an answer (response code 1); nothing is stored.
@@ -109,10 +109,10 @@ struct Portal {
     open_registration: Rc<RefCell<Option<gio::DBusMethodInvocation>>>,
 }
 
-struct Scene {
-    app: adw::Application,
+pub(crate) struct Scene {
+    pub(crate) app: adw::Application,
     portal: Portal,
-    dir: PathBuf,
+    pub(crate) dir: PathBuf,
 }
 
 impl Drop for Scene {
@@ -392,7 +392,7 @@ impl Portal {
 }
 
 /// A private environment with the portal running. Nothing here touches the real session.
-fn scene(name: &str, stored: Option<&'static str>, question: Question) -> Scene {
+pub(crate) fn scene(name: &str, stored: Option<&'static str>, question: Question) -> Scene {
     scene_with_schemas(name, stored, question, &[])
 }
 
@@ -570,14 +570,14 @@ struct DeniedDialog {
 }
 
 /// Whether `widget` or anything below it passes `test`.
-fn holds(widget: &gtk::Widget, test: &dyn Fn(&gtk::Widget) -> bool) -> bool {
+pub(crate) fn holds(widget: &gtk::Widget, test: &dyn Fn(&gtk::Widget) -> bool) -> bool {
     test(widget)
         || std::iter::successors(widget.first_child(), |child| child.next_sibling())
             .any(|child| holds(&child, test))
 }
 
 /// The widget with this ID in the `.ui` file.
-fn find<W: IsA<gtk::Widget>>(root: &impl IsA<gtk::Widget>, id: &str) -> Option<W> {
+pub(crate) fn find<W: IsA<gtk::Widget>>(root: &impl IsA<gtk::Widget>, id: &str) -> Option<W> {
     let root = root.as_ref();
     if root.buildable_id().as_deref() == Some(id) {
         return root.clone().downcast().ok();
@@ -587,7 +587,7 @@ fn find<W: IsA<gtk::Widget>>(root: &impl IsA<gtk::Widget>, id: &str) -> Option<W
 }
 
 /// With `ANNOTA_SHOT_DIR` set, saves `widget` as a PNG to look at.
-fn shot(widget: &impl IsA<gtk::Widget>, name: &str) {
+pub(crate) fn shot(widget: &impl IsA<gtk::Widget>, name: &str) {
     let Some(dir) = std::env::var_os("ANNOTA_SHOT_DIR") else {
         return;
     };
@@ -1221,7 +1221,7 @@ fn a_picker_without_an_image_says_so() {
 
 // --- Window capture through the ScreenCast portal (fix-window-capture-screencast) -----------
 
-const SCREENCAST_XML: &str = r#"<node>
+pub(crate) const SCREENCAST_XML: &str = r#"<node>
   <interface name="org.freedesktop.portal.ScreenCast">
     <method name="CreateSession">
       <arg type="a{sv}" direction="in"/><arg type="o" direction="out"/>
@@ -1279,7 +1279,7 @@ impl ScreenCast {
 }
 
 /// Emits a request's `Response`.
-fn respond(
+pub(crate) fn respond(
     connection: &gio::DBusConnection,
     sender: &str,
     handle: &str,
@@ -1298,7 +1298,7 @@ fn respond(
 }
 
 /// The request or session path the portal builds from a token.
-fn portal_path(kind: &str, sender: &str, token: &str) -> String {
+pub(crate) fn portal_path(kind: &str, sender: &str, token: &str) -> String {
     let unique = sender.trim_start_matches(':').replace('.', "_");
     format!("/org/freedesktop/portal/desktop/{kind}/{unique}/{token}")
 }

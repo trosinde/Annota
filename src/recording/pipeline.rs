@@ -432,13 +432,25 @@ fn build(
             gst::PadProbeType::BUFFER | gst::PadProbeType::EVENT_DOWNSTREAM,
             move |_, info| {
                 let mut cropper = cropper.lock().unwrap_or_else(|e| e.into_inner());
-                match &info.data {
+                match &mut info.data {
                     Some(gst::PadProbeData::Event(event)) => {
                         if let gst::EventView::Caps(caps) = event.view() {
                             cropper.on_caps(caps.caps());
                         }
                     }
-                    Some(gst::PadProbeData::Buffer(buffer)) => cropper.on_buffer(buffer),
+                    Some(gst::PadProbeData::Buffer(buffer)) => {
+                        cropper.on_buffer(buffer);
+                        // The rectangle above already used the stream's crop meta; left on the
+                        // buffer, `videocrop` would apply it again on top of its own crop
+                        // (Phase B, a window stream's meta at a non-zero origin).
+                        if buffer.meta::<gst_video::VideoCropMeta>().is_some() {
+                            if let Some(meta) =
+                                buffer.make_mut().meta_mut::<gst_video::VideoCropMeta>()
+                            {
+                                let _ = meta.remove();
+                            }
+                        }
+                    }
                     _ => {}
                 }
                 gst::PadProbeReturn::Ok
@@ -981,4 +993,4 @@ impl Drop for Recording {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

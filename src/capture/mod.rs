@@ -7,7 +7,7 @@ pub mod frame;
 pub mod geometry;
 pub mod import;
 #[cfg(test)]
-mod live_tests;
+pub(crate) mod live_tests;
 pub mod overlay;
 pub mod permission;
 pub mod portal;

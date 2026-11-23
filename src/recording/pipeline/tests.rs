@@ -9,8 +9,8 @@ use super::*;
 use crate::recording::audio::{sources_to_record, AudioDevices};
 use crate::recording::geometry::window_crop_in_buffer;
 
-const RED: [u8; 3] = [255, 0, 0];
-const GREEN: [u8; 3] = [0, 255, 0];
+pub(crate) const RED: [u8; 3] = [255, 0, 0];
+pub(crate) const GREEN: [u8; 3] = [0, 255, 0];
 const BLUE: [u8; 3] = [0, 0, 255];
 const BLACK: [u8; 3] = [0, 0, 0];
 const SMALL: (u32, u32) = (64, 48);
@@ -31,7 +31,7 @@ fn folder(name: &str) -> PathBuf {
     dir
 }
 
-fn near(c: [u8; 3], target: [u8; 3]) -> bool {
+pub(crate) fn near(c: [u8; 3], target: [u8; 3]) -> bool {
     c.iter()
         .zip(target)
         .all(|(a, b)| (i32::from(*a) - i32::from(b)).abs() <= 48)
@@ -202,21 +202,21 @@ fn drain(recording: &Recording, video: &TestVideo, audio: &[&TestAudio]) {
 }
 
 /// One decoded video frame, tightly packed RGB.
-struct VFrame {
-    pts: f64,
-    width: usize,
-    height: usize,
+pub(crate) struct VFrame {
+    pub(crate) pts: f64,
+    pub(crate) width: usize,
+    pub(crate) height: usize,
     rgb: Vec<u8>,
 }
 
 impl VFrame {
-    fn at(&self, x: usize, y: usize) -> [u8; 3] {
+    pub(crate) fn at(&self, x: usize, y: usize) -> [u8; 3] {
         let i = (y * self.width + x) * 3;
         [self.rgb[i], self.rgb[i + 1], self.rgb[i + 2]]
     }
 
     /// Points on a grid over the whole frame, edges included (inset 3 px against chroma bleed).
-    fn grid(&self) -> Vec<[u8; 3]> {
+    pub(crate) fn grid(&self) -> Vec<[u8; 3]> {
         let mut points = Vec::new();
         for i in 0..=16 {
             for j in 0..=16 {
@@ -235,20 +235,20 @@ struct AChunk {
     rms: f64,
 }
 
-struct Analysis {
-    frames: Vec<VFrame>,
+pub(crate) struct Analysis {
+    pub(crate) frames: Vec<VFrame>,
     audio: Vec<Vec<AChunk>>,
 }
 
 impl Analysis {
     /// Video length: last frame's timestamp plus one frame.
-    fn duration(&self) -> f64 {
+    pub(crate) fn duration(&self) -> f64 {
         self.frames.last().map_or(0.0, |f| f.pts + FRAME)
     }
 }
 
 /// Decodes a working file completely (also one that was never finished).
-fn analyse(path: &Path) -> Analysis {
+pub(crate) fn analyse(path: &Path) -> Analysis {
     let frames = Arc::new(Mutex::new(Vec::<VFrame>::new()));
     let audio = Arc::new(Mutex::new(Vec::<Vec<AChunk>>::new()));
     let pipeline = gst::Pipeline::new();

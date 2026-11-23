@@ -27,7 +27,10 @@ src/capture/mod.rs
 src/capture/overlay.rs
 src/capture/shortcut_dialog.rs
 src/capture/shortcuts.rs
+src/capture/window_wait.rs
 src/preferences.rs
+src/recording/mod.rs
+src/recording/source.rs
 src/ui/editor/batch.rs
 src/ui/editor/closing.rs
 src/ui/editor/dialogs.rs

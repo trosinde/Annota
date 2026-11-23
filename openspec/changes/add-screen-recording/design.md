@@ -310,3 +310,39 @@ Phase A (display-independent core, `src/recording/`, 2026-11-23):
 - **Crates:** none added in Phase A (durations in tests are measured by decoding). Task 2.4 stays
   open for `gstreamer-pbutils` (Discoverer) in the export window, which needs a re-vendor.
 
+Phase B (portal session, stop paths, waiting indicator; `src/recording/{source,session,window}.rs`,
+`recording::start`, 2026-11-23):
+- **Own request flow, not `screencast::choose_window`.** The window still sends `Session.Close`
+  after a code-1 answer; the recording spec says the session then counts as closed (P1), so
+  `source::request` handles the answers itself and reuses `PortalSession`/`Close`,
+  `cursor_mode`, `map_error`, `ParentWindow` and the waiting OSD (made `pub(crate)`, no other
+  change to `src/capture`).
+- **`Session.Closed` through zbus, not ashpd.** ashpd 0.11.1's `Session::receive_closed`
+  deserialises the signal body as `()` and so drops the portal's real `a{sv}` body (fixed in
+  ashpd 0.12). Annota subscribes on ashpd's own connection (the portal sends `Closed` to the
+  session's owner only) with a plain zbus proxy on the session path, before `SelectSources`.
+- **Waiting indicator = the window-capture OSD with a `WaitFor` parameter** (label, icon, title;
+  the window title for the screen variant is "Record Screen", read only by assistive technology).
+  It is hidden (unmapped) as soon as Start answers; a granted source is handed on only after
+  `countdown::SETTLE` (200 ms) more, and the video source is built only after that.
+- **Window crop meta and `videocrop`.** `videocrop` applies an upstream `VideoCropMeta` on top
+  of its own crop (found with a window stream whose meta does not start at (0, 0); every frame
+  was wrong). The content rectangle already accounts for the meta, so Phase A's crop probe now
+  removes the meta from the buffer after reading it. The alpha scan of `window.rs` runs on the
+  first buffer and when the crop meta or buffer size changes; the monitor scale is the scale of
+  the GDK monitor whose logical geometry equals the stream's `size` (and `position`, if given);
+  none or several of different scales → the alpha rule alone. Buffers without alpha (BGRx)
+  use the converted crop meta, else the whole buffer.
+- **Region without `position`:** `(0, 0)` only with a single GDK monitor; otherwise the start
+  fails (P2 measured `position` present on GNOME 50).
+- **Hooks for Phases C/D and tests** (`recording::Hooks`): video source (`pipewiresrc` on the
+  granted fd/node), audio sources, the countdown slot (0 s until 4.3), level events, the start
+  outcome (`StartOutcome::message()` gives the toast texts of mockup 13 and Q9) and the end of a
+  recording (`Ended`: Phase A's `Finished` + `EndReason`; a stub that logs the path until 5.1).
+  `--record region`/`toggle` with nothing running is a marked stub until the setup (4.1) exists;
+  the setup calls `recording::start_region(app, selection)`.
+- **Stop paths:** `stop()` / `--record toggle` while recording → file finished, PipeWire remote
+  released, `Session.Close`; `Session.Closed` while recording → finished at once, nothing sent;
+  a pipeline error or the stream's own end of stream → finished with what was written, session
+  closed.
+

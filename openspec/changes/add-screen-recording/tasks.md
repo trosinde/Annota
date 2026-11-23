@@ -20,17 +20,17 @@ capability is named. Every test carries a `spec:` tag for the scenarios it prove
 - [x] 2.5 GSettings keys of design.md D8 with defaults; `cli.rs` `--record region|window|screen|toggle` — Recording on the command line / Invalid record mode
 
 ## 3. Recording pipeline
-- [ ] 3.1 `screencast.rs`: keep a stream for recording (monitor and window sources, no restore token, cursor mode) — Recording source / Pointer in the recording, Source request cancelled, Chooser cancelled in the desktop, Session closed while waiting, Waiting indicator with one monitor, Source not offered (fake portal)
+- [x] 3.1 `screencast.rs`: keep a stream for recording (monitor and window sources, no restore token, cursor mode) — Recording source / Pointer in the recording, Source request cancelled, Chooser cancelled in the desktop, Session closed while waiting, Waiting indicator with one monitor, Source not offered (fake portal) — Phase B: `src/recording/source.rs`; `source::offered()` is in place, the insensitive setup row and its tagged test come with 4.1
 - [x] 3.2 Region crop mapping from probe P2/P3 (logical selection × buffer size ÷ `size`) — Recording source / Record a region, Record a region on a scaled monitor, Region not on the chosen screen
-- [ ] 3.3 Window and screen recording incl. per-buffer crop from the crop meta (shadow trim recomputed only on a crop change) and scaling to the first frame — Recording source / Record a window, Window crop meta in buffer pixels (unit test of crop meta × (buffer ÷ `size`) ÷ monitor scale), Recorded window resized, Record the screen
+- [x] 3.3 Window and screen recording incl. per-buffer crop from the crop meta (shadow trim recomputed only on a crop change) and scaling to the first frame — Recording source / Record a window, Window crop meta in buffer pixels (unit test of crop meta × (buffer ÷ `size`) ÷ monitor scale), Recorded window resized, Record the screen
 - [x] 3.4 Pipeline to the Matroska working file (videotestsrc/audiotestsrc in tests), stream timestamps + `videorate` 30 fps — Working file / Recording survives a crash, Name already taken, Recording error; Recording frame rate / Still screen, Burst of buffers
 - [x] 3.5 Pause/resume via drop probe + running-time offset — Pause and resume / Paused time is not recorded
 - [ ] 3.6 Audio: device presence, mute, level — Audio / Mute the microphone, Mute system audio, No microphone, No audio selected
-- [ ] 3.7 Stop paths: button, shortcut, `Session::Closed`, window stream end — Stop recording / Stop by button, Stop by hotkey, Session ended by the desktop, Recorded window closed (both measured as `Session.Closed` without EOS, P5/P6)
+- [x] 3.7 Stop paths: button, shortcut, `Session::Closed`, window stream end — Stop recording / Stop by button, Stop by hotkey, Session ended by the desktop, Recorded window closed (both measured as `Session.Closed` without EOS, P5/P6) — Phase B: `recording::stop`/`RecordingSession`, ends delivered to `Hooks::on_ended`; the control disappearing (4.4) and the Export window opening (5.1) are not built yet
 
 ## 4. UI chrome
 - [ ] 4.1 Overlay mode pill + recording setup (Blueprint), settings persisted — Recording setup / Switch the overlay to video, Choices are remembered, Cancel the setup (mockups 01, 02)
-- [ ] 4.2 Waiting indicator "Waiting for a screen…" reusing the window-wait OSD (mockup 03)
+- [x] 4.2 Waiting indicator "Waiting for a screen…" reusing the window-wait OSD (mockup 03)
 - [ ] 4.3 Countdown label and recording start after the waiting indicator and the OSD have gone — Recording countdown / Countdown is not recorded, Cancel the countdown, No countdown, Waiting indicator is not recorded (mockup 04)
 - [ ] 4.4 Control window: time, pause, stop, mutes, meters, `Space`/`M`/`S`, second request raises it — Recording control / Elapsed time, Second recording request; Recording control / Minimize the control; Pause and resume / Paused state (mockups 05, 06)
 - [ ] 4.5 Record shortcut (portal ID `record` + GNOME-keybinding fallback), Preferences › Capture row — Record shortcut / all six scenarios incl. Portal assigns a different record trigger and Record trigger taken by GNOME (mockup 14); preferred trigger `Super+Alt+R` (design.md Q7)
