@@ -370,7 +370,11 @@ async fn region(
         }
         desktop = Desktop::new(portal::grab(GrabOptions::FROZEN).await?);
         if include_pointer {
-            after_countdown = overlay::probe_pointer(app, &desktop).await;
+            // Only an exact position may be drawn.
+            after_countdown = overlay::probe_pointer(app, &desktop, true)
+                .await
+                .filter(|probed| probed.exact)
+                .map(|probed| probed.at);
         }
     }
     let pointer = capture_pointer(delay, pointer, after_countdown);
@@ -443,12 +447,15 @@ async fn screen(
     let all_monitors = gio::Settings::new(config::APP_ID).boolean("capture-all-monitors");
     let desktop = Desktop::new(full);
     let needs_probe = include_pointer || (!all_monitors && desktop.monitors.len() > 1);
-    let pointer = if needs_probe {
-        overlay::probe_pointer(app, &desktop).await
+    let probed = if needs_probe {
+        // Without the pointer drawn, only the monitor under it counts.
+        overlay::probe_pointer(app, &desktop, include_pointer).await
     } else {
         None
     };
-    compose_screen(&desktop, all_monitors, include_pointer, pointer)
+    // A position that is not exact still picks the monitor, but is never drawn.
+    let draw = include_pointer && probed.is_some_and(|probed| probed.exact);
+    compose_screen(&desktop, all_monitors, draw, probed.map(|probed| probed.at))
 }
 
 /// The screen image: the monitor under the pointer (or every monitor), with the pointer drawn
@@ -521,6 +528,46 @@ mod tests {
             }],
             full,
         }
+    }
+
+    // spec: capture / Full-screen capture / Multi-monitor
+    #[test]
+    fn a_screen_capture_keeps_only_the_monitor_under_the_pointer() {
+        // Two 400 x 300 monitors side by side, grey and white. `probe_pointer` with `exact`
+        // false reports the monitor of its first event (overlay tests); that monitor alone is
+        // the image.
+        let mut full = Frame::filled(800, 300, GREY).expect("frame");
+        let left = IRect::new(0, 0, 400, 300);
+        let right = IRect::new(400, 0, 400, 300);
+        full.draw_with(|cr| {
+            cr.set_source_rgb(1.0, 1.0, 1.0);
+            cr.rectangle(400.0, 0.0, 400.0, 300.0);
+            cr.fill()
+        })
+        .expect("draw");
+        assert_eq!(full.pixel(600, 150), Some(WHITE));
+        let shot = |crop: IRect| overlay::MonitorShot {
+            monitor: None,
+            crop,
+            frame: full.crop(crop).expect("crop"),
+            scale: 1.0,
+        };
+        let desktop = Desktop {
+            monitors: vec![shot(left), shot(right)],
+            full: full.clone(),
+        };
+        let screen =
+            compose_screen(&desktop, false, false, Some(at(1, 120.0, 80.0))).expect("screen");
+        assert!(
+            screen == full.crop(right).expect("crop"),
+            "not monitor 2 alone"
+        );
+        let screen =
+            compose_screen(&desktop, false, false, Some(at(0, 120.0, 80.0))).expect("screen");
+        assert!(
+            screen == full.crop(left).expect("crop"),
+            "not monitor 1 alone"
+        );
     }
 
     // spec: capture / Cursor inclusion / Cursor excluded

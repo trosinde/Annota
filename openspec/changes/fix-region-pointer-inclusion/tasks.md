@@ -58,13 +58,17 @@
       checks go into `manual-checks.md` with what the automated tests do and do not cover
 - [x] 5.2 `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `meson test -C _build` green
 - [x] 5.3 Delayed region capture still places the pointer after the countdown (design.md D4) —
-      verified by reading `region()`: with a delay the position still comes from a fresh
+      **reading was not enough: live check 8 failed on 2026-11-23, fixed in `probe_pointer`
+      (design.md "Live check 8"), now passing live 3 of 3.** Originally verified by reading `region()`: with a delay the position still comes from a fresh
       `probe_pointer` after the countdown, untouched by the `Session::pointer` rework. The only
       difference is that the probed position now passes the `contains` guard, which removes just
       the case that was invisible anyway (drawn outside the crop, clipped by cairo). Live check 8
       in `manual-checks.md`
 - [x] 5.4 Screen and window modes unchanged — `screen()` keeps the pointer it draws today;
-      verified: `git diff` over this change's commits shows no line in `screen()` added or removed
+      verified: `git diff` over this change's commits shows no line in `screen()` added or removed.
+      Amended 2026-11-23: the probe fix for 5.3 is shared with `screen()`, whose arrow now lands
+      where the pointer is (was ~400 px off; design.md "Live check 8"); `screen()` passes a flag
+      so its monitor-only probe stays as fast as before
 - [x] 5.5 `reviewer` agent (fresh context, did not write the code): specs, mockup fidelity,
       tests, quality gates — 2026-11-22. First pass: blocking B1 (fractional release on the
       edge drew a sliver) and B2 (preview tags without an on-screen test), both fixed. Second
