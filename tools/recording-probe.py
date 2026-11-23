@@ -43,9 +43,10 @@ Dialogs and indicators you will see:
   IDs region, window, screen AND record under Annota's app ID, exactly as Annota will at start,
   and GNOME keeps what it stores. This is the one probe with a lasting effect.
 
-Privacy: no frame and no audio is written anywhere, except the single frame `--save` (P12) and
-`cursor-modes` (P4) write for a visual check. That PNG shows your screen: do not commit or share
-it. The log contains only numbers, sizes, codes and timings; `window-end` and `session-close`
+Privacy: no frame and no audio is written anywhere, except the frames written for a visual
+check: `--save` (P12), `cursor-modes` (P4) and `window-end` (P6, downscaled to at most 1280 px,
+/tmp/annota-probe-p6-*.png). They show your screen or the chosen window: do not commit or share
+them. The log contains only numbers, sizes, codes and timings; `window-end` and `session-close`
 hash a few rows of each frame in memory to tell repeated frames from new ones and log only how
 often the hash changed, never a hash or a pixel.
 
@@ -552,6 +553,7 @@ class FrameTrack:
         s = sample.get_caps().get_structure(0)
         size = (s.get_value("width"), s.get_value("height"))
         self.samples.append((now, size, crop_rect(buf), frame_digest(buf, size[1])))
+        return self.samples[-1][1:3]
 
     def geometry_changes(self, start):
         """[(seconds after start, size, crop)] for the first buffer and every change."""
@@ -602,12 +604,95 @@ class FrameTrack:
         return found
 
 
+def downscale_rgba(buf, width, height, max_width=1280):
+    """(w, h, RGBA bytes) of a BGRA frame, every n-th pixel and row so that w <= max_width.
+
+    In memory only; `write_rgba_png` writes it for a visual check (it shows the user's screen).
+    """
+    core, _ = gst_libs()
+    pointer = boxed_pointer(buf)
+    info = MapInfo()
+    if not core.gst_buffer_map(pointer, ctypes.byref(info), GST_MAP_READ):
+        return None
+    try:
+        step = max(1, -(-width // max_width))
+        stride = info.size // max(1, height)
+        out_w = len(range(0, width, step))
+        out = bytearray()
+        for row in range(0, height, step):
+            line = ctypes.string_at(info.data + row * stride, width * 4)
+            px = bytearray(out_w * 4)
+            px[0::4], px[1::4] = line[2::4 * step], line[1::4 * step]
+            px[2::4], px[3::4] = line[0::4 * step], line[3::4 * step]
+            out += px
+        return out_w, len(range(0, height, step)), bytes(out)
+    finally:
+        core.gst_buffer_unmap(pointer, ctypes.byref(info))
+
+
+def write_rgba_png(path, width, height, data):
+    import gi
+
+    gi.require_version("GdkPixbuf", "2.0")
+    from gi.repository import GdkPixbuf
+
+    GdkPixbuf.Pixbuf.new_from_bytes(GLib.Bytes.new(data), GdkPixbuf.Colorspace.RGB, True, 8,
+                                    width, height, width * 4).savev(path, "png", [], [])
+
+
+class Snapshots:
+    """Downscaled frames kept in memory during a run: the first, one per size/crop change (up to
+    `max_changes`), one on request (`want`) and the last. Written to PNG only after the run."""
+
+    def __init__(self, max_changes=10, max_width=1280):
+        self.max_changes, self.max_width = max_changes, max_width
+        self.frames = []  # (monotonic, label, w, h, rgba)
+        self.changes = 0
+        self.wanted = None
+        self.geometry = None
+        self.last = None  # (monotonic, sample): only the newest is kept
+
+    def want(self, label):
+        self.wanted = label
+
+    def _take(self, sample, now, label):
+        s = sample.get_caps().get_structure(0)
+        small = downscale_rgba(sample.get_buffer(), s.get_value("width"),
+                               s.get_value("height"), self.max_width)
+        if small:
+            self.frames.append((now, label) + small)
+
+    def observe(self, sample, now, geometry):
+        if self.geometry is None:
+            self._take(sample, now, "first")
+        elif geometry != self.geometry and self.changes < self.max_changes:
+            self.changes += 1
+            self._take(sample, now, "change%d" % self.changes)
+        if self.wanted is not None:
+            self._take(sample, now, self.wanted)
+            self.wanted = None
+        self.geometry = geometry
+        self.last = (now, sample)
+
+    def write(self, prefix, start):
+        """[(seconds after start, label, path)]; the last frame is downscaled here."""
+        if self.last is not None:
+            self._take(self.last[1], self.last[0], "last")
+            self.last = None
+        written = []
+        for index, (at, label, w, h, data) in enumerate(sorted(self.frames, key=lambda f: f[0])):
+            path = "%s-%02d-%s-%.2fs.png" % (prefix, index, label, at - start)
+            write_rgba_png(path, w, h, data)
+            written.append((at - start, label, path))
+        return written
+
+
 def describe_geometry(size, crop):
     return "buffer %d x %d, crop %s" % (size[0], size[1], crop if crop else "none")
 
 
 class Cues:
-    """Prints timed instructions while a stream runs: [(seconds, text)] in order."""
+    """Timed instructions while a stream runs: [(seconds, text or callable)] in order."""
 
     def __init__(self, cues):
         self.cues = sorted(cues, key=lambda c: c[0])
@@ -615,7 +700,11 @@ class Cues:
 
     def __call__(self, elapsed):
         while self.next < len(self.cues) and elapsed >= self.cues[self.next][0]:
-            print(self.cues[self.next][1], flush=True)
+            cue = self.cues[self.next][1]
+            if callable(cue):
+                cue()
+            else:
+                print(cue, flush=True)
             self.next += 1
 
 
@@ -626,7 +715,8 @@ class Stream:
     `launch` replaces the pipewiresrc part (offline self-test with videotestsrc).
     """
 
-    def __init__(self, fd, node, keepalive=0, extra="", track=False, launch=None):
+    def __init__(self, fd, node, keepalive=0, extra="", track=False, launch=None,
+                 snapshots=None):
         src = "pipewiresrc fd=%d path=%d always-copy=true" % (fd, node)
         if keepalive:
             src += " keepalive-time=%d" % keepalive
@@ -635,7 +725,8 @@ class Stream:
             "emit-signals=true sync=false max-buffers=2 drop=true" % (launch or src, extra))
         self.sink = self.pipeline.get_by_name("sink")
         self.times, self.caps_seen, self.first = [], [], None
-        self.track = FrameTrack() if track else None
+        self.track = FrameTrack() if track or snapshots else None
+        self.snapshots = snapshots
         self.end = None  # ("eos"|"error", message, monotonic)
         self.sink.connect("new-sample", self._on_sample)
         bus = self.pipeline.get_bus()
@@ -651,7 +742,9 @@ class Stream:
         if not self.caps_seen or self.caps_seen[-1][0] != size:
             self.caps_seen.append((size, now))
         if self.track is not None:
-            self.track.observe(sample, now)
+            geometry = self.track.observe(sample, now)
+            if self.snapshots is not None:
+                self.snapshots.observe(sample, now, geometry)
         if self.first is None:
             self.first = sample
         return Gst.FlowReturn.OK
@@ -998,19 +1091,23 @@ def probe_window_end(args, log):
                "terminal (e.g. a new Text Editor window). Follow the countdown printed here: "
                "RESIZE the window a few times until %d s, then hands off, then CLOSE it when told "
                "(at %d s) and wait for the end. Every buffer's size, crop meta and a content "
-               "hash are recorded, so a resize, a close and repeated frames become visible." % (
-                   args.duration, close_at - 10, close_at),
+               "hash are recorded, so a resize, a close and repeated frames become visible. "
+               "Downscaled frames (first, each size/crop change, right after the close prompt, "
+               "last) are saved as /tmp/annota-probe-p6-*.png: they show the chosen window, do "
+               "not commit or share them." % (args.duration, close_at - 10, close_at),
                "GNOME's screen-sharing chooser (window list), then GNOME's sharing indicator"):
         return 0
     _p, cast, opened = open_stream(args, log, "P6", SOURCE_WINDOW)
     if not opened:
         return 0
     node, props = opened
-    stream = Stream(cast.remote_fd(), node, track=True)
+    snaps = Snapshots()
+    stream = Stream(cast.remote_fd(), node, track=True, snapshots=snaps)
     cues = [(0, ">>> RESIZE the recorded window a few times now (until %d s)." % (close_at - 10)),
             (close_at - 10, ">>> Stop resizing. Hands off the window. Close it in 10 s.")]
     cues += [(close_at - n, "    close in %d ..." % n) for n in (5, 4, 3, 2, 1)]
     cues += [(close_at, ">>> CLOSE THE WINDOW NOW (then do nothing until the end)."),
+             (close_at + 3, lambda: snaps.want("after-close")),
              (close_at + 5, "    observing what the stream does after the close ...")]
     cues += [(t, "    ... %d s left" % (args.duration - t))
              for t in range(close_at + 10, args.duration, 10)]
@@ -1043,6 +1140,11 @@ def probe_window_end(args, log):
     else:
         verdict = "the session or the stream ended (see rows above)"
     log.row("P6", "verdict", verdict)
+    for at, label, path in snaps.write("/tmp/annota-probe-p6", start):
+        log.row("P6", "frame %s at %.2f s" % (label, at), path)
+    if snaps.frames:
+        log.note("P6: downscaled frames saved to /tmp/annota-probe-p6-*.png for a visual check. "
+                 "They show the chosen window: do not commit or share them.")
     cast.close()
     return 0
 
@@ -1158,6 +1260,43 @@ def probe_selftest(_args, log):
     check("analysis: per second", buffers == [10] * 5 and content[4] == 0, (buffers, content))
     synth.samples.append((9.0, (800, 600), (0, 0, 700, 500), "frozen"))
     check("analysis: gap found", synth.gaps(0) == [(4.9, 9.0)], synth.gaps(0))
+
+    # Snapshots: downscale and channel order on a red BGRA frame, then a run with a size change.
+    red, _ = run("videotestsrc num-buffers=1 pattern=solid-color foreground-color=0xffff0000 ! "
+                 "video/x-raw,format=BGRA,width=320,height=240")
+    sample = red.first
+    small = downscale_rgba(sample.get_buffer(), 320, 240, max_width=100)
+    check("downscale: 320 px -> <= 100 px", small and small[:2] == (80, 60), small and small[:2])
+    check("downscale: BGRA -> RGBA red", small and small[2][:4] == bytes((255, 0, 0, 255)),
+          small and tuple(small[2][:4]))
+    import tempfile
+
+    snaps = Snapshots(max_changes=2, max_width=64)
+    changing = Stream(0, 0, snapshots=snaps, launch=(
+        "videotestsrc num-buffers=30 pattern=ball ! video/x-raw,format=BGRA,width=320,"
+        "height=240,framerate=30/1 ! videoscale ! capsfilter name=size caps=video/x-raw,"
+        "width=320,height=240"))
+    sizes = changing.pipeline.get_by_name("size")
+    counter = [0]
+
+    def resize(_pad, _info):
+        counter[0] += 1
+        if counter[0] in (10, 20, 25):
+            w = 160 + counter[0] * 4
+            sizes.set_property("caps", Gst.Caps.from_string(
+                "video/x-raw,width=%d,height=%d" % (w, w * 3 // 4)))
+        return Gst.PadProbeReturn.OK
+
+    sizes.get_static_pad("sink").add_probe(Gst.PadProbeType.BUFFER, resize)
+    start = changing.run(5, on_tick=Cues([(0.0, lambda: snaps.want("asked"))]))
+    changing.stop()
+    with tempfile.TemporaryDirectory() as tmp:
+        written = snaps.write(tmp + "/snap", start)
+        labels = [label for _at, label, _path in written]
+        check("snapshots: first, asked, 2 changes (capped), last",
+              sorted(labels) == sorted(["first", "asked", "change1", "change2", "last"]), labels)
+        check("snapshots: PNGs written", all(os.path.getsize(p) > 0 for *_x, p in written),
+              len(written))
     print("selftest: %s" % ("all checks passed" if not failures else
                             "FAILED: " + ", ".join(failures)))
     return 1 if failures else 0
