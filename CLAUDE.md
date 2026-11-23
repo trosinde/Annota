@@ -39,7 +39,7 @@ Do not change these without an approved OpenSpec change that says so (record it 
 | Global hotkey | GlobalShortcuts portal when available (GNOME ≥ 48); fallback: register a GNOME custom keybinding that runs `annota --capture <mode>` |
 | Rendering | One renderer on **cairo-rs** used for the canvas *and* for export → pixel-identical WYSIWYG |
 | Document format | `.annota` = ZIP: `original.png` + `document.json` (versioned scene graph, schema in `data/schema/`) + `thumbnail.png` |
-| Video | GStreamer (`gstreamer-rs`), output MP4 (H.264) / WebM (VP9); GIF via `gifski`. GStreamer also takes the single frame of a window still (ADR 0002). |
+| Video | GStreamer (`gstreamer-rs`), output MP4 (H.264) / WebM (VP9); GIF via GStreamer decoding + the `gif` crate ([ADR 0004](docs/adr/0004-gif-via-gif-crate.md)), not gifski. GStreamer also takes the single frame of a window still (ADR 0002). |
 | OCR (phase 2) | Tesseract (`tesseract-ocr` package, eng + deu), runs locally, no cloud |
 | Build | Meson + Cargo (GNOME app template layout) |
 | Packaging | Native Debian package (`debian/`, debhelper-compat 13, vendored crates for offline build). Flatpak manifest is secondary. |

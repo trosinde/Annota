@@ -68,7 +68,7 @@ Q1–Q3): no click animation, no combining of clips, no gifski.
   on (probe E1).
 - Packaging: no new plugin package expected — `compositor`, `v4l2src`, `videobox`/`alpha` are in
   `gstreamer1.0-plugins-base`/`-good`, already dependencies of the core (verify, task 2.3).
-- Fixed decision in CLAUDE.md §2 ("GIF via gifski") changes: an ADR (next free number) and the §2 row are
-  updated in task 1.4 once the design is approved.
+- Fixed decision in CLAUDE.md §2 ("GIF via gifski") changed with the approval: ADR 0004, §2 row
+  updated.
 - Privacy: camera pictures and drawings exist only in the recording; saved frames go into the
   recordings folder. Nothing leaves the machine.

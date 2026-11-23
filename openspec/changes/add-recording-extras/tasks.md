@@ -8,9 +8,9 @@ archived (its pipeline, control window and Export Recording window are the base)
 ## 1. Design gate
 - [x] 1.1 Proposal, spec, design and tasks rewritten for the maintainer's decisions of 2026-11-22 (Q1 no gifski, Q2 no click animation, Q3 editor v1 = trim, cut range, save frame; combine clips out of scope); `openspec validate --all --strict` and `python3 tools/scenario_gate.py check` pass
 - [x] 1.2 `designer` agent: redraw `docs/design/add-recording-extras/` against the approved core mockups (light + dark, 1x + 2x), scenario → mockup table in index.md
-- [ ] 1.3 Maintainer answers the open questions O1–O6 of design.md (O1 drawing surface vs. composited strokes, O2 where saved frames go, O3 own PipeWire consumer, O4–O6 from the designer)
-- [ ] 1.4 Maintainer approval recorded in design.md (`Design approved: <date>`); then an ADR (next free number) "GIF via the gif crate instead of gifski" and the CLAUDE.md §2 Video row updated
-- [ ] 1.5 Probe list E1–E7 added to `manual-checks.md` with commands, as the core did for P1–P12
+- [x] 1.3 Maintainer answers the open questions O1–O6 of design.md (O1 drawing surface vs. composited strokes, O2 where saved frames go, O3 own PipeWire consumer, O4–O6 from the designer)
+- [x] 1.4 Maintainer approval recorded in design.md (`Design approved: 2026-11-22 (maintainer)`); ADR 0004 "GIF export via GStreamer and the `gif` crate, not gifski" and the CLAUDE.md §2 Video row updated; O4 outline added to spec and mockup 06
+- [x] 1.5 Probe list E1–E7 in `manual-checks.md` (planned commands, dialogs, what each measures), as the core did for P1–P12; no probe script yet
 - [ ] 1.6 After `add-screen-recording` is archived: rebase the deltas on `openspec/specs/screen-recording/spec.md` — "Recording setup", "Recording control" and "Export after recording" become MODIFIED deltas (setup rows, Swap/Draw buttons, Edit… and GIF format), the rest stays ADDED; `openspec validate --all --strict`
 
 ## 2. Foundation (probes before code)
@@ -30,7 +30,7 @@ archived (its pipeline, control window and Export Recording window are the base)
 ## 4. UI chrome and drawing
 - [ ] 4.1 Setup popover rows Webcam (expander: shape, 3×3 grid, size) and Highlight pointer, placement preview in the overlay — Webcam layout / Layout preview (mockups per index.md)
 - [ ] 4.2 Recording control: Swap, Draw, "Webcam unavailable", Draw insensitive for window recordings — Draw while recording / Draw in a window recording
-- [ ] 4.3 Drawing surface (full-screen on the recorded monitor, input, keys), stroke model shared with the pipeline — Draw while recording / Arrow in the recording, Input returns after drawing, Strokes outside the region
+- [ ] 4.3 Drawing surface (full-screen on the recorded monitor, input, keys), stroke model shared with the pipeline — Draw while recording / Arrow in the recording, Input returns after drawing, Region outline while drawing, Strokes outside the region
 - [ ] 4.4 Tools, colours, fade on recording time, Clear, step counter — Drawing tools and fade / Drawing fades, Keep until cleared, Step numbers count up
 
 ## 5. Video editor and GIF

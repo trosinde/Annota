@@ -63,7 +63,7 @@ The recording setup SHALL offer Highlight pointer (default off). When on, Annota
 - **THEN** the Highlight pointer row is insensitive and reads "Not available on this desktop"
 
 ### Requirement: Draw while recording
-During a region or screen recording, the Recording control SHALL offer Draw (`D`). Draw on SHALL show a transparent full-screen drawing surface on the recorded monitor that takes all pointer input, so apps beneath get no clicks until Draw is off (`Esc` or `D`). Strokes SHALL be composited into the recording by the pipeline. In window recordings Draw SHALL be insensitive with "Drawing is available for region and screen recordings".
+During a region or screen recording, the Recording control SHALL offer Draw (`D`): a transparent full-screen drawing surface on the recorded monitor that takes all pointer input until Draw is off (`Esc` or `D`). For a region it SHALL outline the selection 2 px outside it. Strokes SHALL be composited into the recording. In window recordings Draw SHALL be insensitive with "Drawing is available for region and screen recordings".
 
 #### Scenario: Arrow in the recording
 - **WHEN** Draw is on during a screen recording and the user drags an arrow from (100, 100) to (300, 200)
@@ -76,6 +76,11 @@ During a region or screen recording, the Recording control SHALL offer Draw (`D`
 #### Scenario: Draw in a window recording
 - **WHEN** a window recording runs
 - **THEN** Draw in the Recording control is insensitive and its tooltip reads "Drawing is available for region and screen recordings"
+
+#### Scenario: Region outline while drawing
+- **WHEN** Draw is on during a region recording
+- **THEN** the drawing surface shows a 2 px outline just outside the selection
+- **AND** no recorded frame contains that outline
 
 #### Scenario: Strokes outside the region
 - **WHEN** Draw is on during a region recording and the user draws a rectangle that lies outside the selection

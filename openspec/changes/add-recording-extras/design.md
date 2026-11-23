@@ -12,18 +12,26 @@ core's visual language). Scenario-to-mockup mapping, redlines and platform notes
 [`docs/design/add-recording-extras/index.md`](../../../docs/design/add-recording-extras/index.md).
 Light 1× renders are linked there; dark and 2× sit next to each file.
 
-Design approved: _pending_
+Design approved: 2026-11-22 (maintainer)
 
 ## Maintainer decisions (maintainer, 2026-11-22)
 
-Given to the coordinating session and relayed to this branch.
+Answered through the coordinating session (AskUserQuestion) and relayed to this branch,
+together with the design approval.
 
 | # | Question | Decision |
 |---|---|---|
-| Q1 | GIF encoder (gifski is AGPL-3.0-or-later) | **No gifski.** GIF goes through GStreamer elements already in the dependency set or an MIT/Apache-licensed crate that builds with the project MSRV. Choice: D6. |
-| Q2 | Click animation | **Dropped.** The pointer highlight ring stays only if it can be drawn into the video from the stream's cursor metadata (ScreenCast cursor mode metadata), never by an overlay window; needs probe E1/E2. |
-| Q3 | Video editor v1 scope | **Trim start/end, cut out a range, save a frame as an image.** Combining clips moves to a later change (proposal "Out of scope"). |
-| — | Webcam overlay and drawing | Stay in scope, specified against Wayland limits: no always-on-top windows, no global input. Anything in the video is composited into the stream (D1); every desktop-behaviour assumption is a probe (E1–E7). |
+| Q1 | GIF encoder (gifski is AGPL-3.0-or-later) | **GStreamer + the `gif` crate, no gifski** (D6, [ADR 0004](../../../docs/adr/0004-gif-via-gif-crate.md)). |
+| Q2 | Click animation | **Dropped.** The pointer highlight ring stays, drawn into the video from the stream's cursor metadata only (D4, probes E1/E2). |
+| Q3 | Video editor v1 scope | **Trim start/end, cut out a range, save a frame.** Combining clips comes in a later change. |
+| O1 | Drawing surface vs. composited strokes | **Composited in principle.** Probe E3 decides between (a) the surface shows only a faint guide line and (b) for monitor sources the surface's own pixels count; the result goes back to the maintainer briefly. |
+| O2 | Where saved frames go | **`~/Videos/Annota`** (the recordings folder) until the capture library exists. |
+| O3 | E1 negative (`pipewiresrc` drops cursor metadata) | The change to the core's stream code goes **back to the maintainer before task group 3**. |
+| O4 | Region orientation while drawing | **Yes:** the drawing surface draws a 2 px outline just outside the selection; it lies outside the crop, so it is not in the video (spec "Region outline while drawing", mockup 06). |
+| O5 | Position grid cells 32×24 px (below 32×32) | **Accepted.** |
+| O6 | Editor keys beyond the spec (frame step, Home/End, trim at the playhead) | **Deferred** to a later change. |
+| — | Designer assumptions | **Accepted as drawn:** amber "Webcam unavailable" label in place of Swap; draw colours Coral, Azure, Amber; 44 px amber highlight ring; modal 1100×730 editor with one mixed audio track; a cut range shown as a hatched band; Draw ends via the toggle or the Done pill. |
+| — | Webcam overlay and drawing | Stay in scope, specified against Wayland limits: no always-on-top windows, no global input. Anything in the video is composited into the stream (D1); every desktop-behaviour assumption is a probe (E1–E7, `manual-checks.md`). |
 
 ## Context
 
@@ -114,11 +122,14 @@ What it can do is open its own window. So:
 - The surface shows the strokes so the user sees what they draw. The pipeline composites the
   same strokes (same model, same timestamps) into the recording through `cairooverlay` (D1).
   For monitor sources the surface itself is also in the stream; both copies coincide when the
-  monitor mapping is exact. Probe E3 measures whether they do. Open question O1.
+  monitor mapping is exact. Probe E3 measures whether they do; the maintainer decides (a) vs. (b)
+  on its result (O1).
 - The surface draws no chrome of its own — anything on it would be in a screen recording. Tool,
   colour, fade and Clear live in the Recording control, which expands while Draw is on, and are
   also on keys (`A`, `R`, `N`, `C`, `Esc`) that work on the surface. Whether GNOME keeps the
   control visible above a full-screen window is probe E3; the keys make it irrelevant.
+- Region recordings: the surface draws a 2 px outline just outside the selection so the user
+  sees the recorded area (O4). It is outside the crop and therefore never in the video.
 - Only region and screen recordings: both are monitor streams whose mapping to monitor
   coordinates is known (core P2/P3). For a window stream, the window's position on the monitor
   is unknown on Wayland, so strokes could not be placed. Draw is insensitive there.
@@ -156,8 +167,8 @@ filesrc ─ matroskademux ─ decoder ─ [edit list, D8] ─ videorate(fps) ─
   `round(100 / fps)` centiseconds. Identical consecutive frames are merged by extending the
   previous frame's delay (smaller files on static screens).
 - Runs on a worker thread; progress and Cancel as for WebM (core 08).
-- CLAUDE.md §2 says "GIF via gifski". That fixed decision changes: the §2 Video row is updated,
-  with an ADR (next free number), after the design approval (task 1.4), not before.
+- CLAUDE.md §2 said "GIF via gifski". With the approval this fixed decision changed:
+  [ADR 0004](../../../docs/adr/0004-gif-via-gif-crate.md) and the §2 Video row (task 1.4).
 
 ### D7 — Entering the editor and getting its result out
 
@@ -194,7 +205,7 @@ filesrc ─ matroskademux ─ decoder ─ [edit list, D8] ─ videorate(fps) ─
 - Shortcuts (`decisions.md` D5): Play/Pause `Space`, Cut Out Range `Delete`, Save Frame `F`;
   Undo `Ctrl+Z`, Redo `Shift+Ctrl+Z`, Done `Ctrl+Enter`, Cancel `Esc`. Split `S` from D5 is
   not in this change (it belongs with combining clips).
-- Save Frame: the decoded frame at the playhead, full recording size, PNG via cairo, file
+- Save Frame (O2): the decoded frame at the playhead, full recording size, PNG via cairo, file
   `<recording name> – frame M-SS.png` in the recordings folder (` (2)` suffix if taken). Toast
   "Frame saved" with **Open in Annota**, which opens it in the annotation editor like a capture.
   Saved frames are not added to the capture library in this change.
@@ -223,7 +234,8 @@ No new `.deb` plugin package is expected; task 2.3 confirms or adds one.
 ## Probes (CLAUDE.md §5)
 
 Every sentence about what GNOME, the portal, PipeWire or a camera does is an assumption until
-one of these has been run. Tool: an `extras` group in `tools/recording-probe.py` (task 2.1),
+one of these has been run. Commands, dialogs and what each measures: `manual-checks.md`
+§ "Probe run (task 2.1)". Tool: an `extras` group in `tools/recording-probe.py` (task 2.1),
 run by the maintainer on GNOME 50 and, where possible, GNOME 46 (Ubuntu 24.04); results in
 `probe-results/`. They run after the core probes P1–P12, which this change relies on (P2/P3
 mapping, P4 cursor modes, P7 frame delivery).
@@ -246,26 +258,8 @@ mapping, P4 cursor modes, P7 frame delivery).
   the texts in the spec.
 
 ## Risks / open questions
-- **O1 (maintainer):** in region and screen recordings the drawing surface is itself on the
-  recorded monitor, so its strokes are in the stream *and* the pipeline composites the same
-  strokes on top. If E3 shows they line up, the result is one stroke. If they do not, the options
-  are (a) the surface draws its strokes thinner/at low opacity as a guide only, or (b) for monitor
-  sources rely on the surface's own pixels and composite only where the surface is not recorded
-  — (b) contradicts the "composited, never a window" rule and needs your decision. Recommendation:
-  keep compositing, decide (a) vs. (b) after E3.
-- **O2 (maintainer):** Save Frame writes into the recordings folder (`~/Videos/Annota`) and offers
-  Open in Annota; it is not added to the capture library (not built yet). Alternative: the
-  captures folder. Recommendation: recordings folder until `add-capture-library` exists.
-- **O3:** if E1 shows `pipewiresrc` drops cursor metadata, the core's screencast stream code
-  changes to an own PipeWire consumer. That is a design change to an approved core decision and
-  goes back to the maintainer before task group 3.
-- **O4 (designer):** while drawing in a region recording the user cannot see the region (the
-  surface has no chrome). Proposal: the surface draws an outline 2 px *outside* the selection,
-  which lies outside the crop and so is not in the video. Not drawn yet.
-- **O5 (designer):** the 3×3 position cells are 32×24 px, under the 32×32 target rule; 32×32 adds
-  24 px to a popover that is already ~670 px tall when expanded.
-- **O6 (designer):** editor keys beyond the spec (frame step, Home/End, trim at the playhead) are
-  undefined and not drawn.
+- O1–O6 are decided (see "Maintainer decisions"). Still open until the probes run: the E3 result
+  for O1 (a) vs. (b), reported to the maintainer; O3 if E1 is negative.
 - If E3 shows the drawing surface cannot cover the recorded monitor or take input reliably, Draw
   is removed from this change (spec and mockups updated, new design gate) rather than shipped
   half-working.
