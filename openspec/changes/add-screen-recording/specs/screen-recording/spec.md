@@ -18,7 +18,7 @@ Switching the region overlay's mode pill to Video SHALL show the recording setup
 - **THEN** the overlay closes, no screen-sharing session is requested and nothing is written
 
 ### Requirement: Recording source
-Start Recording SHALL request one ScreenCast source without a restore token. Region: a monitor source; only the selection is recorded, mapped to buffer pixels by buffer size ÷ stream `size`. Window: the `capture` window chooser flow, keeping the stream, each buffer cropped to its crop meta. Screen: a monitor source, recorded whole. While the request is open, a waiting indicator with Cancel (`Esc`) SHALL be shown. Pointer: embedded if Include pointer is on and offered, else hidden.
+Start Recording SHALL request one ScreenCast source without a restore token. Region: a monitor source; only the selection is recorded, mapped to buffer pixels by buffer size ÷ stream `size`. Window: the `capture` window chooser flow, keeping the stream, each buffer cropped to its content rectangle. Screen: a monitor source, recorded whole. While the request is open, a waiting indicator with Cancel (`Esc`) SHALL be shown. Pointer: embedded if Include pointer is on and offered, else hidden.
 
 #### Scenario: Record a region
 - **WHEN** the user selects a 800×600 region, starts recording and the portal answers with a monitor stream containing it whose buffers have the same size as its `size`
@@ -36,9 +36,13 @@ Start Recording SHALL request one ScreenCast source without a restore token. Reg
 - **WHEN** the user starts a window recording and a window is chosen
 - **THEN** the "Waiting for a window…" indicator disappears and the recording shows only that window
 
+#### Scenario: Window crop meta in buffer pixels
+- **WHEN** a window stream of `size` 3072×1728 on a monitor of scale 1.25 delivers a 6144×3456 buffer with crop meta (0, 0, 800, 500)
+- **THEN** the window's content rectangle in that buffer is (0, 0, 1280, 800): the crop meta times (buffer size ÷ stream `size`) ÷ monitor scale = 1.6
+
 #### Scenario: Recorded window resized
-- **WHEN** a window recording runs with buffers of a fixed 6144×3456 whose crop meta changes from (0, 0, 928, 628) to (0, 0, 3840, 2100) and back
-- **THEN** every frame is taken from inside that buffer's crop meta only, never from pixels outside it
+- **WHEN** a window recording runs with 6144×3456 buffers (stream `size` 3072×1728, monitor scale 1.25) whose crop meta changes from (0, 0, 800, 500) to (0, 0, 3840, 2100) and back
+- **THEN** every frame is taken from inside that buffer's content rectangle only, (0, 0, 1280, 800) and then (0, 0, 6144, 3360), never from pixels outside it
 - **AND** the recording keeps the frame size it had at start, the larger window scaled down to fit and letterboxed, never stretched
 
 #### Scenario: Record the screen

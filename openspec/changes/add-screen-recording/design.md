@@ -97,8 +97,16 @@ Alternatives considered:
   and recorded instead of one frame. Measured (P6, 20:48): the buffer size is fixed for the whole
   stream (6144×3456, 2× the reported `size`) and only the **crop meta** follows the window, on
   resize and maximize alike, with GTK's client-side shadow margin inside it; pixels outside the
-  crop are undefined (a frame at the maximize moment showed stale white). So every buffer is
-  cropped to its own crop meta, never to the buffer or stream size. The shadow is trimmed by
+  content are undefined (a frame at the maximize moment showed stale white). **The crop meta of a
+  window stream is not in buffer pixels** (measured on GNOME 50 by the PR #10 live checks with
+  `tools/portal-probe.py --screencast-window`): the buffer is at scale 2, the crop meta at the
+  monitor scale (1.25). Content rectangle in the buffer = crop meta × (buffer size ÷ stream
+  `size`) ÷ monitor scale, here × 2 / 1.25 = 1.6 (crop (0, 0, 800, 500) → (0, 0, 1280, 800),
+  confirmed by the alpha bounds); where the factor cannot be computed, the rectangle is found
+  by alpha. This conversion gets its own unit test (scenario "Window crop meta in buffer
+  pixels"); the shipped window still capture reads the crop meta as buffer pixels and captures
+  only the top-left 62.5 % (fixed separately, not in this change). Every buffer is cropped to
+  its own content rectangle, never to the buffer or stream size. The shadow is trimmed by
   `screencast::window_rect`'s alpha rule, computed on the first buffer and again only when the
   crop meta changes (a full alpha scan per 4K buffer is too costly). The encoded frame size is
   fixed at start (the first trimmed window, even-sized for x264); later frames are scaled to fit
@@ -240,7 +248,7 @@ PipeWire 1.6.2 / GStreamer 1.28.2, Wayland, one monitor HDMI-4 3072×1728 logica
 | P3 | Monitor stream buffer size vs. `size` | crop factors | measured at 1.25 | Buffer 3840×2160 = `size` × 1.25 (monitor scale); crop meta (0, 0, 3840, 2160) = whole buffer; caps `framerate=0/1`, `max-framerate=60/1`; first frame after 64–73 ms → scenario "Record a region on a scaled monitor". |
 | P4 | `AvailableCursorModes` for monitor sources; does Embedded draw the pointer? | "Pointer in the recording" | measured (monitor) | Modes 7. Hidden: no pointer; Embedded: pointer drawn; Metadata: no pointer + `GstVideoRegionOfInterestMeta` (frames looked at, not committed). Window sources not measured. |
 | P5 | Does GNOME offer a stop control for a portal ScreenCast session (GNOME's panel / quick settings), and does Annota then receive `Session::Closed`? | "Session ended by the desktop" | measured | Run 18:46: ■ next to the screen-cast icon in the bottom panel pressed → `Session.Closed` after 3.27 s, last buffer at 3.05 s, no EOS, no error. Runs 18:00/18:33: ■ not found, so not pressed; no `Session.Closed`, buffers until 60 s → scenario "Session ended by the desktop" (finish on `Session.Closed`, no EOS wait). |
-| P6 | Window stream when the window is closed (EOS, error, frozen?) and when it is resized | "Recorded window closed", "Recorded window resized", D2 | measured | Run 20:48, driven with no human (`tools/recording-probe-drive.py window-end`, 640×400 GTK window): buffer fixed at 6144×3456; crop meta (0, 0, 928, 628) → maximized (0, 0, 3840, 2100) → (0, 0, 928, 628), 928×628 = window ×1.25 + CSD shadow; destroying the window → `Session.Closed` 0.06 s later, no EOS, no error, no further buffers; buffers only on damage (3, 1, 0, 1, then 0 per second); content outside the crop undefined. Earlier runs (18:00, 18:35, and two that ended after 3.8 s / 12.6 s with the probe's own terminal chosen) are not reproduced with a normal window; the early `Session.Closed` during Start stays unexplained → scenario "Session closed while waiting". |
+| P6 | Window stream when the window is closed (EOS, error, frozen?) and when it is resized | "Recorded window closed", "Recorded window resized", D2 | measured | Run 20:48, driven with no human (`tools/recording-probe-drive.py window-end`, 640×400 GTK window): buffer fixed at 6144×3456; crop meta (0, 0, 928, 628) → maximized (0, 0, 3840, 2100) → (0, 0, 928, 628), in monitor-scale px (928×628 = window ×1.25 + CSD shadow; ×1.6 in buffer px, PR #10 live checks); destroying the window → `Session.Closed` 0.06 s later, no EOS, no error, no further buffers; buffers only on damage (3, 1, 0, 1, then 0 per second); content outside the crop undefined. Earlier runs (18:00, 18:35, and two that ended after 3.8 s / 12.6 s with the probe's own terminal chosen) are not reproduced with a normal window; the early `Session.Closed` during Start stays unexplained → scenario "Session closed while waiting". |
 | P7 | Frame delivery on a static screen | constant frame rate | invalid run; informational | A video played in both phases (~35 buffers/s with and without keepalive). Settled by design instead (D3, "Recording frame rate"); a rerun is optional. |
 | P8 | 30 min continuous monitor stream at 4K: dropped frames, memory, CPU with `x264enc superfast` | performance budget | moved to Verify | Measured with the real implementation (task 6.2), not with the probe. |
 | P9 | ScreenCast on a GNOME X11 session (also `fix-window-capture-screencast` task 2.4) | X11 behaviour, "Source not offered" | later | GNOME 50 has no X11 session; needs Ubuntu 24.04 (task 2.1c). |

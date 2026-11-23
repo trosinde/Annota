@@ -22,7 +22,7 @@ capability is named. Every test carries a `spec:` tag for the scenarios it prove
 ## 3. Recording pipeline
 - [ ] 3.1 `screencast.rs`: keep a stream for recording (monitor and window sources, no restore token, cursor mode) — Recording source / Pointer in the recording, Source request cancelled, Chooser cancelled in the desktop, Session closed while waiting, Waiting indicator with one monitor, Source not offered (fake portal)
 - [ ] 3.2 Region crop mapping from probe P2/P3 (logical selection × buffer size ÷ `size`) — Recording source / Record a region, Record a region on a scaled monitor, Region not on the chosen screen
-- [ ] 3.3 Window and screen recording incl. per-buffer crop from the crop meta (shadow trim recomputed only on a crop change) and scaling to the first frame — Recording source / Record a window, Recorded window resized, Record the screen
+- [ ] 3.3 Window and screen recording incl. per-buffer crop from the crop meta (shadow trim recomputed only on a crop change) and scaling to the first frame — Recording source / Record a window, Window crop meta in buffer pixels (unit test of crop meta × (buffer ÷ `size`) ÷ monitor scale), Recorded window resized, Record the screen
 - [ ] 3.4 Pipeline to the Matroska working file (videotestsrc/audiotestsrc in tests), stream timestamps + `videorate` 30 fps — Working file / Recording survives a crash, Name already taken, Recording error; Recording frame rate / Still screen, Burst of buffers
 - [ ] 3.5 Pause/resume via drop probe + running-time offset — Pause and resume / Paused time is not recorded
 - [ ] 3.6 Audio: device presence, mute, level — Audio / Mute the microphone, Mute system audio, No microphone, No audio selected
