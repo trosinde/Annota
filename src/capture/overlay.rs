@@ -13,7 +13,7 @@ use gtk::{cairo, gdk, gio, glib, prelude::*};
 
 use super::frame::{self, Frame, Rgb};
 use super::geometry::{
-    bounding_box, image_scale, loupe_position, monitor_crop, pointer_chip_position,
+    bounding_box, image_px, image_scale, loupe_position, monitor_crop, pointer_chip_position,
     size_chip_position, toolbar_position, Direction, FRect, Handle, IRect, Selection,
     HANDLE_DIAMETER, LOUPE_DIAMETER, LOUPE_ZOOM,
 };
@@ -395,10 +395,7 @@ pub fn size_text(rect: IRect) -> String {
 
 impl MonitorOverlay {
     fn to_image(&self, x: f64, y: f64) -> (i32, i32) {
-        (
-            (x * self.scale).round() as i32,
-            (y * self.scale).round() as i32,
-        )
+        (image_px(x, self.scale), image_px(y, self.scale))
     }
 
     fn area(&self) -> (f64, f64) {
@@ -1348,6 +1345,49 @@ fn key_pressed(
     }
 }
 
+/// One monitor's overlay: widgets loaded, the frozen image in place, every handler connected —
+/// everything but showing it. `None` when the UI or the image cannot be loaded.
+fn build_overlay(
+    index: usize,
+    shot: &MonitorShot,
+    session: &Rc<Session>,
+    include_pointer: bool,
+) -> Option<Rc<MonitorOverlay>> {
+    let (w, _builder) = Widgets::load()?;
+    let surface = match shot.frame.to_surface() {
+        Ok(surface) => surface,
+        Err(err) => {
+            eprintln!("annota: cannot show the frozen screen: {err}");
+            return None;
+        }
+    };
+    w.pointer_button.set_active(include_pointer);
+    let overlay = Rc::new(MonitorOverlay {
+        index,
+        scale: shot.scale,
+        frame: shot.frame.clone(),
+        surface,
+        session: Rc::downgrade(session),
+        state: RefCell::new(State {
+            selection: Selection::new(shot.frame.width(), shot.frame.height()),
+            phase: Phase::Idle,
+            pointer: None,
+            edges: Vec::new(),
+            space: false,
+            drag_start: (0.0, 0.0),
+            last: (0, 0),
+            syncing: false,
+            cursor: "",
+        }),
+        swatch: Cell::new(Rgb { r: 0, g: 0, b: 0 }),
+        delay: Cell::new(0),
+        w,
+    });
+    connect(&overlay);
+    overlay.w.canvas.set_cursor_from_name(Some("crosshair"));
+    Some(overlay)
+}
+
 /// Shows the overlay on every monitor and waits for the user's choice.
 pub async fn select_region(
     app: &adw::Application,
@@ -1363,43 +1403,11 @@ pub async fn select_region(
     });
 
     for (index, shot) in desktop.monitors.iter().enumerate() {
-        let Some((w, _builder)) = Widgets::load() else {
+        let Some(overlay) = build_overlay(index, shot, &session, include_pointer) else {
             session.finish(Outcome::Cancelled);
             break;
         };
-        let surface = match shot.frame.to_surface() {
-            Ok(surface) => surface,
-            Err(err) => {
-                eprintln!("annota: cannot show the frozen screen: {err}");
-                session.finish(Outcome::Cancelled);
-                break;
-            }
-        };
-        w.pointer_button.set_active(include_pointer);
-        w.window.set_application(Some(app));
-        let overlay = Rc::new(MonitorOverlay {
-            index,
-            scale: shot.scale,
-            frame: shot.frame.clone(),
-            surface,
-            session: Rc::downgrade(&session),
-            state: RefCell::new(State {
-                selection: Selection::new(shot.frame.width(), shot.frame.height()),
-                phase: Phase::Idle,
-                pointer: None,
-                edges: Vec::new(),
-                space: false,
-                drag_start: (0.0, 0.0),
-                last: (0, 0),
-                syncing: false,
-                cursor: "",
-            }),
-            swatch: Cell::new(Rgb { r: 0, g: 0, b: 0 }),
-            delay: Cell::new(0),
-            w,
-        });
-        connect(&overlay);
-        overlay.w.canvas.set_cursor_from_name(Some("crosshair"));
+        overlay.w.window.set_application(Some(app));
         match &shot.monitor {
             Some(monitor) => overlay.w.window.fullscreen_on_monitor(monitor),
             None => overlay.w.window.fullscreen(),
@@ -1562,20 +1570,36 @@ mod tests {
     // spec: capture / Pointer preview in the region overlay / Pointer will not be included
     #[test]
     fn the_preview_reaches_the_captures_verdict() {
-        // Task 4.2, for real this time: the preview's own decision path, not just the shared
-        // predicate, is swept against what `capture::region_pointer` would draw.
+        // Task 4.2: the preview's own decision path (`preview_for`, toggle and monitor filter
+        // included) against the image the capture really produces: "in capture" exactly when
+        // the composed region differs from the plain crop. Positions straddle every edge of the
+        // selection by fractions of a pixel, at 100 % and 125 %, because that is where the two
+        // could part ways.
         let rect = IRect::new(140, 212, 400, 300);
-        for sx in 0..=60 {
-            let x = 120.0 + f64::from(sx) * 8.0;
-            for sy in 0..=50 {
-                let y = 190.0 + f64::from(sy) * 8.0;
-                let preview = preview_for(true, Some(at(0, x, y)), 0, Some(rect), 1.0);
-                let drawn = super::super::region_pointer(Some(at(0, x, y)), 0, rect, 1.0);
-                assert_eq!(
-                    preview.is_some_and(|p| p.inside),
-                    drawn.is_some(),
-                    "preview and capture disagree at {x}, {y}"
-                );
+        let around = |lo: i32, hi: i32| {
+            let mut values = vec![f64::from(lo + hi) / 2.0];
+            for edge in [lo, hi] {
+                for d in [-1.6, -1.0, -0.6, -0.5, -0.4, 0.0, 0.4, 0.5, 0.6, 1.0] {
+                    values.push(f64::from(edge) + d);
+                }
+            }
+            values
+        };
+        for scale in [1.0, 1.25] {
+            let desktop = desktop(800, 600, scale);
+            let plain = desktop.full.crop(rect).expect("crop");
+            for ix in around(rect.x, rect.right()) {
+                for iy in around(rect.y, rect.bottom()) {
+                    let pointer = Some(at(0, ix / scale, iy / scale));
+                    let preview = preview_for(true, pointer, 0, Some(rect), scale);
+                    let image = super::super::compose_region(&desktop, 0, rect, true, pointer)
+                        .expect("region");
+                    assert_eq!(
+                        preview.is_some_and(|p| p.inside),
+                        image != plain,
+                        "preview and image disagree at image px {ix}, {iy}, scale {scale}"
+                    );
+                }
             }
         }
     }
@@ -1646,5 +1670,194 @@ mod tests {
         session.note_pointer(at(1, 20.0, 20.0));
         session.clear_pointer(0);
         assert_eq!(session.pointer.get(), Some(at(1, 20.0, 20.0)));
+    }
+
+    /// One uniformly grey monitor of `w` x `h` image px at `scale`.
+    fn desktop(w: i32, h: i32, scale: f64) -> Desktop {
+        let full = Frame::filled(
+            w,
+            h,
+            Rgb {
+                r: 0x80,
+                g: 0x80,
+                b: 0x80,
+            },
+        )
+        .expect("frame");
+        Desktop {
+            monitors: vec![MonitorShot {
+                monitor: None,
+                crop: full.bounds(),
+                frame: full.clone(),
+                scale,
+            }],
+            full,
+        }
+    }
+
+    // spec: capture / Cursor inclusion / Pointer on the selection edge
+    #[test]
+    fn a_fractional_release_on_the_edge_draws_no_pointer() {
+        // Wayland reports fractional positions, at 125 % almost always. The overlay rounds the
+        // drag's end to an image pixel (`to_image`); the hot spot must be mapped the same way,
+        // or a release at x.6 truncates one pixel *inside* the edge and leaves a sliver of arrow
+        // in the image while the chip claims "Pointer in capture".
+        for scale in [1.0, 1.25] {
+            let desktop = desktop(800, 600, scale);
+            for frac in [0.0, 0.25, 0.4, 0.5, 0.6, 0.75] {
+                let start = (100.3, 80.7);
+                let release = (399.0 + frac, 299.0 + frac);
+                let mut selection = Selection::new(800, 600);
+                selection.begin((image_px(start.0, scale), image_px(start.1, scale)));
+                selection.drag_to(
+                    (image_px(release.0, scale), image_px(release.1, scale)),
+                    false,
+                );
+                let rect = selection.rect().expect("a selection");
+                let pointer = Some(at(0, release.0, release.1));
+                let what = format!("release at {release:?}, scale {scale}");
+
+                assert_eq!(rect.pointer_inside(release, scale), None, "{what}");
+                let preview = preview_for(true, pointer, 0, Some(rect), scale).expect("preview");
+                assert!(!preview.inside && preview.on_edge, "{what}");
+                let image =
+                    super::super::compose_region(&desktop, 0, rect, true, pointer).expect("region");
+                assert!(
+                    image == desktop.full.crop(rect).expect("crop"),
+                    "part of a pointer in the image: {what}"
+                );
+            }
+        }
+    }
+
+    /// The overlay as `select_region` builds it, over one grey monitor, with a session of its
+    /// own. Needs a display, the compiled resources and libadwaita; nothing here talks to a
+    /// portal or to GSettings.
+    fn live_overlay(include_pointer: bool) -> (Rc<Session>, Rc<MonitorOverlay>) {
+        let resources = std::env::var_os("ANNOTA_GRESOURCE")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("_build/data/resources.gresource")
+            });
+        gio::resources_register(
+            &gio::Resource::load(&resources).expect("build _build/data/resources.gresource first"),
+        );
+        crate::ui::test_support::init();
+        let session = Rc::new(session());
+        let desktop = desktop(800, 600, 1.0);
+        let overlay = build_overlay(0, &desktop.monitors[0], &session, include_pointer)
+            .expect("the overlay loads");
+        session.overlays.borrow_mut().push(overlay.clone());
+        overlay.w.window.present();
+        crate::ui::test_support::pump(100);
+        (session, overlay)
+    }
+
+    /// What the overlay's widgets say about the pointer right now.
+    #[derive(Debug, PartialEq)]
+    struct Shown {
+        chip: Option<(String, bool)>,
+        hint: Option<String>,
+    }
+
+    fn shown(overlay: &MonitorOverlay) -> Shown {
+        let w = &overlay.w;
+        let hint = w
+            .pointer_hints
+            .iter()
+            .find(|h| h.box_.is_visible() && h.box_.parent().is_some_and(|p| p.is_visible()))
+            .map(|h| h.label.text().to_string());
+        Shown {
+            chip: w.pointer_chip.is_visible().then(|| {
+                (
+                    w.pointer_chip_label.text().to_string(),
+                    w.pointer_chip_suffix.is_visible(),
+                )
+            }),
+            hint,
+        }
+    }
+
+    // spec: capture / Pointer preview in the region overlay / Pointer will be included
+    // spec: capture / Pointer preview in the region overlay / Pointer will not be included
+    // spec: capture / Pointer preview in the region overlay / Indication follows the selection
+    // spec: capture / Pointer preview in the region overlay / No indication when excluded
+    #[test]
+    #[ignore = "opens a window; needs xvfb-run and an isolated bus, see src/ui/mod.rs test_support"]
+    fn the_overlay_shows_what_will_be_captured() {
+        // The widgets themselves, driven through the handlers GTK calls: the decision behind
+        // them is unit-tested, this proves the plumbing acts on it (the earlier review found
+        // `pointer_left` leaving a stale "Pointer in capture" on screen).
+        let (_session, overlay) = live_overlay(true);
+        {
+            let mut state = overlay.state.borrow_mut();
+            state.selection.set_rect(IRect::new(100, 100, 400, 300));
+            state.phase = Phase::Adjusting;
+        }
+        let in_capture = || Some((gettext("Pointer in capture"), false));
+        let teach = || Some(gettext("Move the pointer into the selection to include it"));
+
+        // Inside: the arrow will be in the image.
+        overlay.motion(495.0, 250.0);
+        assert_eq!(
+            shown(&overlay),
+            Shown {
+                chip: in_capture(),
+                hint: Some(gettext("Pointer in capture"))
+            },
+            "pointer inside"
+        );
+
+        // Shift+Left moves the selection 10 px out from under the pointer, no confirmation.
+        assert!(overlay.nudge(Direction::Left, true));
+        assert_eq!(
+            shown(&overlay),
+            Shown {
+                chip: Some((gettext("Pointer not in capture"), false)),
+                hint: teach()
+            },
+            "selection moved away"
+        );
+        assert!(overlay.nudge(Direction::Right, true));
+        assert_eq!(shown(&overlay).chip, in_capture(), "and back");
+
+        // Released on the lower-right corner, at a fractional position: the trap is named.
+        overlay.motion(499.6, 399.6);
+        assert_eq!(
+            shown(&overlay),
+            Shown {
+                chip: Some((gettext("Pointer not in capture"), true)),
+                hint: teach()
+            },
+            "on the edge"
+        );
+
+        // Onto the toolbar: no position, no chip, but the hint keeps teaching.
+        overlay.motion(300.0, 250.0);
+        overlay.pointer_left();
+        assert_eq!(
+            shown(&overlay),
+            Shown {
+                chip: None,
+                hint: teach()
+            },
+            "left the canvas"
+        );
+
+        // Include Pointer off, through the toggle's own signal: nothing about the pointer.
+        overlay.motion(300.0, 250.0);
+        overlay.w.pointer_button.set_active(false);
+        assert_eq!(
+            shown(&overlay),
+            Shown {
+                chip: None,
+                hint: None
+            },
+            "toggle off"
+        );
+        overlay.w.pointer_button.set_active(true);
+        assert_eq!(shown(&overlay).chip, in_capture(), "toggle on again");
+        overlay.w.window.destroy();
     }
 }

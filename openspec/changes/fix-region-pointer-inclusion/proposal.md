@@ -41,7 +41,7 @@ and it lands in the image. That is a deliberate, useful gesture — it is simply
 - Screen and window modes are untouched. Not a breaking change: the setting, its default
   (exclude) and the overlay's pointer toggle all keep their meaning.
 
-**Known limitation this change must design around, not hide:** confirming by releasing the drag
+**Known limitation this change must design around, not hide:** confirming by releasing the drag (superseded: releasing only ends the drag, confirmation is `Enter` or the Capture button; see design.md "Review findings, task 5.5")
 leaves the pointer exactly on the selection edge, where the arrow body extends outside the crop
 and the `contains` guard drops it. The gesture that reliably includes the pointer is therefore
 *select the region → move the pointer inside it → press Enter* (or use a delay). The maintainer

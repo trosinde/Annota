@@ -528,8 +528,8 @@ mod tests {
     fn an_excluded_pointer_leaves_the_portal_frame_unmodified() {
         // The pointer stands well inside the selection, where it would be drawn if included.
         // Both modes in which Annota draws the pointer itself are compared pixel for pixel with
-        // the plain portal frame of the captured area. Window mode never draws one (the
-        // desktop's picker decides, spec text).
+        // the plain portal frame of the captured area. Window stills take the ScreenCast
+        // portal's own cursor mode instead (`screencast::pointer_mode_for_all_four_combinations`).
         let desktop = desktop();
         let rect = IRect::new(100, 100, 400, 300);
         let pointer = Some(at(0, 300.0, 250.0));
@@ -596,23 +596,27 @@ mod tests {
         assert_eq!(window_steps(3, false), [Countdown, ScreenshotUi]);
     }
 
-    // spec: capture / Pointer preview in the region overlay / Pointer will be included
-    // spec: capture / Pointer preview in the region overlay / Pointer will not be included
+    // spec: capture / Cursor inclusion / Pointer inside the selection
+    // spec: capture / Cursor inclusion / Pointer outside the selection
     #[test]
-    fn the_preview_and_the_capture_cannot_disagree() {
-        // Task 4.2: the overlay's preview and `region` must reach the same verdict for the same
-        // selection and pointer. They share `IRect::pointer_inside`, so this sweeps the whole
-        // neighbourhood of a selection and asserts the two never diverge. The only thing
-        // `region_pointer` adds is the monitor filter.
-        let rect = IRect::new(140, 212, 400, 300);
-        for step in 0..=60 {
-            let x = 120.0 + f64::from(step) * 8.0;
-            for step_y in 0..=50 {
-                let y = 190.0 + f64::from(step_y) * 8.0;
-                let preview = rect.pointer_inside((x, y), 1.0);
-                let capture = region_pointer(Some(at(0, x, y)), 0, rect, 1.0);
-                assert_eq!(preview, capture, "disagree at {x}, {y}");
-            }
+    fn a_region_capture_draws_the_pointer_only_inside_the_selection() {
+        // No delay: the position at confirmation is used as it is. Inside, the arrow is in the
+        // image at that position; outside, the image is byte for byte the selected region.
+        let desktop = desktop();
+        let rect = IRect::new(100, 100, 400, 300);
+        let plain = desktop.full.crop(rect).expect("crop");
+
+        let inside = capture_pointer(0, Some(at(0, 300.0, 250.0)), None);
+        let image = compose_region(&desktop, 0, rect, true, inside).expect("region");
+        // Hot spot at 200, 150 in the crop; inside the arrow body the fill is white
+        // (same offset as `frame::pointer_is_visible_after_drawing`).
+        assert_eq!(image.pixel(203, 160), Some(WHITE));
+        assert_eq!(image.pixel(150, 100), Some(GREY), "nothing else changed");
+
+        for outside in [(99.0, 250.0), (300.0, 99.0), (500.0, 250.0), (300.0, 400.0)] {
+            let pointer = capture_pointer(0, Some(at(0, outside.0, outside.1)), None);
+            let image = compose_region(&desktop, 0, rect, true, pointer).expect("region");
+            assert!(image == plain, "pointer at {outside:?} changed the image");
         }
     }
 

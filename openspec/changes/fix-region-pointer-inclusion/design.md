@@ -145,6 +145,44 @@ gesture. The chip now follows the position and the hint segment follows the togg
 - Mockup 05 is stale, not the code: it shows the chip without the "on the edge" suffix at the same
   hot-spot-on-the-corner geometry where mockup 06 shows it. The code shows it in both.
 
+## Review findings, task 5.5 (2026-11-22)
+
+Independent reviewer pass. Two blocking findings, both fixed; the scenario gate
+(`tools/scenario_gate.py verify fix-region-pointer-inclusion`) exits 0 afterwards.
+
+**B1, blocking — a fractional release on the right or bottom edge still drew a sliver of
+pointer.** The selection's edges come from `to_image`, which *rounds*; `IRect::pointer_inside`
+*truncated* the hot spot. A release at logical 499.6 made the right edge 500 (exclusive) and the
+hot spot 499, "inside": the chip read "Pointer in capture" and the image got a cut-off arrow,
+against "Pointer on the selection edge". Wayland positions are fractional, at 125 % almost always.
+Fixed by one mapping, `geometry::image_px`, used by `to_image` and `pointer_inside` alike, so a
+released hot spot lands exactly on the edge. `overlay::a_fractional_release_on_the_edge_draws_no_pointer`
+drives a `Selection` from fractional positions at 100 % and 125 % and fails with the old code.
+The drawn offset stays fractional; only the inside/outside decision is on the pixel grid. The
+same rounding makes a hot spot up to half a pixel left of or above the selection count as inside;
+it is drawn at a negative sub-pixel offset and loses that fraction of its tip — accepted, it
+follows "the hot spot decides" and is invisible.
+
+**B2, blocking — the preview scenarios' tags claimed the on-screen part, which nothing tested.**
+The tagged tests exercised the value function `preview_for` only. Added the live test
+`overlay::the_overlay_shows_what_will_be_captured`: it builds the overlay exactly as
+`select_region` does (construction extracted into `build_overlay`), drives `motion`, a
+`Shift+Left` nudge, `pointer_left` and the toggle's own signal, and asserts chip text, edge
+suffix and hint segment as shown. It fails if `pointer_left` stops repainting (the first review's
+B1). `the_preview_reaches_the_captures_verdict` now compares against the image `compose_region`
+really produces, at fractional positions around every edge and at two scales; the old
+`capture::the_preview_and_the_capture_cannot_disagree`, a near-tautology by its own description,
+is gone. `capture::a_region_capture_draws_the_pointer_only_inside_the_selection` adds the no-delay
+pixel proof for "Pointer inside / outside the selection" (non-blocking N3).
+
+**Also fixed (non-blocking):** the spec delta named "releasing the drag" as a way to confirm; it
+only enters Adjusting, confirmation is `Enter` or the Capture button (mockup 06 shows exactly
+that). The requirement text and the "Pointer on the selection edge" WHEN now say so, and the
+requirement states that a Capture-button confirmation never contains a pointer (the click puts
+the pointer on the toolbar, `pointer_left` clears the position). A second reviewer pass on the
+fixes, 2026-11-22, found nothing blocking. Two stale
+test comments (arrow size, window mode's pointer).
+
 ## Risks / Trade-offs
 
 - **Releasing the drag leaves the pointer on the selection edge, so the common gesture still
@@ -161,3 +199,25 @@ gesture. The chip now follows the position and the hint segment follows the togg
   `contains` guard then never sees a foreign-monitor position.
 - **The preview is a fourth thing drawn on the overlay** (selection, handles, loupe, guides). →
   Flagged to the designer in D3; the mockups decide.
+- **Review 5.5, left open (non-blocking):**
+  - *Gate prerequisites are undeclared.* `scenario_gate.py verify` does not build
+    `_build/data/resources.gresource`; on a fresh `_build` every live test panics loading it. And
+    the maintainer's desktop lacks `libgstreamer1.0-dev` (in CLAUDE.md §4's list; GStreamer came
+    with `fix-window-capture-screencast`), so cargo fails before any test. The review ran with a
+    pkg-config shim in a scratch directory. Fix belongs to the gate tooling, not this change.
+  - *Archive order and a copied sentence.* `fix-window-capture-screencast` MODIFIES "Cursor
+    inclusion" too and copies the old wording: "(`Enter`, or releasing the drag)" in the
+    requirement (`specs/capture/spec.md:57` of that change) and "confirms by releasing the drag"
+    in the WHEN of "Pointer on the selection edge" (`:74`). This change must be archived first (that
+    change's tasks already say so), and that change's delta should take over the corrected
+    wording before it is archived, or the main spec regresses to the old sentence.
+  - *Mockup deviations, minor (by reading, not by screenshot):* the chip's keyline is a
+    `border-left` (+3 px width) rather than an inset keyline; the suffix opacity is 0.72, not
+    70 %; chip and loupe flip at their own thresholds instead of together (redline §5) — no
+    overlap results, only the default placement is tested. Decorative glyph images in the chip
+    and hint could carry `accessible-role: presentation`.
+  - *Screen mode still truncates its hot spot* (`compose_screen`, `x as i32`). Out of this
+    change's scope (screen mode is unchanged by design); its edges are the monitor's, so the
+    release trap does not exist there.
+  - *Kit icons (D8)* and live check 10 (symbolic recolouring of the `#222222` fills) stay open, as
+    `manual-checks.md` already notes.
