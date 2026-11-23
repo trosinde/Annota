@@ -233,8 +233,13 @@ class Portal:
         except GLib.Error as err:
             return {"error": err.message}
 
-    def request(self, iface, method, params_for):
-        """(code, results, elapsed ms) or None when no answer came in time."""
+    def request(self, iface, method, params_for, abort_when=None):
+        """(code, results, elapsed ms) or None when no answer came in time.
+
+        `abort_when` is polled every 100 ms while waiting; when it returns true the wait ends at
+        once (e.g. Session.Closed arrived while Start was pending, P6 rerun 2026-11-23).
+        """
+        self.aborted_after = None
         self.counter += 1
         token = "%s%d" % (TOKEN, self.counter)
         handle = "%s/request/%s/%s" % (PORTAL_PATH, self.unique, token)
@@ -256,11 +261,26 @@ class Portal:
             print("%s refused: %s" % (method, err.message))
             return None
         source = GLib.timeout_add_seconds(self.timeout, loop.quit)
+        poll = None
+        if abort_when is not None:
+            def check():
+                if abort_when():
+                    self.aborted_after = (time.monotonic() - start) * 1000
+                    loop.quit()
+                    return False
+                return True
+
+            poll = GLib.timeout_add(100, check)
         loop.run()
-        if answer:
+        if answer or self.aborted_after is not None:
             GLib.source_remove(source)
+        if poll is not None and self.aborted_after is None:
+            GLib.source_remove(poll)
         self.bus.signal_unsubscribe(sub)
         elapsed = (time.monotonic() - start) * 1000
+        if not answer and self.aborted_after is not None:
+            print("%s: wait ended after %.0f ms (abort condition)" % (method, elapsed))
+            return None
         if not answer:
             print("%s: no answer within %d s" % (method, self.timeout))
             return None
@@ -366,8 +386,18 @@ class ScreenCast:
             print(">>> In GNOME's chooser, press Cancel (or Esc) WITHOUT choosing.")
         else:
             print(">>> In GNOME's chooser, choose %s and confirm with Share." % what)
+        asked = time.monotonic()
         started = self.portal.request(SCREENCAST, "Start", lambda t: GLib.Variant(
-            "(osa{sv})", (self.session, parent_handle, {"handle_token": GLib.Variant("s", t)})))
+            "(osa{sv})", (self.session, parent_handle, {"handle_token": GLib.Variant("s", t)})),
+            abort_when=lambda: self.closed_at is not None)
+        if started is None and self.closed_at is not None:
+            self.log.row(self.probe, "Start", "no answer; Session.Closed arrived %.0f ms after "
+                         "Start was sent, while Start was pending" % (
+                             (self.closed_at - asked) * 1000))
+            self.log.row(self.probe, "verdict", "SESSION CLOSED WHILE START WAS PENDING: the "
+                         "desktop ended the request before any stream; nothing to measure")
+            self.close()
+            return None
         if started is None:
             self.log.row(self.probe, "Start", "no answer within %d s" % self.portal.timeout)
             self.close()
@@ -914,20 +944,21 @@ def log_end(log, probe, stream, cast, start):
             if cast.closed_at else "not received")
 
 
-DEFAULT_STOP_HINT = ("Look for an ORANGE screen-sharing icon in GNOME's panel / quick settings "
-                     "(wherever the system status area is, at the top or the bottom). Click it, "
-                     "or open quick settings, and choose Stop / turn screen sharing off.")
+STOP_CONTROL = ("look for the screen-cast icon with a small square \u25a0 next to it in GNOME's "
+                "panel, and press the \u25a0")
+DEFAULT_STOP_HINT = ("The icon may be orange; the panel can be at the top or the bottom of the "
+                     "screen (on the maintainer's desktop: bottom panel, between the clipboard "
+                     "and the accessibility icons).")
 
 
 def probe_session_close(args, log):
     load_gi(gst=True)
     hint = (" Hint: %s" % args.stop_hint) if args.stop_hint else ""
     if not ask("Opens a screen stream and keeps it running for up to %d s. While it runs, STOP "
-               "the sharing from GNOME's own UI: the screen-sharing indicator in GNOME's panel / "
-               "quick settings (wherever the system status area is). The probe logs every "
+               "the sharing from GNOME's own UI: %s. The probe logs every "
                "buffer until the end, whether Session.Closed arrives and what the stream does. "
                "If you find no stop control, let it run out and say so.%s" % (
-                   args.duration, hint),
+                   args.duration, STOP_CONTROL, hint),
                "GNOME's chooser, then GNOME's sharing indicator (panel / quick settings), which "
                "you use to stop"):
         return 0
@@ -936,8 +967,7 @@ def probe_session_close(args, log):
         return 0
     node, _props = opened
     stream = Stream(cast.remote_fd(), node, track=True)
-    cues = [(0, ">>> Now stop the sharing from GNOME's panel / quick settings "
-                "(wherever the system status area is)." + hint)]
+    cues = [(0, ">>> Now stop the sharing: %s.%s" % (STOP_CONTROL, hint))]
     cues += [(t, "    ... still streaming at %d s (limit %d s)" % (t, args.duration))
              for t in range(10, args.duration, 10)]
     start = stream.run(args.duration, on_tick=Cues(cues),
@@ -1331,9 +1361,9 @@ def main():
                         help="session-close, window-end, frame-rate: seconds (default 60; "
                              "window-end prompts the close at half of it)")
     parser.add_argument("--stop-hint", nargs="?", const=DEFAULT_STOP_HINT, default=None,
-                        help="session-close: also tell the user where to look for GNOME's stop "
-                             "control (alone: look for an orange screen-sharing icon in GNOME's "
-                             "panel / quick settings; or give your own text)")
+                        help="session-close: an extra hint where GNOME's stop control is (alone: "
+                             "the icon may be orange, the panel at the top or the bottom; or "
+                             "give your own text)")
     parser.add_argument("--minutes", type=int, default=30, help="load: minutes (default 30)")
     parser.add_argument("--watch", type=int, default=15,
                         help="shortcuts: seconds to wait for a key press (default 15)")
