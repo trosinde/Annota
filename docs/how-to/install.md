@@ -37,16 +37,17 @@ is generated, rotated and revoked is in [ADR 0001](../adr/0001-signed-apt-repo.m
 On Ubuntu 24.04:
 
 ```bash
-sudo apt install -y meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
+sudo apt install -y meson ninja-build pkgconf cargo-1.91 rustc-1.91 \
   libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
   blueprint-compiler gettext desktop-file-utils \
   appstream libglib2.0-bin gstreamer1.0-pipewire
 git clone https://github.com/trosinde/Annota.git && cd Annota
-export PATH=/usr/lib/rust-1.85/bin:$PATH
+export PATH=/usr/lib/rust-1.91/bin:$PATH
 meson setup _build -Dprofile=development && meson compile -C _build
 meson devenv -C _build ./src/annota
 ```
 
-On Ubuntu 26.04 or Debian 13, install `cargo rustc` instead of the `-1.85` packages and skip the
-`export` line. To build a Debian package yourself, see
+On Ubuntu 26.04, install `cargo rustc` instead of the `-1.91` packages and skip the `export`
+line. Debian 13 ships Rust 1.85, older than Annota's minimum (1.91), so it cannot build Annota
+from source with its own toolchain. To build a Debian package yourself, see
 [Build the Debian package](../development/building.md).

@@ -5,8 +5,9 @@
 export DH_VERBOSE = 1
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
-# Prefer the versioned toolchain on Ubuntu 24.04 (rustc-1.85); Debian 13 has 1.85 as default.
-RUST_VERSIONED := $(wildcard /usr/lib/rust-1.85/bin)
+# Prefer the versioned toolchain on Ubuntu 24.04 (rustc-1.91, noble-updates); newer
+# distributions with rustc >= 1.91 as default use that (ADR 0003).
+RUST_VERSIONED := $(wildcard /usr/lib/rust-1.91/bin)
 ifneq ($(RUST_VERSIONED),)
 export PATH := $(RUST_VERSIONED):$(PATH)
 endif

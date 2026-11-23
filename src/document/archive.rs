@@ -644,7 +644,7 @@ pub(crate) mod tests {
     fn archive_layout() {
         let bytes = encode(&sample()).unwrap();
         let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
-        let mut names: Vec<&str> = zip.file_names().collect();
+        let mut names: Vec<String> = zip.file_names().map(|n| n.unwrap().into_owned()).collect();
         names.sort_unstable();
         assert_eq!(
             names,
@@ -680,7 +680,7 @@ pub(crate) mod tests {
             .unwrap();
         let bytes = encode(&doc).unwrap();
         let zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
-        assert!(!zip.file_names().any(|n| n.starts_with("images/")));
+        assert!(!zip.file_names().any(|n| n.unwrap().starts_with("images/")));
     }
 
     /// Rewrites `document.json` inside an archive.
@@ -691,7 +691,7 @@ pub(crate) mod tests {
         let opts = zip::write::SimpleFileOptions::default();
         for i in 0..src.len() {
             let mut entry = src.by_index(i).unwrap();
-            let name = entry.name().to_string();
+            let name = entry.name().unwrap().into_owned();
             let mut data = Vec::new();
             entry.read_to_end(&mut data).unwrap();
             if name == DOCUMENT_JSON {
@@ -960,8 +960,9 @@ pub(crate) mod tests {
         let saved = resaved(&doc);
         assert_eq!(saved["objects"][0], original["objects"][0]);
         let zip = zip::ZipArchive::new(Cursor::new(encode(&doc).unwrap())).unwrap();
-        let mut names: Vec<&str> = zip
+        let mut names: Vec<String> = zip
             .file_names()
+            .map(|n| n.unwrap().into_owned())
             .filter(|n| n.starts_with("images/"))
             .collect();
         names.sort_unstable();

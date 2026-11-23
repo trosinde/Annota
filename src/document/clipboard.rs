@@ -207,7 +207,7 @@ mod tests {
         let opts = zip::write::SimpleFileOptions::default();
         for i in 0..src.len() {
             let mut entry = src.by_index(i).unwrap();
-            let name = entry.name().to_string();
+            let name = entry.name().unwrap().into_owned();
             let mut data = Vec::new();
             entry.read_to_end(&mut data).unwrap();
             if name == OBJECTS_JSON {
@@ -267,7 +267,7 @@ mod tests {
         assert_eq!(json["requires"], json!(REQUIRES));
         assert!(json.get("image").is_none() && json.get("canvas").is_none());
         let zip = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
-        let mut names: Vec<&str> = zip.file_names().collect();
+        let mut names: Vec<String> = zip.file_names().map(|n| n.unwrap().into_owned()).collect();
         names.sort_unstable();
         assert_eq!(names, vec!["images/1.png", "objects.json"]);
     }

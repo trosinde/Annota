@@ -1,7 +1,7 @@
 name: Annota build dependencies
 description: >
   Installs the Build-Depends of debian/control on an Ubuntu 24.04 runner, puts the pinned
-  Rust 1.85 toolchain first on PATH (CLAUDE.md §2) and writes the versions that decide whether
+  Rust 1.91 toolchain first on PATH (CLAUDE.md §2) and writes the versions that decide whether
   the build and the golden-image tests behave as on a developer machine into the log.
 
 runs:
@@ -12,17 +12,17 @@ runs:
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
-          build-essential debhelper meson ninja-build pkgconf cargo-1.85 rustc-1.85 \
-          rustfmt-1.85 rust-1.85-clippy \
+          build-essential debhelper meson ninja-build pkgconf cargo-1.91 rustc-1.91 \
+          rustfmt-1.91 rust-1.91-clippy \
           libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
           blueprint-compiler gettext \
           desktop-file-utils appstream libglib2.0-bin lintian devscripts \
           fonts-dejavu-core fontconfig
 
-    # Same as `export PATH=/usr/lib/rust-1.85/bin:$PATH` in CLAUDE.md, for every later step.
-    - name: Use Rust 1.85
+    # Same as `export PATH=/usr/lib/rust-1.91/bin:$PATH` in CLAUDE.md, for every later step.
+    - name: Use Rust 1.91
       shell: bash
-      run: echo /usr/lib/rust-1.85/bin >> "$GITHUB_PATH"
+      run: echo /usr/lib/rust-1.91/bin >> "$GITHUB_PATH"
 
     # The golden images render text in DejaVu Sans and in Annota's default family, Adwaita Sans
     # (`DEFAULT_FAMILY`, src/tools/text.rs). Without Adwaita Sans, fontconfig falls back to

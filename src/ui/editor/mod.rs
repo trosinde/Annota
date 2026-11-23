@@ -4236,7 +4236,7 @@ mod tests {
         let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
         for i in 0..zip.len() {
             let mut entry = zip.by_index(i).unwrap();
-            let name = entry.name().to_string();
+            let name = entry.name().unwrap().into_owned();
             let mut data = Vec::new();
             entry.read_to_end(&mut data).unwrap();
             if name == "document.json" {

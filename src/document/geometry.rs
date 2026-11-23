@@ -343,7 +343,7 @@ impl Transform {
         self.scale_x == 1.0
             && self.scale_y == 1.0
             && self.mirror.is_none()
-            && self.quarter_turns % 4 == 0
+            && self.quarter_turns.is_multiple_of(4)
             && self.style_scale == 1.0
     }
 

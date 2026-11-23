@@ -3,7 +3,7 @@
 # Writes .cargo/config.toml with a source replacement. Both are git-ignored.
 set -eu
 cd "$(dirname "$0")/.."
-RUST_BIN=/usr/lib/rust-1.85/bin
+RUST_BIN=/usr/lib/rust-1.91/bin
 [ -x "$RUST_BIN/cargo" ] && PATH="$RUST_BIN:$PATH"
 rm -rf vendor .cargo
 mkdir -p .cargo

@@ -2,7 +2,7 @@
 name = "annota"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.91"
 license = "MIT"
 description = "Screenshot, annotation and screen recording for GNOME"
 repository = "https://github.com/trosinde/Annota"
@@ -24,7 +24,10 @@ futures-channel = "0.3"
 cairo-rs = { version = "0.20", features = ["png", "pdf", "v1_16"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-zip = { version = "6", default-features = false, features = ["deflate-flate2"] }
+# zip >= 9.0.5 fixes GHSA-m665-v7pm-7grj, -q7v9-x93c-xqv3, -8hxf-qr8p-62x4, -9hj8-73fh-9963 and
+# needs Rust >= 1.88; the reason the MSRV is 1.91 (ADR 0003). Only Deflate/Stored: no AES, no
+# legacy decoders, no other codecs.
+zip = { version = "9.8", default-features = false, features = ["deflate-flate2"] }
 # zip's `deflate-flate2` names no flate2 backend; pick the pure-Rust one (no zlib build-dep).
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 rstar = "0.13"
