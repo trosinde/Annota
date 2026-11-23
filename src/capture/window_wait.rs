@@ -33,21 +33,24 @@ const CORAL: (f64, f64, f64) = (1.0, 0x5a as f64 / 255.0, 0x4e as f64 / 255.0);
 /// or screen recording waits for a screen (add-screen-recording mockup 03, same component).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WaitFor {
+    /// A window capture.
     Window,
+    /// A window recording: the same OSD, titled for a recording.
+    RecordWindow,
     Screen,
 }
 
 impl WaitFor {
     pub fn label(self) -> String {
         match self {
-            Self::Window => gettext("Waiting for a window…"),
+            Self::Window | Self::RecordWindow => gettext("Waiting for a window…"),
             Self::Screen => gettext("Waiting for a screen…"),
         }
     }
 
     pub fn icon_name(self) -> &'static str {
         match self {
-            Self::Window => "annota-capture-window-symbolic",
+            Self::Window | Self::RecordWindow => "annota-capture-window-symbolic",
             Self::Screen => "annota-capture-screen-symbolic",
         }
     }
@@ -56,6 +59,7 @@ impl WaitFor {
     fn title(self) -> String {
         match self {
             Self::Window => gettext("Capture Window"),
+            Self::RecordWindow => gettext("Record Window"),
             Self::Screen => gettext("Record Screen"),
         }
     }

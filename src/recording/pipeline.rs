@@ -1055,7 +1055,7 @@ fn on_message(shared: &Shared, message: &gst::Message, from_encoder: bool) {
 }
 
 /// A `level` element message as a [`RecordingEvent::Level`] of the loudest channel.
-fn level_event(
+pub(super) fn level_event(
     message: &gst::Message,
     structure: Option<&gst::StructureRef>,
 ) -> Option<RecordingEvent> {

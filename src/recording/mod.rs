@@ -15,17 +15,24 @@
 //!   letterboxed into the first frame. Audio: [`audio::source_element`] per wanted and present
 //!   source ([`audio::sources_to_record`], devices behind [`audio::AudioDevices`]).
 //!
-//! Phase B (portal session, stop paths, waiting indicator):
+//! Phase B (portal session, stop paths, waiting indicator) and Phase C1 (setup, countdown):
 //! - [`start`]`(app, `[`RecordRequest`]`)`: `--record`, the Record shortcut, the Record card.
 //!   Window and Screen request the source at once ([`source::request`], with the waiting
-//!   indicator); Region needs the overlay's selection and enters through [`start_region`], which
-//!   the setup (Phase C) calls. A second request while one runs starts nothing ([`is_active`]).
-//! - The flow: source with waiting indicator → indicator gone → [`Hooks::countdown`] (Phase C; 0 s
-//!   until then) → [`pipeline::start`] → a [`RecordingSession`] whose end ([`stop`], the desktop
-//!   ending the session, an error) delivers one [`Ended`] to [`Hooks::on_ended`] (Phase D opens
-//!   the Export Recording window from it). How a start ended goes to [`Hooks::on_outcome`] as a
-//!   [`StartOutcome`], whose [`StartOutcome::message`] is the toast text (Phase D shows it).
+//!   indicator); Region and Toggle (with nothing running) open the region overlay in Video mode
+//!   (`capture::start_recording_setup`, the setup in [`setup`]), whose Start Recording comes back
+//!   through [`start_from_setup`] ([`start_region`] for a region). Toggle cancels a countdown and
+//!   stops a recording. A second request while one runs starts nothing ([`is_active`]).
+//! - The flow: source with waiting indicator → indicator gone (+ `countdown::SETTLE`) →
+//!   [`Hooks::countdown`] (the OSD for `record-countdown` seconds, gone + `SETTLE` before it
+//!   resolves; `Enter` starts now, `Esc`, the Record shortcut or the desktop closing the session
+//!   end it with nothing written) → [`pipeline::start`] → a [`RecordingSession`] whose end
+//!   ([`stop`], the desktop ending the session, an error) delivers one [`Ended`] to
+//!   [`Hooks::on_ended`] (Phase D opens the Export Recording window from it). How a start ended
+//!   goes to [`Hooks::on_outcome`] as a [`StartOutcome`], whose [`StartOutcome::message`] is the
+//!   toast text (Phase D shows it).
 //! - [`source::offered`] says which source types the portal offers (setup, "Source not offered").
+//!   [`Hooks::devices`] which audio devices exist, probed off the main loop and only when audio
+//!   is wanted.
 
 // The API above is driven by Phases B-D of add-screen-recording; until then most of it is used
 // only by its tests.
@@ -38,6 +45,7 @@ pub mod geometry;
 mod live_tests;
 pub mod pipeline;
 pub mod session;
+pub mod setup;
 pub mod source;
 pub mod window;
 
@@ -51,16 +59,18 @@ use std::os::fd::RawFd;
 use std::rc::Rc;
 
 use adw::prelude::*;
-use futures_util::future::LocalBoxFuture;
+use futures_channel::oneshot;
+use futures_util::future::{self, Either, LocalBoxFuture};
 use gettextrs::gettext;
 use gstreamer as gst;
 use gtk::{gio, glib};
+use std::pin::pin;
 
 use crate::capture::geometry::IRect;
-use crate::capture::window_wait;
-use crate::cli::RecordMode;
+use crate::capture::{self, countdown, window_wait};
+use crate::cli::{CaptureMode, RecordMode};
 use crate::config;
-use audio::AudioSource;
+use audio::{AudioSource, SystemDevices};
 use geometry::{MonitorStream, RegionError, Size};
 #[allow(unused_imports)]
 pub use session::{EndReason, Ended, RecordingSession};
@@ -71,6 +81,13 @@ use window::WindowContent;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RecordRequest {
     pub mode: RecordMode,
+}
+
+/// How the countdown ended.
+enum Counted {
+    Done,
+    Cancelled,
+    DesktopEnded,
 }
 
 /// What is recorded.
@@ -125,10 +142,16 @@ impl StartOutcome {
 
 /// Builds the video source from the PipeWire remote and node.
 pub type VideoSource = Rc<dyn Fn(RawFd, u32) -> Result<gst::Element, RecordingError>>;
-/// Builds the audio sources for (microphone wanted, system audio wanted).
+/// Builds the audio sources for (record the microphone, record system audio), both already
+/// known to exist.
 pub type AudioSources = Rc<dyn Fn(bool, bool) -> Vec<(AudioSource, gst::Element)>>;
-/// The countdown between the granted source and the first frame; `false`: cancelled.
-pub type Countdown = Rc<dyn Fn(&adw::Application, Target) -> LocalBoxFuture<'static, bool>>;
+/// The countdown of `seconds` between the granted source and the first frame; `false`:
+/// cancelled. It resolves only once its OSD is off the screen (plus `countdown::SETTLE`).
+pub type Countdown = Rc<dyn Fn(&adw::Application, Target, u32) -> LocalBoxFuture<'static, bool>>;
+/// Which audio devices exist (probed off the main loop).
+pub type Devices = Rc<dyn Fn() -> LocalBoxFuture<'static, SystemDevices>>;
+/// The setup's level preview source for a device.
+pub type PreviewSource = Rc<dyn Fn(AudioSource) -> Option<gst::Element>>;
 
 /// Told how a start ended.
 pub type OnOutcome = Rc<dyn Fn(&adw::Application, &StartOutcome)>;
@@ -142,9 +165,13 @@ pub struct Hooks {
     pub video_source: VideoSource,
     /// `pulsesrc` per wanted and present device.
     pub audio_sources: AudioSources,
-    /// Phase C (task 4.3): the countdown OSD. Until then none (0 s).
+    /// The countdown OSD (task 4.3, D5); none for 0 s.
     pub countdown: Countdown,
-    /// Level meters and errors while recording (the control, Phase C).
+    /// The audio devices (setup rows, which sources are recorded).
+    pub devices: Devices,
+    /// The setup's level meters (task 4.1).
+    pub preview_source: PreviewSource,
+    /// Level meters and errors while recording (the control, Phase D).
     pub on_event: Rc<dyn Fn(&RecordingEvent)>,
     /// How a start ended (Phase D: the toast for [`StartOutcome::message`]).
     pub on_outcome: OnOutcome,
@@ -157,7 +184,9 @@ impl Default for Hooks {
         Self {
             video_source: Rc::new(source::pipewire_source),
             audio_sources: Rc::new(system_audio_sources),
-            countdown: Rc::new(|_, _| Box::pin(async { true })),
+            countdown: Rc::new(countdown_osd),
+            devices: Rc::new(|| Box::pin(audio::probe_async())),
+            preview_source: Rc::new(|source| audio::source_element(source).ok()),
             on_event: Rc::new(|_| {}),
             on_outcome: Rc::new(|_, outcome| {
                 // Phase D (task 4.7, mockup 13): shown as a toast.
@@ -177,10 +206,14 @@ impl Default for Hooks {
     }
 }
 
+/// `pulsesrc` for each wanted source; the caller has checked that its device exists.
 fn system_audio_sources(microphone: bool, system_audio: bool) -> Vec<(AudioSource, gst::Element)> {
-    let devices = audio::SystemDevices::probe();
-    audio::sources_to_record(&devices, microphone, system_audio)
+    AudioSource::ALL
         .into_iter()
+        .filter(|source| match source {
+            AudioSource::Microphone => microphone,
+            AudioSource::SystemAudio => system_audio,
+        })
         .filter_map(|source| match audio::source_element(source) {
             Ok(element) => Some((source, element)),
             Err(err) => {
@@ -191,13 +224,34 @@ fn system_audio_sources(microphone: bool, system_audio: bool) -> Vec<(AudioSourc
         .collect()
 }
 
+/// The recording countdown (D5, mockup 04): the capture's OSD with the recording's label, red
+/// ring and, for a region, the dashed outline. 0 s shows nothing.
+fn countdown_osd(
+    app: &adw::Application,
+    target: Target,
+    seconds: u32,
+) -> LocalBoxFuture<'static, bool> {
+    let app = app.clone();
+    Box::pin(async move {
+        if seconds == 0 {
+            return true;
+        }
+        let region = match target {
+            Target::Region(selection) => Some(selection),
+            Target::Window | Target::Screen => None,
+        };
+        let purpose = countdown::Purpose::Recording { region };
+        countdown::run_for(&app, purpose, seconds).await != countdown::End::Cancelled
+    })
+}
+
 /// Where the single recording flow is.
 enum Active {
     Idle,
     /// The source request with the waiting indicator.
     Waiting,
-    /// Granted, before the first frame (countdown).
-    Starting,
+    /// Granted, before the first frame (countdown); the sender cancels it.
+    Starting(Rc<RefCell<Option<oneshot::Sender<()>>>>),
     Recording(Rc<RecordingSession>),
 }
 
@@ -244,12 +298,29 @@ pub fn stop() -> bool {
     }
 }
 
-/// Starts the recording flow for `request` (`--record`, Record shortcut, Record card).
+/// Cancels a running countdown (the Record shortcut, `--record toggle`). `false`: none runs.
+fn cancel_countdown() -> bool {
+    let cancel = ACTIVE.with(|a| match &*a.borrow() {
+        Active::Starting(cancel) => cancel.borrow_mut().take(),
+        _ => None,
+    });
+    match cancel {
+        Some(cancel) => {
+            let _ = cancel.send(());
+            true
+        }
+        None => false,
+    }
+}
+
+/// Starts the recording flow for `request` (`--record`, Record shortcut, Record card). Toggle
+/// semantics (D7): idle → the region overlay in Video mode; countdown → cancelled; recording →
+/// stopped.
 pub fn start(app: &adw::Application, request: RecordRequest) {
     if is_active() {
         match request.mode {
-            RecordMode::Toggle if stop() => {}
-            // Phase C (task 4.4): raise the control. While waiting, the indicator comes up.
+            RecordMode::Toggle if stop() || cancel_countdown() => {}
+            // Phase D (task 4.4): raise the control. While waiting, the indicator comes up.
             _ => {
                 window_wait::raise();
             }
@@ -259,15 +330,33 @@ pub fn start(app: &adw::Application, request: RecordRequest) {
     match request.mode {
         RecordMode::Window => spawn(app, Target::Window),
         RecordMode::Screen => spawn(app, Target::Screen),
-        RecordMode::Region | RecordMode::Toggle => {
-            // STUB (Phase C, task 4.1): opens the region overlay in Video mode, whose Start
-            // Recording calls `start_region` with the selection.
-            eprintln!("annota: --record region: the recording setup is not available yet");
-        }
+        // The overlay's Start Recording comes back through `start_from_setup`.
+        RecordMode::Region | RecordMode::Toggle => capture::start_recording_setup(app),
     }
 }
 
-/// Start Recording in the overlay's setup (Phase C): records `selection` (logical desktop px).
+/// Start Recording in the overlay's setup: `source` as chosen there; a region records
+/// `selection` (logical desktop px).
+pub fn start_from_setup(app: &adw::Application, source: CaptureMode, selection: Option<IRect>) {
+    match (source, selection) {
+        (CaptureMode::Region, Some(selection)) => start_region(app, selection),
+        (CaptureMode::Region, None) => eprintln!("annota: recording: no region selected"),
+        (CaptureMode::Window, _) => start(
+            app,
+            RecordRequest {
+                mode: RecordMode::Window,
+            },
+        ),
+        (CaptureMode::Screen, _) => start(
+            app,
+            RecordRequest {
+                mode: RecordMode::Screen,
+            },
+        ),
+    }
+}
+
+/// Records `selection` (logical desktop px): the setup's Start Recording with source Region.
 pub fn start_region(app: &adw::Application, selection: IRect) {
     if is_active() {
         window_wait::raise();
@@ -303,7 +392,9 @@ async fn record(app: &adw::Application, target: Target) -> StartOutcome {
             Requested::DesktopEnded => return StartOutcome::DesktopEnded,
             Requested::Failed(cause) => return StartOutcome::Failed(cause),
         };
-    set_active(Active::Starting);
+    let (cancel, cancelled) = oneshot::channel::<()>();
+    set_active(Active::Starting(Rc::new(RefCell::new(Some(cancel)))));
+    let mut granted = granted;
     let area = match area(target, &granted) {
         Ok(area) => area,
         Err(outcome) => {
@@ -312,9 +403,43 @@ async fn record(app: &adw::Application, target: Target) -> StartOutcome {
         }
     };
     let hooks = hooks();
-    if !(hooks.countdown)(app, target).await {
-        granted.close().await;
-        return StartOutcome::Cancelled;
+    // Which devices exist, asked only when audio is wanted; before the countdown, so the first
+    // frame follows the OSD without a probe in between.
+    let (microphone, system_audio) = (
+        settings.boolean("record-microphone"),
+        settings.boolean("record-system-audio"),
+    );
+    let wanted = if microphone || system_audio {
+        let devices = (hooks.devices)().await;
+        audio::sources_to_record(&devices, microphone, system_audio)
+    } else {
+        Vec::new()
+    };
+    let seconds = settings.int("record-countdown").clamp(0, 10) as u32;
+    // The countdown ends by itself, by `Enter`/`Esc`, by the Record shortcut, or because the
+    // desktop closed the session meanwhile (then nothing is sent back, nothing written).
+    let counted = {
+        let countdown = (hooks.countdown)(app, target, seconds);
+        let shortcut = pin!(async {
+            let _ = cancelled.await;
+        });
+        let ended = pin!(granted.closed_by_portal());
+        match future::select(countdown, future::select(shortcut, ended)).await {
+            Either::Left((true, _)) => Counted::Done,
+            Either::Left((false, _)) | Either::Right((Either::Left(_), _)) => Counted::Cancelled,
+            Either::Right((Either::Right(_), _)) => Counted::DesktopEnded,
+        }
+    };
+    match counted {
+        Counted::Done => {}
+        Counted::Cancelled => {
+            granted.close().await;
+            return StartOutcome::Cancelled;
+        }
+        Counted::DesktopEnded => {
+            granted.closed_by_desktop();
+            return StartOutcome::DesktopEnded;
+        }
     }
     let video = match granted.fd() {
         Some(fd) => (hooks.video_source)(fd, granted.node),
@@ -330,8 +455,8 @@ async fn record(app: &adw::Application, target: Target) -> StartOutcome {
     let folder = files::recordings_folder(&settings.string("record-folder"));
     let mut config = RecordingConfig::new(folder, video, area);
     let audio = (hooks.audio_sources)(
-        settings.boolean("record-microphone"),
-        settings.boolean("record-system-audio"),
+        wanted.contains(&AudioSource::Microphone),
+        wanted.contains(&AudioSource::SystemAudio),
     );
     for (source, element) in audio {
         config = config.with_audio(source, element);

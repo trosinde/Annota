@@ -123,6 +123,118 @@ window.annota-overlay {
   font-weight: bold;
 }
 
+/* --- Mode pill and recording setup (add-screen-recording 01–02) ------------------------ */
+
+.annota-hint.annota-mode-pill {
+  padding: 6px 14px 6px 6px;
+}
+
+.annota-mode-pill-toggle {
+  background-color: rgba(255, 255, 255, 0.1); /* --osd-fill */
+  border-radius: 9999px;
+  padding: 2px;
+}
+
+.annota-mode-pill-toggle > button {
+  background: none;
+  box-shadow: none;
+  color: white;
+  border-radius: 9999px;
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.annota-mode-pill-toggle > button:hover {
+  background-color: rgba(255, 255, 255, 0.17); /* --osd-fill-hover */
+}
+
+.annota-mode-pill-toggle > button:checked {
+  background-color: rgba(255, 255, 255, 0.28); /* --osd-fill-active */
+}
+
+.annota-mode-pill-toggle > button:focus-visible {
+  outline: 2px solid rgba(120, 174, 237, 0.85);
+  outline-offset: 1px;
+}
+
+/* Kit `.popover`: 380 wide (width-request), padding 12, gap 12 (spacing), --shadow-popover. */
+.annota-record-setup {
+  background-color: @popover_bg_color;
+  color: @popover_fg_color;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 6, 0.08), 0 1px 5px 1px rgba(0, 0, 6, 0.09),
+    0 2px 14px 3px rgba(0, 0, 6, 0.05);
+}
+
+.annota-record-setup-arrow {
+  background-color: @popover_bg_color;
+  min-width: 14px;
+  min-height: 14px;
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 1px rgba(0, 0, 6, 0.08);
+}
+
+.annota-record-sources > button {
+  min-height: 34px;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+/* Rows 50 px with a 13 px title and a 12 px subtitle (redline 01). */
+.annota-record-rows row > box.header > box.title {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  border-spacing: 1px;
+}
+
+.annota-record-rows row .title {
+  font-size: 13px; /* --fs-small */
+}
+
+.annota-record-rows row .subtitle {
+  font-size: 12px; /* --fs-caption */
+}
+
+.annota-record-rows row:disabled image,
+.annota-record-rows row:disabled .title,
+.annota-record-rows row:disabled .subtitle {
+  opacity: 0.55; /* --dim-opacity */
+}
+
+.annota-record-rows spinbutton {
+  min-height: 34px;
+}
+
+button.annota-record-start {
+  min-height: 40px;
+  padding: 0 16px;
+  background-color: #e01b24; /* --destructive-bg, the same in light and dark */
+  color: white;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+button.annota-record-start:hover {
+  background-color: #e4353d; /* --destructive-bg-hover */
+}
+
+button.annota-record-start:disabled {
+  opacity: 0.5;
+}
+
+button.annota-record-start:focus-visible {
+  outline: 2px solid rgba(53, 132, 228, 0.5); /* --accent-a50 */
+  outline-offset: 2px;
+}
+
+.annota-keycap.annota-record-start-key {
+  background-color: rgba(255, 255, 255, 0.22);
+  color: white;
+}
+
 /* --- Countdown OSD (07) ----------------------------------------------------------------- */
 
 window.annota-countdown-window {

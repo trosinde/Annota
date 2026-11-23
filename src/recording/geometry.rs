@@ -134,6 +134,19 @@ pub fn window_crop_in_buffer(
     IRect::from_corners((x0, y0), (x1, y1)).intersect(IRect::new(0, 0, buffer.w, buffer.h))
 }
 
+/// The monitor scale for [`window_crop_in_buffer`]: the scale of the one monitor (or of all
+/// monitors) the stream matched; where none or several of different scales matched, the one
+/// scale every monitor has, else 1. Never "unknown": with any scale the converted crop meta
+/// bounds the window, while the alpha rule over the whole buffer would take opaque undefined
+/// pixels outside the window in (design.md D2).
+pub fn fallback_scale(matching: &[f64], all: &[f64]) -> f64 {
+    let single = |scales: &[f64]| {
+        let first = *scales.first()?;
+        (first.is_finite() && first > 0.0 && scales.iter().all(|s| *s == first)).then_some(first)
+    };
+    single(matching).or_else(|| single(all)).unwrap_or(1.0)
+}
+
 /// The window's content rectangle in one buffer: the crop meta converted to buffer pixels
 /// ([`window_crop_in_buffer`]), then trimmed to the window without its shadow by
 /// `capture::screencast::window_rect`'s alpha rule. Where the factor cannot be computed, the
@@ -339,6 +352,49 @@ mod tests {
                 None
             ),
             Some(IRect::new(4, 0, 60, 32))
+        );
+    }
+
+    // spec: screen-recording / Recording source / Window crop meta in buffer pixels
+    #[test]
+    fn without_a_matching_monitor_the_crop_meta_still_bounds_the_window() {
+        // The matching monitor's scale wins; else the scale all monitors share; else 1.
+        assert_eq!(fallback_scale(&[1.25], &[1.0, 1.25]), 1.25);
+        assert_eq!(fallback_scale(&[], &[1.25, 1.25]), 1.25);
+        assert_eq!(fallback_scale(&[1.0, 2.0], &[1.0, 2.0]), 1.0);
+        assert_eq!(fallback_scale(&[], &[1.0, 1.5]), 1.0);
+        assert_eq!(fallback_scale(&[], &[]), 1.0);
+        // P6 scaled down: a 64×32 buffer of a 32×16 stream, crop meta (0, 0, 20, 15). With
+        // scale 1 the meta maps to (0, 0, 40, 30): wider than the true 1.6 factor, but the
+        // opaque undefined pixels right of it (x ≥ 40) are never taken.
+        let (w, h) = (64u32, 32u32);
+        let mut data = vec![0u8; (w * h * 4) as usize];
+        for y in 0..h {
+            for x in 0..w {
+                let alpha = if x >= 40 || ((4..28).contains(&x) && (4..20).contains(&y)) {
+                    255
+                } else {
+                    0
+                };
+                let offset = ((y * w + x) * 4) as usize;
+                data[offset..offset + 4].copy_from_slice(&[10, 20, 30, alpha]);
+            }
+        }
+        let pixels = Pixels {
+            width: w,
+            height: h,
+            stride: (w * 4) as usize,
+            data: &data,
+        };
+        let scale = fallback_scale(&[], &[1.0, 2.0]);
+        assert_eq!(
+            window_content(
+                &pixels,
+                Some(IRect::new(0, 0, 20, 15)),
+                Size::new(32, 16),
+                Some(scale)
+            ),
+            Some(IRect::new(4, 4, 24, 16))
         );
     }
 

@@ -128,10 +128,14 @@ impl RecordingSession {
         if self.finishing.replace(true) {
             return;
         }
-        if let Some(watch) = self.watch.borrow_mut().take() {
+        // Each `take` is its own statement, so no `RefMut` is held while code runs that could
+        // reach back into this session (the watch's drop, the caller's `on_ended`).
+        let watch = self.watch.borrow_mut().take();
+        if let Some(watch) = watch {
             watch.abort();
         }
-        let Some((recording, granted)) = self.running.borrow_mut().take() else {
+        let running = self.running.borrow_mut().take();
+        let Some((recording, granted)) = running else {
             return;
         };
         // Never waits for the stream's end: the encoder gets its end of stream from here.

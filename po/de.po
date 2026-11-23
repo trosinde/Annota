@@ -3651,7 +3651,11 @@ msgstr "Warte auf einen Bildschirm …"
 
 #: src/capture/window_wait.rs
 msgid "Record Screen"
-msgstr "Bildschirm aufnehmen"
+msgstr "Bildschirm als Video aufnehmen"
+
+#: src/capture/window_wait.rs
+msgid "Record Window"
+msgstr "Fenster als Video aufnehmen"
 
 #: src/recording/mod.rs
 msgid "The desktop ended the screen-sharing request. Nothing was recorded."
@@ -3671,3 +3675,84 @@ msgid "Screen sharing for this source is not available on this desktop"
 msgstr ""
 "Bildschirmfreigabe ist für diese Quelle in dieser Arbeitsumgebung nicht "
 "verfügbar"
+
+#: data/ui/region-overlay.blp
+msgid "Take a screenshot of the area"
+msgstr "Bildschirmfoto des Bereichs"
+
+#: data/ui/region-overlay.blp
+msgid "Screenshot"
+msgstr "Bildschirmfoto"
+
+#: data/ui/region-overlay.blp
+msgid "Record a video"
+msgstr "Video aufnehmen"
+
+#: data/ui/region-overlay.blp
+msgid "Video"
+msgstr "Video"
+
+#: data/ui/region-overlay.blp
+msgid "Drag to change the area"
+msgstr "Ziehen, um den Bereich zu ändern"
+
+#: data/ui/region-overlay.blp
+msgctxt "recording hint"
+msgid "Start"
+msgstr "Starten"
+
+#: data/ui/region-overlay.blp
+msgid "Source"
+msgstr "Quelle"
+
+#: data/ui/region-overlay.blp
+msgid "Microphone"
+msgstr "Mikrofon"
+
+#: data/ui/region-overlay.blp
+msgid "Record the microphone"
+msgstr "Mikrofon aufnehmen"
+
+#: data/ui/region-overlay.blp
+msgid "System audio"
+msgstr "Systemton"
+
+#: data/ui/region-overlay.blp
+msgid "Record system audio"
+msgstr "Systemton aufnehmen"
+
+#: data/ui/region-overlay.blp
+msgid "Same setting as for captures"
+msgstr "Dieselbe Einstellung wie bei Bildschirmfotos"
+
+#: data/ui/region-overlay.blp
+msgid "Countdown"
+msgstr "Countdown"
+
+#: data/ui/region-overlay.blp
+msgid "Countdown in seconds"
+msgstr "Countdown in Sekunden"
+
+#: data/ui/region-overlay.blp
+msgid "Start Recording"
+msgstr "Aufnahme starten"
+
+#: data/ui/countdown.blp
+msgid "Start now"
+msgstr "Jetzt starten"
+
+#: src/capture/countdown.rs
+msgid "Recording starts in {seconds} s"
+msgstr "Aufnahme startet in {seconds} s"
+
+#: src/capture/countdown.rs
+msgid "Recording Countdown"
+msgstr "Countdown der Videoaufnahme"
+
+#: src/recording/setup.rs
+msgid "No microphone found"
+msgstr "Kein Mikrofon gefunden"
+
+#: src/recording/setup.rs
+msgid "No audio output found"
+msgstr "Keine Audioausgabe gefunden"

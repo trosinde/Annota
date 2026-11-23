@@ -1,8 +1,12 @@
 using Gtk 4.0;
+using Adw 1;
 
 // Region-selection overlay (mockups 02–04 of add-screen-capture), one per monitor.
 // The frozen screenshot, dimming, selection, handles, snap guide and loupe are drawn on
 // `canvas`; chips, toolbar and hint bar are widgets positioned by src/capture/overlay.rs.
+// add-screen-recording (mockups 01, 02): the hint bar sits in the mode pill (Screenshot | Video);
+// in Video mode the recording setup (`record_setup`, src/recording/setup.rs) replaces the
+// toolbar beside the selection, and `hint_video` the capture hints.
 
 menu delay_menu {
   section {
@@ -303,240 +307,566 @@ Window overlay_window {
     }
 
     [overlay]
-    Box hint_drag {
+    Box mode_pill {
       halign: center;
       valign: end;
-      margin-bottom: 36;
-      spacing: 6;
-      styles ["annota-hint"]
+      margin-bottom: 24;
+      spacing: 12;
+      styles ["annota-hint", "annota-mode-pill"]
 
-      Box pointer_hint_drag {
-        visible: false;
-        spacing: 6;
+      Box {
+        styles ["annota-mode-pill-toggle"]
 
-        Image pointer_glyph_drag {
-          pixel-size: 14;
-          icon-name: "annota-pointer-included-symbolic";
+        ToggleButton mode_screenshot_button {
+          active: true;
+          tooltip-text: _("Take a screenshot of the area");
+
+          accessibility {
+            label: _("Screenshot");
+          }
+
+          child: Box {
+            spacing: 6;
+
+            Image {
+              icon-name: "camera-photo-symbolic";
+              accessible-role: presentation;
+            }
+
+            Label {
+              label: _("Screenshot");
+            }
+          };
         }
 
-        Label pointer_label_drag {}
+        ToggleButton mode_video_button {
+          group: mode_screenshot_button;
+          tooltip-text: _("Record a video");
+
+          accessibility {
+            label: _("Video");
+          }
+
+          child: Box {
+            spacing: 6;
+
+            Image {
+              icon-name: "media-record-symbolic";
+              accessible-role: presentation;
+            }
+
+            Label {
+              label: _("Video");
+            }
+          };
+        }
+      }
+
+      Box hint_drag {
+        valign: center;
+        spacing: 6;
+
+        Box pointer_hint_drag {
+          visible: false;
+          spacing: 6;
+
+          Image pointer_glyph_drag {
+            pixel-size: 14;
+            icon-name: "annota-pointer-included-symbolic";
+          }
+
+          Label pointer_label_drag {}
+
+          Label {
+            label: "·";
+            styles ["annota-chip-dim"]
+          }
+        }
+
+        Label {
+          label: _("Drag to select");
+        }
 
         Label {
           label: "·";
           styles ["annota-chip-dim"]
         }
+
+        Label {
+          label: C_("keyboard key", "Shift");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Square");
+        }
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+
+        Label {
+          label: C_("keyboard key", "Alt");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("No snapping");
+        }
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+
+        Label {
+          label: C_("keyboard key", "Esc");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Cancel");
+        }
       }
 
-      Label {
-        label: _("Drag to select");
+      Box hint_snap {
+        valign: center;
+        visible: false;
+        spacing: 6;
+
+        Box pointer_hint_snap {
+          visible: false;
+          spacing: 6;
+
+          Image pointer_glyph_snap {
+            pixel-size: 14;
+            icon-name: "annota-pointer-included-symbolic";
+          }
+
+          Label pointer_label_snap {}
+
+          Label {
+            label: "·";
+            styles ["annota-chip-dim"]
+          }
+        }
+
+        Label {
+          label: _("Edges snap within 8 px");
+        }
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+
+        Label {
+          label: C_("keyboard key", "Alt");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Hold to place freely");
+        }
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+
+        Label {
+          label: C_("keyboard key", "Esc");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Cancel");
+        }
       }
 
-      Label {
-        label: "·";
-        styles ["annota-chip-dim"]
+      Box hint_adjust {
+        valign: center;
+        visible: false;
+        spacing: 6;
+
+        Box pointer_hint_adjust {
+          visible: false;
+          spacing: 6;
+
+          Image pointer_glyph_adjust {
+            pixel-size: 14;
+            icon-name: "annota-pointer-included-symbolic";
+          }
+
+          Label pointer_label_adjust {}
+
+          Label {
+            label: "·";
+            styles ["annota-chip-dim"]
+          }
+        }
+
+        Label {
+          label: C_("keyboard key", "Enter");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Capture");
+        }
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+
+        Label {
+          label: C_("keyboard key", "Esc");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Cancel");
+        }
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+
+        Label {
+          label: "←";
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: "↑";
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: "→";
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: "↓";
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Nudge 1 px");
+        }
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+
+        Label {
+          label: C_("keyboard key", "Shift");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: "×10";
+        }
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+
+        Label {
+          label: C_("keyboard key", "Space");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Move selection");
+        }
       }
 
-      Label {
-        label: C_("keyboard key", "Shift");
-        styles ["annota-keycap"]
-      }
+      Box hint_video {
+        valign: center;
+        visible: false;
+        spacing: 6;
 
-      Label {
-        label: _("Square");
-      }
+        Label {
+          label: _("Drag to change the area");
+        }
 
-      Label {
-        label: "·";
-        styles ["annota-chip-dim"]
-      }
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
 
-      Label {
-        label: C_("keyboard key", "Alt");
-        styles ["annota-keycap"]
-      }
+        Label {
+          label: C_("keyboard key", "Enter");
+          styles ["annota-keycap"]
+        }
 
-      Label {
-        label: _("No snapping");
-      }
+        Label {
+          label: C_("recording hint", "Start");
+        }
 
-      Label {
-        label: "·";
-        styles ["annota-chip-dim"]
-      }
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
 
-      Label {
-        label: C_("keyboard key", "Esc");
-        styles ["annota-keycap"]
-      }
+        Label {
+          label: C_("keyboard key", "Esc");
+          styles ["annota-keycap"]
+        }
 
-      Label {
-        label: _("Cancel");
+        Label {
+          label: _("Cancel");
+        }
       }
     }
 
+    // The setup's arrow: a rotated square behind the setup's edge, facing the selection.
     [overlay]
-    Box hint_snap {
+    Box record_setup_arrow {
       visible: false;
-      halign: center;
-      valign: end;
-      margin-bottom: 36;
-      spacing: 6;
-      styles ["annota-hint"]
-
-      Box pointer_hint_snap {
-        visible: false;
-        spacing: 6;
-
-        Image pointer_glyph_snap {
-          pixel-size: 14;
-          icon-name: "annota-pointer-included-symbolic";
-        }
-
-        Label pointer_label_snap {}
-
-        Label {
-          label: "·";
-          styles ["annota-chip-dim"]
-        }
-      }
-
-      Label {
-        label: _("Edges snap within 8 px");
-      }
-
-      Label {
-        label: "·";
-        styles ["annota-chip-dim"]
-      }
-
-      Label {
-        label: C_("keyboard key", "Alt");
-        styles ["annota-keycap"]
-      }
-
-      Label {
-        label: _("Hold to place freely");
-      }
-
-      Label {
-        label: "·";
-        styles ["annota-chip-dim"]
-      }
-
-      Label {
-        label: C_("keyboard key", "Esc");
-        styles ["annota-keycap"]
-      }
-
-      Label {
-        label: _("Cancel");
-      }
+      halign: start;
+      valign: start;
+      width-request: 14;
+      height-request: 14;
+      can-target: false;
+      styles ["annota-record-setup-arrow"]
     }
 
     [overlay]
-    Box hint_adjust {
+    Box record_setup {
       visible: false;
-      halign: center;
-      valign: end;
-      margin-bottom: 36;
-      spacing: 6;
-      styles ["annota-hint"]
+      halign: start;
+      valign: start;
+      width-request: 380;
+      orientation: vertical;
+      spacing: 12;
+      styles ["annota-record-setup"]
 
-      Box pointer_hint_adjust {
-        visible: false;
-        spacing: 6;
+      Box record_source_group {
+        homogeneous: true;
+        styles ["annota-segmented", "annota-record-sources"]
 
-        Image pointer_glyph_adjust {
-          pixel-size: 14;
-          icon-name: "annota-pointer-included-symbolic";
+        accessibility {
+          label: _("Source");
         }
 
-        Label pointer_label_adjust {}
+        ToggleButton record_region_button {
+          active: true;
 
-        Label {
-          label: "·";
-          styles ["annota-chip-dim"]
+          accessibility {
+            label: _("Region");
+          }
+
+          child: Box {
+            halign: center;
+            spacing: 8;
+
+            Image {
+              icon-name: "annota-capture-region-symbolic";
+              accessible-role: presentation;
+            }
+
+            Label {
+              label: _("Region");
+            }
+          };
+        }
+
+        ToggleButton record_window_button {
+          group: record_region_button;
+
+          accessibility {
+            label: _("Window");
+          }
+
+          child: Box {
+            halign: center;
+            spacing: 8;
+
+            Image {
+              icon-name: "annota-capture-window-symbolic";
+              accessible-role: presentation;
+            }
+
+            Label {
+              label: _("Window");
+            }
+          };
+        }
+
+        ToggleButton record_screen_button {
+          group: record_region_button;
+
+          accessibility {
+            label: _("Screen");
+          }
+
+          child: Box {
+            halign: center;
+            spacing: 8;
+
+            Image {
+              icon-name: "annota-capture-screen-symbolic";
+              accessible-role: presentation;
+            }
+
+            Label {
+              label: _("Screen");
+            }
+          };
         }
       }
 
-      Label {
-        label: C_("keyboard key", "Enter");
-        styles ["annota-keycap"]
+      ListBox {
+        selection-mode: none;
+        styles ["boxed-list", "annota-record-rows"]
+
+        Adw.ActionRow record_microphone_row {
+          title: _("Microphone");
+          activatable-widget: record_microphone_switch;
+
+          [prefix]
+          Image {
+            icon-name: "audio-input-microphone-symbolic";
+            accessible-role: presentation;
+          }
+
+          [suffix]
+          DrawingArea record_microphone_meter {
+            content-width: 46;
+            content-height: 10;
+            valign: center;
+            accessible-role: presentation;
+          }
+
+          [suffix]
+          Switch record_microphone_switch {
+            valign: center;
+
+            accessibility {
+              label: _("Record the microphone");
+            }
+          }
+        }
+
+        Adw.ActionRow record_system_row {
+          title: _("System audio");
+          activatable-widget: record_system_switch;
+
+          [prefix]
+          Image {
+            icon-name: "audio-volume-high-symbolic";
+            accessible-role: presentation;
+          }
+
+          [suffix]
+          DrawingArea record_system_meter {
+            content-width: 46;
+            content-height: 10;
+            valign: center;
+            accessible-role: presentation;
+          }
+
+          [suffix]
+          Switch record_system_switch {
+            valign: center;
+
+            accessibility {
+              label: _("Record system audio");
+            }
+          }
+        }
       }
 
-      Label {
-        label: _("Capture");
+      ListBox {
+        selection-mode: none;
+        styles ["boxed-list", "annota-record-rows"]
+
+        Adw.ActionRow record_pointer_row {
+          title: _("Include pointer");
+          subtitle: _("Same setting as for captures");
+          activatable-widget: record_pointer_switch;
+
+          [prefix]
+          Image {
+            icon-name: "annota-cursor-symbolic";
+            accessible-role: presentation;
+          }
+
+          [suffix]
+          Switch record_pointer_switch {
+            valign: center;
+
+            accessibility {
+              label: _("Include pointer");
+            }
+          }
+        }
+
+        Adw.ActionRow record_countdown_row {
+          title: _("Countdown");
+          activatable: false;
+
+          [prefix]
+          Image {
+            icon-name: "annota-timer-symbolic";
+            accessible-role: presentation;
+          }
+
+          [suffix]
+          SpinButton record_countdown_spin {
+            valign: center;
+            width-request: 108;
+            numeric: false;
+
+            accessibility {
+              label: _("Countdown in seconds");
+            }
+
+            adjustment: Adjustment {
+              lower: 0;
+              upper: 10;
+              step-increment: 1;
+              page-increment: 1;
+              value: 3;
+            };
+          }
+        }
       }
 
-      Label {
-        label: "·";
-        styles ["annota-chip-dim"]
-      }
+      Button record_start_button {
+        styles ["pill", "destructive-action", "annota-record-start"]
 
-      Label {
-        label: C_("keyboard key", "Esc");
-        styles ["annota-keycap"]
-      }
+        accessibility {
+          label: _("Start Recording");
+        }
 
-      Label {
-        label: _("Cancel");
-      }
+        child: Box {
+          halign: center;
+          spacing: 8;
 
-      Label {
-        label: "·";
-        styles ["annota-chip-dim"]
-      }
+          Image {
+            icon-name: "media-record-symbolic";
+            accessible-role: presentation;
+          }
 
-      Label {
-        label: "←";
-        styles ["annota-keycap"]
-      }
+          Label {
+            label: _("Start Recording");
+          }
 
-      Label {
-        label: "↑";
-        styles ["annota-keycap"]
-      }
-
-      Label {
-        label: "→";
-        styles ["annota-keycap"]
-      }
-
-      Label {
-        label: "↓";
-        styles ["annota-keycap"]
-      }
-
-      Label {
-        label: _("Nudge 1 px");
-      }
-
-      Label {
-        label: "·";
-        styles ["annota-chip-dim"]
-      }
-
-      Label {
-        label: C_("keyboard key", "Shift");
-        styles ["annota-keycap"]
-      }
-
-      Label {
-        label: "×10";
-      }
-
-      Label {
-        label: "·";
-        styles ["annota-chip-dim"]
-      }
-
-      Label {
-        label: C_("keyboard key", "Space");
-        styles ["annota-keycap"]
-      }
-
-      Label {
-        label: _("Move selection");
+          Label {
+            label: C_("keyboard key", "Enter");
+            valign: center;
+            styles ["annota-keycap", "annota-record-start-key"]
+          }
+        };
       }
     }
   };

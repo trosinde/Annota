@@ -3,6 +3,11 @@
 //! One undecorated full-screen window per monitor shows that monitor's part of the frozen
 //! screenshot. The user drags a rectangle (live size chip, loupe, snapping), adjusts it with
 //! handles, arrow keys or the W × H fields, and confirms with Enter or "Capture".
+//!
+//! add-screen-recording ("Recording setup", mockups 01–02): the mode pill at the bottom switches
+//! between Screenshot and Video. In Video mode the recording setup (`recording::setup`) sits
+//! beside the selection instead of the toolbar; `Enter` is Start Recording and `Esc` cancels
+//! without any request. Start Recording ends the overlay with [`Outcome::Record`].
 
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
@@ -20,6 +25,7 @@ use super::geometry::{
 };
 use super::snap::{self, Axis, Edge};
 use crate::cli::CaptureMode;
+use crate::recording::setup::Setup;
 
 const UI_OVERLAY: &str = "/io/github/trosinde/Annota/ui/region-overlay.ui";
 
@@ -39,6 +45,11 @@ const CORAL: (f64, f64, f64) = (1.0, 0x5a as f64 / 255.0, 0x4e as f64 / 255.0);
 const DIM: f64 = 0.48;
 const DIM_DRAGGING: f64 = 0.32;
 const DIM_RGB: (f64, f64, f64) = (0.0, 0.0, 6.0 / 255.0);
+/// Recording setup placement (add-screen-recording redline 01): 18 px beside the selection,
+/// kept this far inside the monitor, the arrow this far from the setup's top.
+const SETUP_GAP: f64 = 18.0;
+const SETUP_MARGIN: f64 = 8.0;
+const SETUP_ARROW_Y: f64 = 40.0;
 /// Gap between loupe and its colour chip.
 const LOUPE_CHIP_GAP: f64 = 8.0;
 /// How long the pointer probe waits for the pointer to enter one of its windows.
@@ -172,11 +183,24 @@ pub struct PointerAt {
     pub y: f64,
 }
 
+/// What the overlay is for: a screenshot (the capture toolbar) or a video (the recording setup).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    Screenshot,
+    Video,
+}
+
 /// How the overlay ended.
 #[derive(Debug)]
 pub enum Outcome {
     /// Esc, "Cancel" or the window was closed: nothing is captured.
     Cancelled,
+    /// Start Recording in Video mode: the setup's source, and for Region the selection in
+    /// logical desktop px (the coordinates of a ScreenCast stream's `position`/`size`).
+    Record {
+        source: CaptureMode,
+        selection: Option<IRect>,
+    },
     /// The user picked another mode in the toolbar.
     Switch(CaptureMode),
     /// A confirmed region (image px of `monitor`).
@@ -218,12 +242,31 @@ struct Session {
     /// overlay's frozen image. `confirm` hands this to the capture, so the pointer is drawn
     /// where it stands when the user takes the shot (spec: Cursor inclusion).
     pointer: Cell<Option<PointerAt>>,
+    mode: Cell<Mode>,
+    /// The recording setup, made when Video mode is first shown.
+    setup: RefCell<Option<Rc<Setup>>>,
 }
 
 impl Session {
+    fn new(sender: Option<oneshot::Sender<Outcome>>) -> Self {
+        Self {
+            sender: RefCell::new(sender),
+            overlays: RefCell::new(Vec::new()),
+            active: Cell::new(None),
+            pointer: Cell::new(None),
+            mode: Cell::new(Mode::Screenshot),
+            setup: RefCell::new(None),
+        }
+    }
+
     fn finish(&self, outcome: Outcome) {
         if let Some(sender) = self.sender.borrow_mut().take() {
             let _ = sender.send(outcome);
+        }
+        // The level preview goes with the setup.
+        let setup = self.setup.borrow_mut().take();
+        if let Some(setup) = setup {
+            setup.close();
         }
         let overlays = self.overlays.take();
         for overlay in overlays {
@@ -248,6 +291,57 @@ impl Session {
             .collect();
         for other in others {
             other.reset();
+        }
+    }
+
+    /// Switches every monitor's overlay to `mode` (the mode pill).
+    fn set_mode(self: &Rc<Self>, mode: Mode) {
+        if self.mode.replace(mode) == mode {
+            return;
+        }
+        let overlays = self.overlays.borrow().clone();
+        if mode == Mode::Video && self.setup.borrow().is_none() {
+            let builders: Vec<gtk::Builder> = overlays.iter().map(|o| o.builder.clone()).collect();
+            let weak = Rc::downgrade(self);
+            let setup = Setup::new(&builders, move || {
+                if let Some(session) = weak.upgrade() {
+                    session.update_all();
+                }
+            });
+            if setup.is_none() {
+                eprintln!("annota: the recording setup cannot be shown");
+            }
+            self.setup.replace(setup);
+        }
+        if let Some(setup) = self.setup.borrow().as_ref() {
+            setup.set_shown(mode == Mode::Video);
+        }
+        for overlay in &overlays {
+            let button = match mode {
+                Mode::Screenshot => &overlay.w.mode_screenshot_button,
+                Mode::Video => &overlay.w.mode_video_button,
+            };
+            button.set_active(true);
+            overlay.update_ui();
+        }
+        if mode == Mode::Video {
+            self.focus_start();
+        }
+    }
+
+    /// Initial focus of the setup: Start Recording (redline 01), on the monitor holding the
+    /// selection, else the first.
+    fn focus_start(&self) {
+        let index = self.active.get().unwrap_or(0);
+        if let Some(overlay) = self.overlay(index) {
+            overlay.w.record_start_button.grab_focus();
+        }
+    }
+
+    fn update_all(&self) {
+        let overlays = self.overlays.borrow().clone();
+        for overlay in overlays {
+            overlay.update_ui();
         }
     }
 
@@ -315,6 +409,12 @@ struct Widgets {
     mode_screen_button: gtk::ToggleButton,
     cancel_button: gtk::Button,
     capture_button: gtk::Button,
+    mode_screenshot_button: gtk::ToggleButton,
+    mode_video_button: gtk::ToggleButton,
+    hint_video: gtk::Box,
+    record_setup: gtk::Box,
+    record_setup_arrow: gtk::Box,
+    record_start_button: gtk::Button,
 }
 
 fn set_class(widget: &impl IsA<gtk::Widget>, class: &str, on: bool) {
@@ -371,6 +471,12 @@ impl Widgets {
             mode_screen_button: object(&b, "mode_screen_button")?,
             cancel_button: object(&b, "cancel_button")?,
             capture_button: object(&b, "capture_button")?,
+            mode_screenshot_button: object(&b, "mode_screenshot_button")?,
+            mode_video_button: object(&b, "mode_video_button")?,
+            hint_video: object(&b, "hint_video")?,
+            record_setup: object(&b, "record_setup")?,
+            record_setup_arrow: object(&b, "record_setup_arrow")?,
+            record_start_button: object(&b, "record_start_button")?,
         };
         Some((widgets, b))
     }
@@ -379,6 +485,10 @@ impl Widgets {
 struct MonitorOverlay {
     index: usize,
     scale: f64,
+    /// The monitor's logical position on the desktop.
+    origin: (i32, i32),
+    /// For the recording setup's widgets (`recording::setup`).
+    builder: gtk::Builder,
     frame: Frame,
     surface: cairo::ImageSurface,
     session: Weak<Session>,
@@ -508,7 +618,12 @@ impl MonitorOverlay {
         }
         self.sync_entries();
         self.update_ui();
-        self.w.canvas.grab_focus();
+        // In Video mode the setup's Start Recording keeps the initial focus (redline 01).
+        if self.mode() == Mode::Video && self.w.record_start_button.is_sensitive() {
+            self.w.record_start_button.grab_focus();
+        } else {
+            self.w.canvas.grab_focus();
+        }
     }
 
     /// The pointer left this monitor's frozen image. The controller sits on the canvas, so this
@@ -649,6 +764,54 @@ impl MonitorOverlay {
         }
     }
 
+    /// `rect` (image px of this monitor) in logical desktop px.
+    fn logical(&self, rect: IRect) -> IRect {
+        let to = |v: i32| (f64::from(v) / self.scale).round() as i32;
+        let (x0, y0) = (to(rect.x), to(rect.y));
+        let (x1, y1) = (to(rect.right()), to(rect.bottom()));
+        IRect::new(self.origin.0 + x0, self.origin.1 + y0, x1 - x0, y1 - y0)
+    }
+
+    fn mode(&self) -> Mode {
+        self.session().map_or(Mode::Screenshot, |s| s.mode.get())
+    }
+
+    /// Start Recording (button or `Enter` in Video mode): ends the overlay with the setup's
+    /// source; for Region with this monitor's selection, which stays as the recorded area.
+    fn start_recording(&self) {
+        let Some(session) = self.session() else {
+            return;
+        };
+        let rect = self.state.borrow().selection.rect();
+        let Some((source, can_start)) = session
+            .setup
+            .borrow()
+            .as_ref()
+            .map(|setup| (setup.source(), setup.can_start(rect.is_some())))
+        else {
+            return;
+        };
+        if !can_start {
+            return;
+        }
+        let selection = match source {
+            CaptureMode::Region => rect.map(|rect| self.logical(rect)),
+            CaptureMode::Window | CaptureMode::Screen => None,
+        };
+        session.finish(Outcome::Record { source, selection });
+    }
+
+    /// Whether this monitor shows the recording setup: Video mode, not while the selection is
+    /// being dragged, on the monitor holding the selection (every monitor before there is one).
+    fn shows_setup(&self, phase: Phase) -> bool {
+        let Some(session) = self.session() else {
+            return false;
+        };
+        session.mode.get() == Mode::Video
+            && matches!(phase, Phase::Idle | Phase::Adjusting)
+            && session.active.get().is_none_or(|index| index == self.index)
+    }
+
     fn update_ui(&self) {
         let (rect, phase, pointer, snapped) = {
             let state = self.state.borrow();
@@ -677,9 +840,22 @@ impl MonitorOverlay {
             self.w.size_chip.remove_css_class("annota-chip-accent");
         }
 
+        let video = self.mode() == Mode::Video;
         self.w
             .toolbar
-            .set_visible(matches!(phase, Phase::Adjusting) && rect.is_some());
+            .set_visible(!video && matches!(phase, Phase::Adjusting) && rect.is_some());
+        let setup = self.shows_setup(phase);
+        self.w.record_setup.set_visible(setup);
+        self.w
+            .record_setup_arrow
+            .set_visible(setup && rect.is_some());
+        if let Some(session) = self.session() {
+            if let Some(setup) = session.setup.borrow().as_ref() {
+                self.w
+                    .record_start_button
+                    .set_sensitive(setup.can_start(rect.is_some()));
+            }
+        }
 
         let loupe = pointer.is_some()
             && matches!(phase, Phase::Idle | Phase::Dragging | Phase::Resizing(_));
@@ -692,9 +868,14 @@ impl MonitorOverlay {
         }
 
         self.w.snap_chip.set_visible(snapped);
-        self.w.hint_snap.set_visible(snapped && !adjusting);
-        self.w.hint_drag.set_visible(!snapped && !adjusting);
-        self.w.hint_adjust.set_visible(adjusting);
+        self.w
+            .hint_snap
+            .set_visible(!video && snapped && !adjusting);
+        self.w
+            .hint_drag
+            .set_visible(!video && !snapped && !adjusting);
+        self.w.hint_adjust.set_visible(!video && adjusting);
+        self.w.hint_video.set_visible(video);
 
         self.update_pointer_preview();
 
@@ -706,7 +887,8 @@ impl MonitorOverlay {
     /// All three hint segments carry the same text; only the box of the current phase is on
     /// screen, so the visible one shows it.
     fn update_pointer_preview(&self) {
-        let on = self.w.pointer_button.is_active();
+        // The capture's pointer preview; a recording embeds the live pointer instead.
+        let on = self.w.pointer_button.is_active() && self.mode() == Mode::Screenshot;
         let preview = self.preview_state();
         self.w.pointer_chip.set_visible(preview.is_some());
         // The segment stays while Include Pointer is on, even with the pointer over Annota's own
@@ -794,6 +976,17 @@ impl MonitorOverlay {
                 pointer_chip_position(preview.pointer, size, area),
                 size,
             ));
+        }
+        if child == self.w.record_setup.upcast_ref::<gtk::Widget>() {
+            let size = natural(child);
+            let placed = setup_placement(selection, size, area);
+            return Some(rect_at(placed.position, size));
+        }
+        if child == self.w.record_setup_arrow.upcast_ref::<gtk::Widget>() {
+            let size = natural(child);
+            let setup = natural(self.w.record_setup.upcast_ref());
+            let (x, y) = setup_placement(selection, setup, area).arrow?;
+            return Some(rect_at((x - size.0 / 2.0, y - size.1 / 2.0), size));
         }
         if child == self.w.snap_chip.upcast_ref::<gtk::Widget>() {
             let size = natural(child);
@@ -921,7 +1114,7 @@ impl MonitorOverlay {
     /// region overlay).
     fn preview_state(&self) -> Option<Preview> {
         preview_for(
-            self.w.pointer_button.is_active(),
+            self.w.pointer_button.is_active() && self.mode() == Mode::Screenshot,
             self.session().and_then(|s| s.pointer.get()),
             self.index,
             self.state.borrow().selection.rect(),
@@ -1051,6 +1244,73 @@ impl MonitorOverlay {
         cr.set_source_rgb(1.0, 1.0, 1.0);
         cr.arc(cx, cy, radius, 0.0, std::f64::consts::TAU);
         cr.stroke()
+    }
+}
+
+/// Where the recording setup and its arrow go (redline 01).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SetupPlacement {
+    /// The setup's top-left corner.
+    position: (f64, f64),
+    /// The centre of the arrow, on the setup's edge facing the selection.
+    arrow: Option<(f64, f64)>,
+}
+
+/// `v` within `lo..=hi`, or their middle when the range is empty.
+fn between(v: f64, lo: f64, hi: f64) -> f64 {
+    if lo > hi {
+        (lo + hi) / 2.0
+    } else {
+        v.clamp(lo, hi)
+    }
+}
+
+/// The setup 18 px right of the selection, top-aligned with it; where there is no room, left of
+/// it, else below it; where there is no room at all, at the monitor's right edge without an
+/// arrow. Without a selection it is centred.
+fn setup_placement(selection: Option<FRect>, size: (f64, f64), area: (f64, f64)) -> SetupPlacement {
+    let (w, h) = size;
+    let fit_x = |x: f64| between(x, SETUP_MARGIN, area.0 - w - SETUP_MARGIN);
+    let fit_y = |y: f64| between(y, SETUP_MARGIN, area.1 - h - SETUP_MARGIN);
+    let Some(sel) = selection else {
+        return SetupPlacement {
+            position: (fit_x((area.0 - w) / 2.0), fit_y((area.1 - h) / 2.0)),
+            arrow: None,
+        };
+    };
+    // Beside: the arrow near the setup's top, never beyond the selection's height.
+    let side_arrow = |y: f64| {
+        let along = between(y + SETUP_ARROW_Y, sel.y + 12.0, sel.y + sel.h - 12.0);
+        between(along, y + 20.0, y + h - 20.0)
+    };
+    let right = sel.x + sel.w + SETUP_GAP;
+    if right + w + SETUP_MARGIN <= area.0 {
+        let y = fit_y(sel.y);
+        return SetupPlacement {
+            position: (right, y),
+            arrow: Some((right, side_arrow(y))),
+        };
+    }
+    let left = sel.x - SETUP_GAP - w;
+    if left >= SETUP_MARGIN {
+        let y = fit_y(sel.y);
+        return SetupPlacement {
+            position: (left, y),
+            arrow: Some((left + w, side_arrow(y))),
+        };
+    }
+    let below = sel.y + sel.h + SETUP_GAP;
+    if below + h + SETUP_MARGIN <= area.1 {
+        let x = fit_x(sel.x + sel.w / 2.0 - w / 2.0);
+        let along = between(sel.x + sel.w / 2.0, x + 20.0, x + w - 20.0);
+        return SetupPlacement {
+            position: (x, below),
+            arrow: Some((along, below)),
+        };
+    }
+    SetupPlacement {
+        position: (fit_x(area.0 - w), fit_y(sel.y)),
+        arrow: None,
     }
 }
 
@@ -1236,6 +1496,31 @@ fn connect(overlay: &Rc<MonitorOverlay>) {
             }
         }
     ));
+    w.record_start_button.connect_clicked(glib::clone!(
+        #[strong]
+        weak,
+        move |_| {
+            if let Some(this) = weak.upgrade() {
+                this.start_recording();
+            }
+        }
+    ));
+    for (button, mode) in [
+        (&w.mode_screenshot_button, Mode::Screenshot),
+        (&w.mode_video_button, Mode::Video),
+    ] {
+        button.connect_toggled(glib::clone!(
+            #[strong]
+            weak,
+            move |button| {
+                if button.is_active() {
+                    if let Some(session) = weak.upgrade().and_then(|this| this.session()) {
+                        session.set_mode(mode);
+                    }
+                }
+            }
+        ));
+    }
     w.mode_window_button.connect_toggled(glib::clone!(
         #[strong]
         weak,
@@ -1334,7 +1619,10 @@ fn key_pressed(
             true
         }
         gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::ISO_Enter => {
-            target.confirm();
+            match session.mode.get() {
+                Mode::Screenshot => target.confirm(),
+                Mode::Video => target.start_recording(),
+            }
             true
         }
         gdk::Key::Left | gdk::Key::KP_Left => target.nudge(Direction::Left, shift),
@@ -1362,7 +1650,7 @@ fn build_overlay(
     session: &Rc<Session>,
     include_pointer: bool,
 ) -> Option<Rc<MonitorOverlay>> {
-    let (w, _builder) = Widgets::load()?;
+    let (w, builder) = Widgets::load()?;
     let surface = match shot.frame.to_surface() {
         Ok(surface) => surface,
         Err(err) => {
@@ -1371,9 +1659,15 @@ fn build_overlay(
         }
     };
     w.pointer_button.set_active(include_pointer);
+    let origin = shot.monitor.as_ref().map_or((0, 0), |monitor| {
+        let g = monitor.geometry();
+        (g.x(), g.y())
+    });
     let overlay = Rc::new(MonitorOverlay {
         index,
         scale: shot.scale,
+        origin,
+        builder,
         frame: shot.frame.clone(),
         surface,
         session: Rc::downgrade(session),
@@ -1397,19 +1691,18 @@ fn build_overlay(
     Some(overlay)
 }
 
-/// Shows the overlay on every monitor and waits for the user's choice.
+/// Shows the overlay on every monitor in `mode` (Video: with the recording setup) and waits for
+/// the user's choice.
 pub async fn select_region(
     app: &adw::Application,
     desktop: &Desktop,
     include_pointer: bool,
+    mode: Mode,
 ) -> Outcome {
     let (sender, receiver) = oneshot::channel();
-    let session = Rc::new(Session {
-        sender: RefCell::new(Some(sender)),
-        overlays: RefCell::new(Vec::new()),
-        active: Cell::new(None),
-        pointer: Cell::new(None),
-    });
+    let session = Rc::new(Session::new(Some(sender)));
+    #[cfg(test)]
+    OPEN.with(|open| open.replace(Rc::downgrade(&session)));
 
     for (index, shot) in desktop.monitors.iter().enumerate() {
         let Some(overlay) = build_overlay(index, shot, &session, include_pointer) else {
@@ -1425,8 +1718,37 @@ pub async fn select_region(
         overlay.w.window.present();
         overlay.w.canvas.grab_focus();
     }
+    if mode == Mode::Video {
+        session.set_mode(Mode::Video);
+    }
 
     receiver.await.unwrap_or(Outcome::Cancelled)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The overlay session on the screen, for [`test_select`].
+    static OPEN: RefCell<Weak<Session>> = const { RefCell::new(Weak::new()) };
+}
+
+/// Live tests: selects `rect` (image px) on monitor `monitor` of the open overlay, as a drag
+/// that ended there would. `false` without an open overlay.
+#[cfg(test)]
+pub(crate) fn test_select(monitor: usize, rect: IRect) -> bool {
+    let Some(session) = OPEN.with(|open| open.borrow().upgrade()) else {
+        return false;
+    };
+    let Some(overlay) = session.overlay(monitor) else {
+        return false;
+    };
+    session.activate(monitor);
+    {
+        let mut state = overlay.state.borrow_mut();
+        state.selection.set_rect(rect);
+        state.phase = Phase::Adjusting;
+    }
+    overlay.drag_end();
+    true
 }
 
 /// What a probe window reports.
@@ -1699,12 +2021,7 @@ mod tests {
 
     /// A session with no overlays: enough for what `confirm` reads out of it.
     fn session() -> Session {
-        Session {
-            sender: RefCell::new(None),
-            overlays: RefCell::new(Vec::new()),
-            active: Cell::new(None),
-            pointer: Cell::new(None),
-        }
+        Session::new(None)
     }
 
     fn at(monitor: usize, x: f64, y: f64) -> PointerAt {
@@ -1991,6 +2308,37 @@ mod tests {
         session.note_pointer(at(1, 20.0, 20.0));
         session.clear_pointer(0);
         assert_eq!(session.pointer.get(), Some(at(1, 20.0, 20.0)));
+    }
+
+    // spec: screen-recording / Recording setup / Switch the overlay to video
+    #[test]
+    fn the_recording_setup_sits_beside_the_selection() {
+        let area = (1280.0, 800.0);
+        let size = (380.0, 334.0);
+        let sel = |x, y, w, h| Some(FRect { x, y, w, h });
+        // Mockup 01: 18 px right of the selection, top-aligned, the arrow on the setup's left
+        // edge near its top and within the selection's height.
+        let placed = setup_placement(sel(130.0, 92.0, 700.0, 470.0), size, area);
+        assert_eq!(placed.position, (848.0, 92.0));
+        assert_eq!(placed.arrow, Some((848.0, 132.0)));
+        // No room on the right: on the left, the arrow on its right edge.
+        let placed = setup_placement(sel(700.0, 100.0, 500.0, 300.0), size, area);
+        assert_eq!(placed.position, (700.0 - 18.0 - 380.0, 100.0));
+        assert_eq!(placed.arrow.map(|a| a.0), Some(700.0 - 18.0));
+        // Neither side: below, the arrow on its top edge.
+        let placed = setup_placement(sel(100.0, 40.0, 1080.0, 300.0), size, area);
+        assert_eq!(placed.position.1, 40.0 + 300.0 + 18.0);
+        assert_eq!(placed.arrow.map(|a| a.1), Some(358.0));
+        // Nowhere (the whole monitor): inside the monitor, no arrow.
+        let placed = setup_placement(sel(0.0, 0.0, 1280.0, 800.0), size, area);
+        assert!(placed.arrow.is_none());
+        assert!(placed.position.0 + size.0 <= area.0 && placed.position.0 >= 0.0);
+        // Without a selection: centred.
+        let placed = setup_placement(None, size, area);
+        assert_eq!(placed.position, (450.0, 233.0));
+        // Kept on the monitor when the selection is near its bottom.
+        let placed = setup_placement(sel(100.0, 700.0, 200.0, 90.0), size, area);
+        assert!(placed.position.1 + size.1 <= area.1);
     }
 
     /// One uniformly grey monitor of `w` x `h` image px at `scale`.

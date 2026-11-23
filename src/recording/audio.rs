@@ -30,8 +30,8 @@ impl AudioSource {
     }
 }
 
-/// Which audio devices exist, behind a trait so tests (and the setup's "No microphone found",
-/// Phase C) can inject an empty desktop.
+/// Which audio devices exist, behind a trait so tests (and the setup's "No microphone found")
+/// can inject an empty desktop.
 pub trait AudioDevices {
     /// An audio input that is not the monitor of an output.
     fn has_microphone(&self) -> bool;
@@ -46,50 +46,84 @@ pub trait AudioDevices {
     }
 }
 
-/// The devices `GstDeviceMonitor` reports right now (`Audio/Source`, `Audio/Sink`).
+/// The devices `GstDeviceMonitor` reports (`Audio/Source`, `Audio/Sink`): for each kind the
+/// display name of the default device (or the first one), `None` when there is none.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SystemDevices {
-    microphone: bool,
-    output: bool,
+    pub microphone: Option<String>,
+    pub output: Option<String>,
 }
 
 impl SystemDevices {
-    /// Lists the devices once. Without any device provider both are absent.
+    /// A desktop with these devices (tests, the setup's "No microphone found").
+    pub fn new(microphone: Option<&str>, output: Option<&str>) -> Self {
+        Self {
+            microphone: microphone.map(String::from),
+            output: output.map(String::from),
+        }
+    }
+
+    /// Lists the devices once. Blocks while the device providers start: call it off the main
+    /// thread ([`probe_async`]). Without any device provider both are absent.
     pub fn probe() -> Self {
-        let _ = gst::init();
+        let mut found = Self::default();
+        if gst::init().is_err() {
+            return found;
+        }
         let monitor = gst::DeviceMonitor::new();
         let _ = monitor.add_filter(Some("Audio/Source"), None);
         let _ = monitor.add_filter(Some("Audio/Sink"), None);
         if monitor.start().is_err() {
-            return Self {
-                microphone: false,
-                output: false,
-            };
+            return found;
         }
         let devices = monitor.devices();
         monitor.stop();
-        let mut found = Self {
-            microphone: false,
-            output: false,
-        };
+        let mut default = (false, false);
         for device in devices {
             let class = device.device_class();
-            if class.contains("Audio/Sink") {
-                found.output = true;
+            let name = device.display_name().to_string();
+            let is_default = device
+                .properties()
+                .and_then(|p| p.get::<bool>("is-default").ok())
+                .unwrap_or(false);
+            let (slot, was_default) = if class.contains("Audio/Sink") {
+                (&mut found.output, &mut default.1)
             } else if class.contains("Audio/Source") && !is_monitor(&device) {
-                found.microphone = true;
+                (&mut found.microphone, &mut default.0)
+            } else {
+                continue;
+            };
+            if slot.is_none() || (is_default && !*was_default) {
+                *slot = Some(name);
+                *was_default = is_default;
             }
         }
         found
     }
 }
 
+/// [`SystemDevices::probe`] on a thread of its own, so the main loop never waits for the device
+/// providers.
+pub async fn probe_async() -> SystemDevices {
+    let (sender, receiver) = futures_channel::oneshot::channel();
+    let spawned = std::thread::Builder::new()
+        .name(String::from("annota-audio-devices"))
+        .spawn(move || {
+            let _ = sender.send(SystemDevices::probe());
+        });
+    if spawned.is_err() {
+        return SystemDevices::default();
+    }
+    receiver.await.unwrap_or_default()
+}
+
 impl AudioDevices for SystemDevices {
     fn has_microphone(&self) -> bool {
-        self.microphone
+        self.microphone.is_some()
     }
 
     fn has_output(&self) -> bool {
-        self.output
+        self.output.is_some()
     }
 }
 

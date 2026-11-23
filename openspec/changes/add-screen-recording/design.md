@@ -395,3 +395,50 @@ Phase B (portal session, stop paths, waiting indicator; `src/recording/{source,s
   a pipeline error or the stream's own end of stream → finished with what was written, session
   closed.
 
+Phase C1 (recording setup and countdown, tasks 4.1 and 4.3, plus the Phase B review follow-ups;
+`src/recording/setup.rs`, `src/capture/{overlay,countdown,mod}.rs`, 2026-11-23):
+- **Video mode enters through the capture flow.** `--record region`, `--record toggle` with
+  nothing running (and, from Phase D, the Record shortcut and card) call
+  `capture::start_recording_setup`: the same permission handling, frozen Screenshot-portal grab
+  and region overlay as a region capture, opened in Video mode. Start Recording ends the overlay
+  with `Outcome::Record` (source + selection in logical desktop px); the capture flow hands it to
+  `recording::start_from_setup` once it has ended. `Esc` is the overlay's ordinary cancel: no
+  ScreenCast call, nothing written. As for a capture, the Annota windows hidden for the grab
+  are shown again before the recording's source is requested (open for the maintainer: they
+  are then in a screen recording).
+- **The mode pill holds the hint bar.** In Screenshot mode the capture hints sit in the pill
+  after the Screenshot | Video toggle; the pill is 24 px above the bottom edge in both modes
+  (the capture hint bar was 36 px), so it does not jump when the mode changes.
+- **The setup is an overlay child, not a `GtkPopover`.** It is drawn in the overlay window like
+  the capture toolbar (kit `.popover` look, the arrow a rotated 14 px square behind its edge), so
+  it needs no popup grab inside a full-screen window and is in the window's own screenshots.
+  Placement (`overlay::setup_placement`, unit-tested): 18 px right of the selection and
+  top-aligned; else left; else below; with no room at all at the monitor's right edge without an
+  arrow. It shows on the monitor holding the selection, hides while the selection is dragged,
+  and before any selection is centred on every monitor with Start Recording insensitive for
+  Region. Start Recording gets the focus once a selection exists.
+- **Choices are written as they change** (GSettings bindings; the source toggles and the
+  countdown spin by hand), so `Esc` keeps them. A missing device turns its switch off and
+  insensitive without writing "off" (the binding is removed first). A saved source that is not
+  offered shows Region and is left saved.
+- **Level meters** come from a preview pipeline (`<source> ! level ! fakesink`, the setup's own,
+  no video, nothing written) that runs only while the setup is shown and only for sources whose
+  switch is on; a switched-off source shows an unlit meter at 60 %. Torn down when the overlay
+  closes or returns to Screenshot mode. Devices come from `audio::probe_async` (a thread) through
+  `Hooks::devices`; a recording probes only when an audio source is wanted, before the countdown.
+- **The capture's pointer preview** (arrow and chip) is off in Video mode: a recording embeds the
+  live pointer.
+- **Countdown (D5):** `countdown::run_for` with `Purpose::Recording` (red ring, "Recording starts
+  in N s", hints Enter Start now · Esc Cancel, window title "Recording Countdown"); dropping its
+  future takes the OSD away. A region's outline needs the monitor's own coordinates, so that
+  window is full-screen on the selection's monitor (maximised otherwise, as for captures).
+  Measured nowhere yet: whether GNOME hides its top bar under that transparent full-screen window
+  during the countdown (manual check with 6.2). The countdown ends early on `Enter`, `Esc`, the
+  Record shortcut / `--record toggle` (`Active::Starting` holds a cancel sender) or the session's
+  `Closed` (then `DesktopEnded`, nothing sent back). The `Recording` is created only after the
+  countdown future resolved, i.e. after the OSD is gone + `SETTLE`.
+- **Review follow-ups:** `source::request` closes its session and hides the indicator when its
+  future is dropped (`OpenSession`, `Indicator` guards); GStreamer's background `init` runs once;
+  the window crop meta is always converted, with the matching monitor's scale, else the one scale
+  all monitors share, else 1 (`geometry::fallback_scale`), never alpha over the whole buffer; the
+  waiting indicator of a window recording is titled "Record Window".

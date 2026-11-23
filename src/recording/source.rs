@@ -20,6 +20,7 @@
 
 use std::os::fd::{AsRawFd, OwnedFd, RawFd};
 use std::pin::pin;
+use std::sync::Once;
 
 use ashpd::desktop::screencast::{CursorMode, Screencast, SourceType};
 use ashpd::desktop::{PersistMode, Session};
@@ -33,6 +34,7 @@ use gstreamer as gst;
 use gstreamer::prelude::*;
 use gtk::{gdk, glib, prelude::*};
 
+use super::geometry;
 use super::RecordingError;
 use crate::capture::countdown;
 use crate::capture::portal::{self, CaptureError, ParentWindow};
@@ -59,7 +61,7 @@ impl SourceKind {
     pub fn wait_for(self) -> WaitFor {
         match self {
             Self::Monitor => WaitFor::Screen,
-            Self::Window => WaitFor::Window,
+            Self::Window => WaitFor::RecordWindow,
         }
     }
 }
@@ -138,6 +140,17 @@ impl Granted {
         self.closed.take()
     }
 
+    /// Resolves when the portal closes the session (`Session.Closed`, or its connection ends).
+    /// Never resolves when the signal could not be watched.
+    pub async fn closed_by_portal(&mut self) {
+        match self.closed.as_mut() {
+            Some(signal) => {
+                signal.next().await;
+            }
+            None => future::pending::<()>().await,
+        }
+    }
+
     /// Releases the PipeWire remote, then closes the session and waits for the portal.
     pub async fn close(mut self) {
         drop(self.fd.take());
@@ -188,21 +201,27 @@ pub fn pipewire_source(fd: RawFd, node: u32) -> Result<gst::Element, RecordingEr
     Ok(source)
 }
 
-/// The scale of the GDK monitor a stream of this `position`/`size` (logical px) is on, for the
-/// window crop meta conversion (design.md D2). `None` when no monitor or several monitors of
-/// different scales match: the window is then found by alpha.
+/// The scale for a window stream's crop meta conversion (design.md D2): the scale of the GDK
+/// monitor whose logical geometry is the stream's `position`/`size`. Where no single monitor
+/// (or several of different scales) matches, the one scale all monitors share, else 1
+/// ([`geometry::fallback_scale`]): the crop meta still bounds the window, so opaque undefined
+/// pixels outside it are never recorded. `None` only without a display.
 pub fn monitor_scale(position: Option<(i32, i32)>, size: Option<(i32, i32)>) -> Option<f64> {
-    let size = size?;
     let monitors = gdk::Display::default()?.monitors();
-    let mut scales = (0..monitors.n_items())
+    let monitors: Vec<gdk::Monitor> = (0..monitors.n_items())
         .filter_map(|i| monitors.item(i)?.downcast::<gdk::Monitor>().ok())
+        .collect();
+    let matching: Vec<f64> = monitors
+        .iter()
         .filter(|monitor| {
             let g = monitor.geometry();
-            (g.width(), g.height()) == size && position.is_none_or(|p| (g.x(), g.y()) == p)
+            size.is_some_and(|size| (g.width(), g.height()) == size)
+                && position.is_none_or(|p| (g.x(), g.y()) == p)
         })
-        .map(|monitor| monitor.scale());
-    let first = scales.next()?;
-    scales.all(|s| s == first).then_some(first)
+        .map(gdk::Monitor::scale)
+        .collect();
+    let all: Vec<f64> = monitors.iter().map(gdk::Monitor::scale).collect();
+    Some(geometry::fallback_scale(&matching, &all))
 }
 
 /// How many monitors GDK knows.
@@ -228,26 +247,74 @@ pub async fn request(app: &adw::Application, kind: SourceKind, include_pointer: 
         .unwrap_or_default()
         .contains(CursorMode::Embedded);
     let cursor = screencast::cursor_mode(include_pointer, embedded);
-    // GStreamer's first `init` scans the plugin registry: done alongside the chooser.
-    std::thread::spawn(|| {
-        let _ = gst::init();
+    // GStreamer's first `init` scans the plugin registry: done alongside the chooser, once.
+    static GST_INIT: Once = Once::new();
+    GST_INIT.call_once(|| {
+        std::thread::spawn(|| {
+            let _ = gst::init();
+        });
     });
     let Some((indicator, cancelled)) = window_wait::show(app, kind.wait_for()) else {
         return Requested::Failed(String::from("window-wait.ui is incomplete"));
     };
-    let parent = ParentWindow::new(&indicator).await;
+    // Takes the indicator away on every way out, a dropped future (the app quitting) included.
+    let indicator = Indicator(indicator);
+    let parent = ParentWindow::new(&indicator.0).await;
     let identifier = parent.for_request();
     if identifier.is_none() {
         eprintln!("annota: no parent window handle for the screen-sharing chooser");
     }
     let requested = negotiate(&proxy, kind, cursor, identifier, cancelled).await;
     drop(parent);
-    window_wait::hide(&indicator);
+    drop(indicator);
     if matches!(requested, Requested::Granted(_)) {
         // Unmapped now; give the compositor the same time as the countdown OSD gets.
         glib::timeout_future(countdown::SETTLE).await;
     }
     requested
+}
+
+/// The waiting indicator, hidden when dropped.
+struct Indicator(gtk::Window);
+
+impl Drop for Indicator {
+    fn drop(&mut self) {
+        window_wait::hide(&self.0);
+    }
+}
+
+/// The session of a request that is still open: closed when dropped (the request future dropped
+/// while waiting, e.g. because the app quits), unless it was handed on or the portal closed it.
+struct OpenSession(Option<PortalSession>);
+
+impl OpenSession {
+    fn session(&self) -> Option<&Session<'static, Screencast<'static>>> {
+        self.0.as_ref().map(|s| &s.0)
+    }
+
+    /// Closes it now and waits for the portal.
+    async fn close(mut self) {
+        if let Some(session) = self.0.take() {
+            session.close().await;
+        }
+    }
+
+    /// The portal has closed it already (code 1, `Session.Closed`): nothing is sent.
+    fn forget(mut self) {
+        self.0.take();
+    }
+
+    fn take(mut self) -> Option<PortalSession> {
+        self.0.take()
+    }
+}
+
+impl Drop for OpenSession {
+    fn drop(&mut self) {
+        if let Some(session) = self.0.take() {
+            session.close_detached();
+        }
+    }
 }
 
 fn failed(err: &ashpd::Error) -> Requested {
@@ -265,17 +332,20 @@ async fn negotiate(
     cancelled: oneshot::Receiver<()>,
 ) -> Requested {
     let session = match proxy.create_session().await {
-        Ok(session) => PortalSession(session),
+        Ok(session) => OpenSession(Some(PortalSession(session))),
         Err(err) => return failed(&err),
     };
+    let Some(handle) = session.session() else {
+        return Requested::Failed(String::from("no session"));
+    };
     // Listening before Start, so an early `Closed` is never missed.
-    let mut closed = closed_signal(proxy, &session.0).await;
+    let mut closed = closed_signal(proxy, handle).await;
     if closed.is_none() {
         eprintln!("annota: cannot watch the screen-sharing session for its end");
     }
     let selected = proxy
         .select_sources(
-            &session.0,
+            handle,
             cursor,
             kind.portal_type().into(),
             false,
@@ -290,7 +360,7 @@ async fn negotiate(
     }
 
     let answer = {
-        let start = pin!(proxy.start(&session.0, parent.as_ref()));
+        let start = pin!(proxy.start(handle, parent.as_ref()));
         let cancel = pin!(async {
             // A dropped sender means the indicator is gone, which ends the wait just the same.
             let _ = cancelled.await;
@@ -317,16 +387,21 @@ async fn negotiate(
         }
         // The portal has closed the session itself; whatever Start answers later is dropped
         // with its request.
-        Err(true) => return Requested::DesktopEnded,
+        Err(true) => {
+            session.forget();
+            return Requested::DesktopEnded;
+        }
     };
     let streams = match answer.and_then(|request| request.response()) {
         Ok(streams) => streams,
         Err(err) => {
             let requested = failed(&err);
-            if !matches!(requested, Requested::Cancelled) {
+            if matches!(requested, Requested::Cancelled) {
+                // Code 1: the session counts as closed (P1), so nothing is sent.
+                session.forget();
+            } else {
                 session.close().await;
             }
-            // Code 1: the session counts as closed (P1), so nothing is sent.
             return requested;
         }
     };
@@ -335,7 +410,7 @@ async fn negotiate(
         return Requested::Failed(String::from("the portal started no stream"));
     };
     let (node, position, size) = (stream.pipe_wire_node_id(), stream.position(), stream.size());
-    let fd = match proxy.open_pipe_wire_remote(&session.0).await {
+    let fd = match proxy.open_pipe_wire_remote(handle).await {
         Ok(fd) => fd,
         Err(err) => {
             session.close().await;
@@ -348,7 +423,7 @@ async fn negotiate(
         position,
         size,
         fd: Some(fd),
-        session: Some(session),
+        session: session.take(),
         closed,
     }))
 }

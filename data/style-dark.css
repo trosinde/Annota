@@ -7,3 +7,13 @@
   background-color: alpha(white, 0.2);
   box-shadow: none;
 }
+
+/* Recording setup (add-screen-recording 01): the kit's dark --shadow-popover. */
+.annota-record-setup {
+  box-shadow: 0 0 0 1px rgba(0, 0, 6, 0.5), 0 1px 5px 1px rgba(0, 0, 6, 0.3),
+    0 2px 14px 3px rgba(0, 0, 6, 0.2);
+}
+
+.annota-record-setup-arrow {
+  box-shadow: 0 0 0 1px rgba(0, 0, 6, 0.5);
+}

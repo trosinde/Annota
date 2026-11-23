@@ -708,7 +708,7 @@ fn setup_drop_target(
     window.add_controller(target);
 }
 
-fn setup_actions(app: &adw::Application) {
+pub(crate) fn setup_actions(app: &adw::Application) {
     // Ctrl+Q (and GNOME Shell's Quit): "Save Changes?" for unsaved documents first
     // (add-export-share task 2.6).
     let quit = gio::ActionEntry::builder("quit")
