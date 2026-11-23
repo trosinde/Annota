@@ -3,8 +3,9 @@
 ## Probe run (task 2.1)
 
 Probes P1–P12 of design.md are measured with `tools/recording-probe.py` on the maintainer's own
-desktop. The tool has only been syntax-checked (`python3 -m py_compile`, `--help`). It has never
-touched a portal, so its first real run is this one. It needs no Annota build.
+desktop. It needs no Annota build. Two runs on GNOME 50 are logged in `probe-results/` (2026-11-23);
+the probe table in design.md says which probe is measured, inconclusive or still open.
+`tools/recording-probe.py selftest` checks the frame analysis offline (videotestsrc, no portal).
 
 Before you start:
 - Quit Annota (`pkill -x annota`). Annota must not run during the probes: GNOME delivers
@@ -23,11 +24,11 @@ Before you start:
 | 4 | `tools/recording-probe.py monitor --no-parent` | same as 3 | same chooser, no probe window | P10 (without parent: does the chooser still appear?) |
 | 5 | `tools/recording-probe.py monitor --expect cancel` | press Cancel (or Esc) in the chooser | GNOME's screen-sharing chooser | P1 (response code and time of a cancelled chooser) |
 | 6 | `tools/recording-probe.py cursor-modes` | for each offered mode: choose a screen, keep the pointer on it; afterwards open `/tmp/annota-probe-cursor-*.png` and note whether the pointer is drawn | chooser once per cursor mode (up to 3 times), sharing indicator | P4 |
-| 7 | `tools/recording-probe.py monitor --save /tmp/annota-probe-frame.png` | choose the screen that has the top bar; afterwards look at the PNG | chooser, sharing indicator | P12 (is GNOME's indicator in the stream?) |
-| 8 | `tools/recording-probe.py session-close` | choose a screen, then **stop the sharing from GNOME's top bar / quick settings** | chooser, sharing indicator (which you use to stop) | P5 |
-| 9 | `tools/recording-probe.py window-end` | choose a window you can close (e.g. a new Text Editor window), resize it a few times, wait 5 s, close it | GNOME's screen-sharing chooser (window list), sharing indicator | P6 |
-| 10 | `tools/recording-probe.py frame-rate` | twice (keepalive off and 1000 ms): keep the screen completely still for 30 s, then move the pointer or play a video for 30 s | chooser twice, sharing indicator | P7 |
-| 11 | `tools/recording-probe.py load --minutes 30` | work normally on the largest monitor, a playing video helps | chooser, then the sharing indicator for 30 min. Nothing is written | P8 (encoded fps, videorate drops, CPU, RSS) |
+| 7 | `tools/recording-probe.py monitor --save /tmp/annota-probe-frame.png` | choose the screen that shows GNOME's panel; afterwards look at the PNG (it shows your screen: do not commit or share it) | chooser, sharing indicator | P12 (is GNOME's indicator in the stream?), later / informational |
+| 8 | `tools/recording-probe.py session-close --stop-hint` | choose a screen, then **stop the sharing from GNOME's panel / quick settings** (wherever the system status area is; look for an orange screen-sharing icon). If there is no stop control, let it run the 60 s and say so | chooser, sharing indicator (which you use to stop) | P5 (Session.Closed, stream end, buffers per second until the end) |
+| 9 | `tools/recording-probe.py window-end` | choose a window you can close that is not the terminal (e.g. a new Text Editor window); follow the printed countdown: resize until 20 s, hands off, close it at the "CLOSE THE WINDOW NOW" prompt (30 s), then wait for the end (60 s) | GNOME's screen-sharing chooser (window list), sharing indicator | P6 (buffer size and crop meta over time, buffers and content changes per second, repeated frames after the close) |
+| 10 | `tools/recording-probe.py frame-rate` | twice (keepalive off and 1000 ms): first stop every video and animation; after the 3-2-1 keep the pointer still for 30 s, after the next 3-2-1 scroll a page or drag a window for 30 s | chooser twice, sharing indicator | P7 (informational: the pipeline handles a variable frame rate either way, design.md D3) |
+| 11 | `tools/recording-probe.py load --minutes 30` | work normally on the largest monitor, a playing video helps | chooser, then the sharing indicator for 30 min. Nothing is written | P8 (encoded fps, videorate drops, CPU, RSS); moved to Verify (task 6.2), measured with the real implementation |
 | 12 | `tools/recording-probe.py shortcuts` | press `Shift+Ctrl+Print` while it watches (15 s) | possibly GNOME's "allow global shortcuts" dialog listing Region, Window, Screen and **Record video**. **Lasting effect:** GNOME stores the `record` binding for Annota's app ID, as Annota itself will at start | P11 (reported trigger, "Used by GNOME" via read-only GSettings lookup, delivery) |
 | 13 | P9 on Ubuntu 24.04: log in with "GNOME on Xorg", run 1, 3 and 9 | as above | as above, if X11 offers ScreenCast at all | P9 |
 

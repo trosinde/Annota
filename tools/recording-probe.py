@@ -23,6 +23,7 @@ about to do and which dialogs will appear, then waits for Enter (or `s` to skip)
     tools/recording-probe.py load --minutes 30    # P8: 4K-capable encode load, nothing written
     tools/recording-probe.py shortcuts            # P11: a 4th GlobalShortcuts ID `record`
     tools/recording-probe.py all                  # everything except `load`, one after another
+    tools/recording-probe.py selftest             # offline check of the frame analysis, no portal
 
 P9 (X11) is the same `env`, `monitor` and `window-end` run in a "GNOME on Xorg" session, where
 the desktop still offers one (Ubuntu 24.04; GNOME 50 has no X11 session any more).
@@ -31,7 +32,10 @@ Dialogs and indicators you will see:
 - GNOME's screen-sharing chooser ("Screen Share"/"Share Screen") for `monitor`, `cursor-modes`,
   `session-close`, `frame-rate`, `load` (monitor tab) and `window-end` (window tab). Nothing is
   shared with anyone: the stream goes only into this process.
-- GNOME's screen-sharing indicator in the top bar while a stream is open.
+- GNOME's screen-sharing indicator while a stream is open, in GNOME's panel / quick settings
+  (wherever the system status area is, at the top or the bottom of the screen). On some
+  desktops it was not found at all (2026-11-23); `session-close --stop-hint` says what to look
+  for.
 - With `--parent` (default on), a small window "Annota recording probe" that is the chooser's
   parent, as Annota's waiting indicator will be.
 - `audio`: no dialog; GNOME's microphone indicator appears for about 3 s.
@@ -39,9 +43,11 @@ Dialogs and indicators you will see:
   IDs region, window, screen AND record under Annota's app ID, exactly as Annota will at start,
   and GNOME keeps what it stores. This is the one probe with a lasting effect.
 
-Privacy: no frame and no audio is written anywhere, except the single frame `--save` writes for
-a visual check (P4 pointer, P12 indicator). Do not commit that file. The log contains only
-numbers, sizes, codes and timings.
+Privacy: no frame and no audio is written anywhere, except the single frame `--save` (P12) and
+`cursor-modes` (P4) write for a visual check. That PNG shows your screen: do not commit or share
+it. The log contains only numbers, sizes, codes and timings; `window-end` and `session-close`
+hash a few rows of each frame in memory to tell repeated frames from new ones and log only how
+often the hash changed, never a hash or a pixel.
 
 Every run appends its result table to a markdown log, by default
 `openspec/changes/add-screen-recording/probe-results/<date>-<os>-<session>.md`, which can be
@@ -49,7 +55,11 @@ committed as the evidence for task 2.1.
 """
 
 import argparse
+import ctypes
+import ctypes.util
 import datetime
+import functools
+import hashlib
 import importlib.util
 import os
 import pathlib
@@ -419,18 +429,183 @@ def gdk_monitors():
         return "unavailable (%s)" % err
 
 
-class Stream:
-    """pipewiresrc into an appsink that only counts and measures; nothing is kept."""
+# ---------------------------------------------------------------------------------------------
+# Frame analysis (read-only, in memory; tested offline on videotestsrc, see `selftest`)
 
-    def __init__(self, fd, node, keepalive=0, extra=""):
+
+class MapInfo(ctypes.Structure):
+    """struct GstMapInfo (gst/gstmemory.h)."""
+    _fields_ = [("memory", ctypes.c_void_p), ("flags", ctypes.c_int),
+                ("data", ctypes.c_void_p), ("size", ctypes.c_size_t),
+                ("maxsize", ctypes.c_size_t), ("user_data", ctypes.c_void_p * 4),
+                ("_gst_reserved", ctypes.c_void_p * 4)]
+
+
+class CropMeta(ctypes.Structure):
+    """struct GstVideoCropMeta (gst/video/gstvideometa.h)."""
+    _fields_ = [("flags", ctypes.c_uint), ("info", ctypes.c_void_p),
+                ("x", ctypes.c_uint), ("y", ctypes.c_uint),
+                ("width", ctypes.c_uint), ("height", ctypes.c_uint)]
+
+
+@functools.lru_cache(maxsize=None)
+def gst_libs():
+    """(libgstreamer, crop meta API GType or 0), loaded once.
+
+    `ctypes.util.find_library` runs ldconfig on every call, far too slow for every buffer.
+    """
+    core = ctypes.CDLL(ctypes.util.find_library("gstreamer-1.0"))
+    core.gst_buffer_get_meta.restype = ctypes.c_void_p
+    core.gst_buffer_get_meta.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+    core.gst_buffer_map.restype = ctypes.c_int
+    core.gst_buffer_map.argtypes = [ctypes.c_void_p, ctypes.POINTER(MapInfo), ctypes.c_int]
+    core.gst_buffer_unmap.restype = None
+    core.gst_buffer_unmap.argtypes = [ctypes.c_void_p, ctypes.POINTER(MapInfo)]
+    crop_api = 0
+    name = ctypes.util.find_library("gstvideo-1.0")
+    if name:
+        video = ctypes.CDLL(name)
+        video.gst_video_crop_meta_api_get_type.restype = ctypes.c_size_t
+        crop_api = video.gst_video_crop_meta_api_get_type()
+    return core, crop_api
+
+
+def boxed_pointer(buf):
+    # PyGObject's PyGBoxed: PyObject_HEAD, then the boxed pointer (as in portal-probe.py).
+    return ctypes.c_void_p.from_address(id(buf) + 2 * ctypes.sizeof(ctypes.c_void_p)).value
+
+
+def crop_rect(buf):
+    """(x, y, width, height) of the buffer's GstVideoCropMeta, or None. Read-only."""
+    core, crop_api = gst_libs()
+    if not crop_api:
+        return None
+    meta = core.gst_buffer_get_meta(boxed_pointer(buf), crop_api)
+    if not meta:
+        return None
+    rect = CropMeta.from_address(meta)
+    return (rect.x, rect.y, rect.width, rect.height)
+
+
+GST_MAP_READ = 1
+
+
+def frame_digest(buf, height, row_step=16):
+    """Short hash of every `row_step`-th row of a mapped frame: equal digest = repeated frame.
+
+    Only in memory, never logged: the probes log how often it changed. Rows are hashed whole, so
+    a change anywhere in a sampled row (pointer, text cursor, video) changes the digest.
+    """
+    core, _ = gst_libs()
+    pointer = boxed_pointer(buf)
+    info = MapInfo()
+    if not core.gst_buffer_map(pointer, ctypes.byref(info), GST_MAP_READ):
+        return None
+    try:
+        stride = info.size // max(1, height)
+        digest = hashlib.blake2b(digest_size=8)
+        for row in range(0, height, row_step):
+            digest.update(ctypes.string_at(info.data + row * stride, stride))
+        return digest.hexdigest()
+    finally:
+        core.gst_buffer_unmap(pointer, ctypes.byref(info))
+
+
+class FrameTrack:
+    """Buffer size, crop meta and content digest of every buffer, with monotonic times."""
+
+    def __init__(self):
+        self.samples = []  # (monotonic, (w, h), crop or None, digest or None)
+
+    def observe(self, sample, now):
+        buf = sample.get_buffer()
+        s = sample.get_caps().get_structure(0)
+        size = (s.get_value("width"), s.get_value("height"))
+        self.samples.append((now, size, crop_rect(buf), frame_digest(buf, size[1])))
+
+    def geometry_changes(self, start):
+        """[(seconds after start, size, crop)] for the first buffer and every change."""
+        changes, last = [], None
+        for at, size, crop, _digest in self.samples:
+            if (size, crop) != last:
+                changes.append((at - start, size, crop))
+                last = (size, crop)
+        return changes
+
+    def per_second(self, start, total):
+        """(buffers, content changes) per whole second from `start`, `total` seconds."""
+        buffers, changed = [0] * max(1, int(total)), [0] * max(1, int(total))
+        previous = None
+        for at, _size, _crop, digest in self.samples:
+            index = int(at - start)
+            if 0 <= index < len(buffers):
+                buffers[index] += 1
+                if previous is not None and digest != previous:
+                    changed[index] += 1
+            previous = digest
+        return buffers, changed
+
+    def summary_after(self, t0):
+        """What happened from monotonic `t0` on: buffer count, geometry changes, content."""
+        later = [s for s in self.samples if s[0] >= t0]
+        before = [s for s in self.samples if s[0] < t0]
+        last = before[-1] if before else None
+        geometry = content = 0
+        last_content = None
+        for sample in later:
+            if last is not None and (sample[1], sample[2]) != (last[1], last[2]):
+                geometry += 1
+            if last is not None and sample[3] != last[3]:
+                content += 1
+                last_content = sample[0]
+            last = sample
+        return {"buffers": len(later), "geometry_changes": geometry,
+                "content_changes": content, "distinct": len({s[3] for s in later}),
+                "last_content_change": last_content}
+
+    def gaps(self, start, longer_than=1.0):
+        """[(from s, to s)] relative to start where no buffer arrived for `longer_than` s."""
+        found = []
+        for (a, *_), (b, *_) in zip(self.samples, self.samples[1:]):
+            if b - a > longer_than:
+                found.append((a - start, b - start))
+        return found
+
+
+def describe_geometry(size, crop):
+    return "buffer %d x %d, crop %s" % (size[0], size[1], crop if crop else "none")
+
+
+class Cues:
+    """Prints timed instructions while a stream runs: [(seconds, text)] in order."""
+
+    def __init__(self, cues):
+        self.cues = sorted(cues, key=lambda c: c[0])
+        self.next = 0
+
+    def __call__(self, elapsed):
+        while self.next < len(self.cues) and elapsed >= self.cues[self.next][0]:
+            print(self.cues[self.next][1], flush=True)
+            self.next += 1
+
+
+class Stream:
+    """pipewiresrc into an appsink that only counts and measures; nothing is kept.
+
+    With `track=True` every buffer's size, crop meta and content digest go into `self.track`.
+    `launch` replaces the pipewiresrc part (offline self-test with videotestsrc).
+    """
+
+    def __init__(self, fd, node, keepalive=0, extra="", track=False, launch=None):
         src = "pipewiresrc fd=%d path=%d always-copy=true" % (fd, node)
         if keepalive:
             src += " keepalive-time=%d" % keepalive
         self.pipeline = Gst.parse_launch(
             "%s ! videoconvert ! %s video/x-raw,format=BGRA ! appsink name=sink "
-            "emit-signals=true sync=false max-buffers=2 drop=true" % (src, extra))
+            "emit-signals=true sync=false max-buffers=2 drop=true" % (launch or src, extra))
         self.sink = self.pipeline.get_by_name("sink")
         self.times, self.caps_seen, self.first = [], [], None
+        self.track = FrameTrack() if track else None
         self.end = None  # ("eos"|"error", message, monotonic)
         self.sink.connect("new-sample", self._on_sample)
         bus = self.pipeline.get_bus()
@@ -445,6 +620,8 @@ class Stream:
         size = (s.get_value("width"), s.get_value("height"))
         if not self.caps_seen or self.caps_seen[-1][0] != size:
             self.caps_seen.append((size, now))
+        if self.track is not None:
+            self.track.observe(sample, now)
         if self.first is None:
             self.first = sample
         return Gst.FlowReturn.OK
@@ -456,13 +633,15 @@ class Stream:
             err, _dbg = msg.parse_error()
             self.end = ("error", err.message, time.monotonic())
 
-    def run(self, seconds, stop_when=lambda: False):
+    def run(self, seconds, stop_when=lambda: False, on_tick=None):
         self.pipeline.set_state(Gst.State.PLAYING)
         context = GLib.MainContext.default()
         start = time.monotonic()
         deadline = start + seconds
         while time.monotonic() < deadline and self.end is None and not stop_when():
             context.iteration(False)
+            if on_tick is not None:
+                on_tick(time.monotonic() - start)
             time.sleep(0.02)
         return start
 
@@ -591,8 +770,9 @@ def save_frame(sample, path, log, probe):
         rgba += px
     GdkPixbuf.Pixbuf.new_from_bytes(GLib.Bytes.new(bytes(rgba)), GdkPixbuf.Colorspace.RGB,
                                     True, 8, width, height, width * 4).savev(path, "png", [], [])
-    log.note("%s: one frame saved to %s for a visual check (pointer? top-bar indicator?). "
-             "Do not commit it." % (probe, path))
+    log.note("%s: one frame saved to %s for a visual check (pointer? GNOME's sharing "
+             "indicator in the panel?). It shows your screen: do not commit or share it."
+             % (probe, path))
 
 
 def open_stream(args, log, probe, source_type, cursor="hidden", expect="choose"):
@@ -707,62 +887,132 @@ def iter_metas(buf):
     return names
 
 
+def log_track(log, probe, stream, start, total):
+    """Buffer size / crop changes and per-second buffer and content counts of a tracked run."""
+    changes = stream.track.geometry_changes(start)
+    for at, size, crop in changes[:40]:
+        log.row(probe, "geometry at %.2f s" % at, describe_geometry(size, crop))
+    if len(changes) > 40:
+        log.row(probe, "geometry changes not listed", len(changes) - 40)
+    buffers, content = stream.track.per_second(start, total)
+    log.row(probe, "buffers per second", " ".join(map(str, buffers)))
+    log.row(probe, "content changes per second", " ".join(map(str, content)))
+    gaps = stream.track.gaps(start)
+    log.row(probe, "gaps > 1 s without buffers", ", ".join(
+        "%.1f-%.1f s" % gap for gap in gaps) if gaps else "none")
+    if stream.times:
+        log.row(probe, "last buffer at", "%.2f s" % (stream.times[-1] - start))
+    else:
+        log.row(probe, "last buffer at", "no buffer at all")
+
+
+def log_end(log, probe, stream, cast, start):
+    log.row(probe, "stream end", "%s %s after %.2f s" % (stream.end[0], stream.end[1],
+                                                         stream.end[2] - start)
+            if stream.end else "none (no EOS, no error)")
+    log.row(probe, "Session.Closed", "after %.2f s" % (cast.closed_at - start)
+            if cast.closed_at else "not received")
+
+
+DEFAULT_STOP_HINT = ("Look for an ORANGE screen-sharing icon in GNOME's panel / quick settings "
+                     "(wherever the system status area is, at the top or the bottom). Click it, "
+                     "or open quick settings, and choose Stop / turn screen sharing off.")
+
+
 def probe_session_close(args, log):
     load_gi(gst=True)
+    hint = (" Hint: %s" % args.stop_hint) if args.stop_hint else ""
     if not ask("Opens a screen stream and keeps it running for up to %d s. While it runs, STOP "
-               "the sharing from GNOME's own UI: the screen-sharing indicator in the top bar / "
-               "quick settings ('Stop' or the sharing toggle). The probe records whether "
-               "Session.Closed arrives and what the stream does." % args.duration,
-               "GNOME's chooser, then the sharing indicator, which you use to stop"):
+               "the sharing from GNOME's own UI: the screen-sharing indicator in GNOME's panel / "
+               "quick settings (wherever the system status area is). The probe logs every "
+               "buffer until the end, whether Session.Closed arrives and what the stream does. "
+               "If you find no stop control, let it run out and say so.%s" % (
+                   args.duration, hint),
+               "GNOME's chooser, then GNOME's sharing indicator (panel / quick settings), which "
+               "you use to stop"):
         return 0
     _p, cast, opened = open_stream(args, log, "P5", SOURCE_MONITOR)
     if not opened:
         return 0
     node, _props = opened
-    stream = Stream(cast.remote_fd(), node)
-    print(">>> Now stop the sharing from GNOME's top bar / quick settings.")
-    start = stream.run(args.duration, stop_when=lambda: cast.closed_at is not None
+    stream = Stream(cast.remote_fd(), node, track=True)
+    cues = [(0, ">>> Now stop the sharing from GNOME's panel / quick settings "
+                "(wherever the system status area is)." + hint)]
+    cues += [(t, "    ... still streaming at %d s (limit %d s)" % (t, args.duration))
+             for t in range(10, args.duration, 10)]
+    start = stream.run(args.duration, on_tick=Cues(cues),
+                       stop_when=lambda: cast.closed_at is not None
                        and time.monotonic() - cast.closed_at > 2)
     stream.stop()
-    log.row("P5", "Session.Closed", "after %.1f s" % (cast.closed_at - start)
-            if cast.closed_at else "not received within %d s" % args.duration)
-    log.row("P5", "stream end", "%s %s after %.1f s" % (stream.end[0], stream.end[1],
-                                                        stream.end[2] - start)
-            if stream.end else "none (buffers just stopped?)")
-    if stream.times:
-        log.row("P5", "last buffer at", "%.1f s" % (stream.times[-1] - start))
+    log.row("P5", "stop hint shown", "yes" if args.stop_hint else "no")
+    log_end(log, "P5", stream, cast, start)
+    log_track(log, "P5", stream, start, args.duration)
+    ran_out = (cast.closed_at is None and stream.end is None and stream.times
+               and stream.times[-1] - start > args.duration - 2)
+    if ran_out:
+        log.row("P5", "verdict", "NO STOP SEEN: no Session.Closed, no stream end, buffers kept "
+                "arriving until the %d s limit. Note whether a stop control was found and used."
+                % args.duration)
+    elif cast.closed_at is None and stream.end is None:
+        log.row("P5", "verdict", "buffers stopped without Session.Closed or stream end")
+    else:
+        log.row("P5", "verdict", "the session or the stream ended (see rows above)")
     cast.close()
     return 0
 
 
 def probe_window_end(args, log):
     load_gi(gst=True)
-    if not ask("Opens a WINDOW stream. Choose a window you can close (e.g. a new Text Editor "
-               "window). Then, within %d s: RESIZE it a few times, wait 5 s, then CLOSE it. "
-               "The probe logs size changes, the end of the stream and Session.Closed." % (
-                   args.duration),
-               "GNOME's screen-sharing chooser (window list), then the sharing indicator"):
+    close_at = max(15, args.duration // 2)
+    if not ask("Opens a WINDOW stream for %d s. Choose a window you can close that is NOT this "
+               "terminal (e.g. a new Text Editor window). Follow the countdown printed here: "
+               "RESIZE the window a few times until %d s, then hands off, then CLOSE it when told "
+               "(at %d s) and wait for the end. Every buffer's size, crop meta and a content "
+               "hash are recorded, so a resize, a close and repeated frames become visible." % (
+                   args.duration, close_at - 10, close_at),
+               "GNOME's screen-sharing chooser (window list), then GNOME's sharing indicator"):
         return 0
     _p, cast, opened = open_stream(args, log, "P6", SOURCE_WINDOW)
     if not opened:
         return 0
     node, props = opened
-    stream = Stream(cast.remote_fd(), node)
-    print(">>> Resize the window, wait, then close it.")
-    start = stream.run(args.duration, stop_when=lambda: cast.closed_at is not None
+    stream = Stream(cast.remote_fd(), node, track=True)
+    cues = [(0, ">>> RESIZE the recorded window a few times now (until %d s)." % (close_at - 10)),
+            (close_at - 10, ">>> Stop resizing. Hands off the window. Close it in 10 s.")]
+    cues += [(close_at - n, "    close in %d ..." % n) for n in (5, 4, 3, 2, 1)]
+    cues += [(close_at, ">>> CLOSE THE WINDOW NOW (then do nothing until the end)."),
+             (close_at + 5, "    observing what the stream does after the close ...")]
+    cues += [(t, "    ... %d s left" % (args.duration - t))
+             for t in range(close_at + 10, args.duration, 10)]
+    start = stream.run(args.duration, on_tick=Cues(cues),
+                       stop_when=lambda: cast.closed_at is not None
                        and time.monotonic() - cast.closed_at > 2)
     stream.stop()
-    for size, at in stream.caps_seen:
-        log.row("P6", "buffer size at %.1f s" % (at - start), "%d x %d" % size)
+    log.row("P6", "close prompt at", "%d s" % close_at)
     if stream.first is not None:
         frame_facts(stream.first, log, "P6", props, None)
-    log.row("P6", "stream end", "%s %s after %.1f s" % (stream.end[0], stream.end[1],
-                                                        stream.end[2] - start)
-            if stream.end else "none")
-    log.row("P6", "Session.Closed", "after %.1f s" % (cast.closed_at - start)
-            if cast.closed_at else "not received")
-    if stream.times:
-        log.row("P6", "last buffer at", "%.1f s" % (stream.times[-1] - start))
+    log_end(log, "P6", stream, cast, start)
+    log_track(log, "P6", stream, start, args.duration)
+    # From 3 s after the prompt: the user needs a moment to close the window.
+    after = stream.track.summary_after(start + close_at + 3)
+    log.row("P6", "after close prompt +3 s", "%d buffers, %d size/crop changes, %d content "
+            "changes, %d distinct frames%s" % (
+                after["buffers"], after["geometry_changes"], after["content_changes"],
+                after["distinct"], "" if after["last_content_change"] is None else
+                ", last content change at %.2f s" % (after["last_content_change"] - start)))
+    if stream.end is None and cast.closed_at is None:
+        if after["buffers"] == 0:
+            verdict = ("buffers STOPPED after the close prompt, but no EOS, no error and no "
+                       "Session.Closed")
+        elif after["geometry_changes"] == 0 and after["distinct"] <= 1:
+            verdict = ("the stream NEITHER ENDED NOR CHANGED after the close prompt: buffers kept "
+                       "arriving with identical content (repeats of the last frame)")
+        else:
+            verdict = ("no EOS, no error, no Session.Closed, but buffers still changed after the "
+                       "close prompt (was the window really closed?)")
+    else:
+        verdict = "the session or the stream ended (see rows above)"
+    log.row("P6", "verdict", verdict)
     cast.close()
     return 0
 
@@ -778,26 +1028,109 @@ def per_bucket(times, start, bucket, total):
 
 def probe_frame_rate(args, log):
     load_gi(gst=True)
+    half = args.duration // 2
     for keepalive in (0, 1000):
-        if not ask("Screen stream for %d s, pipewiresrc keepalive-time=%d. Keep the screen "
-                   "COMPLETELY STILL for the first half (do not move the pointer), then move "
-                   "the pointer or play a video for the second half." % (args.duration, keepalive),
-                   "GNOME's screen-sharing chooser, then the sharing indicator"):
+        if not ask("Screen stream for %d s, pipewiresrc keepalive-time=%d. BEFORE you press "
+                   "Enter: stop EVERY video, animation and audio visualiser, and close or "
+                   "pause anything that redraws by itself. Phase 1 (%d s): keep the pointer "
+                   "completely still, touch nothing. Phase 2 (%d s): scroll a page or drag a "
+                   "window. A 3-2-1 is printed before each phase." % (
+                       args.duration + 6, keepalive, half, half),
+                   "GNOME's screen-sharing chooser, then GNOME's sharing indicator"):
             continue
         _p, cast, opened = open_stream(args, log, "P7", SOURCE_MONITOR)
         if not opened:
             continue
         node, _props = opened
         stream = Stream(cast.remote_fd(), node, keepalive=keepalive)
-        start = stream.run(args.duration)
+        cues = [(0, "    still phase in 3 ..."), (1, "    2 ..."), (2, "    1 ..."),
+                (3, ">>> STILL: pointer still, touch nothing (%d s)." % half),
+                (3 + half, "    movement phase in 3 ..."), (4 + half, "    2 ..."),
+                (5 + half, "    1 ..."),
+                (6 + half, ">>> MOVE: scroll a page or drag a window (%d s)." % half)]
+        start = stream.run(args.duration + 6, on_tick=Cues(cues))
         stream.stop()
-        counts = per_bucket(stream.times, start, 5, args.duration)
-        log.row("P7", "keepalive %d: buffers per 5 s" % keepalive, " ".join(map(str, counts)))
+        # The still phase starts at 3 s; skip its first second (the printed cue redraws).
+        still = per_bucket(stream.times, start + 4, 5, half - 1)
+        moved = per_bucket(stream.times, start + 6 + half, 5, half)
+        log.row("P7", "keepalive %d: still phase, buffers per 5 s" % keepalive,
+                " ".join(map(str, still)))
+        log.row("P7", "keepalive %d: movement phase, buffers per 5 s" % keepalive,
+                " ".join(map(str, moved)))
         if stream.first is not None:
             s = stream.first.get_caps().get_structure(0)
             log.row("P7", "caps", s.to_string()[:160])
         cast.close()
     return 0
+
+
+def probe_selftest(_args, log):
+    """Offline check of the frame-analysis helpers on videotestsrc. No portal, no screen."""
+    load_gi(gst=True)
+    failures = []
+
+    def check(what, ok, detail):
+        print("  selftest %-44s %s (%s)" % (what, "ok" if ok else "FAILED", detail))
+        if not ok:
+            failures.append(what)
+
+    def run(launch, seconds=3):
+        stream = Stream(0, 0, track=True, launch=launch)
+        start = stream.run(seconds)
+        stream.stop()
+        return stream, start
+
+    moving, start = run("videotestsrc num-buffers=20 pattern=ball ! "
+                        "video/x-raw,format=BGRA,width=320,height=240,framerate=30/1 ! "
+                        "videocrop left=10 top=20 right=30 bottom=40")
+    track = moving.track
+    check("videocrop: buffers seen", len(track.samples) == 20, len(track.samples))
+    check("videocrop: cropped size", {s[1] for s in track.samples} == {(280, 180)},
+          {s[1] for s in track.samples})
+    check("moving ball: digests differ", len({s[3] for s in track.samples}) > 10,
+          "%d distinct" % len({s[3] for s in track.samples}))
+    check("geometry: one entry for a constant stream", len(track.geometry_changes(start)) == 1,
+          track.geometry_changes(start))
+    still, _ = run("videotestsrc num-buffers=20 pattern=solid-color ! "
+                   "video/x-raw,format=BGRA,width=320,height=240,framerate=30/1 ! "
+                   "videocrop left=10 right=30")
+    check("still frame: one digest", len({s[3] for s in still.track.samples}) == 1,
+          "%d distinct" % len({s[3] for s in still.track.samples}))
+
+    # Crop meta as pipewiresrc attaches it: added by hand to a writable buffer.
+    core, crop_api = gst_libs()
+    video = ctypes.CDLL(ctypes.util.find_library("gstvideo-1.0"))
+    video.gst_video_crop_meta_get_info.restype = ctypes.c_void_p
+    core.gst_buffer_add_meta.restype = ctypes.c_void_p
+    core.gst_buffer_add_meta.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+    buf = Gst.Buffer.new_wrapped(bytes(64 * 32 * 4))
+    check("crop meta: none on a plain buffer", crop_rect(buf) is None, crop_rect(buf))
+    meta = CropMeta.from_address(core.gst_buffer_add_meta(
+        boxed_pointer(buf), video.gst_video_crop_meta_get_info(), None))
+    meta.x, meta.y, meta.width, meta.height = 1, 2, 30, 20
+    check("crop meta: read back", crop_rect(buf) == (1, 2, 30, 20), crop_rect(buf))
+    check("digest of a hand-made buffer", frame_digest(buf, 32) is not None, "mapped")
+
+    # Analysis on synthetic samples: resize at 1 s, crop change at 2 s, frozen after 3 s.
+    synth = FrameTrack()
+    for i in range(50):
+        t = i * 0.1
+        size = (640, 480) if t < 1 else (800, 600)
+        crop = (0, 0, 600, 400) if t < 2 else (0, 0, 700, 500)
+        synth.samples.append((t, size, crop, "d%d" % i if t < 3 else "frozen"))
+    changes = synth.geometry_changes(0)
+    check("analysis: resize and crop change found", [round(c[0], 1) for c in changes]
+          == [0.0, 1.0, 2.0], changes)
+    after = synth.summary_after(3.0)
+    check("analysis: frozen after 3 s", after["distinct"] == 1 and after["content_changes"] == 1
+          and after["geometry_changes"] == 0, after)
+    buffers, content = synth.per_second(0, 5)
+    check("analysis: per second", buffers == [10] * 5 and content[4] == 0, (buffers, content))
+    synth.samples.append((9.0, (800, 600), (0, 0, 700, 500), "frozen"))
+    check("analysis: gap found", synth.gaps(0) == [(4.9, 9.0)], synth.gaps(0))
+    print("selftest: %s" % ("all checks passed" if not failures else
+                            "FAILED: " + ", ".join(failures)))
+    return 1 if failures else 0
 
 
 def rss_mb():
@@ -975,6 +1308,7 @@ PROBES = {
     "frame-rate": probe_frame_rate,
     "load": probe_load,
     "shortcuts": probe_shortcuts,
+    "selftest": probe_selftest,
 }
 
 
@@ -994,7 +1328,12 @@ def main():
     parser.add_argument("--no-parent", dest="parent", action="store_false",
                         help="pass no parent window to Start (P10 compares both)")
     parser.add_argument("--duration", type=int, default=60,
-                        help="session-close, window-end, frame-rate: seconds (default 60)")
+                        help="session-close, window-end, frame-rate: seconds (default 60; "
+                             "window-end prompts the close at half of it)")
+    parser.add_argument("--stop-hint", nargs="?", const=DEFAULT_STOP_HINT, default=None,
+                        help="session-close: also tell the user where to look for GNOME's stop "
+                             "control (alone: look for an orange screen-sharing icon in GNOME's "
+                             "panel / quick settings; or give your own text)")
     parser.add_argument("--minutes", type=int, default=30, help="load: minutes (default 30)")
     parser.add_argument("--watch", type=int, default=15,
                         help="shortcuts: seconds to wait for a key press (default 15)")
@@ -1012,7 +1351,10 @@ def main():
         " ".join(["recording-probe.py"] + sys.argv[1:]))
     log = Log(args.log or ROOT / "openspec/changes/add-screen-recording/probe-results" /
               ("%s-%s-%s.md" % (stamp, os_tag(), session)), header)
-    names = [n for n in PROBES if n != "load"] if args.probe == "all" else [args.probe]
+    if args.probe == "selftest":  # offline, writes no probe log
+        return probe_selftest(args, None)
+    names = ([n for n in PROBES if n not in ("load", "selftest")] if args.probe == "all"
+             else [args.probe])
     status = 0
     try:
         for name in names:
