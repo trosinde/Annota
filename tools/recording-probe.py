@@ -105,37 +105,52 @@ def portal_probe_module():
 
 
 class Log:
-    def __init__(self, path):
+    """Markdown log of one run, rewritten after every row and note.
+
+    A probe that brings the interpreter down (a native crash in GStreamer or PyGObject) cannot
+    reach a ``finally`` block, so the file is kept current instead of written at the end.
+    """
+
+    def __init__(self, path, header):
         self.path = path
+        self.header = header
         self.rows = []
         self.notes = []
+        self.before = None  # file contents from earlier runs, read on the first flush
 
     def row(self, probe, item, value):
         value = str(value)
         self.rows.append((probe, item, value))
         print("  [%s] %-38s %s" % (probe, item, value))
+        self.flush()
 
     def note(self, text):
         self.notes.append(text)
         print("  note: %s" % text)
+        self.flush()
 
-    def write(self, header):
+    def flush(self):
         if not self.rows and not self.notes:
             return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        new = not self.path.exists()
-        with open(self.path, "a", encoding="utf-8") as out:
-            if new:
-                out.write("# Recording probe results\n\nWritten by `tools/recording-probe.py`. "
-                          "Probes P1-P12: `openspec/changes/add-screen-recording/design.md`.\n")
-            out.write("\n## Run %s\n\n" % header)
-            out.write("| Probe | Item | Result |\n|---|---|---|\n")
-            for probe, item, value in self.rows:
-                out.write("| %s | %s | %s |\n" % (probe, item, value.replace("|", "\\|")))
-            if self.notes:
-                out.write("\nNotes:\n\n")
-                out.writelines("- %s\n" % n for n in self.notes)
-        print("\nresults appended to %s" % self.path)
+        if self.before is None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.before = (self.path.read_text(encoding="utf-8") if self.path.exists() else
+                           "# Recording probe results\n\nWritten by `tools/recording-probe.py`. "
+                           "Probes P1-P12: `openspec/changes/add-screen-recording/design.md`.\n")
+        parts = [self.before, "\n## Run %s\n\n" % self.header,
+                 "| Probe | Item | Result |\n|---|---|---|\n"]
+        parts += ["| %s | %s | %s |\n" % (probe, item, value.replace("|", "\\|"))
+                  for probe, item, value in self.rows]
+        if self.notes:
+            parts.append("\nNotes:\n\n")
+            parts += ["- %s\n" % n for n in self.notes]
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text("".join(parts), encoding="utf-8")
+        tmp.replace(self.path)
+
+    def done(self):
+        if self.rows or self.notes:
+            print("\nresults written to %s" % self.path)
 
 
 def ask(text, dialogs):
@@ -173,17 +188,31 @@ def os_tag():
 
 
 class Portal:
+    # Gio.bus_get_sync hands every Portal the same connection, and the host Registry binds the
+    # app ID to the connection once: register once per process. (2026-11-23: every later
+    # Register failed with "Connection already associated with an application ID", which the
+    # old message misreported as "the portal sees no app ID".)
+    registered = None
+
     def __init__(self, timeout):
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         self.timeout = timeout
         self.counter = 0
         self.unique = self.bus.get_unique_name().lstrip(":").replace(".", "_")
+        if Portal.registered is not None:
+            return
         try:
             self.bus.call_sync(DESKTOP, PORTAL_PATH, "org.freedesktop.host.portal.Registry",
                                "Register", GLib.Variant("(sa{sv})", (APP_ID, {})), None,
                                Gio.DBusCallFlags.NONE, 5000, None)
+            Portal.registered = True
         except GLib.Error as err:
-            print("host Registry not available (%s); the portal sees no app ID" % err.message)
+            if "already associated" in err.message:
+                Portal.registered = True
+            else:
+                Portal.registered = False
+                print("host Registry not available (%s); the portal sees no app ID"
+                      % err.message)
 
     def properties(self, iface):
         try:
@@ -631,7 +660,7 @@ def probe_cursor_modes(args, log):
         stream.stop()
         if stream.first is not None:
             save_frame(stream.first, "/tmp/annota-probe-cursor-%s.png" % name, log, "P4")
-            meta = [meta_name(m) for m in iter_metas(stream.first.get_buffer())]
+            meta = iter_metas(stream.first.get_buffer())
             log.row("P4", "cursor_mode %s buffer metas" % name, meta or "none")
         cast.close()
         log.note("P4: open /tmp/annota-probe-cursor-%s.png and record whether the pointer "
@@ -647,12 +676,35 @@ def meta_name(meta):
 
 
 def iter_metas(buf):
-    metas = []
-    try:
-        buf.foreach_meta(lambda _b, meta: metas.append(meta) or True)
-    except Exception:  # noqa: BLE001 - older PyGObject lacks foreach_meta
-        pass
-    return metas
+    """API type names of every GstMeta on ``buf``, read-only.
+
+    Not ``Gst.Buffer.foreach_meta``: it requires a writable buffer (it may remove metas), and on
+    a sample's read-only buffer it fails an assertion and corrupts the heap (2026-11-23, P4).
+    ``gst_buffer_iterate_meta`` only reads.
+    """
+    import ctypes
+    import ctypes.util
+
+    core = ctypes.CDLL(ctypes.util.find_library("gstreamer-1.0"))
+    gobject = ctypes.CDLL(ctypes.util.find_library("gobject-2.0"))
+    core.gst_buffer_iterate_meta.restype = ctypes.c_void_p
+    core.gst_buffer_iterate_meta.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+    gobject.g_type_name.restype = ctypes.c_char_p
+    gobject.g_type_name.argtypes = [ctypes.c_size_t]
+    # PyGObject's PyGBoxed: PyObject_HEAD, then the boxed pointer (as in portal-probe.py).
+    pointer = ctypes.c_void_p.from_address(id(buf) + 2 * ctypes.sizeof(ctypes.c_void_p)).value
+    state = ctypes.c_void_p(None)
+    names = []
+    while True:
+        meta = core.gst_buffer_iterate_meta(pointer, ctypes.byref(state))
+        if not meta:
+            break
+        # struct GstMeta { GstMetaFlags flags; const GstMetaInfo *info; } ; info->api is a GType.
+        info = ctypes.c_void_p.from_address(meta + ctypes.sizeof(ctypes.c_void_p)).value
+        api = ctypes.c_size_t.from_address(info).value if info else 0
+        name = gobject.g_type_name(api) if api else None
+        names.append(name.decode() if name else "unknown")
+    return names
 
 
 def probe_session_close(args, log):
@@ -955,8 +1007,11 @@ def main():
 
     session = os.environ.get("XDG_SESSION_TYPE", "unknown")
     stamp = datetime.date.today().isoformat()
+    header = "%s · %s · %s session · `%s`" % (
+        datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), os_tag(), session,
+        " ".join(["recording-probe.py"] + sys.argv[1:]))
     log = Log(args.log or ROOT / "openspec/changes/add-screen-recording/probe-results" /
-              ("%s-%s-%s.md" % (stamp, os_tag(), session)))
+              ("%s-%s-%s.md" % (stamp, os_tag(), session)), header)
     names = [n for n in PROBES if n != "load"] if args.probe == "all" else [args.probe]
     status = 0
     try:
@@ -971,10 +1026,7 @@ def main():
     except KeyboardInterrupt:
         log.note("interrupted by the user")
     finally:
-        header = "%s · %s · %s session · `%s`" % (
-            datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), os_tag(), session,
-            " ".join(["recording-probe.py"] + sys.argv[1:]))
-        log.write(header)
+        log.done()
     return status
 
 
