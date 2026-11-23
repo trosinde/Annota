@@ -125,14 +125,19 @@ Alternatives considered:
 
 ### D3 — Pipeline and working file
 
+As built (two pipelines joined by Annota's glue; see "Decided during apply", Phase A and the
+review fixes):
 ```
-pipewiresrc ─ videoconvert ─ [videocrop] ─ videoscale ─ videorate(30 fps) ─ x264enc ─┐
-pulsesrc (default source)          ─ volume(mute) ─ level ─ opusenc ──────────────────┼─ matroskamux ─ filesink
-pulsesrc (default sink .monitor)   ─ volume(mute) ─ level ─ opusenc ──────────────────┘
+sources:  pipewiresrc ─ appsink        pulsesrc ─ appsink (default source; default sink .monitor)
+                           │ glue: pause, running-time offset, heartbeat, stop
+                           ▼
+encoder:  appsrc ─ videocrop ─ videoconvert ─ videoscale(add-borders) ─ I420 W×H ─ videorate(30 fps) ─ x264enc ─┐
+          appsrc ─ volume(mute) ─ level ─ audioconvert ─ audioresample ─ opusenc (one per source) ──────────────┼─ matroskamux ─ filesink
 ```
 - Working file: Matroska in the recordings folder (`~/Videos/Annota`), one video track and one
   Opus track per enabled audio source. Matroska stays playable when the process dies (scenario
-  "Recording survives a crash", verified by a test that kills the pipeline). `x264enc`
+  "Recording survives a crash", verified by a test that records in a child process with live
+  test sources and kills it with SIGKILL 10 s in). `x264enc`
   `speed-preset=superfast`, `tune=zerolatency` off, constant quality (`pass=quant`,
   `quantizer≈20`, tuned in task 2.x against CPU load at 4K).
 - Export MP4: **remux** the H.264 track unchanged (`matroskademux ! h264parse ! mp4mux`), mix
@@ -141,8 +146,9 @@ pulsesrc (default sink .monitor)   ─ volume(mute) ─ level ─ opusenc ──
 - Export WebM: transcode to VP9 (`vp9enc`, `row-mt`, `deadline=1`, `cpu-used` tuned) + Opus mix
   → `webmmux`. Slow; progress from position/duration queries.
 - Include audio off → no audio pad at all (scenario "Export without audio").
-- Pause (D5): a pad probe drops buffers while paused and accumulates the paused duration into a
-  running-time offset, so the file has no gap and continues in the same muxer.
+- Pause (D5): ~~a pad probe drops buffers while paused~~ (superseded, see "Decided during
+  apply": the glue between the two pipelines drops them) and accumulates the paused duration
+  into a running-time offset, so the file has no gap and continues in the same muxer.
 - Error on the bus (disk full, element error, stream gone with error) → stop as in "Stop
   recording", keep what was written, banner in the Export window (mockup 11). The log names the
   element and error, never content (CLAUDE.md §7).
@@ -275,6 +281,18 @@ Non-portal measurements in the same group: `pulsesrc` default source and
   alternative becomes the plan and the setup flow needs new mockups (a new design gate).
 - Live 4K H.264 at 30 fps on weak CPUs may drop frames (P8). A hardware encoder (VA-API) is out
   of scope for now.
+- Pool buffers (P8): the glue holds references to `pipewiresrc` pool buffers: up to two frames
+  in each encoder input queue (`QUEUE_BYTES`) and the last frame for repeats. The heartbeat
+  replaces the last frame by its own copy as soon as it repeats it (a still screen), so a still
+  screen never pins a pool buffer; `videoconvert` to I420 makes new buffers, so x264's lookahead
+  holds none. Whether two queued frames can exhaust the pool under load is measured in P8.
+- An audio source that delivers nothing at all keeps `matroskamux` waiting (and spinning on one
+  core) until stop, with nothing written meanwhile; not seen with `pulsesrc`, which delivers
+  silence. To be watched in P8 / task 6.2.
+- **Open for the maintainer:** a recorded window that becomes *smaller* than at start is
+  currently scaled up to fill the frame, keeping its aspect ratio (D2 only speaks of larger
+  windows). The alternative is to show it 1:1, centred, with borders; the reviewer recommends
+  1:1.
 
 ## Decided during apply
 
@@ -288,7 +306,17 @@ Phase A (display-independent core, `src/recording/`, 2026-11-23):
 - **Still screen:** `videorate` fills a gap with whichever neighbour is closer in time, which
   would show the *next* frame for the second half of a still period. The glue therefore repeats
   the previous frame one frame before a buffer that follows a gap, and up to the stop time on
-  stop (requirement "Recording frame rate").
+  stop (requirement "Recording frame rate"). `matroskamux` writes only while every track has
+  data, so on a still screen (a damage-driven window or screen stream sends nothing, P6) the
+  muxer, the video and with it the audio would stall (and a full audio queue would make
+  `pulsesrc` drop sound). A **heartbeat** thread therefore pushes the last frame again at the
+  sources' current running time whenever no video buffer came for 200 ms (looked at every
+  50 ms): the file keeps advancing in steps of at most ~0.25 s. Glue and heartbeat push under one
+  lock, in timestamp order; a buffer the heartbeat overtook is stamped 1 ns after the repeat.
+  Tests with synthetic timestamps set the heartbeat's time themselves (`Clock::Manual`).
+- **Pause and a still screen:** the newest frame that arrives while paused is kept and pushed at
+  the resume time (the screen as it is then); if a new frame follows within half a frame of the
+  resume, that one is shown instead. Frames of the paused time are never shown at their time.
 - **Region check before anything is written:** the stream's logical `position`/`size` are known
   before the first buffer, so a selection that is not inside it is refused by `start` before the
   working file exists. The buffer crop itself is computed from the first caps.
@@ -296,14 +324,35 @@ Phase A (display-independent core, `src/recording/`, 2026-11-23):
   size is fixed by the first rectangle (even-sized), and `videoscale add-borders=true` into fixed
   I420 caps letterboxes later ones (`geometry::letterbox` states the expected placement). A window
   that becomes *smaller* than at start is scaled up to fit as well — D2 only speaks of larger
-  windows; open for the maintainer if 1:1 centred is wanted instead.
+  windows; open for the maintainer if 1:1 centred is wanted instead (see "Risks / open questions").
 - **Crash safety:** `matroskamux` non-streamable (cues and duration written on a clean stop),
   `filesink buffer-mode=unbuffered` (nothing held in a userspace buffer), `x264enc key-int-max=60`
-  (at most 2 s per group). The crash test abandons both pipelines without end of stream in-process
-  (equivalent to a kill for what is on disk) instead of killing a child process.
+  (at most 2 s per group). The crash test re-runs the test binary as a child process that records
+  live `videotestsrc`/`audiotestsrc` through `pipeline::start` and is killed with SIGKILL 10 s in,
+  once with a moving picture and once with a picture that stands still after 1 s while the audio
+  goes on; each file then plays for at least 9 s, video and audio.
 - **Errors:** the first bus error (element name + error text, logged without content) is
   reported as `RecordingEvent::Error`; the glue stops passing data at once and the caller calls
-  `stop`, which then skips the end of stream and keeps what was written.
+  `stop`. Only an error of the encoder pipeline skips the end of stream (the encoder no longer
+  drains); after an error of a source the encoder still gets its end of stream, so x264's
+  delayed frames, cues and duration are written.
+- **Stop is asynchronous and bounded:** `Recording::stop` closes the glue at once (nothing more
+  is written) and returns a future; a worker thread stops the sources, then ends the audio inputs
+  first (the muxer may be waiting for an audio track while the video queue is full), pushes the
+  last frame up to the stop time, ends the video input and waits for the muxer's end of stream,
+  all within `FINISH_TIMEOUT` (10 s); a backstop on the main context delivers `Finished` with
+  `RecordingError::Timeout` 1 s later if a state change hangs. The encoder inputs never block:
+  the glue waits for room in 5 ms steps and gives up when the recording closes, so stopping the
+  sources can never wait on a full queue. `last_video` is read only after the sources stopped.
+  `RecordingSession` releases the PipeWire remote and delivers `Ended` once the future resolves.
+- **An audio source that never delivered:** `matroskamux` writes nothing until every track has
+  its format, which `opusenc` learns only from data; at stop such a track gets 20 ms of silence
+  before its end of stream, so the file is finished with an empty track. While such a source
+  delivers nothing, `matroskamux` spins and writes nothing (noted for P8 below).
+- **Window frames, first buffers:** buffers before the first known content rectangle are dropped
+  (otherwise they would pass at the buffer's size and the caps would change mid-stream). A
+  rectangle whose even-trimmed size equals the frame size is cropped to exactly that, so the
+  first window is not resampled by one pixel.
 - **Countdown (D5):** the core has no "drop until armed" state. Phase C either creates the
   `Recording` after the OSD and `SETTLE` are gone (the PipeWire fd stays open meanwhile), or adds
   that state to the glue.

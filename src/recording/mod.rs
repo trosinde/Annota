@@ -6,9 +6,9 @@
 //!   of [`RecordingEvent`]s (level meters per source, errors, end of the video source);
 //!   [`pipeline::forward_events`] delivers them on the GLib main context.
 //! - [`Recording`]: `pause`/`resume`, `set_muted(source, bool)`, `elapsed` (without paused
-//!   time), `stop` → [`Finished`] (working file, duration, audio tracks, error if it ended early).
-//!   `stop` never waits for the source to end (P5/P6); on a [`RecordingEvent::Error`] call it to
-//!   keep what was written.
+//!   time), `stop` → a future of [`Finished`] (working file, duration, audio tracks, error if it
+//!   ended early), finished on a worker thread within a bounded time. `stop` never waits for the
+//!   source to end (P5/P6); on a [`RecordingEvent::Error`] call it to keep what was written.
 //! - The video source is any raw-video element (`pipewiresrc` from the ScreenCast session,
 //!   Phase B); [`VideoArea`] says what is recorded: the whole buffer, a region mapped by
 //!   [`geometry::region_crop`], or a window cropped per buffer ([`geometry::window_content`]) and
@@ -232,7 +232,8 @@ pub fn running() -> Option<Rc<RecordingSession>> {
     })
 }
 
-/// Stops the running recording (Stop button, Record shortcut). `false`: none runs.
+/// Stops the running recording (Stop button, Record shortcut). `false`: none runs. The file is
+/// finished off the main thread; the flow stays active until its [`Ended`] is delivered.
 pub fn stop() -> bool {
     match running() {
         Some(session) => {

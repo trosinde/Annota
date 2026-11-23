@@ -373,8 +373,11 @@ pub(crate) fn analyse(path: &Path) -> Analysis {
     Analysis { frames, audio }
 }
 
+/// A recording of synthetic time without a heartbeat (the clock is never set): every gap is
+/// filled only by the glue and the stop.
 fn record(name: &str, video: &TestVideo, area: VideoArea) -> Recording {
-    let config = RecordingConfig::new(folder(name), video.element(), area);
+    let config = RecordingConfig::new(folder(name), video.element(), area)
+        .manual_clock(&Arc::new(Mutex::new(None)));
     start(config).unwrap().0
 }
 
@@ -384,6 +387,32 @@ fn events(receiver: &mut mpsc::UnboundedReceiver<RecordingEvent>) -> Vec<Recordi
         all.push(event);
     }
     all
+}
+
+/// Runs a stop's future on a main context of its own, as the app's main loop would.
+fn finish(stopping: impl Future<Output = Finished>) -> Finished {
+    let context = glib::MainContext::new();
+    context
+        .with_thread_default(|| context.block_on(stopping))
+        .expect("a main context of its own")
+}
+
+impl RecordingConfig {
+    /// Time is synthetic: the heartbeat follows `clock` (none until it is set) instead of the
+    /// sources' running time.
+    fn manual_clock(mut self, clock: &Arc<Mutex<Option<gst::ClockTime>>>) -> Self {
+        self.clock = Clock::Manual(Arc::clone(clock));
+        self
+    }
+}
+
+/// Waits (up to 60 s) until `done` holds.
+fn wait_until(done: impl Fn() -> bool, what: &str) {
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    while !done() {
+        assert!(std::time::Instant::now() < deadline, "timed out: {what}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn cleanup(path: &Path) {
@@ -407,7 +436,7 @@ fn a_region_recording_has_the_selection_size_and_only_its_pixels() {
         video.push(f64::from(i) * FRAME, frame.clone(), None);
     }
     drain(&recording, &video, &[]);
-    let done = recording.stop_at(secs(6.0 * FRAME));
+    let done = recording.stop_now(secs(6.0 * FRAME));
     assert_eq!(done.error, None);
     let analysis = analyse(&done.path);
     assert!(analysis.frames.len() >= 6);
@@ -439,7 +468,7 @@ fn a_region_on_a_scaled_monitor_records_the_buffer_area() {
         video.push(f64::from(i) * FRAME, frame.clone(), None);
     }
     drain(&recording, &video, &[]);
-    let done = recording.stop_at(secs(3.0 * FRAME));
+    let done = recording.stop_now(secs(3.0 * FRAME));
     assert_eq!(done.error, None);
     let analysis = analyse(&done.path);
     assert!(analysis.frames.len() >= 3);
@@ -480,7 +509,7 @@ fn a_screen_recording_keeps_the_full_frame() {
         video.push(f64::from(i) * FRAME, frame.clone(), None);
     }
     drain(&recording, &video, &[]);
-    let done = recording.stop_at(secs(3.0 * FRAME));
+    let done = recording.stop_now(secs(3.0 * FRAME));
     let analysis = analyse(&done.path);
     assert!(analysis.frames.len() >= 3);
     for frame in &analysis.frames {
@@ -513,7 +542,7 @@ fn a_resized_window_is_cropped_per_buffer_and_letterboxed() {
     video.push(FRAME, maximised, Some((0, 0, 3840, 2100)));
     video.push(2.0 * FRAME, normal, Some((0, 0, 800, 500)));
     drain(&recording, &video, &[]);
-    let done = recording.stop_at(secs(3.0 * FRAME));
+    let done = recording.stop_now(secs(3.0 * FRAME));
     assert_eq!(done.error, None);
     let analysis = analyse(&done.path);
     assert!(analysis.frames.len() >= 3);
@@ -551,7 +580,7 @@ fn a_still_screen_repeats_the_last_frame() {
     // No buffer from 0:05 to 0:15.
     video.frames(15.0, 20.0, 30.0, RED);
     drain(&recording, &video, &[]);
-    let done = recording.stop_at(secs(20.0));
+    let done = recording.stop_now(secs(20.0));
     let analysis = analyse(&done.path);
     let duration = analysis.duration();
     assert!((duration - 20.0).abs() <= 0.2, "lasts {duration} s");
@@ -576,7 +605,7 @@ fn a_burst_of_buffers_keeps_its_length() {
     video.frames(0.0, 5.0, 60.0, GREEN);
     video.frames(5.0, 10.0, 30.0, BLUE);
     drain(&recording, &video, &[]);
-    let done = recording.stop_at(secs(10.0));
+    let done = recording.stop_now(secs(10.0));
     let analysis = analyse(&done.path);
     let burst = analysis
         .frames
@@ -605,7 +634,7 @@ fn paused_time_is_left_out_without_a_gap() {
     assert!(!recording.is_paused());
     video.frames(15.0, 25.0, 30.0, GREEN);
     drain(&recording, &video, &[]);
-    let done = recording.stop_at(secs(25.0));
+    let done = recording.stop_now(secs(25.0));
     assert_eq!(done.duration, secs(20.0));
     let analysis = analyse(&done.path);
     let duration = analysis.duration();
@@ -621,34 +650,365 @@ fn paused_time_is_left_out_without_a_gap() {
     cleanup(&done.path);
 }
 
+/// Set in the child processes of [`a_killed_recording_stays_playable`]: `moving|still:<folder>`.
+const CRASH_CHILD: &str = "ANNOTA_TEST_RECORDING_CRASH_CHILD";
+/// The line a crash child prints once its recording runs, followed by the working file's path.
+const CRASH_STARTED: &str = "annota-test-recording-started ";
+
+/// The crash child: records live test sources through [`start`] until it is killed. `still`:
+/// the video stream delivers nothing after its first second (a still screen), audio goes on.
+fn crash_child(spec: &str) -> ! {
+    let (variant, dir) = spec.split_once(':').expect("variant:folder");
+    gst::init().unwrap();
+    let bin = gst::Bin::new();
+    let src = gst::ElementFactory::make("videotestsrc")
+        .property("is-live", true)
+        .property_from_str("pattern", "ball")
+        .build()
+        .unwrap();
+    let caps = gst::ElementFactory::make("capsfilter")
+        .property(
+            "caps",
+            gst::Caps::builder("video/x-raw")
+                .field("format", "BGRx")
+                .field("width", 320)
+                .field("height", 240)
+                .field("framerate", gst::Fraction::new(30, 1))
+                .build(),
+        )
+        .build()
+        .unwrap();
+    bin.add_many([&src, &caps]).unwrap();
+    src.link(&caps).unwrap();
+    let pad = caps.static_pad("src").unwrap();
+    if variant == "still" {
+        pad.add_probe(gst::PadProbeType::BUFFER, |_, info| match info.buffer() {
+            Some(buffer)
+                if buffer
+                    .pts()
+                    .is_some_and(|pts| pts >= gst::ClockTime::SECOND) =>
+            {
+                gst::PadProbeReturn::Drop
+            }
+            _ => gst::PadProbeReturn::Ok,
+        });
+    }
+    bin.add_pad(&gst::GhostPad::with_target(&pad).unwrap())
+        .unwrap();
+    let mic = gst::ElementFactory::make("audiotestsrc")
+        .property("is-live", true)
+        .property("volume", 0.5)
+        .build()
+        .unwrap();
+    let config = RecordingConfig::new(PathBuf::from(dir), bin.upcast(), VideoArea::Whole)
+        .with_audio(AudioSource::Microphone, mic);
+    let (recording, _events) = start(config).unwrap();
+    // On a line of its own: the harness has already printed "test <name> ... ".
+    println!("\n{CRASH_STARTED}{}", recording.path().display());
+    use std::io::Write;
+    std::io::stdout().flush().unwrap();
+    // Killed by the parent; never longer than a minute if it is not.
+    std::thread::sleep(Duration::from_secs(60));
+    drop(recording);
+    std::process::exit(3)
+}
+
+/// Kills the crash children if the test fails before it does.
+struct Children(Vec<std::process::Child>);
+
+impl Drop for Children {
+    fn drop(&mut self) {
+        for child in &mut self.0 {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+/// The spec's WHEN taken literally: a process records with live sources through [`start`] and is
+/// killed (SIGKILL) 10 s in, once with a moving picture and once with a screen that stands still
+/// after 1 s while the microphone goes on (the heartbeat keeps the file advancing). Each working
+/// file then plays for at least 9 s, video and audio.
 // spec: screen-recording / Working file / Recording survives a crash
 #[test]
-fn an_abandoned_recording_stays_playable() {
+fn a_killed_recording_stays_playable() {
+    if let Ok(spec) = std::env::var(CRASH_CHILD) {
+        crash_child(&spec);
+    }
+    use std::io::BufRead;
+    let exe = std::env::current_exe().unwrap();
+    // The test's name as the harness knows it (the module path without the crate).
+    let name = format!(
+        "{}::a_killed_recording_stays_playable",
+        module_path!().split_once("::").unwrap().1
+    );
+    let mut children = Children(Vec::new());
+    let mut runs = Vec::new();
+    for variant in ["moving", "still"] {
+        let dir = folder(&format!("crash-{variant}"));
+        let child = std::process::Command::new(&exe)
+            .args([name.as_str(), "--exact", "--nocapture", "--test-threads=1"])
+            .env(CRASH_CHILD, format!("{variant}:{}", dir.display()))
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        children.0.push(child);
+        runs.push((variant, dir));
+    }
+    // When each recording started.
+    let mut started = Vec::new();
+    for child in &mut children.0 {
+        let stdout = std::io::BufReader::new(child.stdout.take().unwrap());
+        let path = stdout
+            .lines()
+            .map(Result::unwrap)
+            .find_map(|line| {
+                line.split_once(CRASH_STARTED)
+                    .map(|(_, path)| PathBuf::from(path))
+            })
+            .expect("the child started recording");
+        started.push((std::time::Instant::now(), path));
+    }
+    for (child, (at, _)) in children.0.iter_mut().zip(&started) {
+        let kill_at = *at + Duration::from_secs(10);
+        std::thread::sleep(kill_at.saturating_duration_since(std::time::Instant::now()));
+        // SIGKILL: no handler, no end of stream, no flush.
+        child.kill().unwrap();
+        child.wait().unwrap();
+    }
+    for ((variant, dir), (_, path)) in runs.iter().zip(&started) {
+        assert!(path.exists(), "{variant}: the working file exists");
+        let analysis = analyse(path);
+        let video = analysis.duration();
+        assert!(video >= 9.0, "{variant}: video plays for {video} s");
+        assert_eq!(analysis.audio.len(), 1, "{variant}: one audio track");
+        let audio = analysis.audio[0].last().map_or(0.0, |c| c.pts);
+        assert!(audio >= 9.0, "{variant}: audio until {audio} s");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+/// B1: a still screen (no video buffer for 19 s) with the microphone on. `matroskamux` writes
+/// only while every track has data; the heartbeat repeats the last frame at the current time, so
+/// the running file keeps advancing, video and audio, up to near the present.
+// spec: screen-recording / Recording frame rate / Still screen
+#[test]
+fn a_still_screen_keeps_the_file_and_the_audio_advancing() {
     let video = TestVideo::new(SMALL.0, SMALL.1);
     let mic = TestAudio::new(0.5);
-    let config = RecordingConfig::new(folder("crash"), video.element(), VideoArea::Whole)
+    let clock = Arc::new(Mutex::new(None));
+    let config = RecordingConfig::new(folder("still-audio"), video.element(), VideoArea::Whole)
+        .manual_clock(&clock)
         .with_audio(AudioSource::Microphone, mic.element());
     let (recording, _events) = start(config).unwrap();
     let path = recording.path().to_path_buf();
-    video.frames(0.0, 10.0, 30.0, GREEN);
-    mic.tone(0.0, 10.0);
-    drain(&recording, &video, &[&mic]);
-    // A live pipeline keeps up with the stream; give the encoder the time it would have had.
-    std::thread::sleep(Duration::from_secs(1));
-    // Killed 10 s in: no end of stream, the muxer never finishes the file.
-    drop(recording);
-    assert!(path.exists());
-    let analysis = analyse(&path);
+    video.frames(0.0, 1.0, 30.0, GREEN);
+    wait_until(
+        || {
+            recording
+                .shared
+                .timeline()
+                .last_video
+                .as_ref()
+                .is_some_and(|last| last.out >= secs(29.0 * FRAME))
+        },
+        "the first second of video",
+    );
+    // From 0:01 nothing moves; time and the microphone go on, half a second at a time.
+    for step in 1..=40 {
+        let t = f64::from(step) * 0.5;
+        mic.tone(t - 0.5, t);
+        *clock.lock().unwrap() = Some(secs(t));
+        std::thread::sleep(HEARTBEAT_TICK * 2);
+    }
+    let mut written = (0.0, 0.0);
+    let advanced = (0..600).any(|_| {
+        let analysis = analyse(&path);
+        let audio = analysis
+            .audio
+            .first()
+            .and_then(|track| track.last())
+            .map_or(0.0, |c| c.pts);
+        written = (analysis.duration(), audio);
+        if written.0 >= 18.0 && written.1 >= 18.0 {
+            assert!(analysis.frames.iter().all(|f| near(f.at(32, 24), GREEN)));
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+        false
+    });
+    assert!(
+        advanced,
+        "while recording, the file holds {} s of video and {} s of audio",
+        written.0, written.1
+    );
+    let done = recording.stop_now(secs(20.0));
+    assert_eq!(done.error, None);
+    let analysis = analyse(&done.path);
+    assert!((analysis.duration() - 20.0).abs() <= 0.2);
+    cleanup(&done.path);
+}
+
+/// B2: stopping while the muxer waits for a microphone that delivers nothing and the video queue
+/// in front of the encoder is full: the audio ends first, so the file is finished, and the stop
+/// never blocks the caller: its future resolves within `FINISH_TIMEOUT`.
+// spec: screen-recording / Stop recording / Stop by button
+#[test]
+fn stopping_with_a_silent_microphone_and_a_full_video_queue_finishes_in_time() {
+    let video = TestVideo::new(1920, 1080);
+    let mic = TestAudio::new(0.5);
+    let config = RecordingConfig::new(folder("stop-full"), video.element(), VideoArea::Whole)
+        .manual_clock(&Arc::new(Mutex::new(None)))
+        .with_audio(AudioSource::Microphone, mic.element());
+    let (recording, _events) = start(config).unwrap();
+    let frame = video.solid(GREEN);
+    let src = video.src.clone();
+    let pusher = std::thread::spawn(move || {
+        for i in 0..60 {
+            let mut buffer = gst::Buffer::from_slice(frame.clone());
+            buffer
+                .get_mut()
+                .unwrap()
+                .set_pts(secs(f64::from(i) * FRAME));
+            // Refused once the sources stop.
+            if src.push_buffer(buffer).is_err() {
+                return;
+            }
+        }
+    });
+    let frame_bytes = 1920 * 1080 * 4;
+    wait_until(
+        || recording.video_in.current_level_bytes() + frame_bytes > QUEUE_BYTES,
+        "a full video queue",
+    );
+    let stopping = recording.stop_at(secs(2.0));
+    let asked = std::time::Instant::now();
+    let done = finish(stopping);
+    let took = asked.elapsed();
+    assert!(took < FINISH_TIMEOUT, "stopping took {took:?}");
+    assert_eq!(done.error, None);
+    assert_eq!(done.audio, vec![AudioSource::Microphone]);
+    let analysis = analyse(&done.path);
+    assert!(!analysis.frames.is_empty(), "the video was written");
+    pusher.join().unwrap();
+    cleanup(&done.path);
+}
+
+/// N2: the screen changed while paused and then stood still: from the resume on, the recording
+/// shows the newest paused frame (the screen as it is), not the one from before the pause; the
+/// paused time itself is left out.
+// spec: screen-recording / Pause and resume / Paused time is not recorded
+#[test]
+fn after_resume_a_still_screen_shows_the_newest_frame() {
+    let video = TestVideo::new(SMALL.0, SMALL.1);
+    let recording = record("pause-still", &video, VideoArea::Whole);
+    video.frames(0.0, 10.0, 30.0, BLUE);
+    recording.pause_at(secs(10.0));
+    video.frames(10.0, 15.0, 30.0, RED);
+    wait_until(
+        || {
+            recording
+                .shared
+                .timeline()
+                .paused_video
+                .as_ref()
+                .and_then(|(buffer, _)| buffer.pts())
+                .is_some_and(|pts| pts >= secs(14.9))
+        },
+        "the glue to see the paused frames",
+    );
+    recording.resume_at(secs(15.0));
+    // Nothing moves after the resume.
+    drain(&recording, &video, &[]);
+    let done = recording.stop_now(secs(25.0));
+    assert_eq!(done.duration, secs(20.0));
+    let analysis = analyse(&done.path);
+    assert!((analysis.duration() - 20.0).abs() <= 0.2);
+    for frame in &analysis.frames {
+        let want = if frame.pts < 9.99 { BLUE } else { RED };
+        assert!(near(frame.at(32, 24), want), "frame at {} s", frame.pts);
+    }
+    cleanup(&done.path);
+}
+
+/// N3/N4: a window stream whose first buffers have no content rectangle yet (nothing recorded
+/// from them) and whose first rectangle is odd-sized: the frame is the rectangle trimmed to even
+/// and `videocrop` takes exactly that, so nothing is resampled.
+// spec: screen-recording / Recording source / Recorded window resized
+#[test]
+fn a_window_is_recorded_from_its_first_known_rectangle_without_resampling() {
+    let video = TestVideo::new(640, 480);
+    let content: ContentRect = Arc::new(|buffer, _| {
+        let (x, y, w, h) = buffer.meta::<gst_video::VideoCropMeta>()?.rect();
+        Some(IRect::new(x as i32, y as i32, w as i32, h as i32))
+    });
+    let recording = record("window-odd", &video, VideoArea::Window(content));
+    // No rectangle known: a frame of undefined pixels.
+    video.push(0.0, video.solid(RED), None);
+    video.push(FRAME, video.solid(RED), None);
+    let window = IRect::new(10, 20, 301, 201);
+    let painted = video.painted(window, GREEN, RED);
+    for i in 2..6 {
+        video.push(
+            f64::from(i) * FRAME,
+            painted.clone(),
+            Some((10, 20, 301, 201)),
+        );
+    }
+    drain(&recording, &video, &[]);
+    let crop = recording.encoder.by_name("crop").unwrap();
+    // Read once the encoder has seen every buffer (the end of the file is written).
+    let done = recording.stop_now(secs(6.0 * FRAME));
+    let edges: Vec<i32> = ["left", "top", "right", "bottom"]
+        .iter()
+        .map(|p| crop.property::<i32>(p))
+        .collect();
+    assert_eq!(edges, [10, 20, 640 - 310, 480 - 220], "cropped to 300×200");
+    assert_eq!(done.error, None);
+    let analysis = analyse(&done.path);
+    assert!(!analysis.frames.is_empty());
+    for frame in &analysis.frames {
+        assert_eq!((frame.width, frame.height), (300, 200));
+        assert!(
+            frame.grid().iter().all(|c| near(*c, GREEN)),
+            "frame at {} s shows more than the window",
+            frame.pts
+        );
+    }
+    cleanup(&done.path);
+}
+
+/// N5: an error in the source pipeline still finishes the file: the encoder gets its end of
+/// stream, so x264's delayed frames and the end of the file are written.
+// spec: screen-recording / Working file / Recording error
+#[test]
+fn an_error_in_the_source_still_finishes_the_file() {
+    let video = TestVideo::new(640, 480);
+    let recording = record("source-error", &video, VideoArea::Whole);
+    video.frames(0.0, 5.0, 30.0, GREEN);
+    drain(&recording, &video, &[]);
+    gst::element_error!(
+        video.src,
+        gst::StreamError::Failed,
+        ("the stand-in stream failed")
+    );
+    wait_until(|| recording.shared.end().error.is_some(), "the error");
+    let done = recording.stop_now(secs(5.0));
+    assert!(matches!(done.error, Some(RecordingError::Stream { .. })));
+    assert_eq!(done.duration, secs(5.0));
+    let analysis = analyse(&done.path);
+    // Without the end of stream x264's delayed frames were lost (3.1 s of 5 s at 640×480).
     let duration = analysis.duration();
-    assert!(duration >= 9.0, "plays for {duration} s");
-    cleanup(&path);
+    assert!((4.95..=5.1).contains(&duration), "plays for {duration} s");
+    cleanup(&done.path);
 }
 
 // spec: screen-recording / Working file / Recording error
 #[test]
 fn an_error_mid_recording_is_reported_and_keeps_what_was_written() {
     let video = TestVideo::new(SMALL.0, SMALL.1);
-    let mut config = RecordingConfig::new(folder("error"), video.element(), VideoArea::Whole);
+    let mut config = RecordingConfig::new(folder("error"), video.element(), VideoArea::Whole)
+        .manual_clock(&Arc::new(Mutex::new(None)));
     // The pipeline fails 10 s in (300 frames at 30 fps).
     config.fault_after = Some(300);
     let (recording, mut receiver) = start(config).unwrap();
@@ -669,7 +1029,7 @@ fn an_error_mid_recording_is_reported_and_keeps_what_was_written() {
     };
     assert_eq!(element, "fault");
     assert!(!message.is_empty());
-    let done = recording.stop();
+    let done = finish(recording.stop());
     assert_eq!(done.error, Some(error));
     let analysis = analyse(&done.path);
     let duration = analysis.duration();
@@ -712,6 +1072,7 @@ fn a_muted_microphone_is_silent_only_while_muted() {
     let video = TestVideo::new(SMALL.0, SMALL.1);
     let mic = TestAudio::new(0.5);
     let config = RecordingConfig::new(folder("mute-mic"), video.element(), VideoArea::Whole)
+        .manual_clock(&Arc::new(Mutex::new(None)))
         .with_audio(AudioSource::Microphone, mic.element());
     let (recording, mut receiver) = start(config).unwrap();
     recording.set_muted_at(AudioSource::Microphone, secs(5.0), true);
@@ -720,7 +1081,7 @@ fn a_muted_microphone_is_silent_only_while_muted() {
     video.frames(0.0, 10.0, 30.0, GREEN);
     mic.tone(0.0, 10.0);
     drain(&recording, &video, &[&mic]);
-    let done = recording.stop_at(secs(10.0));
+    let done = recording.stop_now(secs(10.0));
     assert_eq!(done.audio, vec![AudioSource::Microphone]);
     let analysis = analyse(&done.path);
     assert_eq!(analysis.audio.len(), 1);
@@ -750,6 +1111,7 @@ fn muted_system_audio_is_silent_until_unmuted_and_the_mic_goes_on() {
     let mic = TestAudio::new(0.5);
     let system = TestAudio::new(0.1);
     let config = RecordingConfig::new(folder("mute-system"), video.element(), VideoArea::Whole)
+        .manual_clock(&Arc::new(Mutex::new(None)))
         .with_audio(AudioSource::Microphone, mic.element())
         .with_audio(AudioSource::SystemAudio, system.element());
     let (recording, _events) = start(config).unwrap();
@@ -761,7 +1123,7 @@ fn muted_system_audio_is_silent_until_unmuted_and_the_mic_goes_on() {
     mic.tone(0.0, 8.0);
     system.tone(0.0, 8.0);
     drain(&recording, &video, &[&mic, &system]);
-    let done = recording.stop_at(secs(8.0));
+    let done = recording.stop_now(secs(8.0));
     let analysis = analyse(&done.path);
     assert_eq!(analysis.audio.len(), 2);
     let loudest = |track: &[AChunk]| rms_range(track, 0.5, 2.9).1;
@@ -801,7 +1163,7 @@ fn without_audio_sources_the_file_has_no_audio_track() {
     let recording = record("no-audio", &video, VideoArea::Whole);
     video.frames(0.0, 5.0, 30.0, GREEN);
     drain(&recording, &video, &[]);
-    let done = recording.stop_at(secs(5.0));
+    let done = recording.stop_now(secs(5.0));
     assert!(done.audio.is_empty());
     let analysis = analyse(&done.path);
     assert!((analysis.duration() - 5.0).abs() <= 0.2);

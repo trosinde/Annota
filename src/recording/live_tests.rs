@@ -458,6 +458,11 @@ fn rec_screen_waits_for_start_then_records_the_whole_stream() {
     assert!(running().is_some());
 
     assert!(stop());
+    // The file is finished off the main thread; the flow is active until it is.
+    wait_for(
+        || !seen.ended.borrow().is_empty(),
+        "the recording to finish",
+    );
     assert!(!is_active());
     cast.reaches("Session.Close", 1);
     assert_eq!(
@@ -882,6 +887,10 @@ fn rec_the_desktop_ending_the_session_finishes_the_recording_at_once() {
         RecordRequest {
             mode: RecordMode::Toggle,
         },
+    );
+    wait_for(
+        || !seen.ended.borrow().is_empty(),
+        "the third recording to finish",
     );
     assert!(!is_active());
     cast.reaches("Session.Close", 2);

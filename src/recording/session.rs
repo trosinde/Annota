@@ -9,6 +9,7 @@
 //!   session closed.
 //!
 //! Each ends exactly once, with one [`Ended`] for the caller (the Export Recording window, D1).
+//! Finishing the file runs off the main thread; the [`Ended`] follows when it is written.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -56,6 +57,7 @@ pub struct RecordingSession {
     on_ended: RefCell<Option<OnEnded>>,
     watch: RefCell<Option<glib::JoinHandle<()>>>,
     finishing: Cell<bool>,
+    app: adw::Application,
     _hold: gio::ApplicationHoldGuard,
 }
 
@@ -76,6 +78,7 @@ impl RecordingSession {
             on_ended: RefCell::new(Some(Box::new(on_ended))),
             watch: RefCell::new(None),
             finishing: Cell::new(false),
+            app: app.clone(),
             _hold: app.hold(),
         });
         if let Some(mut closed) = closed {
@@ -132,16 +135,24 @@ impl RecordingSession {
             return;
         };
         // Never waits for the stream's end: the encoder gets its end of stream from here.
-        let finished = recording.stop();
-        match reason {
-            // The portal has closed it already: release the remote, send nothing.
-            EndReason::DesktopEnded => granted.closed_by_desktop(),
-            _ => {
-                glib::spawn_future_local(granted.close());
+        let finishing = recording.stop();
+        let on_ended = self.on_ended.borrow_mut().take();
+        // Until the Ended is delivered, even if this session is gone by then.
+        let hold = self.app.hold();
+        glib::spawn_future_local(async move {
+            let finished = finishing.await;
+            // The PipeWire remote is released once the sources have stopped with the file.
+            match reason {
+                // The portal has closed it already: release the remote, send nothing.
+                EndReason::DesktopEnded => granted.closed_by_desktop(),
+                _ => {
+                    glib::spawn_future_local(granted.close());
+                }
             }
-        }
-        if let Some(on_ended) = self.on_ended.borrow_mut().take() {
-            on_ended(Ended { finished, reason });
-        }
+            if let Some(on_ended) = on_ended {
+                on_ended(Ended { finished, reason });
+            }
+            drop(hold);
+        });
     }
 }

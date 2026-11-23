@@ -18,13 +18,21 @@
 //! shifts later timestamps by the paused time, so the file has no gap (D5).
 //!
 //! Timestamps are the sources' running times; `videorate` turns whatever the stream delivers
-//! (nothing on a still screen, bursts, a variable rate) into a constant 30 fps.
+//! (nothing on a still screen, bursts, a variable rate) into a constant 30 fps. `matroskamux`
+//! writes only while every track has data, so on a still screen (a damage-driven window or screen
+//! stream sends nothing, P6) a heartbeat thread pushes the last frame again at the current time:
+//! the file and the audio keep advancing while nothing moves.
+//!
+//! [`Recording::stop`] returns at once; the end of stream and the encoder's flush run on a worker
+//! thread and the [`Finished`] arrives as a future, bounded by `FINISH_TIMEOUT`.
 
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
-use std::time::Duration;
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
-use futures_channel::mpsc;
+use futures_channel::{mpsc, oneshot};
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
@@ -38,11 +46,20 @@ use crate::capture::geometry::IRect;
 
 /// The recording's constant frame rate (requirement "Recording frame rate").
 pub const FRAME_RATE: i32 = 30;
-/// How long [`Recording::stop`] waits for the encoder to write the end of the file.
+/// How long finishing a recording ([`Recording::stop`]) may take before its [`Finished`] is
+/// delivered anyway, with [`RecordingError::Timeout`].
 const FINISH_TIMEOUT: Duration = Duration::from_secs(10);
 /// Most bytes queued in front of each encoder input before the glue waits (backpressure: a live
 /// source then drops frames itself instead of Annota's memory growing). Two 4K BGRx frames.
 const QUEUE_BYTES: u64 = 2 * 3840 * 2160 * 4;
+/// While the queue is full, how often a waiting push looks again (and whether it should give up).
+const QUEUE_POLL: Duration = Duration::from_millis(5);
+/// How often the heartbeat looks at the video track.
+const HEARTBEAT_TICK: Duration = Duration::from_millis(50);
+/// After this long without a video buffer, the heartbeat repeats the last one at the current time.
+const HEARTBEAT_AFTER: gst::ClockTime = gst::ClockTime::from_mseconds(200);
+/// One output frame.
+const FRAME: gst::ClockTime = gst::ClockTime::from_nseconds(1_000_000_000 / FRAME_RATE as u64);
 /// x264 constant quantizer (design.md D3, `pass=quant`, quantizer ≈ 20).
 const QUANTIZER: u32 = 20;
 /// A key frame at least every 2 s: a file cut short by a crash loses at most one group.
@@ -94,6 +111,29 @@ pub struct RecordingConfig {
     pub audio: Vec<(AudioSource, gst::Element)>,
     /// Tests only: an `identity` that fails after this many video buffers.
     fault_after: Option<i32>,
+    /// What "now" is for the heartbeat.
+    clock: Clock,
+}
+
+/// The current time of the sources, for the heartbeat.
+#[derive(Clone, Default)]
+enum Clock {
+    /// The sources pipeline's running time (live sources: `pipewiresrc`, `pulsesrc`).
+    #[default]
+    Pipeline,
+    /// Tests with synthetic timestamps: the running time the test sets (`None`: no heartbeat).
+    #[cfg(test)]
+    Manual(Arc<Mutex<Option<gst::ClockTime>>>),
+}
+
+impl Clock {
+    fn now(&self, sources: &gst::Pipeline) -> Option<gst::ClockTime> {
+        match self {
+            Self::Pipeline => sources.current_running_time(),
+            #[cfg(test)]
+            Self::Manual(time) => *time.lock().unwrap_or_else(|e| e.into_inner()),
+        }
+    }
 }
 
 impl RecordingConfig {
@@ -109,6 +149,7 @@ impl RecordingConfig {
             area,
             audio: Vec::new(),
             fault_after: None,
+            clock: Clock::default(),
         }
     }
 
@@ -174,8 +215,10 @@ struct Timeline {
     pauses: Vec<(gst::ClockTime, Option<gst::ClockTime>)>,
     /// Mute switches per source, in output time (the file's timestamps).
     mutes: [Vec<(gst::ClockTime, bool)>; 2],
-    /// The last video buffer pushed to the encoder, with its caps and output time.
-    last_video: Option<(gst::Buffer, Option<gst::Caps>, gst::ClockTime)>,
+    /// The last video frame for the encoder (pushed, or due at resume).
+    last_video: Option<LastVideo>,
+    /// The newest frame that arrived while paused: the screen as it is at resume.
+    paused_video: Option<(gst::Buffer, Option<gst::Caps>)>,
     video_ended: bool,
     audio_ended: [bool; 2],
     /// Stopping or failed: the glue passes nothing on.
@@ -211,6 +254,37 @@ impl Timeline {
         self.pauses.last().is_some_and(|(_, end)| end.is_none())
     }
 
+    /// What the heartbeat pushes at running time `now`: nothing while frames arrive or while
+    /// paused; after [`HEARTBEAT_AFTER`] without one, the frame due at resume (if any) and the
+    /// last frame again at the current output time.
+    fn heartbeat(&mut self, now: gst::ClockTime) -> Vec<(gst::Buffer, Option<gst::Caps>)> {
+        let mut due = Vec::new();
+        let Some(now_out) = self.map(now) else {
+            return due;
+        };
+        let Some(last) = self.last_video.as_mut() else {
+            return due;
+        };
+        if now_out < last.out + HEARTBEAT_AFTER {
+            return due;
+        }
+        if !last.pushed {
+            last.pushed = true;
+            due.push(last.at(last.out));
+        }
+        // Repeated from here on: Annota's own copy, so the source's buffer pool gets its buffer
+        // back while the screen stays still (design.md, risks: P8).
+        if !last.owned {
+            if let Ok(copy) = last.buffer.copy_deep() {
+                last.buffer = copy;
+                last.owned = true;
+            }
+        }
+        last.out = now_out;
+        due.push(last.at(now_out));
+        due
+    }
+
     fn muted(&self, source: AudioSource, out: gst::ClockTime) -> bool {
         self.mutes[source.index()]
             .iter()
@@ -220,15 +294,46 @@ impl Timeline {
     }
 }
 
+/// The last video frame and where it is in the file.
+struct LastVideo {
+    buffer: gst::Buffer,
+    caps: Option<gst::Caps>,
+    /// Output time it was pushed at (or is due at).
+    out: gst::ClockTime,
+    /// `false`: the newest paused frame, due at the resume time and not pushed yet.
+    pushed: bool,
+    /// The memory is Annota's own copy, not a buffer of the source's pool.
+    owned: bool,
+}
+
+impl LastVideo {
+    /// The frame again, stamped `at` (memory shared, not copied).
+    fn at(&self, at: gst::ClockTime) -> (gst::Buffer, Option<gst::Caps>) {
+        let mut again = self.buffer.copy();
+        {
+            let again = again.make_mut();
+            again.set_pts(at);
+            again.set_dts(gst::ClockTime::NONE);
+            again.set_duration(gst::ClockTime::NONE);
+        }
+        (again, self.caps.clone())
+    }
+}
+
 /// How the encoder ended.
 #[derive(Default)]
 struct End {
     eos: bool,
     error: Option<RecordingError>,
+    /// The error came from the encoder pipeline: it no longer drains, so no end of stream.
+    encoder_failed: bool,
 }
 
 struct Shared {
     timeline: Mutex<Timeline>,
+    /// Held from deciding a video push until it is done: the glue and the heartbeat hand frames
+    /// to the encoder in timestamp order.
+    video_push: Mutex<()>,
     end: Mutex<End>,
     ended: Condvar,
     events: mpsc::UnboundedSender<RecordingEvent>,
@@ -243,14 +348,24 @@ impl Shared {
         self.end.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    fn video_push(&self) -> MutexGuard<'_, ()> {
+        self.video_push.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn closed(&self) -> bool {
+        self.timeline().closed
+    }
+
     fn send(&self, event: RecordingEvent) {
         let _ = self.events.unbounded_send(event);
     }
 
-    /// The first error wins; later ones are consequences.
-    fn fail(&self, error: RecordingError) {
+    /// The first error wins; later ones are consequences. `in_encoder`: the encoder pipeline
+    /// failed (it then gets no end of stream).
+    fn fail(&self, error: RecordingError, in_encoder: bool) {
         let first = {
             let mut end = self.end();
+            end.encoder_failed |= in_encoder;
             let first = end.error.is_none();
             if first {
                 end.error = Some(error.clone());
@@ -274,6 +389,7 @@ pub struct Recording {
     video_in: gst_app::AppSrc,
     audio_in: Vec<(AudioSource, gst_app::AppSrc)>,
     shared: Arc<Shared>,
+    heartbeat: Option<JoinHandle<()>>,
     done: bool,
 }
 
@@ -296,12 +412,14 @@ pub fn start(
     let (sender, receiver) = mpsc::unbounded();
     let shared = Arc::new(Shared {
         timeline: Mutex::new(Timeline::default()),
+        video_push: Mutex::new(()),
         end: Mutex::new(End::default()),
         ended: Condvar::new(),
         events: sender,
     });
+    let clock = config.clock.clone();
     match build(config, &path, &shared) {
-        Ok(recording) => {
+        Ok(mut recording) => {
             let started = recording
                 .encoder
                 .set_state(gst::State::Playing)
@@ -314,6 +432,7 @@ pub fn start(
                 let _ = std::fs::remove_file(&path);
                 return Err(error);
             }
+            recording.heartbeat = spawn_heartbeat(&recording, clock);
             Ok((recording, receiver))
         }
         Err(err) => {
@@ -351,12 +470,14 @@ fn add_and_link(pipeline: &gst::Pipeline, chain: &[&gst::Element]) -> Result<(),
         .map_err(|err| RecordingError::Build(err.to_string()))
 }
 
+/// An encoder input. Never blocks: the glue waits for room itself ([`push`]), so a stop can
+/// always end the wait.
 fn encoder_input(name: &str) -> gst_app::AppSrc {
     gst_app::AppSrc::builder()
         .name(name)
         .format(gst::Format::Time)
         .is_live(false)
-        .block(true)
+        .block(false)
         .max_bytes(QUEUE_BYTES)
         .build()
 }
@@ -439,7 +560,10 @@ fn build(
                         }
                     }
                     Some(gst::PadProbeData::Buffer(buffer)) => {
-                        cropper.on_buffer(buffer);
+                        if !cropper.on_buffer(buffer) {
+                            // A window whose content rectangle is not known yet.
+                            return gst::PadProbeReturn::Drop;
+                        }
                         // The rectangle above already used the stream's crop meta; left on the
                         // buffer, `videocrop` would apply it again on top of its own crop
                         // (Phase B, a window stream's meta at a non-zero origin).
@@ -482,7 +606,7 @@ fn build(
             gst_app::AppSinkCallbacks::builder()
                 .new_sample(move |sink| {
                     let sample = sink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
-                    glue_video(&shared_sample, &input, &sample)
+                    glue_video(&shared_sample, &input, sample)
                 })
                 .eos(move |_| {
                     if let Some(shared) = shared_eos.upgrade() {
@@ -585,8 +709,70 @@ fn build(
         video_in,
         audio_in,
         shared: Arc::clone(shared),
+        heartbeat: None,
         done: false,
     })
+}
+
+/// The heartbeat (design.md "Decided during apply", still screen): while no video buffer
+/// arrives, the last frame again at the current time, so `matroskamux` (which writes only while
+/// every track has data) and with it the audio keep advancing. Ends when the recording closes.
+fn spawn_heartbeat(recording: &Recording, clock: Clock) -> Option<JoinHandle<()>> {
+    let shared = Arc::downgrade(&recording.shared);
+    let input = recording.video_in.clone();
+    let sources = recording.sources.clone();
+    let spawned = std::thread::Builder::new()
+        .name(String::from("recording-heartbeat"))
+        .spawn(move || loop {
+            std::thread::sleep(HEARTBEAT_TICK);
+            let Some(shared) = shared.upgrade() else {
+                return;
+            };
+            if shared.closed() {
+                return;
+            }
+            let Some(now) = clock.now(&sources) else {
+                continue;
+            };
+            let _order = shared.video_push();
+            let due = {
+                let mut timeline = shared.timeline();
+                // Stopped while waiting for the glue: the stop pushes the last frame itself.
+                if timeline.closed {
+                    return;
+                }
+                timeline.heartbeat(now)
+            };
+            for (buffer, caps) in due {
+                if push(&input, &buffer, caps.as_ref(), || shared.closed()).is_err() {
+                    break;
+                }
+            }
+        });
+    match spawned {
+        Ok(handle) => Some(handle),
+        Err(err) => {
+            eprintln!("annota: recording: no heartbeat thread: {err}");
+            None
+        }
+    }
+}
+
+/// 20 ms of silence for a track whose source never delivered anything.
+fn silent_track() -> gst::Sample {
+    const RATE: usize = 48_000;
+    let caps = gst::Caps::builder("audio/x-raw")
+        .field("format", "S16LE")
+        .field("rate", RATE as i32)
+        .field("channels", 1i32)
+        .field("layout", "interleaved")
+        .build();
+    let mut buffer = gst::Buffer::from_mut_slice(vec![0u8; RATE / 50 * 2]);
+    if let Some(buffer) = buffer.get_mut() {
+        buffer.set_pts(gst::ClockTime::ZERO);
+        buffer.set_duration(gst::ClockTime::from_mseconds(20));
+    }
+    gst::Sample::builder().buffer(&buffer).caps(&caps).build()
 }
 
 /// `video/x-raw,format=I420,pixel-aspect-ratio=1/1` and, once known, the fixed frame size.
@@ -632,9 +818,14 @@ impl Cropper {
         self.apply(rect, buffer);
     }
 
-    fn on_buffer(&mut self, buffer: &gst::BufferRef) {
-        let (VideoArea::Window(content), Some(info)) = (&self.area, &self.info) else {
-            return;
+    /// `false`: drop the buffer (a window whose first content rectangle is not known yet, so
+    /// the frame size is not either).
+    fn on_buffer(&mut self, buffer: &gst::BufferRef) -> bool {
+        let VideoArea::Window(content) = &self.area else {
+            return true;
+        };
+        let Some(info) = &self.info else {
+            return false;
         };
         let size = Size::new(
             i32::try_from(info.width()).unwrap_or(0),
@@ -644,20 +835,32 @@ impl Cropper {
             .and_then(|r| r.intersect(IRect::new(0, 0, size.w, size.h)))
             .or(self.current)
         else {
-            return;
+            return false;
         };
         self.apply(rect, size);
+        true
     }
 
     fn apply(&mut self, rect: IRect, buffer: Size) {
-        if self.frame.is_none() {
-            let first = geometry::even_rect(rect);
-            let frame = Size::new(first.w.max(2), first.h.max(2));
-            self.frame = Some(frame);
-            if let Some(size) = self.size.upgrade() {
-                size.set_property("caps", frame_caps(Some(frame)));
+        let even = geometry::even_rect(rect);
+        let frame = match self.frame {
+            Some(frame) => frame,
+            None => {
+                let frame = Size::new(even.w.max(2), even.h.max(2));
+                self.frame = Some(frame);
+                if let Some(size) = self.size.upgrade() {
+                    size.set_property("caps", frame_caps(Some(frame)));
+                }
+                frame
             }
-        }
+        };
+        // A rectangle of the frame's size once trimmed to even is cropped to exactly that: no
+        // resampling by a pixel (`videoscale` would stretch an odd width by 0.999).
+        let rect = if Size::new(even.w, even.h) == frame {
+            even
+        } else {
+            rect
+        };
         if self.current == Some(rect) {
             return;
         }
@@ -694,11 +897,20 @@ fn restamp(sample: &gst::Sample, out: gst::ClockTime) -> Option<gst::Buffer> {
     Some(buffer)
 }
 
+/// Hands `buffer` to an encoder input, waiting while its queue is full (backpressure) until
+/// there is room or `give_up` says so (stopping); then the buffer is dropped.
 fn push(
     input: &gst_app::AppSrc,
     buffer: &gst::Buffer,
     caps: Option<&gst::Caps>,
+    give_up: impl Fn() -> bool,
 ) -> Result<gst::FlowSuccess, gst::FlowError> {
+    while input.current_level_bytes() >= QUEUE_BYTES {
+        if give_up() {
+            return Ok(gst::FlowSuccess::Ok);
+        }
+        std::thread::sleep(QUEUE_POLL);
+    }
     let mut sample = gst::Sample::builder().buffer(buffer);
     if let Some(caps) = caps {
         sample = sample.caps(caps);
@@ -713,50 +925,79 @@ fn push(
 fn glue_video(
     shared: &Weak<Shared>,
     input: &gst_app::AppSrc,
-    sample: &gst::Sample,
+    sample: gst::Sample,
 ) -> Result<gst::FlowSuccess, gst::FlowError> {
     let Some(shared) = shared.upgrade() else {
         return Err(gst::FlowError::Flushing);
     };
-    let Some(rt) = running_time(sample) else {
+    let Some(rt) = running_time(&sample) else {
         return Ok(gst::FlowSuccess::Ok);
     };
-    let (buffer, held) = {
+    let _order = shared.video_push();
+    let due = {
         let mut timeline = shared.timeline();
-        let Some(out) = timeline.map(rt).filter(|_| !timeline.closed) else {
+        if timeline.closed {
+            return Ok(gst::FlowSuccess::Ok);
+        }
+        let Some(out) = timeline.map(rt) else {
+            // Paused: nothing is recorded, but the newest frame is the screen at resume.
+            if let Some(buffer) = sample.buffer_owned() {
+                timeline.paused_video = Some((buffer, sample.caps_owned()));
+            }
             return Ok(gst::FlowSuccess::Ok);
         };
-        let Some(buffer) = restamp(sample, out) else {
+        let mut due = Vec::new();
+        let mut out = out;
+        let previous = match timeline.last_video.take() {
+            // The frame from the pause, shown from the resume until this one, unless this one
+            // follows at once.
+            Some(mut paused) if !paused.pushed => (out > paused.out + FRAME / 2).then(|| {
+                due.push(paused.at(paused.out));
+                paused.pushed = true;
+                paused
+            }),
+            other => other,
+        };
+        if let Some(previous) = &previous {
+            // The heartbeat repeated the last frame at a time this buffer did not reach yet.
+            if out <= previous.out {
+                out = previous.out + gst::ClockTime::from_nseconds(1);
+            }
+            if let Some(again) = held_until(previous, out) {
+                due.push(again);
+            }
+        }
+        let Some(buffer) = restamp(&sample, out) else {
+            timeline.last_video = previous;
             return Ok(gst::FlowSuccess::Ok);
         };
-        let held = timeline
-            .last_video
-            .replace((buffer.clone(), sample.caps_owned(), out))
-            .and_then(|last| held_until(last, out));
-        (buffer, held)
+        let caps = sample.caps_owned();
+        due.push((buffer.clone(), caps.clone()));
+        timeline.last_video = Some(LastVideo {
+            buffer,
+            caps,
+            out,
+            pushed: true,
+            owned: false,
+        });
+        due
     };
-    if let Some((again, caps)) = held {
-        push(input, &again, caps.as_ref())?;
+    for (buffer, caps) in due {
+        push(input, &buffer, caps.as_ref(), || shared.closed())?;
     }
-    push(input, &buffer, sample.caps_owned().as_ref())
+    Ok(gst::FlowSuccess::Ok)
 }
 
 /// After a gap (a still screen sends no buffers), the previous frame again, stamped one frame
 /// before the next one. `videorate` fills a gap with whichever neighbour is closer in time, so
-/// without it the second half of a still period would show the frame that ends it.
-fn held_until(
-    last: (gst::Buffer, Option<gst::Caps>, gst::ClockTime),
-    next: gst::ClockTime,
-) -> Option<(gst::Buffer, Option<gst::Caps>)> {
-    let (buffer, caps, out) = last;
-    let frame = gst::ClockTime::SECOND / FRAME_RATE as u64;
-    let at = next.checked_sub(frame)?;
-    if at <= out + frame / 2 {
+/// without it the second half of a gap shorter than the heartbeat's (or every gap, where time is
+/// synthetic) would show the frame that ends it.
+fn held_until(last: &LastVideo, next: gst::ClockTime) -> Option<(gst::Buffer, Option<gst::Caps>)> {
+    let at = next.checked_sub(FRAME)?;
+    if at <= last.out + FRAME / 2 {
         return None;
     }
-    let mut again = buffer.copy();
-    again.make_mut().set_pts(at);
-    Some((again, caps))
+    Some(last.at(at))
 }
 
 fn glue_audio(
@@ -778,7 +1019,9 @@ fn glue_audio(
         restamp(sample, out)
     };
     match buffer {
-        Some(buffer) => push(input, &buffer, sample.caps_owned().as_ref()),
+        Some(buffer) => push(input, &buffer, sample.caps_owned().as_ref(), || {
+            shared.closed()
+        }),
         None => Ok(gst::FlowSuccess::Ok),
     }
 }
@@ -800,7 +1043,7 @@ fn on_message(shared: &Shared, message: &gst::Message, from_encoder: bool) {
                 .unwrap_or_default();
             let message = err.error().to_string();
             eprintln!("annota: recording error in {element}: {message}");
-            shared.fail(RecordingError::Stream { element, message });
+            shared.fail(RecordingError::Stream { element, message }, from_encoder);
         }
         gst::MessageView::Element(element) => {
             if let Some(event) = level_event(message, element.structure()) {
@@ -903,8 +1146,22 @@ impl Recording {
 
     fn resume_at(&self, rt: gst::ClockTime) {
         let mut timeline = self.shared.timeline();
-        if let Some((start, end @ None)) = timeline.pauses.last_mut() {
-            *end = Some(rt.max(*start));
+        let Some((start, end @ None)) = timeline.pauses.last_mut() else {
+            return;
+        };
+        let resumed = rt.max(*start);
+        *end = Some(resumed);
+        // The screen changed while paused and may stand still from now on: its newest frame is
+        // due at the resume time (the glue, the heartbeat or the stop pushes it).
+        if let Some((buffer, caps)) = timeline.paused_video.take() {
+            let out = timeline.out_time(resumed);
+            timeline.last_video = Some(LastVideo {
+                buffer,
+                caps,
+                out,
+                pushed: false,
+                owned: false,
+            });
         }
     }
 
@@ -915,58 +1172,197 @@ impl Recording {
     }
 
     /// Ends the recording and finishes the working file, without waiting for the source to end
-    /// (P5/P6): the sources stop, the last frame is repeated up to now, the encoder gets its end
-    /// of stream from here. After an error, what was written is kept as it is.
-    pub fn stop(self) -> Finished {
+    /// (P5/P6): writing stops now; the sources stop, the last frame is repeated up to now and the
+    /// encoder gets its end of stream from here, on a worker thread. The [`Finished`] arrives
+    /// through the returned future (poll it on the GLib main context) within `FINISH_TIMEOUT`,
+    /// with [`RecordingError::Timeout`] if the file could not be finished in time. After an
+    /// error, what was written is kept as it is.
+    pub fn stop(self) -> impl Future<Output = Finished> + 'static {
         let now = self.now();
         self.stop_at(now)
     }
 
-    fn stop_at(mut self, rt: gst::ClockTime) -> Finished {
+    fn stop_at(self, rt: gst::ClockTime) -> impl Future<Output = Finished> + 'static {
+        let finisher = self.finisher(rt);
+        let late = finisher.late();
+        let (sender, receiver) = oneshot::channel();
+        let spawned = std::thread::Builder::new()
+            .name(String::from("recording-finish"))
+            .spawn(move || {
+                let _ = sender.send(finisher.run());
+            });
+        if let Err(err) = &spawned {
+            // The finisher went down with the closure and stopped the pipelines.
+            eprintln!("annota: recording: no thread to finish the working file: {err}");
+        }
+        async move {
+            use futures_util::future::{select, Either};
+            // The worker keeps to FINISH_TIMEOUT itself; this bounds a hang in a state change.
+            let backstop = glib::timeout_future(FINISH_TIMEOUT + Duration::from_secs(1));
+            match select(receiver, backstop).await {
+                Either::Left((Ok(finished), _)) => finished,
+                _ => {
+                    eprintln!("annota: recording: the working file was not finished in time");
+                    late
+                }
+            }
+        }
+    }
+
+    /// Stopping, on the calling thread: nothing more is written from now on.
+    fn finisher(mut self, rt: gst::ClockTime) -> Finisher {
         self.done = true;
-        let (stop_out, last) = {
+        let stop_out = {
             let mut timeline = self.shared.timeline();
             timeline.closed = true;
-            (timeline.out_time(rt), timeline.last_video.clone())
+            timeline.out_time(rt)
         };
-        let failed = self.shared.end().error.is_some();
-        if failed {
-            // The encoder no longer drains: stop it first, so no glue push waits on it.
+        Finisher {
+            path: self.path.clone(),
+            sources: self.sources.clone(),
+            encoder: self.encoder.clone(),
+            video_in: self.video_in.clone(),
+            audio_in: self.audio_in.clone(),
+            shared: Arc::clone(&self.shared),
+            heartbeat: self.heartbeat.take(),
+            stop_out,
+            deadline: Instant::now() + FINISH_TIMEOUT,
+            ran: false,
+        }
+    }
+
+    /// Tests: stops and finishes on this thread.
+    #[cfg(test)]
+    fn stop_now(self, rt: gst::ClockTime) -> Finished {
+        self.finisher(rt).run()
+    }
+}
+
+impl Drop for Recording {
+    fn drop(&mut self) {
+        if !self.done {
+            // Abandoned: like a crash, no end of stream; the file keeps what was written.
+            self.shared.timeline().closed = true;
+            let _ = self.encoder.set_state(gst::State::Null);
+            let _ = self.sources.set_state(gst::State::Null);
+            unset_bus_handlers(&[&self.encoder, &self.sources]);
+        }
+    }
+}
+
+fn unset_bus_handlers(pipelines: &[&gst::Pipeline]) {
+    for pipeline in pipelines {
+        if let Some(bus) = pipeline.bus() {
+            bus.unset_sync_handler();
+        }
+    }
+}
+
+/// Finishes a stopped recording's working file (worker thread).
+struct Finisher {
+    path: PathBuf,
+    sources: gst::Pipeline,
+    encoder: gst::Pipeline,
+    video_in: gst_app::AppSrc,
+    audio_in: Vec<(AudioSource, gst_app::AppSrc)>,
+    shared: Arc<Shared>,
+    heartbeat: Option<JoinHandle<()>>,
+    /// The file's end: the output time of the stop.
+    stop_out: gst::ClockTime,
+    deadline: Instant,
+    ran: bool,
+}
+
+impl Finisher {
+    fn audio_sources(&self) -> Vec<AudioSource> {
+        self.audio_in.iter().map(|(s, _)| *s).collect()
+    }
+
+    /// What is delivered if finishing takes longer than `FINISH_TIMEOUT`.
+    fn late(&self) -> Finished {
+        let duration = self
+            .shared
+            .timeline()
+            .last_video
+            .as_ref()
+            .map_or(gst::ClockTime::ZERO, |last| last.out.min(self.stop_out));
+        Finished {
+            path: self.path.clone(),
+            duration,
+            audio: self.audio_sources(),
+            error: Some(RecordingError::Timeout),
+        }
+    }
+
+    fn run(mut self) -> Finished {
+        self.ran = true;
+        let encoder_failed = self.shared.end().encoder_failed;
+        if encoder_failed {
+            // The encoder no longer drains: stop it first, so no push waits on it.
             let _ = self.encoder.set_state(gst::State::Null);
         }
+        // Closed: the heartbeat and every waiting glue push give up at once.
+        if let Some(heartbeat) = self.heartbeat.take() {
+            let _ = heartbeat.join();
+        }
         let _ = self.sources.set_state(gst::State::Null);
-        if !failed {
-            if let Some((buffer, caps, out)) = &last {
-                // A still screen at the end: repeat the last frame up to the stop time.
-                if *out < stop_out {
-                    let mut again = buffer.copy();
-                    again.make_mut().set_pts(stop_out);
-                    let _ = push(&self.video_in, &again, caps.as_ref());
+        // Read only now: no glue push is in flight any more.
+        let last = self.shared.timeline().last_video.take();
+        if !encoder_failed {
+            // Audio first: the muxer may be waiting for an audio track that delivers nothing,
+            // with the video queue full behind it.
+            for (_, input) in &self.audio_in {
+                if input.caps().is_none() {
+                    // A source that never delivered: `matroskamux` writes nothing until every
+                    // track has its format, which the encoder learns only from data. 20 ms of
+                    // silence at the start make it an empty track.
+                    let _ = input.push_sample(&silent_track());
+                }
+                let _ = input.end_of_stream();
+            }
+            let deadline = self.deadline;
+            let late = move || Instant::now() >= deadline;
+            if let Some(last) = &last {
+                let mut due = Vec::new();
+                if !last.pushed && last.out < self.stop_out {
+                    due.push(last.at(last.out));
+                }
+                // A still screen at the end: the last frame again at the stop time.
+                if last.out < self.stop_out {
+                    due.push(last.at(self.stop_out));
+                }
+                for (buffer, caps) in due {
+                    let _ = push(&self.video_in, &buffer, caps.as_ref(), late);
                 }
             }
             let _ = self.video_in.end_of_stream();
-            for (_, input) in &self.audio_in {
-                let _ = input.end_of_stream();
-            }
             let end = self.shared.end();
-            let (end, timeout) = self
+            let wait = self.deadline.saturating_duration_since(Instant::now());
+            let (end, _) = self
                 .shared
                 .ended
-                .wait_timeout_while(end, FINISH_TIMEOUT, |end| !end.eos && end.error.is_none())
+                .wait_timeout_while(end, wait, |end| !end.eos && !end.encoder_failed)
                 .unwrap_or_else(|e| e.into_inner());
-            let timed_out = timeout.timed_out() && !end.eos && end.error.is_none();
+            let timed_out = !end.eos && !end.encoder_failed;
             drop(end);
             if timed_out {
                 eprintln!("annota: recording: the working file was not finished in time");
-                self.shared.fail(RecordingError::Timeout);
+                self.shared.fail(RecordingError::Timeout, true);
             }
         }
         let _ = self.encoder.set_state(gst::State::Null);
-        let error = self.shared.end().error.clone();
-        let duration = match (&error, &last) {
-            (Some(_), Some((_, _, out))) => *out,
-            (Some(_), None) => gst::ClockTime::ZERO,
-            (None, _) => stop_out,
+        unset_bus_handlers(&[&self.encoder, &self.sources]);
+        let (eos, error) = {
+            let end = self.shared.end();
+            (end.eos, end.error.clone())
+        };
+        // Finished with its end of stream: the file reaches the stop time (an error in a source
+        // ended the writing early, but the end was still written). Otherwise up to the last frame.
+        let duration = if eos {
+            self.stop_out
+        } else {
+            last.as_ref()
+                .map_or(gst::ClockTime::ZERO, |last| last.out.min(self.stop_out))
         };
         Finished {
             path: self.path.clone(),
@@ -977,17 +1373,12 @@ impl Recording {
     }
 }
 
-impl Drop for Recording {
+impl Drop for Finisher {
     fn drop(&mut self) {
-        if !self.done {
-            // Abandoned: like a crash, no end of stream; the file keeps what was written.
+        if !self.ran {
             let _ = self.encoder.set_state(gst::State::Null);
             let _ = self.sources.set_state(gst::State::Null);
-        }
-        for pipeline in [&self.encoder, &self.sources] {
-            if let Some(bus) = pipeline.bus() {
-                bus.unset_sync_handler();
-            }
+            unset_bus_handlers(&[&self.encoder, &self.sources]);
         }
     }
 }
