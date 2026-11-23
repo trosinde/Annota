@@ -230,14 +230,14 @@ impl VFrame {
 }
 
 /// One decoded audio buffer of a track: timestamp and RMS (full scale 1.0).
-struct AChunk {
-    pts: f64,
-    rms: f64,
+pub(crate) struct AChunk {
+    pub(crate) pts: f64,
+    pub(crate) rms: f64,
 }
 
 pub(crate) struct Analysis {
     pub(crate) frames: Vec<VFrame>,
-    audio: Vec<Vec<AChunk>>,
+    pub(crate) audio: Vec<Vec<AChunk>>,
 }
 
 impl Analysis {
@@ -1053,7 +1053,7 @@ impl AudioDevices for Devices {
 }
 
 /// Loudest and quietest RMS of a track between two times.
-fn rms_range(track: &[AChunk], from: f64, to: f64) -> (f64, f64) {
+pub(crate) fn rms_range(track: &[AChunk], from: f64, to: f64) -> (f64, f64) {
     let values: Vec<f64> = track
         .iter()
         .filter(|c| c.pts >= from && c.pts < to)
@@ -1064,6 +1064,21 @@ fn rms_range(track: &[AChunk], from: f64, to: f64) -> (f64, f64) {
         values.iter().copied().fold(f64::MAX, f64::min),
         values.iter().copied().fold(0.0, f64::max),
     )
+}
+
+// spec: screen-recording / Pause and resume / Paused state
+#[test]
+fn the_recorded_time_stands_at_the_pause_while_paused() {
+    let mut timeline = Timeline::default();
+    timeline.pauses.push((secs(10.0), Some(secs(15.0))));
+    timeline.pauses.push((secs(20.0), None));
+    assert_eq!(timeline.out_time(secs(5.0)), secs(5.0));
+    // Inside a pause: the time from the moment of pausing, also at that very moment.
+    assert_eq!(timeline.out_time(secs(10.0)), secs(10.0));
+    assert_eq!(timeline.out_time(secs(12.0)), secs(10.0));
+    assert_eq!(timeline.out_time(secs(17.0)), secs(12.0));
+    assert_eq!(timeline.out_time(secs(20.0)), secs(15.0));
+    assert_eq!(timeline.out_time(secs(30.0)), secs(15.0));
 }
 
 // spec: screen-recording / Audio / Mute the microphone

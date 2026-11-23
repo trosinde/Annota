@@ -30,7 +30,7 @@ use crate::capture::live_tests::{
 };
 use crate::capture::overlay::{self, Desktop, Mode, Outcome};
 use crate::capture::window_wait;
-use crate::recording::pipeline::tests::{analyse, near, GREEN, RED};
+use crate::recording::pipeline::tests::{analyse, near, rms_range, AChunk, GREEN, RED};
 use crate::ui::test_support::pump;
 
 const DESKTOP_ENDED: &str = "The desktop ended the screen-sharing request. Nothing was recorded.";
@@ -811,6 +811,7 @@ fn rec_a_window_recording_shows_only_the_window_until_it_closes() {
     let (done, at) = &ended[0];
     assert!(*at - closed < Duration::from_secs(2), "{:?}", *at - closed);
     assert_eq!(done.reason, EndReason::DesktopEnded);
+    assert!(control::shown().is_none(), "the control went with it");
     assert!(!done.by_error());
     pump(500);
     assert_eq!(cast.count("Session.Close"), 0, "{:?}", cast.calls());
@@ -864,6 +865,7 @@ fn rec_the_desktop_ending_the_session_finishes_the_recording_at_once() {
     let (done, at) = &ended[0];
     assert!(*at - closed < Duration::from_secs(2), "{:?}", *at - closed);
     assert_eq!(done.reason, EndReason::DesktopEnded);
+    assert!(control::shown().is_none(), "the control went with it");
     assert!(!done.by_error());
     pump(500);
     assert_eq!(cast.count("Session.Close"), 0, "{:?}", cast.calls());
@@ -911,6 +913,7 @@ fn rec_the_desktop_ending_the_session_finishes_the_recording_at_once() {
     let (done, _) = &ended[0];
     assert_eq!(done.reason, EndReason::Error);
     assert!(done.by_error());
+    assert!(control::shown().is_none(), "the control went with it");
     cast.reaches("Session.Close", 1);
     assert!(done.finished.path.exists(), "the file is kept");
     assert_eq!(files_in(&folder).len(), 2);
@@ -1640,4 +1643,480 @@ fn rec_record_screen_from_the_command_line() {
         || !seen.ended.borrow().is_empty(),
         "the recording to finish",
     );
+}
+
+// --- Phase C2: the Recording control (task 4.4) ---------------------------------------------
+
+/// [`recording_scene`] with `audiotestsrc` stand-ins for the wanted audio sources: the
+/// microphone louder (0.5) than the system audio (0.1), so their tracks can be told apart.
+fn audio_scene(name: &str, microphone: bool, system_audio: bool) -> (Scene, Rc<Seen>, PathBuf) {
+    let (scene, seen, folder) = recording_scene(name, false);
+    want_audio(microphone, system_audio);
+    set_hooks(|hooks| {
+        hooks.audio_sources = Rc::new(|microphone, system_audio| {
+            let tone = |volume: f64| {
+                gst::ElementFactory::make("audiotestsrc")
+                    .property("is-live", true)
+                    .property("volume", volume)
+                    .build()
+                    .unwrap()
+            };
+            let mut sources = Vec::new();
+            if microphone {
+                sources.push((AudioSource::Microphone, tone(0.5)));
+            }
+            if system_audio {
+                sources.push((AudioSource::SystemAudio, tone(0.1)));
+            }
+            sources
+        });
+    });
+    (scene, seen, folder)
+}
+
+fn want_audio(microphone: bool, system_audio: bool) {
+    let settings = gio::Settings::new(config::APP_ID);
+    settings
+        .set_boolean("record-microphone", microphone)
+        .unwrap();
+    settings
+        .set_boolean("record-system-audio", system_audio)
+        .unwrap();
+}
+
+/// The control's widgets.
+struct ControlView {
+    window: gtk::Window,
+    rec_dot: gtk::Widget,
+    paused_icon: gtk::Image,
+    time: gtk::Label,
+    paused: gtk::Label,
+    pause: gtk::Button,
+    stop: gtk::Button,
+    audio_separator: gtk::Widget,
+    microphone: gtk::Button,
+    microphone_icon: gtk::Image,
+    system: gtk::Button,
+    system_icon: gtk::Image,
+    minimize: gtk::Button,
+}
+
+fn wait_for_control() -> ControlView {
+    wait_for(|| control::shown().is_some(), "the Recording control");
+    let window = control::shown().unwrap();
+    wait_for(|| window.is_mapped(), "the control on the screen");
+    pump(200);
+    let get = |id: &str| find::<gtk::Widget>(&window, id).unwrap_or_else(|| panic!("no {id}"));
+    ControlView {
+        rec_dot: get("rec_dot"),
+        paused_icon: get("paused_icon").downcast().unwrap(),
+        time: get("time_label").downcast().unwrap(),
+        paused: get("paused_label").downcast().unwrap(),
+        pause: get("pause_button").downcast().unwrap(),
+        stop: get("stop_button").downcast().unwrap(),
+        audio_separator: get("audio_separator"),
+        microphone: get("microphone_button").downcast().unwrap(),
+        microphone_icon: get("microphone_icon").downcast().unwrap(),
+        system: get("system_button").downcast().unwrap(),
+        system_icon: get("system_icon").downcast().unwrap(),
+        minimize: get("minimize_button").downcast().unwrap(),
+        window,
+    }
+}
+
+fn icon(image: &gtk::Image) -> String {
+    image.icon_name().map(|n| n.to_string()).unwrap_or_default()
+}
+
+fn button_icon(button: &gtk::Button) -> String {
+    button
+        .icon_name()
+        .map(|n| n.to_string())
+        .unwrap_or_default()
+}
+
+/// The recorded time of the running recording, in seconds.
+fn elapsed_now() -> f64 {
+    running()
+        .and_then(|s| s.with_recording(|r| r.elapsed()))
+        .expect("a running recording")
+        .nseconds() as f64
+        / 1e9
+}
+
+/// With `ANNOTA_SHOT_DIR` set, saves the control's window on the kit's `--desktop-bg`, in the
+/// light and the dark colour scheme (`<name>-light.png`, `<name>-dark.png`).
+fn control_shots(window: &gtk::Window, name: &str) {
+    let Some(dir) = std::env::var_os("ANNOTA_SHOT_DIR") else {
+        return;
+    };
+    for (dark, scheme, background) in [
+        (false, "light", (0xc7, 0xc9, 0xd1)),
+        (true, "dark", (0x3d, 0x3f, 0x47)),
+    ] {
+        set_scheme(dark);
+        pump(400);
+        let (width, height) = (window.width() as f32, window.height() as f32);
+        let snapshot = gtk::Snapshot::new();
+        snapshot.append_color(
+            &gdk::RGBA::new(
+                background.0 as f32 / 255.0,
+                background.1 as f32 / 255.0,
+                background.2 as f32 / 255.0,
+                1.0,
+            ),
+            &gtk::graphene::Rect::new(0.0, 0.0, width, height),
+        );
+        gtk::WidgetPaintable::new(Some(window)).snapshot(
+            &snapshot,
+            f64::from(width),
+            f64::from(height),
+        );
+        let texture = window
+            .renderer()
+            .unwrap()
+            .render_texture(snapshot.to_node().unwrap(), None);
+        texture
+            .save_to_png(Path::new(&dir).join(format!("{name}-{scheme}.png")))
+            .unwrap();
+    }
+    set_scheme(false);
+}
+
+/// Scenarios "Elapsed time" and "Minimize the control": once the recording runs, the undecorated
+/// "Recording" window shows rec dot, time, Pause, Stop, both audio buttons and Minimize, with
+/// Pause focused and `Tab` going Pause → Stop → Microphone → System audio → Minimize. Its time
+/// follows the recording's own elapsed clock (`0:01` after a second of real recording) and,
+/// with that clock standing at 12 s, reads `0:12` on the next refresh. Minimize asks for the
+/// window to be minimised (a display without a window manager cannot show more) and the
+/// recording goes on. Stop then closes the session and takes the control away at once.
+// spec: screen-recording / Recording control / Elapsed time
+// spec: screen-recording / Recording control / Minimize the control
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_the_control_shows_the_time_and_minimizes() {
+    let (scene, seen, _folder) = audio_scene("rec-control", true, true);
+    let cast = add_cast(&scene, 7, screen_stream());
+    cast.auto.set(Some(0));
+    start(
+        &scene.app,
+        RecordRequest {
+            mode: RecordMode::Screen,
+        },
+    );
+    let view = wait_for_control();
+    assert_eq!(view.window.title().as_deref(), Some("Recording"));
+    assert!(!view.window.is_decorated());
+    assert!(view.rec_dot.is_visible() && !view.paused.is_visible());
+    assert!(!view.paused_icon.is_visible());
+    assert!(view.audio_separator.is_visible());
+    assert!(view.microphone.is_visible() && view.system.is_visible());
+    assert_eq!(icon(&view.microphone_icon), "annota-microphone-symbolic");
+    assert_eq!(icon(&view.system_icon), "annota-speaker-symbolic");
+    assert_eq!(button_icon(&view.pause), "annota-pause-symbolic");
+    assert_eq!(button_icon(&view.minimize), "window-minimize-symbolic");
+    assert_eq!(view.minimize.tooltip_text().as_deref(), Some("Minimize"));
+    assert!(view.pause.has_focus(), "Pause has the initial focus");
+    for next in [&view.stop, &view.microphone, &view.system, &view.minimize] {
+        view.window.child_focus(gtk::DirectionType::TabForward);
+        assert!(next.has_focus(), "tab order");
+    }
+    view.pause.grab_focus();
+    // Both meters are fed by the recording's level messages (0.5 → 5 bars, 0.1 → 4 bars).
+    wait_for(
+        || {
+            control::meter(AudioSource::Microphone) == Some((5, false))
+                && control::meter(AudioSource::SystemAudio) == Some((4, false))
+        },
+        "both meters lit",
+    );
+
+    // The real clock: the label follows the recording's elapsed time.
+    wait_for(|| view.time.label() == "0:01", "0:01");
+    let width = view.time.width();
+    control_shots(&view.window, "05-recording-control");
+
+    // A recording that has run for 12 s: the clock reports 12 s, the next tick shows it.
+    let clock = Rc::new(Cell::new(gst::ClockTime::from_mseconds(11_900)));
+    control::set_elapsed_source({
+        let clock = clock.clone();
+        Rc::new(move || Some(clock.get()))
+    });
+    assert_eq!(view.time.label(), "0:11");
+    clock.set(gst::ClockTime::from_seconds(12));
+    pump(control::TICK.as_millis() as u64 + 150);
+    assert_eq!(view.time.label(), "0:12");
+    assert_eq!(view.time.width(), width, "tabular, no jump");
+    clock.set(gst::ClockTime::from_seconds(3600 + 12));
+    pump(control::TICK.as_millis() as u64 + 150);
+    assert_eq!(view.time.label(), "1:00:12");
+
+    // Minimize: requested for the control's window; the recording continues.
+    let (minimized, _) = control::requests();
+    view.minimize.emit_clicked();
+    assert_eq!(control::requests().0, minimized + 1);
+    let before = elapsed_now();
+    pump(800);
+    assert!(elapsed_now() > before + 0.5, "the recording continues");
+    assert!(running().is_some());
+    assert!(control::shown().is_some(), "minimised, not closed");
+    assert_eq!(seen.ended.borrow().len(), 0);
+
+    // Stop: the control goes at once, the session is closed, the file finished.
+    view.stop.emit_clicked();
+    assert!(control::shown().is_none(), "the control disappears");
+    wait_for(
+        || !seen.ended.borrow().is_empty(),
+        "the recording to finish",
+    );
+    cast.reaches("Session.Close", 1);
+    let ended = std::mem::take(&mut *seen.ended.borrow_mut());
+    assert_eq!(ended.len(), 1);
+    assert_eq!(ended[0].0.reason, EndReason::Stopped);
+    assert_eq!(ended[0].0.finished.audio.len(), 2);
+    assert!(!is_active());
+}
+
+/// Scenario "Second recording request": while a recording runs, `--record screen`, `--record
+/// region`, `--record window` (through `app.record`, which the Record card and the shortcut use
+/// too) and a region from the setup each present the control and request nothing: one
+/// `CreateSession` in all, no overlay. A microphone-only recording has no System audio button;
+/// one without audio has neither button nor their separator. The Record shortcut (toggle) still
+/// stops the recording, while it runs and while it is paused, and the control goes with it.
+// spec: screen-recording / Recording control / Second recording request
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_a_second_recording_request_presents_the_control() {
+    let (scene, seen, _folder) = audio_scene("rec-second-request", true, false);
+    let cast = add_cast(&scene, 7, screen_stream());
+    cast.auto.set(Some(0));
+    crate::application::setup_actions(&scene.app);
+    scene
+        .app
+        .activate_action("record", Some(&RecordMode::Screen.as_str().to_variant()));
+    let view = wait_for_control();
+    assert!(view.microphone.is_visible());
+    assert!(
+        !view.system.is_visible(),
+        "a source not recorded has no button"
+    );
+    assert!(view.audio_separator.is_visible());
+    wait_for(|| view.time.label() == "0:01", "0:01");
+    control_shots(&view.window, "05-microphone-only");
+
+    let (_, presented) = control::requests();
+    for mode in [RecordMode::Screen, RecordMode::Region, RecordMode::Window] {
+        scene
+            .app
+            .activate_action("record", Some(&mode.as_str().to_variant()));
+    }
+    start_region(&scene.app, IRect::new(10, 10, 100, 100));
+    pump(700);
+    assert_eq!(control::requests().1, presented + 4, "presented each time");
+    assert_eq!(cast.count("CreateSession"), 1, "no second session");
+    assert!(overlay_window(&scene.app).is_none(), "no overlay");
+    assert!(window_wait::shown().is_none());
+    assert!(running().is_some());
+    assert_eq!(control::shown().as_ref(), Some(&view.window));
+
+    // The Record shortcut while recording: ends it as Stop.
+    scene
+        .app
+        .activate_action("record", Some(&RecordMode::Toggle.as_str().to_variant()));
+    assert!(control::shown().is_none(), "the control disappears");
+    wait_for(
+        || !seen.ended.borrow().is_empty(),
+        "the recording to finish",
+    );
+    cast.reaches("Session.Close", 1);
+    assert_eq!(
+        seen.ended.borrow_mut().remove(0).0.reason,
+        EndReason::Stopped
+    );
+
+    // Without audio: no audio buttons, no separator. Paused, the shortcut still stops it.
+    want_audio(false, false);
+    scene
+        .app
+        .activate_action("record", Some(&RecordMode::Screen.as_str().to_variant()));
+    let view = wait_for_control();
+    assert!(!view.microphone.is_visible() && !view.system.is_visible());
+    assert!(
+        !view.audio_separator.is_visible(),
+        "the group's separator goes"
+    );
+    wait_for(|| view.time.label() == "0:01", "0:01");
+    control_shots(&view.window, "05-no-audio");
+    assert!(press(&view.window, gdk::Key::space));
+    assert!(running()
+        .unwrap()
+        .with_recording(|r| r.is_paused())
+        .unwrap());
+    scene
+        .app
+        .activate_action("record", Some(&RecordMode::Toggle.as_str().to_variant()));
+    assert!(control::shown().is_none());
+    wait_for(
+        || !seen.ended.borrow().is_empty(),
+        "the paused recording to finish",
+    );
+    cast.reaches("Session.Close", 2);
+    let (done, _) = seen.ended.borrow_mut().remove(0);
+    assert_eq!(done.reason, EndReason::Stopped);
+    assert!(done.finished.audio.is_empty());
+    assert_eq!(cast.count("CreateSession"), 2);
+    assert!(!is_active());
+}
+
+/// Scenarios "Paused state", "Mute the microphone" (its control part) and "Mute system audio":
+/// `M` in the control mutes the microphone (slashed icon, unlit meter) until `M` again, `S` the
+/// system audio until `S` again; the file is silent on that track for exactly that time and has
+/// sound before and after. `Space` pauses: the rec dot becomes the amber pause glyph, "Paused"
+/// appears, Pause becomes Resume (play) and keeps the focus, and the time stands still; `Space`
+/// resumes. Stop ends it.
+// spec: screen-recording / Pause and resume / Paused state
+// spec: screen-recording / Audio / Mute the microphone
+// spec: screen-recording / Audio / Mute system audio
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_pause_and_mutes_in_the_control() {
+    let (scene, seen, _folder) = audio_scene("rec-control-pause", true, true);
+    let cast = add_cast(&scene, 7, screen_stream());
+    cast.auto.set(Some(0));
+    start(
+        &scene.app,
+        RecordRequest {
+            mode: RecordMode::Screen,
+        },
+    );
+    let view = wait_for_control();
+    wait_for(
+        || control::meter(AudioSource::Microphone) == Some((5, false)),
+        "the microphone meter",
+    );
+    pump(800);
+
+    // `M`: microphone muted until `M` again.
+    let mic_muted = elapsed_now();
+    assert!(press(&view.window, gdk::Key::m));
+    assert!(running()
+        .unwrap()
+        .with_recording(|r| r.is_muted(AudioSource::Microphone))
+        .unwrap());
+    assert_eq!(icon(&view.microphone_icon), "microphone-disabled-symbolic");
+    pump(300);
+    assert_eq!(
+        control::meter(AudioSource::Microphone),
+        Some((0, false)),
+        "unlit"
+    );
+    assert_eq!(icon(&view.system_icon), "annota-speaker-symbolic");
+    pump(800);
+    let mic_back = elapsed_now();
+    assert!(press(&view.window, gdk::Key::m));
+    assert_eq!(icon(&view.microphone_icon), "annota-microphone-symbolic");
+    wait_for(
+        || control::meter(AudioSource::Microphone) == Some((5, false)),
+        "the microphone meter again",
+    );
+    pump(400);
+
+    // `S`: system audio muted until `S` again.
+    let system_muted = elapsed_now();
+    assert!(press(&view.window, gdk::Key::s));
+    assert_eq!(icon(&view.system_icon), "audio-volume-muted-symbolic");
+    assert!(running()
+        .unwrap()
+        .with_recording(|r| r.is_muted(AudioSource::SystemAudio))
+        .unwrap());
+    pump(300);
+    assert_eq!(control::meter(AudioSource::SystemAudio), Some((0, false)));
+    pump(900);
+    let system_back = elapsed_now();
+    assert!(press(&view.window, gdk::Key::s));
+    assert_eq!(icon(&view.system_icon), "annota-speaker-symbolic");
+    pump(600);
+
+    // `Space`: paused, with the time from the moment of pausing.
+    view.pause.grab_focus();
+    assert!(press(&view.window, gdk::Key::space));
+    assert!(running()
+        .unwrap()
+        .with_recording(|r| r.is_paused())
+        .unwrap());
+    assert!(view.paused.is_visible());
+    assert_eq!(view.paused.label(), "Paused");
+    assert!(view.paused_icon.is_visible() && !view.rec_dot.is_visible());
+    assert_eq!(icon(&view.paused_icon), "annota-pause-symbolic");
+    assert_eq!(button_icon(&view.pause), "annota-play-symbolic", "Resume");
+    assert!(view.pause.has_focus(), "the focus stays on that button");
+    let frozen = view.time.label();
+    let frozen_elapsed = elapsed_now();
+    // The time from the moment of pausing, not 0.
+    assert!(frozen_elapsed > system_back, "{frozen_elapsed} s");
+    assert_eq!(
+        frozen,
+        control::format_elapsed(gst::ClockTime::from_nseconds((frozen_elapsed * 1e9) as u64))
+    );
+    // The mockup's paused state: the microphone muted as well.
+    assert!(press(&view.window, gdk::Key::m));
+    control_shots(&view.window, "06-paused-mic-muted");
+    assert!(press(&view.window, gdk::Key::m));
+    pump(1200);
+    assert_eq!(view.time.label(), frozen, "the time no longer advances");
+    assert!((elapsed_now() - frozen_elapsed).abs() < 0.01);
+
+    // Resume (the focused button), then Stop.
+    view.pause.emit_clicked();
+    assert!(!running()
+        .unwrap()
+        .with_recording(|r| r.is_paused())
+        .unwrap());
+    assert!(!view.paused.is_visible() && view.rec_dot.is_visible());
+    assert_eq!(button_icon(&view.pause), "annota-pause-symbolic");
+    pump(800);
+    assert!(elapsed_now() > frozen_elapsed + 0.4, "running again");
+    view.stop.emit_clicked();
+    wait_for(
+        || !seen.ended.borrow().is_empty(),
+        "the recording to finish",
+    );
+    let (done, _) = seen.ended.borrow_mut().remove(0);
+    assert_eq!(done.reason, EndReason::Stopped);
+    let analysis = analyse(&done.finished.path);
+    assert_eq!(analysis.audio.len(), 2);
+    let loudest = |track: &[AChunk]| rms_range(track, 0.1, mic_muted - 0.1).1;
+    let (mic, system) = if loudest(&analysis.audio[0]) > loudest(&analysis.audio[1]) {
+        (&analysis.audio[0], &analysis.audio[1])
+    } else {
+        (&analysis.audio[1], &analysis.audio[0])
+    };
+    let margin = 0.15;
+    assert!(
+        rms_range(mic, 0.1, mic_muted - margin).0 > 0.1,
+        "mic before"
+    );
+    assert!(
+        rms_range(mic, mic_muted + margin, mic_back - margin).1 < 0.001,
+        "mic silent while muted"
+    );
+    assert!(
+        rms_range(mic, mic_back + margin, system_muted).0 > 0.1,
+        "mic after"
+    );
+    assert!(
+        rms_range(system, 0.1, system_muted - margin).0 > 0.02,
+        "system before"
+    );
+    assert!(
+        rms_range(system, system_muted + margin, system_back - margin).1 < 0.001,
+        "system silent until unmuted"
+    );
+    assert!(
+        rms_range(system, system_back + margin, frozen_elapsed - margin).0 > 0.02,
+        "system after unmuting"
+    );
+    // The tracks keep their length.
+    let end = |track: &[AChunk]| track.last().map_or(0.0, |c| c.pts);
+    assert!(end(mic) > frozen_elapsed && end(system) > frozen_elapsed);
 }

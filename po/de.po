@@ -3756,3 +3756,47 @@ msgstr "Kein Mikrofon gefunden"
 #: src/recording/setup.rs
 msgid "No audio output found"
 msgstr "Keine Audioausgabe gefunden"
+
+#: data/ui/recording-control.blp
+msgid "Recording"
+msgstr "Aufnahme"
+
+#: data/ui/recording-control.blp
+msgid "Elapsed time"
+msgstr "Aufgenommene Zeit"
+
+#: data/ui/recording-control.blp
+msgid "Paused"
+msgstr "Pausiert"
+
+#: data/ui/recording-control.blp src/recording/control.rs
+msgid "Pause"
+msgstr "Pausieren"
+
+#: src/recording/control.rs
+msgid "Resume"
+msgstr "Fortsetzen"
+
+#: data/ui/recording-control.blp src/recording/control.rs
+msgid "Stop"
+msgstr "Stoppen"
+
+#: data/ui/recording-control.blp src/recording/control.rs
+msgid "Mute microphone"
+msgstr "Mikrofon stummschalten"
+
+#: src/recording/control.rs
+msgid "Microphone muted"
+msgstr "Mikrofon stummgeschaltet"
+
+#: data/ui/recording-control.blp src/recording/control.rs
+msgid "Mute system audio"
+msgstr "Systemton stummschalten"
+
+#: src/recording/control.rs
+msgid "System audio muted"
+msgstr "Systemton stummgeschaltet"
+
+#: data/ui/recording-control.blp
+msgid "Minimize"
+msgstr "Minimieren"

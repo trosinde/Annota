@@ -206,7 +206,7 @@ pub(crate) fn show(
 }
 
 /// The OSD's rectangle in surface coordinates.
-fn input_rect(window: &gtk::Window, osd: &gtk::Box) -> Option<cairo::RectangleInt> {
+pub(crate) fn input_rect(window: &gtk::Window, osd: &gtk::Box) -> Option<cairo::RectangleInt> {
     let bounds = osd.compute_bounds(window)?;
     let (dx, dy) = window.surface_transform();
     let rect = graphene::Rect::new(

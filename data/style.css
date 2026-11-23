@@ -235,6 +235,104 @@ button.annota-record-start:focus-visible {
   color: white;
 }
 
+/* --- Recording control (add-screen-recording 05–06) -------------------------------------
+ * An OSD pill in its own transparent, undecorated window: --osd-bg-solid, radius 26, height 52,
+ * padding 0 8 0 18, gap 6 (the box's spacing); the window's margins hold the shadow. */
+
+window.annota-recording-control-window {
+  background: none;
+  box-shadow: none;
+}
+
+.annota-recording-control {
+  background-color: #303034; /* --osd-bg-solid */
+  color: white;
+  border-radius: 26px;
+  min-height: 52px;
+  padding: 0 8px 0 18px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 6, 0.3),
+    0 10px 30px rgba(0, 0, 6, 0.28);
+}
+
+/* Rec dot 10 px --destructive-bg with a 3 px 35 % halo. */
+.annota-recording-control-dot {
+  min-width: 10px;
+  min-height: 10px;
+  border-radius: 9999px;
+  background-color: #e01b24;
+  box-shadow: 0 0 0 3px rgba(224, 27, 36, 0.35);
+}
+
+/* Time 15 px bold, tabular, min 40 px. */
+.annota-recording-control-time {
+  font-size: 15px;
+  font-weight: bold;
+  font-feature-settings: "tnum";
+  min-width: 40px;
+  padding-left: 4px;
+}
+
+/* Paused (06): the pause glyph and "Paused" in --annota-amber. */
+.annota-recording-control-paused {
+  color: #f5a524;
+}
+
+.annota-recording-control-paused-label {
+  font-size: 13px;
+  font-weight: bold;
+  padding-right: 2px;
+}
+
+.annota-recording-control separator.annota-recording-control-separator {
+  min-width: 1px;
+  min-height: 24px;
+  margin: 0 4px;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.annota-recording-control button {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0 10px;
+  border-radius: 18px;
+  background: none;
+  box-shadow: none;
+  color: white;
+}
+
+.annota-recording-control button.annota-recording-control-circular {
+  min-width: 36px;
+  padding: 0;
+}
+
+.annota-recording-control button.annota-recording-control-fill {
+  background-color: rgba(255, 255, 255, 0.1); /* --osd-fill */
+}
+
+.annota-recording-control button:hover,
+.annota-recording-control button.annota-recording-control-fill:hover {
+  background-color: rgba(255, 255, 255, 0.17); /* --osd-fill-hover */
+}
+
+.annota-recording-control button:active,
+.annota-recording-control button.annota-recording-control-fill:active {
+  background-color: rgba(255, 255, 255, 0.28); /* --osd-fill-active */
+}
+
+.annota-recording-control button.annota-recording-control-stop {
+  background-color: #e01b24; /* --destructive-bg */
+}
+
+.annota-recording-control button.annota-recording-control-stop:hover,
+.annota-recording-control button.annota-recording-control-stop:active {
+  background-color: #ec3a42;
+}
+
+.annota-recording-control button:focus-visible {
+  outline: 2px solid rgba(120, 174, 237, 0.85);
+  outline-offset: 1px;
+}
+
 /* --- Countdown OSD (07) ----------------------------------------------------------------- */
 
 window.annota-countdown-window {

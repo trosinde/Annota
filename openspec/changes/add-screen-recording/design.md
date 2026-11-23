@@ -442,3 +442,43 @@ Phase C1 (recording setup and countdown, tasks 4.1 and 4.3, plus the Phase B rev
   the window crop meta is always converted, with the matching monitor's scale, else the one scale
   all monitors share, else 1 (`geometry::fallback_scale`), never alpha over the whole buffer; the
   waiting indicator of a window recording is titled "Record Window".
+
+Phase C2 (Recording control, task 4.4, and the kit icons; `src/recording/control.rs`,
+`data/ui/recording-control.blp`, 2026-11-24):
+- **The control is a transparent undecorated window around the pill.** GTK draws no shadow for
+  an undecorated window, so the pill (403 × 52 with both audio sources, as redlined) sits in a
+  window with 20/30/40 px margins that hold its OSD shadow; only the pill takes pointer input
+  (input region as for the waiting indicator, `window_wait::input_rect` made `pub(crate)`). A
+  `GtkWindowHandle` makes the whole body draggable; the buttons keep their clicks.
+- **Shown and closed:** `record` shows it once the `RecordingSession` runs (after the countdown).
+  `recording::stop()` (Stop, the Record shortcut) closes it at once; every other end (the desktop,
+  an error, the stream's end) closes it on the next 250 ms tick, when the session no longer runs,
+  and the delivered `Ended` closes it in any case. A close request (`Alt+F4`) is refused: the
+  control lives exactly as long as its recording. A second request (`start` with any mode but
+  toggle, `start_region`) calls `control::present()`; only without a control (waiting, countdown)
+  the waiting indicator is raised as before.
+- **Time:** `Recording::elapsed`, refreshed every 250 ms only while the window is mapped and the
+  recording is not paused; the label is only set when its text changes. Found while building
+  it: `Timeline::out_time` returned 0 for a moment inside a pause (its `map` counts the pause
+  start as paused), so the control would have read `0:00` while paused and a mute set while
+  paused would have been stored at 0 s. Fixed in `out_time` (the recorded time before that
+  pause), with a unit test; `map` (which buffers are dropped) is unchanged.
+- **Keys:** `Space`, `M`, `S` from a key controller on the window in the bubble phase, without
+  Ctrl/Alt/Super: `Space` on a focused button activates that button (GTK's own binding), on the
+  window body it pauses. `M`/`S` do nothing for a source that is not recorded.
+- **Stop's tooltip chip** comes from `Hooks::record_trigger` (a GTK accelerator, `None`: no
+  chip), `None` until task 4.5 reports the portal's `record` trigger.
+- **Meters:** 5 bars over −60…0 dB, the 5th `--warning-bg` above −3 dB (as the setup's 8-bar
+  meter); muted → unlit regardless of the level message. A meter redraws only when its lit bars
+  change. While paused no level messages arrive (the `level` element sits behind the glue), so
+  the meters keep their last state.
+- **Icons:** `annota-record`, `-microphone`, `-speaker` (kit `record`, `microphone`, `speaker`)
+  and `-pause`, `-play`, `-stop` (kit glyphs of the same names) are shipped like the other kit
+  icons, with the kit's strokes converted to filled outlines (GTK's symbolic recolouring fills
+  shapes). The mode pill's Video segment and Start Recording use `annota-record-symbolic`, the
+  setup rows and the unmuted control buttons the kit microphone and speaker. Muted and Minimize
+  stay Adwaita (`microphone-disabled-symbolic`, `audio-volume-muted-symbolic`,
+  `window-minimize-symbolic`) as "Kit gaps" says.
+- **Not observable without a window manager:** whether the window really got minimised or
+  raised. The live tests count the control's `minimize()`/`present()` calls and check that the
+  recording goes on; the effect itself belongs to the 6.2 live run.

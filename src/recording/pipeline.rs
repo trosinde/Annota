@@ -239,15 +239,18 @@ impl Timeline {
         Some(rt.saturating_sub(paused))
     }
 
-    /// Output time of `rt`, a moment inside a pause counting as its start.
+    /// Output time of `rt`, a moment inside a pause counting as its start: the recorded time
+    /// before that pause (the control's frozen time, mutes set while paused).
     fn out_time(&self, rt: gst::ClockTime) -> gst::ClockTime {
-        let inside = self
-            .pauses
-            .iter()
-            .find(|(start, end)| rt >= *start && end.is_none_or(|end| rt < end))
-            .map(|(start, _)| *start);
-        let at = inside.unwrap_or(rt);
-        self.map(at).unwrap_or(gst::ClockTime::ZERO)
+        let mut paused = gst::ClockTime::ZERO;
+        for (start, end) in &self.pauses {
+            match end {
+                _ if rt < *start => {}
+                Some(end) if rt >= *end => paused += *end - *start,
+                _ => return start.saturating_sub(paused),
+            }
+        }
+        rt.saturating_sub(paused)
     }
 
     fn is_paused(&self) -> bool {

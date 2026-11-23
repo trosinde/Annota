@@ -39,6 +39,7 @@
 #![allow(dead_code)]
 
 pub mod audio;
+pub mod control;
 pub mod files;
 pub mod geometry;
 #[cfg(test)]
@@ -177,6 +178,9 @@ pub struct Hooks {
     pub on_outcome: OnOutcome,
     /// A recording ended (Phase D: the Export Recording window, D1).
     pub on_ended: OnEnded,
+    /// The Record shortcut's trigger for the control's Stop tooltip, as the portal reports it
+    /// (task 4.5 fills it); `None`: no chip.
+    pub record_trigger: control::RecordTrigger,
 }
 
 impl Default for Hooks {
@@ -202,6 +206,7 @@ impl Default for Hooks {
                     ended.finished.path.display()
                 );
             }),
+            record_trigger: Rc::new(|| None),
         }
     }
 }
@@ -291,6 +296,8 @@ pub fn running() -> Option<Rc<RecordingSession>> {
 pub fn stop() -> bool {
     match running() {
         Some(session) => {
+            // The control goes at once; the file is finished meanwhile.
+            control::close();
             session.stop();
             true
         }
@@ -320,9 +327,11 @@ pub fn start(app: &adw::Application, request: RecordRequest) {
     if is_active() {
         match request.mode {
             RecordMode::Toggle if stop() || cancel_countdown() => {}
-            // Phase D (task 4.4): raise the control. While waiting, the indicator comes up.
+            // Recording: the control is presented; while waiting, the indicator comes up.
             _ => {
-                window_wait::raise();
+                if !control::present() {
+                    window_wait::raise();
+                }
             }
         }
         return;
@@ -359,7 +368,9 @@ pub fn start_from_setup(app: &adw::Application, source: CaptureMode, selection: 
 /// Records `selection` (logical desktop px): the setup's Start Recording with source Region.
 pub fn start_region(app: &adw::Application, selection: IRect) {
     if is_active() {
-        window_wait::raise();
+        if !control::present() {
+            window_wait::raise();
+        }
         return;
     }
     spawn(app, Target::Region(selection));
@@ -474,15 +485,24 @@ async fn record(app: &adw::Application, target: Target) -> StartOutcome {
     let on_ended = {
         let (app, on_ended) = (app.clone(), hooks.on_ended.clone());
         move |ended: Ended| {
+            control::close();
             set_active(Active::Idle);
             on_ended(&app, ended);
         }
     };
-    let session =
-        RecordingSession::begin(app, recording, events, granted, hooks.on_event, on_ended);
+    let on_event = {
+        let on_event = hooks.on_event.clone();
+        Rc::new(move |event: &RecordingEvent| {
+            control::on_event(event);
+            on_event(event);
+        })
+    };
+    let session = RecordingSession::begin(app, recording, events, granted, on_event, on_ended);
     // An error may have ended it already.
     if session.is_running() {
-        set_active(Active::Recording(session));
+        set_active(Active::Recording(session.clone()));
+        // Task 4.4: the control, from the first recorded frame on.
+        control::show(app, &session, hooks.record_trigger.clone());
     }
     StartOutcome::Recording
 }
