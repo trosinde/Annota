@@ -285,6 +285,14 @@ Non-portal measurements in the same group: `pulsesrc` default source and
   sources are insensitive (scenario "Source not offered").
 
 ## Risks / open questions
+- Final review 2026-11-24 (non-blocking, follow-ups): (1) a start that fails after Start
+  Recording (`StartOutcome::Failed`: portal error, element missing, recordings folder not
+  writable) is only logged; it needs a toast that is true for every cause, e.g. "The recording
+  could not start. Nothing was recorded.", and a mockup first. (2) The Export window's "Include
+  audio" subtitle always says "Mixes microphone and system audio into one track", also for a
+  single source (mockup copy). (3) Focus rings on the alert's Cancel and Saved's Close do not show
+  in headless shots; check on the real desktop. (4) Ubuntu 24.04 (GNOME 46) probes 2.1c/2.2 and
+  P9 (X11) are unmeasured; everything was measured on GNOME 50.
 - Q1-Q9 are decided (see "Design approved" above).
 - Encoded size of a window recording: settled, D2 confirmed 2026-11-23 (frame fixed at start,
   larger windows scaled down and letterboxed). Q9's text says only what is true for every
