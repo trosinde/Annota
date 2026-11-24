@@ -55,5 +55,5 @@
       Pass 1 (2026-11-24): NOT READY - findings 1, 2, 4, 6, 7, 8, 9 addressed in this tree.
       Pass 2 (2026-11-24): NOT READY - blocker 1 (German proof) and findings 2, 3, 4, 5 addressed
       in task 2.6.
-- [ ] 3.6 `python3 tools/scenario_gate.py verify fix-stale-settings-schema` exits 0 on the final
+- [x] 3.6 `python3 tools/scenario_gate.py verify fix-stale-settings-schema` exits 0 on the final
       HEAD and `scenario-report.md` is committed.
