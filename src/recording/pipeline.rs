@@ -66,8 +66,8 @@ const QUANTIZER: u32 = 20;
 /// A key frame at least every 2 s: a file cut short by a crash loses at most one group.
 const KEY_INT_MAX: u32 = 2 * FRAME_RATE as u32;
 
-/// The window's content rectangle in one buffer of a window stream (Phase B: from the crop meta
-/// via `geometry::window_content`). `None` keeps the previous rectangle.
+/// The window's content rectangle in one buffer of a window stream (Phase B:
+/// `window::WindowContent`, i.e. `screencast::window_rect`). `None` keeps the previous rectangle.
 pub type ContentRect =
     Arc<dyn Fn(&gst::BufferRef, &gst_video::VideoInfo) -> Option<IRect> + Send + Sync>;
 
@@ -82,9 +82,13 @@ pub enum VideoArea {
         selection: IRect,
         stream: MonitorStream,
     },
-    /// Window: each buffer cropped to its own content rectangle. The first one (even-sized) sets
-    /// the frame size; later ones are scaled to fit and letterboxed (D2).
-    Window(ContentRect),
+    /// Window: each buffer cropped to its own content rectangle. The first one sets the frame
+    /// size, at the window's size on screen in monitor pixels (`scales`,
+    /// [`geometry::window_frame_size`]); later ones are scaled to fit and letterboxed (D2).
+    Window {
+        content: ContentRect,
+        scales: geometry::Scales,
+    },
 }
 
 impl std::fmt::Debug for VideoArea {
@@ -92,7 +96,7 @@ impl std::fmt::Debug for VideoArea {
         match self {
             Self::Whole => write!(f, "Whole"),
             Self::Region { selection, stream } => write!(f, "Region({selection:?}, {stream:?})"),
-            Self::Window(_) => write!(f, "Window"),
+            Self::Window { scales, .. } => write!(f, "Window({scales:?})"),
         }
     }
 }
@@ -805,7 +809,9 @@ struct Cropper {
     size: glib::WeakRef<gst::Element>,
     info: Option<gst_video::VideoInfo>,
     current: Option<IRect>,
-    frame: Option<Size>,
+    /// The encoded frame size and the first rectangle's (even) size in buffer pixels, which is
+    /// scaled to exactly the frame size.
+    frame: Option<(Size, Size)>,
 }
 
 impl Cropper {
@@ -825,7 +831,7 @@ impl Cropper {
                 // Checked in `start`; a stream of another size than announced records whole.
                 geometry::region_crop(*selection, *stream, buffer).unwrap_or(whole)
             }
-            VideoArea::Window(_) => return,
+            VideoArea::Window { .. } => return,
         };
         self.apply(rect, buffer);
     }
@@ -833,9 +839,10 @@ impl Cropper {
     /// `false`: drop the buffer (a window whose first content rectangle is not known yet, so
     /// the frame size is not either).
     fn on_buffer(&mut self, buffer: &gst::BufferRef) -> bool {
-        let VideoArea::Window(content) = &self.area else {
+        let VideoArea::Window { content, scales } = &self.area else {
             return true;
         };
+        let scales = *scales;
         let Some(info) = &self.info else {
             return false;
         };
@@ -849,28 +856,49 @@ impl Cropper {
         else {
             return false;
         };
+        if self.frame.is_none() {
+            // The first rectangle: the frame is the window's size on screen in monitor pixels.
+            let even = geometry::even_rect(rect);
+            let start = Size::new(even.w.max(2), even.h.max(2));
+            let crop_meta = buffer.meta::<gst_video::VideoCropMeta>().and_then(|meta| {
+                let (x, y, w, h) = meta.rect();
+                Some(IRect::new(
+                    i32::try_from(x).ok()?,
+                    i32::try_from(y).ok()?,
+                    i32::try_from(w).ok()?,
+                    i32::try_from(h).ok()?,
+                ))
+            });
+            let factor = geometry::screen_factor(rect, size.w, crop_meta, scales);
+            self.fix_frame(geometry::window_frame_size(start, factor), start);
+        }
         self.apply(rect, size);
         true
     }
 
+    /// Fixes the encoded frame size for the whole recording.
+    fn fix_frame(&mut self, frame: Size, start: Size) {
+        self.frame = Some((frame, start));
+        if let Some(size) = self.size.upgrade() {
+            size.set_property("caps", frame_caps(Some(frame)));
+        }
+    }
+
     fn apply(&mut self, rect: IRect, buffer: Size) {
-        let even = geometry::even_rect(rect);
-        let frame = match self.frame {
-            Some(frame) => frame,
+        let start = match self.frame {
+            Some((_, start)) => start,
             None => {
+                let even = geometry::even_rect(rect);
                 let frame = Size::new(even.w.max(2), even.h.max(2));
-                self.frame = Some(frame);
-                if let Some(size) = self.size.upgrade() {
-                    size.set_property("caps", frame_caps(Some(frame)));
-                }
+                self.fix_frame(frame, frame);
                 frame
             }
         };
-        // A rectangle within a few pixels of the frame's size (odd, or the window's outline
-        // counted one frame and not the next) is cropped to exactly the frame's size at its
-        // origin: no resampling by a pixel (`videoscale` would stretch an odd width by 0.999),
-        // and a window back at its start size is framed exactly as at the start.
-        let rect = snap_to_frame(rect, frame, buffer);
+        // A rectangle within a few pixels of the first one's size (odd, or the window's outline
+        // counted one frame and not the next) is cropped to exactly that size at its origin: no
+        // resampling by a pixel (`videoscale` would stretch an odd width by 0.999), and a window
+        // back at its start size is framed exactly as at the start.
+        let rect = snap_to_frame(rect, start, buffer);
         if self.current == Some(rect) {
             return;
         }
@@ -884,8 +912,8 @@ impl Cropper {
     }
 }
 
-/// `rect` as exactly `frame`'s size when each side is within [`window::SAME_RECT`] of it and
-/// the frame fits in the buffer (moved in from the right and bottom edges where needed); any
+/// `rect` as exactly `frame`'s size (the first rectangle's, in buffer pixels) when each side is
+/// within [`window::SAME_RECT`] of it and the frame fits in the buffer (moved in from the right and bottom edges where needed); any
 /// other rectangle as it is, to be scaled into the frame.
 fn snap_to_frame(rect: IRect, frame: Size, buffer: Size) -> IRect {
     let near = |a: i32, b: i32| (a - b).abs() <= window::SAME_RECT;

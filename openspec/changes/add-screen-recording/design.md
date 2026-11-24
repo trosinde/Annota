@@ -44,6 +44,7 @@ this branch by the coordinating session):
 | Q8 | Region recording resolution (2026-11-23, after P2/P3) | **Buffer pixel density**: an 800×600 logical selection on a 1.25 monitor is stored as 1000×750; never downscaled to logical size. |
 | Q9 | Desktop ends the request during Start (2026-11-23, after the P6 rerun) | Text approved: toast "The desktop ended the screen-sharing request. Nothing was recorded." in the style of mockup 13; its mockup is drawn during apply (task 4.7). |
 | D2 | Encoded frame size of a window recording (confirmed 2026-11-23) | **Fixed at start**: the first trimmed window (even-sized) sets the frame size for the whole recording; a later, larger window is scaled down to fit and letterboxed, never stretched. The alternative (frame fixed at the window's monitor size) is rejected. |
+| D2a | Window recording size (maintainer, 2026-11-24) | **The window's size on screen in physical monitor pixels**, not the window stream's buffer scale: frame = first content rectangle × (monitor scale ÷ buffer scale), buffer scale = buffer size ÷ stream `size`, rounded and trimmed to even. A 640×400 logical window at 1.25 is recorded at 800×500 (802×502 with its outline), not 1280×800. Same rule as the window stills (`fix/window-capture-screen-size`); D2's fixed frame and letterboxing stay. |
 | — | Designer assumptions | Accepted as drawn: Pause has the initial focus in the control; Cancel is the default in "Discard Recording?"; an unavailable saved source falls back to Region; Discard/Export sit in the Export Recording footer. |
 
 ## Context
@@ -102,19 +103,20 @@ Alternatives considered:
   content are undefined (a frame at the maximize moment showed stale white). **The crop meta of a
   window stream is not in buffer pixels** (measured on GNOME 50 by the PR #10 live checks with
   `tools/portal-probe.py --screencast-window`): the buffer is at scale 2, the crop meta at the
-  monitor scale (1.25). Content rectangle in the buffer = crop meta × (buffer size ÷ stream
-  `size`) ÷ monitor scale, here × 2 / 1.25 = 1.6 (crop (0, 0, 800, 500) → (0, 0, 1280, 800),
-  confirmed by the alpha bounds); where the factor cannot be computed, the rectangle is found
-  by alpha. This conversion gets its own unit test (scenario "Window crop meta in buffer
-  pixels"); the shipped window still capture reads the crop meta as buffer pixels and captures
-  only the top-left 62.5 % (fixed separately, not in this change). Every buffer is cropped to
-  its own content rectangle, never to the buffer or stream size. The shadow is trimmed by
-  `screencast::window_rect`'s alpha rule, on every buffer (an edge-in scan finds the same box
-  cheaply; a rectangle cached per crop meta kept GNOME's animation frame, see "Decided during
-  apply", 2026-11-24). The encoded frame size is
-  fixed at start (the first trimmed window, even-sized for x264); later frames are scaled to fit
-  and letterboxed, never stretched (D2 confirmed by the maintainer 2026-11-23). Window
-  streams are damage-driven: no buffers while the window is still, so `videorate` repeats the
+  monitor scale (1.25), so crop (0, 0, 800, 500) covers only the top-left 1/1.6 of a window
+  that fills (0, 0, 1280, 800) of the buffer (scenario "Window crop meta in buffer pixels").
+  ~~The recording converted the meta by × (buffer size ÷ stream `size`) ÷ monitor scale.~~
+  Replaced 2026-11-24 after PR #12 fixed the window stills: the meta's units cannot be read
+  from the stream, so the window's own pixels decide. Every buffer is cropped to
+  its own content rectangle, never to the buffer or stream size, as found by
+  `screencast::window_rect` (PR #12: the window found by its pixels at whatever scale the crop
+  meta is in, without its shadow), the same helper as the window stills; it runs again only
+  when the crop meta or the buffer size changed or the previous rectangle no longer bounds the
+  window (a check of its edge lines, see "Decided during apply", 2026-11-24). The encoded frame
+  size is fixed at start: the first trimmed window at its **size on screen in monitor pixels**
+  (maintainer, 2026-11-24, row D2a), i.e. × monitor scale ÷ buffer scale (× 1.25 ÷ 2 here),
+  even-sized for x264; later frames are scaled to fit and letterboxed, never stretched (D2
+  confirmed by the maintainer 2026-11-23). Window streams are damage-driven: no buffers while the window is still, so `videorate` repeats the
   last frame (requirement "Recording frame rate").
 - **Screen**: monitor source, recorded whole. Annota cannot preselect the monitor under the
   pointer; the desktop's chooser decides.
@@ -362,7 +364,9 @@ Phase A (display-independent core, `src/recording/`, 2026-11-23):
 - **Window frames, first buffers:** buffers before the first known content rectangle are dropped
   (otherwise they would pass at the buffer's size and the caps would change mid-stream). A
   rectangle whose even-trimmed size equals the frame size is cropped to exactly that, so the
-  first window is not resampled by one pixel.
+  first window is not resampled by one pixel. (2026-11-24: compared with the first rectangle's size in buffer px;
+  the frame itself is that size × the screen factor, row D2a, so a window stream above the
+  monitor's scale is resampled once by that factor.)
 - **Countdown (D5):** the core has no "drop until armed" state. Phase C either creates the
   `Recording` after the OSD and `SETTLE` are gone (the PipeWire fd stays open meanwhile), or adds
   that state to the glue.
@@ -388,10 +392,12 @@ Phase B (portal session, stop paths, waiting indicator; `src/recording/{source,s
   of its own crop (found with a window stream whose meta does not start at (0, 0); every frame
   was wrong). The content rectangle already accounts for the meta, so Phase A's crop probe now
   removes the meta from the buffer after reading it. The alpha scan of `window.rs` runs on
-  every buffer (changed 2026-11-24, next entry); the monitor scale is the scale of
+  every buffer (changed 2026-11-24, next entries); the monitor scale is the scale of
   the GDK monitor whose logical geometry equals the stream's `size` (and `position`, if given);
-  none or several of different scales → the alpha rule alone. Buffers without alpha (BGRx)
-  use the converted crop meta, else the whole buffer.
+  ~~none or several of different scales → the alpha rule alone~~ (2026-11-24: it only sets the
+  frame size now; none matching → the one scale all monitors share, else unknown). Buffers
+  without alpha (BGRx, never seen from GNOME) use ~~the converted crop meta~~ the crop meta as it
+  is (2026-11-24), else the whole buffer.
 - **Window content rectangle per buffer (2026-11-24, live failure of "Recorded window
   resized" 3/3).** Measured with dumped stream buffers (GNOME 50.1, scale 1.25, 640×400 target):
   on maximize/unmaximize mutter renders the window *with GNOME's size-change animation applied*
@@ -399,14 +405,53 @@ Phase B (portal session, stop paths, waiting indicator; `src/recording/{source,s
   (0, 0, 6144, 3360) crop; unmaximized: the old content over the whole new crop, shadow margin
   included) and renders the settled window only on the window's next redraw, under the same
   crop meta. The rectangle cached per crop meta came from that first buffer and stayed until
-  the next crop change. Now: the alpha rule runs on every buffer with an edge-in scan
+  the next crop change. Now: the alpha rule runs on every buffer ~~with an edge-in scan
   (`geometry::alpha_bounds`, the same box as the full scan, test-checked; it reads only the
-  shadow margin's rows and columns), a new rectangle within `window::SAME_RECT` (2 px per edge)
+  shadow margin's rows and columns)~~ (since 2026-11-24 `screencast::window_rect` with a cheap
+  check, entry "Window rectangle from `window_rect`" below), a new rectangle within `window::SAME_RECT` (2 px per edge)
   of the current one keeps the current one (the 1 px outline's alpha hovers around 128: 1284
   vs 1283 px), and `Cropper` crops a rectangle within 2 px of the frame size to exactly the
   frame size, so the window back at its start size is framed pixel for pixel as at start. Not
   fixable in Annota: a window that never redraws after the resize keeps the animation frame in
   the stream (and so in the recording) until it does.
+- **Window rectangle from `window_rect` (2026-11-24, after PR #12, coordinator: no second crop
+  helper).** The recording's own conversion (`geometry::window_crop_in_buffer`, crop meta ×
+  (buffer ÷ `size`) ÷ monitor scale), its edge-in alpha scan (`alpha_bounds`) and
+  `fallback_scale` are gone; `window.rs` calls `capture::screencast::window_rect` unchanged
+  (already `pub`, nothing in `src/capture` touched). Measured on the P6 fixtures (6144×3456 BGRA,
+  `window_rect` per call; release / debug build): window at rest under a monitor-scale meta
+  (0, 0, 928, 628) 0.54 / 12 ms; maximized, meta (0, 0, 3840, 2100) grown to 6144×3360,
+  7.8 / 206 ms; GNOME's maximize animation frame outside the meta (whole-buffer search)
+  15 / 417 ms. At up to 60 buffers/s that is half to all of a core, so it does not run on every
+  buffer: the previous answer is kept while the crop meta and the buffer size are the same **and**
+  it still bounds the window by its edge lines (`window::bounds_window`: each of its four edge
+  lines holds an opaque pixel, none of the four lines just outside it does; 0.006 ms release,
+  0.1-0.3 ms debug, the same fixtures). An animation frame followed by the settled window under
+  the same meta fails the check (the window now continues past the old box) and gets a fresh
+  `window_rect`, as do a moved, grown or shrunk window and the outline flicker (1284 → 1283;
+  `SAME_RECT` hysteresis still holds the crop). Not checked by edge lines and so searched on
+  every buffer: a translucent window (found by alpha > 0). The one deliberate difference from
+  `window_rect`: a pixel that appears apart from the window inside an unchanged meta is not taken
+  in (test `the_checked_rectangle_is_always_what_window_rect_finds`). Test fixture changed with it:
+  below a maximized window the buffer is transparent, as the window stills measured it (6144 ×
+  3360, PR #12); opaque stale pixels touching the window would be taken in by `window_rect` for
+  stills and recordings alike.
+- **Window recording size (maintainer decision 2026-11-24, design table row D2a).** `Cropper`
+  fixes the frame from the first rectangle: `geometry::window_frame_size(start, screen_factor)`,
+  start = the rectangle trimmed to even (buffer px), factor = monitor scale × stream logical
+  width ÷ buffer width (1.25 × 3072 ÷ 6144 = 0.625), sides rounded then trimmed to even. Same
+  semantics and names as the stills team's `screencast::Scales` / `screen_size` on
+  `fix/window-capture-screen-size` (not merged; local worktree read 2026-11-24): factor ≥ 0.999 →
+  buffer pixels kept, nothing enlarged; monitor scale unknown → meta ÷ window when the meta cut
+  the window by one ratio (within 2 %), else buffer pixels kept. The monitor scale is
+  `source::monitor_scale` with `geometry::single_scale` (the matching monitors' one scale, else
+  all monitors' one scale, else unknown), as the stills' `pick_monitor_scale`. Snapping compares
+  with the start size in buffer px, so the start window is scaled by exactly the factor
+  (1284×804 → 802×502) and a window back at its start size is framed as at start. `videoscale
+  add-borders` keeps the aspect ratio; where rounding makes frame and start differ in aspect by
+  more than a pixel's worth it may add a 1 px black line at the bottom or right edge (not for
+  1280×800 → 800×500 or 1284×804 → 802×502, test-checked). Frames are resampled by
+  `videoscale` (default bilinear) once the factor is below 1.
 - **Region without `position`:** `(0, 0)` only with a single GDK monitor; otherwise the start
   fails (P2 measured `position` present on GNOME 50).
 - **Hooks for Phases C/D and tests** (`recording::Hooks`): video source (`pipewiresrc` on the
@@ -463,8 +508,9 @@ Phase C1 (recording setup and countdown, tasks 4.1 and 4.3, plus the Phase B rev
   countdown future resolved, i.e. after the OSD is gone + `SETTLE`.
 - **Review follow-ups:** `source::request` closes its session and hides the indicator when its
   future is dropped (`OpenSession`, `Indicator` guards); GStreamer's background `init` runs once;
-  the window crop meta is always converted, with the matching monitor's scale, else the one scale
-  all monitors share, else 1 (`geometry::fallback_scale`), never alpha over the whole buffer; the
+  ~~the window crop meta is always converted, with the matching monitor's scale, else the one scale
+  all monitors share, else 1 (`geometry::fallback_scale`), never alpha over the whole buffer~~
+  (superseded 2026-11-24: `window_rect` finds the window by its pixels, no conversion); the
   waiting indicator of a window recording is titled "Record Window".
 
 Phase C1 review fixes (2026-11-24):

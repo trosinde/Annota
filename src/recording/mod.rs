@@ -11,8 +11,8 @@
 //!   source to end (P5/P6); on a [`RecordingEvent::Error`] call it to keep what was written.
 //! - The video source is any raw-video element (`pipewiresrc` from the ScreenCast session,
 //!   Phase B); [`VideoArea`] says what is recorded: the whole buffer, a region mapped by
-//!   [`geometry::region_crop`], or a window cropped per buffer ([`geometry::window_content`]) and
-//!   letterboxed into the first frame. Audio: [`audio::source_element`] per wanted and present
+//!   [`geometry::region_crop`], or a window cropped per buffer to `screencast::window_rect`'s rectangle
+//!   ([`window::WindowContent`]) and letterboxed into the first frame, at its size on screen. Audio: [`audio::source_element`] per wanted and present
 //!   source ([`audio::sources_to_record`], devices behind [`audio::AudioDevices`]).
 //!
 //! Phase B (portal session, stop paths, waiting indicator) and Phase C1 (setup, countdown):
@@ -557,14 +557,12 @@ fn area(target: Target, granted: &Granted) -> Result<VideoArea, StartOutcome> {
     let size = granted.size.map(|(w, h)| Size::new(w, h));
     match target {
         Target::Screen => Ok(VideoArea::Whole),
-        Target::Window => match size {
-            Some(size) => {
-                let scale = source::monitor_scale(granted.position, granted.size);
-                Ok(WindowContent::new(size, scale).into_area())
-            }
-            // No size to convert the crop meta with: the alpha rule alone.
-            None => Ok(WindowContent::new(Size::new(0, 0), None).into_area()),
-        },
+        // The window is found in each buffer by its pixels; the scales only set the frame size
+        // (the window's size on screen in monitor pixels, maintainer decision 2026-11-24).
+        Target::Window => Ok(WindowContent::new().into_area(geometry::Scales {
+            stream_size: granted.size,
+            monitor: source::monitor_scale(granted.position, granted.size),
+        })),
         Target::Region(selection) => {
             let size = size.ok_or_else(|| {
                 StartOutcome::Failed(String::from("the monitor stream has no size"))

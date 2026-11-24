@@ -4,16 +4,14 @@
 //! Three conversions:
 //! - [`region_crop`]: a region selection (overlay, logical px) to a crop of the monitor stream's
 //!   buffers, at the buffer's pixel density (Q8).
-//! - [`window_crop_in_buffer`] / [`window_content`]: a window stream's crop meta (monitor-scale px,
-//!   measured on GNOME 50) to the window's content rectangle in buffer pixels, trimmed by the alpha
-//!   rule of `capture::screencast::window_rect` ([`alpha_bounds`] finds the same box scanning
-//!   from the edges in, cheap enough for every buffer). Kept self-contained so it can later be
-//!   swapped for the window-still fix's own helper in `src/capture`.
+//! - [`window_frame_size`]: a window recording's frame size, the window's size on screen in
+//!   monitor pixels ([`screen_factor`]: monitor scale ÷ buffer scale, maintainer decision
+//!   2026-11-24). Where the window is in each buffer is `capture::screencast::window_rect`'s
+//!   job (`window.rs`).
 //! - [`letterbox`]: a content rectangle into the fixed frame of a window recording (D2 confirmed
 //!   2026-11-23): scaled to fit, aspect kept, centred, never stretched.
 
 use crate::capture::geometry::IRect;
-use crate::capture::screencast::{Pixels, OPAQUE_ALPHA};
 
 /// A size in pixels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -112,91 +110,81 @@ pub fn even_rect(rect: IRect) -> IRect {
     IRect::new(rect.x, rect.y, even(rect.w), even(rect.h))
 }
 
-/// A window stream's crop meta in buffer pixels (design.md D2): the meta is in monitor-scale px,
-/// the buffer at its own scale, so the factor is (buffer size ÷ stream size) ÷ monitor scale per
-/// axis. `None` when the factor cannot be computed (no scale, empty sizes); the caller then
-/// finds the window by alpha ([`window_content`]). The result is clamped to the buffer.
-pub fn window_crop_in_buffer(
-    crop: IRect,
-    stream_size: Size,
-    buffer: Size,
-    monitor_scale: Option<f64>,
-) -> Option<IRect> {
-    let scale = monitor_scale.filter(|s| s.is_finite() && *s > 0.0)?;
-    if stream_size.is_empty() || buffer.is_empty() || crop.is_empty() {
+/// What is known about the scales of a window stream (design.md D2, maintainer decision
+/// 2026-11-24). Mirrors `screencast::Scales` of the window-still fix
+/// (`fix/window-capture-screen-size`, not merged yet), so the recording can switch to it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Scales {
+    /// The stream's `size` in logical pixels: on GNOME 50.1 the monitor's logical size.
+    pub stream_size: Option<(i32, i32)>,
+    /// GDK's scale of the monitor that shows the window, where it can be told.
+    pub monitor: Option<f64>,
+}
+
+/// From this factor up, the buffer counts as at the monitor's scale already: kept as it is.
+const SAME_SCALE: f64 = 0.999;
+
+/// Monitor pixels per buffer pixel of a window stream, `None` to keep the buffer's pixels
+/// (same semantics as the window-still fix's `screen_size`): the monitor's scale ÷ the buffer's
+/// scale, where the buffer's scale is the buffer's width ÷ the stream's logical width (6144 ÷
+/// 3072 = 2, so 1.25 ÷ 2 = 0.625 on GNOME 50.1 at 125 %). Without both, a crop meta that cut
+/// the window (it was at the monitor's scale) gives the factor directly: meta ÷ window, when
+/// both directions agree within 2 %. Nothing is enlarged.
+pub fn screen_factor(
+    rect: IRect,
+    buffer_width: i32,
+    crop: Option<IRect>,
+    scales: Scales,
+) -> Option<f64> {
+    let factor = match (scales.stream_size, scales.monitor) {
+        (Some((logical, _)), Some(monitor)) if logical > 0 && buffer_width > 0 => {
+            monitor * f64::from(logical) / f64::from(buffer_width)
+        }
+        _ => meta_factor(rect, crop)?,
+    };
+    (factor.is_finite() && factor > 0.0 && factor < SAME_SCALE).then_some(factor)
+}
+
+/// Meta ÷ window, when the crop meta is smaller than the window in both directions by the same
+/// ratio (within 2 %): a meta at the monitor's scale that cut the window.
+fn meta_factor(rect: IRect, crop: Option<IRect>) -> Option<f64> {
+    let crop = crop?;
+    if rect.is_empty() {
         return None;
     }
-    let fx = f64::from(buffer.w) / f64::from(stream_size.w) / scale;
-    let fy = f64::from(buffer.h) / f64::from(stream_size.h) / scale;
-    let x0 = (f64::from(crop.x) * fx).round() as i32;
-    let y0 = (f64::from(crop.y) * fy).round() as i32;
-    let x1 = (f64::from(crop.right()) * fx).round() as i32;
-    let y1 = (f64::from(crop.bottom()) * fy).round() as i32;
-    IRect::from_corners((x0, y0), (x1, y1)).intersect(IRect::new(0, 0, buffer.w, buffer.h))
+    let fx = f64::from(crop.w) / f64::from(rect.w);
+    let fy = f64::from(crop.h) / f64::from(rect.h);
+    (fx < SAME_SCALE && fy < SAME_SCALE && (fx - fy).abs() <= 0.02 * fx.max(fy))
+        .then_some((fx + fy) / 2.0)
 }
 
-/// The monitor scale for [`window_crop_in_buffer`]: the scale of the one monitor (or of all
-/// monitors) the stream matched; where none or several of different scales matched, the one
-/// scale every monitor has, else 1. Never "unknown": with any scale the converted crop meta
-/// bounds the window, while the alpha rule over the whole buffer would take opaque undefined
-/// pixels outside the window in (design.md D2).
-pub fn fallback_scale(matching: &[f64], all: &[f64]) -> f64 {
-    let single = |scales: &[f64]| {
+/// The encoded frame size of a window recording (D2, maintainer decision 2026-11-24): the
+/// first content rectangle (`start`, buffer px, even) at the window's size on screen in monitor
+/// pixels, i.e. times [`screen_factor`], rounded and trimmed to even sides for x264.
+pub fn window_frame_size(start: Size, factor: Option<f64>) -> Size {
+    let side = |n: i32| match factor {
+        Some(f) => even((f64::from(n) * f).round() as i32),
+        None => even(n),
+    };
+    Size::new(side(start.w).max(2), side(start.h).max(2))
+}
+
+/// The one scale of the monitors that may show a stream (same rule as the window-still fix's
+/// `pick_monitor_scale`): those matching the stream's geometry if any, else all; `None` when
+/// there is none or they differ.
+pub fn single_scale(matching: &[f64], all: &[f64]) -> Option<f64> {
+    let one = |scales: &[f64]| {
         let first = *scales.first()?;
-        (first.is_finite() && first > 0.0 && scales.iter().all(|s| *s == first)).then_some(first)
+        (first.is_finite()
+            && first > 0.0
+            && scales.iter().all(|scale| (scale - first).abs() < 1e-6))
+        .then_some(first)
     };
-    single(matching).or_else(|| single(all)).unwrap_or(1.0)
-}
-
-/// The window's content rectangle in one buffer: the crop meta converted to buffer pixels
-/// ([`window_crop_in_buffer`]), then trimmed to the window without its shadow by
-/// `capture::screencast::window_rect`'s alpha rule (the box of alpha ≥ [`OPAQUE_ALPHA`], else of
-/// alpha > 0). Where the factor cannot be computed, the alpha rule alone over the whole buffer.
-/// `None`: no visible pixel.
-pub fn window_content(
-    pixels: &Pixels,
-    crop_meta: Option<IRect>,
-    stream_size: Size,
-    monitor_scale: Option<f64>,
-) -> Option<IRect> {
-    let buffer = Size::new(
-        i32::try_from(pixels.width).ok()?,
-        i32::try_from(pixels.height).ok()?,
-    );
-    let whole = IRect::new(0, 0, buffer.w, buffer.h);
-    let area = crop_meta
-        .and_then(|crop| window_crop_in_buffer(crop, stream_size, buffer, monitor_scale))
-        .unwrap_or(whole);
-    alpha_bounds(pixels, area, |alpha| alpha >= OPAQUE_ALPHA)
-        .or_else(|| alpha_bounds(pixels, area, |alpha| alpha > 0))
-}
-
-/// The byte of a pixel that holds its alpha (BGRA in memory on little-endian hosts, ARGB on
-/// big-endian ones: `capture::screencast`'s frame format).
-#[cfg(target_endian = "little")]
-const ALPHA_BYTE: usize = 3;
-#[cfg(target_endian = "big")]
-const ALPHA_BYTE: usize = 0;
-
-/// The bounding box of the pixels within `area` whose alpha passes `keep`: the same box as
-/// `capture::screencast`'s full scan, found from the edges in. For a window that is the rows
-/// and columns of its shadow margin, not the whole buffer, so it can run on every buffer of a
-/// recording (a damage-driven window stream sends at most a frame per redraw).
-pub fn alpha_bounds(pixels: &Pixels, area: IRect, keep: impl Fn(u8) -> bool) -> Option<IRect> {
-    let width = i32::try_from(pixels.width).ok()?;
-    let height = i32::try_from(pixels.height).ok()?;
-    let area = area.intersect(IRect::new(0, 0, width, height))?;
-    let alpha = |x: i32, y: i32| -> u8 {
-        let offset = y as usize * pixels.stride + x as usize * 4 + ALPHA_BYTE;
-        pixels.data.get(offset).copied().unwrap_or(0)
-    };
-    let row = |y: i32| (area.x..area.right()).any(|x| keep(alpha(x, y)));
-    let top = (area.y..area.bottom()).find(|&y| row(y))?;
-    let bottom = (top..area.bottom()).rev().find(|&y| row(y))?;
-    let column = |x: i32| (top..=bottom).any(|y| keep(alpha(x, y)));
-    let left = (area.x..area.right()).find(|&x| column(x))?;
-    let right = (left..area.right()).rev().find(|&x| column(x))?;
-    Some(IRect::new(left, top, right - left + 1, bottom - top + 1))
+    if matching.is_empty() {
+        one(all)
+    } else {
+        one(matching)
+    }
 }
 
 /// Where `content` goes inside a fixed `frame` (D2): scaled by one factor so it fits, centred,
@@ -303,206 +291,104 @@ mod tests {
         );
     }
 
-    // spec: screen-recording / Recording source / Window crop meta in buffer pixels
+    /// GNOME 50.1 at 125 % (2026-11-23/24): stream `size` 3072×1728, buffers 6144×3456 (scale 2).
+    const AT_125: Scales = Scales {
+        stream_size: Some((3072, 1728)),
+        monitor: Some(1.25),
+    };
+
+    /// The frame size of a window recording from its first content rectangle in buffer px.
+    fn frame_of(start: Size, crop: Option<IRect>, scales: Scales) -> Size {
+        let rect = IRect::new(0, 0, start.w, start.h);
+        window_frame_size(start, screen_factor(rect, 6144, crop, scales))
+    }
+
+    // spec: screen-recording / Recording source / Window recorded at its on-screen size
     #[test]
-    fn window_crop_meta_is_converted_by_buffer_over_size_over_scale() {
-        let buffer = Size::new(6144, 3456);
-        let size = Size::new(3072, 1728);
+    fn a_window_frame_has_the_window_size_in_monitor_pixels() {
+        // 640×400 logical at 1.25 = 800×500 monitor px, 1280×800 in the scale-2 buffer.
         assert_eq!(
-            window_crop_in_buffer(IRect::new(0, 0, 800, 500), size, buffer, Some(1.25)),
-            Some(IRect::new(0, 0, 1280, 800))
-        );
-        // The maximised window of P6 (scenario "Recorded window resized").
-        assert_eq!(
-            window_crop_in_buffer(IRect::new(0, 0, 3840, 2100), size, buffer, Some(1.25)),
-            Some(IRect::new(0, 0, 6144, 3360))
-        );
-        // No factor without a scale: the caller falls back to the alpha rule.
-        assert_eq!(
-            window_crop_in_buffer(IRect::new(0, 0, 800, 500), size, buffer, None),
-            None
+            screen_factor(IRect::new(0, 0, 1280, 800), 6144, None, AT_125),
+            Some(0.625)
         );
         assert_eq!(
-            window_crop_in_buffer(IRect::new(0, 0, 800, 500), size, buffer, Some(0.0)),
-            None
+            frame_of(Size::new(1280, 800), None, AT_125),
+            Size::new(800, 500)
+        );
+        // With its outline (2 buffer px per side, measured live): 1284×804 × 0.625 = 802.5 ×
+        // 502.5, rounded to 803 × 503 and trimmed to even for x264.
+        assert_eq!(
+            frame_of(Size::new(1284, 804), None, AT_125),
+            Size::new(802, 502)
+        );
+        // Maximised under a 60 px top bar: 6144×3360 → 3840×2100.
+        assert_eq!(
+            frame_of(Size::new(6144, 3360), None, AT_125),
+            Size::new(3840, 2100)
         );
     }
 
-    // spec: screen-recording / Recording source / Window crop meta in buffer pixels
+    // spec: screen-recording / Recording source / Window recorded at its on-screen size
     #[test]
-    fn window_content_trims_by_alpha_inside_the_converted_crop() {
-        // 64×32 buffer at twice the stream size, scale 1.25: factor 1.6. The window body
-        // (alpha 255) is at (4, 4, 24, 16); a faint shadow (alpha 30) around it; stale opaque
-        // pixels outside the crop meta must not count.
-        let (w, h) = (64u32, 32u32);
-        let mut data = vec![0u8; (w * h * 4) as usize];
-        let mut set = |x: u32, y: u32, alpha: u8| {
-            let offset = ((y * w + x) * 4) as usize;
-            data[offset..offset + 4].copy_from_slice(&[10, 20, 30, alpha]);
+    fn a_window_frame_keeps_the_buffer_pixels_where_the_scales_agree_or_are_unknown() {
+        // Buffers at the monitor's own scale (scale 1, or 2 on a 200 % monitor): unchanged.
+        let at_1 = Scales {
+            stream_size: Some((6144, 3456)),
+            monitor: Some(1.0),
         };
-        for y in 0..h {
-            for x in 0..w {
-                if (40..64).contains(&x) {
-                    set(x, y, 255); // undefined pixels outside the window
-                } else if (4..28).contains(&x) && (4..20).contains(&y) {
-                    set(x, y, 255);
-                } else if x < 32 && y < 24 {
-                    set(x, y, 30);
-                }
-            }
-        }
-        let pixels = Pixels {
-            width: w,
-            height: h,
-            stride: (w * 4) as usize,
-            data: &data,
+        assert_eq!(
+            frame_of(Size::new(1284, 804), None, at_1),
+            Size::new(1284, 804)
+        );
+        let at_2 = Scales {
+            stream_size: Some((3072, 1728)),
+            monitor: Some(2.0),
         };
-        // Crop meta (0, 0, 20, 15) in monitor-scale px → (0, 0, 32, 24) in the buffer.
         assert_eq!(
-            window_content(
-                &pixels,
-                Some(IRect::new(0, 0, 20, 15)),
-                Size::new(32, 16),
-                Some(1.25)
-            ),
-            Some(IRect::new(4, 4, 24, 16))
+            frame_of(Size::new(1283, 805), None, at_2),
+            Size::new(1282, 804)
         );
-        // Without a scale the alpha rule alone decides over the whole buffer (here it also
-        // finds the undefined pixels, which is why the crop meta is preferred).
+        // Never enlarged: a buffer below the monitor's scale stays as it is.
+        let below = Scales {
+            stream_size: Some((6144, 3456)),
+            monitor: Some(1.5),
+        };
         assert_eq!(
-            window_content(
-                &pixels,
-                Some(IRect::new(0, 0, 20, 15)),
-                Size::new(32, 16),
-                None
-            ),
-            Some(IRect::new(4, 0, 60, 32))
+            frame_of(Size::new(1280, 800), None, below),
+            Size::new(1280, 800)
         );
+        // Monitor scale unknown: a crop meta that cut the window at 1/1.6 gives the factor...
+        let unknown = Scales {
+            stream_size: Some((3072, 1728)),
+            monitor: None,
+        };
+        let meta = Some(IRect::new(0, 0, 800, 500));
+        assert_eq!(
+            frame_of(Size::new(1280, 800), meta, unknown),
+            Size::new(800, 500)
+        );
+        // ...a meta with the shadow margin in it (not one ratio) or none keeps the buffer's
+        // pixels, as the window-still fix does.
+        let margin = Some(IRect::new(0, 0, 928, 628));
+        assert_eq!(
+            frame_of(Size::new(1284, 804), margin, unknown),
+            Size::new(1284, 804)
+        );
+        assert_eq!(
+            frame_of(Size::new(1284, 804), None, unknown),
+            Size::new(1284, 804)
+        );
+        assert_eq!(frame_of(Size::new(1, 1), None, unknown), Size::new(2, 2));
     }
 
-    /// "Record a window" says the recording shows only that window: whichever scale the
-    /// fallback finds, the content rectangle lies inside the converted crop meta, so a window
-    /// frame never takes pixels from outside it.
-    // spec: screen-recording / Recording source / Record a window
+    // spec: screen-recording / Recording source / Window recorded at its on-screen size
     #[test]
-    fn without_a_matching_monitor_the_crop_meta_still_bounds_the_window() {
-        // The matching monitor's scale wins; else the scale all monitors share; else 1.
-        assert_eq!(fallback_scale(&[1.25], &[1.0, 1.25]), 1.25);
-        assert_eq!(fallback_scale(&[], &[1.25, 1.25]), 1.25);
-        assert_eq!(fallback_scale(&[1.0, 2.0], &[1.0, 2.0]), 1.0);
-        assert_eq!(fallback_scale(&[], &[1.0, 1.5]), 1.0);
-        assert_eq!(fallback_scale(&[], &[]), 1.0);
-        // P6 scaled down: a 64×32 buffer of a 32×16 stream, crop meta (0, 0, 20, 15). With
-        // scale 1 the meta maps to (0, 0, 40, 30): wider than the true 1.6 factor, but the
-        // opaque undefined pixels right of it (x ≥ 40) are never taken.
-        let (w, h) = (64u32, 32u32);
-        let mut data = vec![0u8; (w * h * 4) as usize];
-        for y in 0..h {
-            for x in 0..w {
-                let alpha = if x >= 40 || ((4..28).contains(&x) && (4..20).contains(&y)) {
-                    255
-                } else {
-                    0
-                };
-                let offset = ((y * w + x) * 4) as usize;
-                data[offset..offset + 4].copy_from_slice(&[10, 20, 30, alpha]);
-            }
-        }
-        let pixels = Pixels {
-            width: w,
-            height: h,
-            stride: (w * 4) as usize,
-            data: &data,
-        };
-        let scale = fallback_scale(&[], &[1.0, 2.0]);
-        assert_eq!(
-            window_content(
-                &pixels,
-                Some(IRect::new(0, 0, 20, 15)),
-                Size::new(32, 16),
-                Some(scale)
-            ),
-            Some(IRect::new(4, 4, 24, 16))
-        );
-        // Every scale the fallback can give: the window's rectangle inside the converted crop
-        // meta, never reaching the undefined pixels at x ≥ 40.
-        let (meta, size, buffer) = (
-            IRect::new(0, 0, 20, 15),
-            Size::new(32, 16),
-            Size::new(64, 32),
-        );
-        for (matching, all) in [
-            (&[1.25][..], &[1.0, 1.25][..]),
-            (&[], &[1.25, 1.25]),
-            (&[1.0, 2.0], &[1.0, 2.0]),
-            (&[], &[1.0, 1.5]),
-            (&[], &[]),
-        ] {
-            let scale = fallback_scale(matching, all);
-            let crop = window_crop_in_buffer(meta, size, buffer, Some(scale)).unwrap();
-            let content = window_content(&pixels, Some(meta), size, Some(scale)).unwrap();
-            assert_eq!(content.intersect(crop), Some(content), "scale {scale}");
-            assert!(content.right() <= 40, "scale {scale}: {content:?}");
-        }
-    }
-
-    /// The edge-in scan finds exactly the box of `capture::screencast::window_rect`'s full scan
-    /// (opaque box, else the translucent box, else none), over the whole buffer and inside a
-    /// crop, for windows with shadow, without shadow, translucent, empty, and with stray pixels.
-    // spec: screen-recording / Recording source / Recorded window resized
-    #[test]
-    fn the_edge_in_scan_finds_the_same_box_as_the_full_scan() {
-        use crate::capture::screencast::window_rect;
-        let (w, h) = (96u32, 64u32);
-        let cases: [&[(IRect, u8)]; 6] = [
-            &[
-                (IRect::new(0, 0, 60, 40), 30),
-                (IRect::new(8, 6, 44, 28), 255),
-            ],
-            &[(IRect::new(0, 0, 96, 64), 255)],
-            &[(IRect::new(5, 7, 30, 20), 60)],
-            &[],
-            &[
-                (IRect::new(10, 10, 20, 20), 255),
-                (IRect::new(70, 50, 1, 1), 200),
-            ],
-            &[
-                (IRect::new(3, 30, 1, 1), 128),
-                (IRect::new(90, 2, 1, 1), 127),
-            ],
-        ];
-        for (n, layers) in cases.iter().enumerate() {
-            let mut data = vec![0u8; (w * h * 4) as usize];
-            for (rect, alpha) in *layers {
-                for y in rect.y..rect.bottom() {
-                    for x in rect.x..rect.right() {
-                        data[((y as u32 * w + x as u32) * 4 + ALPHA_BYTE as u32) as usize] = *alpha;
-                    }
-                }
-            }
-            let pixels = Pixels {
-                width: w,
-                height: h,
-                stride: (w * 4) as usize,
-                data: &data,
-            };
-            for crop in [
-                None,
-                Some((0u32, 0u32, 64u32, 48u32)),
-                Some((20, 12, 70, 52)),
-            ] {
-                let area = crop.map_or(IRect::new(0, 0, 96, 64), |(x, y, cw, ch)| {
-                    IRect::new(x as i32, y as i32, cw as i32, ch as i32)
-                });
-                let edge_in = alpha_bounds(&pixels, area, |a| a >= OPAQUE_ALPHA)
-                    .or_else(|| alpha_bounds(&pixels, area, |a| a > 0));
-                assert_eq!(
-                    edge_in,
-                    window_rect(&pixels, crop),
-                    "case {n}, crop {crop:?}"
-                );
-            }
-        }
+    fn the_monitor_scale_is_the_one_scale_of_the_matching_monitors() {
+        assert_eq!(single_scale(&[1.25], &[1.0, 1.25]), Some(1.25));
+        assert_eq!(single_scale(&[], &[1.25, 1.25]), Some(1.25));
+        assert_eq!(single_scale(&[1.0, 2.0], &[1.0, 2.0]), None);
+        assert_eq!(single_scale(&[], &[1.0, 1.5]), None);
+        assert_eq!(single_scale(&[], &[]), None);
     }
 
     // spec: screen-recording / Recording source / Recorded window resized

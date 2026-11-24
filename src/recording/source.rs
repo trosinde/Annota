@@ -201,11 +201,11 @@ pub fn pipewire_source(fd: RawFd, node: u32) -> Result<gst::Element, RecordingEr
     Ok(source)
 }
 
-/// The scale for a window stream's crop meta conversion (design.md D2): the scale of the GDK
-/// monitor whose logical geometry is the stream's `position`/`size`. Where no single monitor
-/// (or several of different scales) matches, the one scale all monitors share, else 1
-/// ([`geometry::fallback_scale`]): the crop meta still bounds the window, so opaque undefined
-/// pixels outside it are never recorded. `None` only without a display.
+/// The scale of the monitor that shows a window stream, for the recording's frame size (design.md
+/// D2, maintainer decision 2026-11-24): the scale of the GDK monitor whose logical geometry is
+/// the stream's `position`/`size`; where none matches, the one scale all monitors share
+/// ([`geometry::single_scale`]). `None` when it cannot be told: the frame then keeps the
+/// buffer's pixels unless the crop meta gives the factor (`geometry::screen_factor`).
 pub fn monitor_scale(position: Option<(i32, i32)>, size: Option<(i32, i32)>) -> Option<f64> {
     let monitors = gdk::Display::default()?.monitors();
     let monitors: Vec<gdk::Monitor> = (0..monitors.n_items())
@@ -221,7 +221,7 @@ pub fn monitor_scale(position: Option<(i32, i32)>, size: Option<(i32, i32)>) -> 
         .map(gdk::Monitor::scale)
         .collect();
     let all: Vec<f64> = monitors.iter().map(gdk::Monitor::scale).collect();
-    Some(geometry::fallback_scale(&matching, &all))
+    geometry::single_scale(&matching, &all)
 }
 
 /// How many monitors GDK knows.

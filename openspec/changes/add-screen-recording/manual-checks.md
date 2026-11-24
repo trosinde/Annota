@@ -64,6 +64,14 @@ Before you start:
 | `screen-recording / Discard a recording / Discard` | desktop-stop run: Discard, then Discard in "Discard Recording?" | real recording | pass: working file deleted, window closed | 2026-11-24 |
 | `debian-packaging / Recording runtime dependencies / Recording elements installed` | CI's `.deb (lintian)` artifact of run 45311800952 (`annota_0.1.0_amd64.deb`, built on ubuntu-24.04 with Rust 1.91) installed with `apt-get install ./annota_0.1.0_amd64.deb` in a clean `ubuntu:24.04` container (universe on), then `gst-inspect-1.0` for every element of the requirement plus `h264timestamper` and `openh264dec` | needs a clean system and the built package; no Rust test can install a .deb | pass: all 17 elements found (pipewiresrc, pulsesrc, level, audiomixer, videocrop, videorate, x264enc, opusenc, matroskamux, matroskademux, h264parse, h264timestamper, openh264dec, mp4mux, vp9enc, webmmux, voaacenc); Ubuntu 26.04 and Debian 13 by package contents in `probe-results/2026-11-24-containers-elements.md` | 2026-11-24 |
 
+**Window frame size (D2a, maintainer 2026-11-24):** the window rows above were run before the
+decision that window recordings come out at the window's on-screen size in monitor pixels; their
+1284×804 frames are the old buffer-scale size. The rule (expected 802×502 for the 640×400 target
+at scale 1.25) is proven by `pipeline::tests::a_window_is_recorded_at_its_size_on_screen_in_monitor_pixels`;
+a live re-run of `tools/live-recording.py --dev run window` at 04:30 could not start because the
+desktop was locked (RemoteDesktop `CreateSession` answered 2, `org.gnome.ScreenSaver.GetActive`
+true). It stays open until the desktop is unlocked.
+
 Live checks run with `tools/live-recording.py --dev` (development build, private keyfile settings).
 Not run: the Record shortcut by its real key. With fresh settings GNOME shows its "Add Keyboard
 Shortcuts" dialog for every start (Record video proposed as `Alt+Super+R`, so the preferred
