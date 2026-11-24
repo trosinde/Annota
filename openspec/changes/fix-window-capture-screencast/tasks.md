@@ -86,6 +86,15 @@
       1/1.6 of them (failing before the fix), and `tools/live-window-capture.py`'s target now has
       four coloured corner squares, checked in every captured image.
 
+- [x] 4.9 Window image at screen size (design.md D3, maintainer decision 2026-11-24): a window
+      stream at a higher scale than the monitor (2 on a 1.25 monitor) is scaled down to the
+      monitor's scale, factor (monitor scale) ÷ (buffer px ÷ stream `size`), so a 640 × 400 window
+      at 1.25 gives 800 × 500 and a maximised one on 3840 × 2160 gives 3840 × 2100. New scenario
+      "Window image at screen size". Verify: unit tests (scale-2 buffer on a 1.25 monitor with
+      the meta at 1.25 → 800 × 500, four corners; equal scales bit-identical; GDK monitor choice)
+      and `tools/live-window-capture.py`, whose size check now expects logical size × monitor
+      scale ± 2 px.
+
 ## 5. Spec and docs follow-through
 
 - [x] 5.1 Update `docs/design/add-screen-capture/index.md` so that mockup 05 points to this
@@ -106,6 +115,12 @@
       - Include pointer on and off.
       - Scale 1.25 and 1.
       - A maximised and a small window.
+      2026-11-23, automated run on the maintainer's desktop (manual-checks.md, "Live run
+      2026-11-23"): left open. The first item failed on b96c775 (fixed by PR #12, which captures the
+      whole window; live 10 of 10). On b96c775 at scale 1.25 the image held only the
+      window's top-left part, because the crop meta is in scale-1.25 pixels while the buffer is at
+      scale 2. Launcher, keybinding and scale 1 were not run. Passed: terminal start, chooser
+      closed, delay 3 s, countdown cancelled, pointer on and off, maximised and small size.
 - [ ] 6.2 Fresh Ubuntu 24.04 (VM or container with GNOME): install the `.deb` with apt, window
       capture delivers an image (debian-packaging "Window capture works on a fresh install").
       2026-11-22, helper only: the v0.1.0 release `.deb` installs with apt in a plain

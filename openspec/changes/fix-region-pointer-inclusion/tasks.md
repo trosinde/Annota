@@ -80,8 +80,14 @@
       `../annota_0.1.0~dev1_amd64.deb` (2.4 MB, 2026-11-10), lintian silent. Built on the
       maintainer's Ubuntu 26.04 with cargo 1.93, not the pinned 1.85; the 24.04 gap is the
       CI job's, shared with every other change
-- [ ] 5.7 Maintainer: live check on a real desktop — region capture with include-cursor on,
+- [x] 5.7 Maintainer: live check on a real desktop — region capture with include-cursor on,
       pointer inside the selection, confirmed with `Enter`; and the same with the pointer outside
+      2026-11-23, automated on the maintainer's GNOME 50 Wayland desktop (scale 1.25), 2 of 2
+      runs each: the arrow is in the image at the hot spot (expected 375, 250; drawn from 374, 249),
+      and with the pointer outside the image has no arrow. Checks 3, 5, 6 and 7 pass too.
+      Check 8 (delayed region capture) failed on b96c775 (no arrow, 4 of 4) and passes since PR #11
+      (3 of 3 region, 3 of 3 screen). Checks 9 and 10 (2×)
+      were not run. See manual-checks.md, "Live run 2026-11-23".
 
 ## 6. Follow-ups from the 5.5 review (not part of this change)
 

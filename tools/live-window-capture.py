@@ -126,6 +126,7 @@ def end(proc):
 class Target:
     def __init__(self, maximized=False, decorated=False):
         self.decorated = decorated
+        self.maximized = maximized
         self.proc = subprocess.Popen(
             [sys.executable, "-I", "-c", TARGET_SCRIPT, TARGET_TITLE, str(TARGET_W),
              str(TARGET_H), "max" if maximized else "normal",
@@ -454,17 +455,19 @@ def toast_size(text):
 
 
 def expect_size(text, target):
-    """The toast's size must be the whole window at one scale: the target's aspect ratio, and at
-    least its size in monitor pixels. The window stream's buffer can be at a higher scale than
-    the monitor (2 for a 1.25 monitor on GNOME 50.1, design.md D3 amendment), and its pixels are
-    taken as they are, so the size itself is not fixed."""
+    """The toast's size must be the window's size on screen in monitor pixels: its logical size
+    times the monitor's scale, within 2 px (design.md D3, maintainer decision 2026-11-24). The
+    window stream's buffer can be at a higher scale than the monitor (2 for a 1.25 monitor on
+    GNOME 50.1); Annota scales it down, so a region capture of the window would be the same.
+    A decorated, non-maximised window also has its 1 px outline (alpha ~200, design.md D3) on
+    screen around its GTK size: 2 logical px more in each direction."""
     w, h = toast_size(text)
-    least = round(target.width * target.scale), round(target.height * target.scale)
-    if w < least[0] - 2 or h < least[1] - 2:
-        raise Fail("captured %d × %d, less than the window's %d × %d" % (w, h, *least))
-    if abs(w * target.height - h * target.width) > 0.015 * w * target.height + 4 * target.width:
-        raise Fail("captured %d × %d, not the window's aspect ratio %d : %d"
-                   % (w, h, target.width, target.height))
+    outline = 2 if target.decorated and not target.maximized else 0
+    want = (round((target.width + outline) * target.scale),
+            round((target.height + outline) * target.scale))
+    if abs(w - want[0]) > 2 or abs(h - want[1]) > 2:
+        raise Fail("captured %d × %d, the window is %d × %d on screen (%d × %d logical x %.2f)"
+                   % (w, h, *want, target.width, target.height, target.scale))
     return w, h
 
 
@@ -731,10 +734,15 @@ def s_pointer_in_window(ctx, inp):
         text = wait(lambda: toast(app), 10, "the toast")
         image = captured_image(app, inp, text)
         save(ctx, image, "pointer-in-window")
-        expect_corners(image, target)
+        k = expect_corners(image, target)
         foreign = foreign_pixels(image, target)
-        if foreign < 20:
-            raise Fail("no pointer in the image (%d non-target pixels)" % foreign)
+        # 20 logical px² of pointer, sampled at every second pixel in both directions: 20
+        # samples at image scale 2, as before the image came at screen size (design.md D3,
+        # 2026-11-24), about 8 at 1.25. The pointer often lands half off the window's edge (D5).
+        least = 5 * k * k
+        if foreign < least:
+            raise Fail("no pointer in the image (%d non-target pixels, at least %.0f)"
+                       % (foreign, least))
         return "pointer present (%d sampled pixels)" % foreign
     finally:
         annota.stop()

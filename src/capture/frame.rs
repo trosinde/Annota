@@ -178,6 +178,33 @@ impl Frame {
         result
     }
 
+    /// The frame resampled to `width` × `height`, with cairo's `Good` filter as the editor's
+    /// thumbnails use (a box filter when shrinking). The pixels are premultiplied, so alpha is
+    /// averaged correctly; edge pixels are padded, not faded into transparency.
+    pub fn scaled(&self, width: i32, height: i32) -> Result<Frame, cairo::Error> {
+        let source = self.to_surface()?;
+        let mut target = cairo::ImageSurface::create(cairo::Format::ARgb32, width, height)?;
+        {
+            let cr = cairo::Context::new(&target)?;
+            cr.scale(
+                f64::from(width) / f64::from(self.width),
+                f64::from(height) / f64::from(self.height),
+            );
+            cr.set_source_surface(&source, 0.0, 0.0)?;
+            cr.source().set_filter(cairo::Filter::Good);
+            cr.source().set_extend(cairo::Extend::Pad);
+            cr.set_operator(cairo::Operator::Source);
+            cr.paint()?;
+        }
+        target.flush();
+        let stride = usize::try_from(target.stride()).map_err(|_| cairo::Error::InvalidStride)?;
+        let data = target
+            .data()
+            .map_err(|_| cairo::Error::SurfaceFinished)?
+            .to_vec();
+        Frame::from_argb32(width, height, stride, data).ok_or(cairo::Error::InvalidSize)
+    }
+
     /// Paints a mouse pointer with its hot spot at `(x, y)` (frame pixels). `scale` is the
     /// device scale of the captured monitor so the pointer has its on-screen size.
     ///
