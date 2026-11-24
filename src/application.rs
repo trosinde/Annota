@@ -7,9 +7,10 @@ use gettextrs::gettext;
 use gtk::{gdk, gio, glib};
 
 use crate::capture::{self, import, shortcuts};
-use crate::cli::{CaptureMode, DELAY_RANGE, EXIT_USAGE};
+use crate::cli::{CaptureMode, RecordMode, DELAY_RANGE, EXIT_USAGE};
 use crate::config;
 use crate::preferences;
+use crate::recording;
 
 const UI_WINDOW: &str = "/io/github/trosinde/Annota/ui/window.ui";
 /// Style class of the editor window (`data/ui/editor-window.blp`), which is not the main window.
@@ -49,6 +50,14 @@ fn add_options(app: &adw::Application) {
         glib::OptionFlags::NONE,
         glib::OptionArg::String,
         "Start a capture: region, window or screen",
+        Some("MODE"),
+    );
+    app.add_main_option(
+        "record",
+        glib::Char::from(b'r'),
+        glib::OptionFlags::NONE,
+        glib::OptionArg::String,
+        "Start a recording: region, window or screen; toggle acts as the Record shortcut",
         Some("MODE"),
     );
     app.add_main_option(
@@ -93,22 +102,47 @@ fn handle_local_options(_app: &adw::Application, options: &glib::VariantDict) ->
         println!("annota {}", version_string());
         return 0;
     }
+    handle_local_options_status(options)
+}
+
+/// [`handle_local_options`] after `--version`: [`EXIT_USAGE`] with the message printed, or -1 to
+/// continue.
+fn handle_local_options_status(options: &glib::VariantDict) -> i32 {
+    match usage_error(options) {
+        Some(message) => {
+            eprintln!("{message}");
+            EXIT_USAGE
+        }
+        None => -1, // continue: forward to the primary instance
+    }
+}
+
+/// What is wrong with the command line, as printed before exiting with [`EXIT_USAGE`].
+fn usage_error(options: &glib::VariantDict) -> Option<String> {
     if let Some(mode) = options.lookup::<String>("capture").ok().flatten() {
         if CaptureMode::parse(&mode).is_none() {
-            eprintln!(
+            return Some(format!(
                 "annota: invalid capture mode '{mode}'. Valid modes: {}",
                 CaptureMode::VALID
-            );
-            return EXIT_USAGE;
+            ));
+        }
+    }
+    if let Some(mode) = options.lookup::<String>("record").ok().flatten() {
+        if RecordMode::parse(&mode).is_none() {
+            return Some(format!(
+                "annota: invalid record mode '{mode}'. Valid modes: {}",
+                RecordMode::VALID
+            ));
         }
     }
     if let Some(delay) = options.lookup::<i32>("delay").ok().flatten() {
         if !DELAY_RANGE.contains(&delay) {
-            eprintln!("annota: delay must be between 0 and 60 seconds, got {delay}");
-            return EXIT_USAGE;
+            return Some(format!(
+                "annota: delay must be between 0 and 60 seconds, got {delay}"
+            ));
         }
     }
-    -1 // continue: forward to the primary instance
+    None
 }
 
 /// Runs in the primary instance (also for requests forwarded from a second launch).
@@ -132,6 +166,17 @@ fn handle_command_line(app: &adw::Application, cmdline: &gio::ApplicationCommand
             .filter(|d| DELAY_RANGE.contains(d))
             .map(|d| d as u32);
         capture::start(app, capture::Request::with_defaults(mode, delay));
+        return 0;
+    }
+
+    // `--record` starts the recording flow like `--capture`, without raising the window.
+    if let Some(mode) = options
+        .lookup::<String>("record")
+        .ok()
+        .flatten()
+        .and_then(|m| RecordMode::parse(&m))
+    {
+        app.activate_action("record", Some(&mode.as_str().to_variant()));
         return 0;
     }
 
@@ -290,7 +335,7 @@ fn fill_welcome_keys(
 
 /// One welcome card, held weakly by the listeners.
 struct WelcomeCard {
-    mode: CaptureMode,
+    mode: shortcuts::GlobalShortcut,
     card: glib::WeakRef<gtk::Button>,
     keys: glib::WeakRef<gtk::Box>,
     own_tooltip: Option<String>,
@@ -317,28 +362,35 @@ fn fill_welcome_cards(cards: &[WelcomeCard]) -> glib::ControlFlow {
     }
 }
 
-/// The welcome page's mode cards (bootstrap-app-shell mockup 01): each starts its capture,
-/// which opens in the editor; their keycaps show the trigger that starts it
-/// (`shortcuts::shown_triggers`). The first card has the keyboard focus.
+/// The welcome page's mode cards (bootstrap-app-shell mockup 01, add-screen-recording mockup 12):
+/// Region, Window and Screen start their capture, which opens in the editor; Record opens the
+/// recording setup, or while a recording runs presents its control. Their keycaps show the
+/// trigger that starts each (`shortcuts::shown_triggers`). The first card has the keyboard focus.
 fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builder: &gtk::Builder) {
+    use shortcuts::GlobalShortcut;
     let settings = gio::Settings::new(config::APP_ID);
     let mut first = None;
     let mut cards = Vec::new();
-    for (mode, card, keys) in [
+    for (shortcut, card, keys) in [
         (
-            CaptureMode::Region,
+            GlobalShortcut::Capture(CaptureMode::Region),
             "welcome_region_card",
             "welcome_region_keys",
         ),
         (
-            CaptureMode::Window,
+            GlobalShortcut::Capture(CaptureMode::Window),
             "welcome_window_card",
             "welcome_window_keys",
         ),
         (
-            CaptureMode::Screen,
+            GlobalShortcut::Capture(CaptureMode::Screen),
             "welcome_screen_card",
             "welcome_screen_keys",
+        ),
+        (
+            GlobalShortcut::Record,
+            WELCOME_RECORD_CARD,
+            "welcome_record_keys",
         ),
     ] {
         let (Some(card), Some(keys)) = (
@@ -349,7 +401,7 @@ fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builde
             continue;
         };
         cards.push(WelcomeCard {
-            mode,
+            mode: shortcut,
             card: card.downgrade(),
             keys: keys.downgrade(),
             own_tooltip: card.tooltip_text().map(|t| t.to_string()),
@@ -361,7 +413,16 @@ fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builde
             app,
             move |_| {
                 let _ = &keep;
-                app.activate_action("capture", Some(&mode.as_str().to_variant()))
+                match shortcut {
+                    GlobalShortcut::Capture(mode) => {
+                        app.activate_action("capture", Some(&mode.as_str().to_variant()))
+                    }
+                    // Idle: the region overlay in Video mode, as the Record shortcut; while a
+                    // recording runs: its control is presented ("Second recording request").
+                    // `region`, not `toggle`, which would stop the running recording.
+                    GlobalShortcut::Record => app
+                        .activate_action("record", Some(&RecordMode::Region.as_str().to_variant())),
+                }
             }
         ));
         first.get_or_insert(card);
@@ -384,6 +445,42 @@ fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builde
     if let Some(card) = first {
         gtk::prelude::GtkWindowExt::set_focus(window, Some(&card));
     }
+}
+
+/// The welcome page's Record card (add-screen-recording mockup 12).
+const WELCOME_RECORD_CARD: &str = "welcome_record_card";
+
+/// A recording that ended before it began with something to say (add-screen-recording mockups 13
+/// and 15): a kit toast without an action in the main window, which is presented if it was hidden,
+/// and the keyboard focus back on the welcome page's Record card.
+pub fn show_recording_message(app: &adw::Application, text: &str) {
+    let window = present_window(app);
+    let toast = adw::Toast::new(text);
+    toast.set_use_markup(false);
+    show_toast(&window, &toast);
+    if let Some(card) = window
+        .content()
+        .and_then(|content| find_buildable(&content, WELCOME_RECORD_CARD))
+    {
+        gtk::prelude::GtkWindowExt::set_focus(&window, Some(&card));
+        // The focus ring on the card, as after keyboard navigation (mockups 13, 15).
+        window.set_focus_visible(true);
+    }
+}
+
+/// The widget built from `window.ui` with the id `id`, under `widget`.
+fn find_buildable(widget: &gtk::Widget, id: &str) -> Option<gtk::Widget> {
+    if widget.buildable_id().as_deref() == Some(id) {
+        return Some(widget.clone());
+    }
+    let mut child = widget.first_child();
+    while let Some(c) = child {
+        if let Some(found) = find_buildable(&c, id) {
+            return Some(found);
+        }
+        child = c.next_sibling();
+    }
+    None
 }
 
 pub fn show_toast(window: &adw::ApplicationWindow, toast: &adw::Toast) {
@@ -528,7 +625,8 @@ fn setup_launcher(app: &adw::Application, window: &adw::ApplicationWindow, build
                 ) else {
                     return glib::ControlFlow::Break;
                 };
-                let Some((_, shown)) = all.iter().find(|(mode, _)| *mode == toggle.mode) else {
+                let Some((_, shown)) = all.iter().find(|(mode, _)| *mode == toggle.mode.into())
+                else {
                     continue;
                 };
                 let caption = launcher_caption(&shown.trigger);
@@ -663,7 +761,7 @@ fn setup_drop_target(
     window.add_controller(target);
 }
 
-fn setup_actions(app: &adw::Application) {
+pub(crate) fn setup_actions(app: &adw::Application) {
     // Ctrl+Q (and GNOME Shell's Quit): "Save Changes?" for unsaved documents first
     // (add-export-share task 2.6).
     let quit = gio::ActionEntry::builder("quit")
@@ -683,6 +781,18 @@ fn setup_actions(app: &adw::Application) {
                 .and_then(|m| CaptureMode::parse(&m));
             if let Some(mode) = mode {
                 capture::start(app, capture::Request::with_defaults(mode, None));
+            }
+        })
+        .build();
+    // `--record`, and later the Record shortcut and the Record card (add-screen-recording).
+    let record = gio::ActionEntry::builder("record")
+        .parameter_type(Some(glib::VariantTy::STRING))
+        .activate(|app: &adw::Application, _, parameter| {
+            let mode = parameter
+                .and_then(|p| p.get::<String>())
+                .and_then(|m| RecordMode::parse(&m));
+            if let Some(mode) = mode {
+                recording::start(app, recording::RecordRequest { mode });
             }
         })
         .build();
@@ -707,7 +817,7 @@ fn setup_actions(app: &adw::Application) {
             }
         })
         .build();
-    app.add_action_entries([quit, about, prefs, capture, paste, open, library]);
+    app.add_action_entries([quit, about, prefs, capture, record, paste, open, library]);
     app.set_accels_for_action("app.quit", &["<Control>q"]);
     app.set_accels_for_action("app.preferences", &["<Control>comma"]);
     app.set_accels_for_action("app.paste-image", &["<Shift><Control>v"]);
@@ -782,5 +892,30 @@ mod message_window_tests {
         assert_eq!(message_window(&main_only), None, "the main window");
         let hidden = [(false, true, true)];
         assert_eq!(message_window(&hidden), None, "a hidden window is no place");
+    }
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::{glib, handle_local_options_status, usage_error, EXIT_USAGE};
+
+    // spec: screen-recording / Recording on the command line / Invalid record mode
+    #[test]
+    fn an_invalid_record_mode_exits_2_and_names_the_valid_ones() {
+        let options = glib::VariantDict::new(None);
+        options.insert("record", "banana");
+        assert_eq!(handle_local_options_status(&options), EXIT_USAGE);
+        assert_eq!(EXIT_USAGE, 2);
+        let message = usage_error(&options).unwrap();
+        assert!(message.contains("'banana'"), "{message}");
+        for valid in ["region", "window", "screen", "toggle"] {
+            assert!(message.contains(valid), "{message} lacks {valid}");
+        }
+        for valid in ["region", "window", "screen", "toggle"] {
+            let options = glib::VariantDict::new(None);
+            options.insert("record", valid);
+            assert_eq!(usage_error(&options), None, "{valid}");
+            assert_eq!(handle_local_options_status(&options), -1);
+        }
     }
 }

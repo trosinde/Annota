@@ -52,7 +52,7 @@ const PORTAL_XML: &str = r#"<node>
 
 /// What the user does with the question, if it can be shown at all.
 #[derive(Clone, Copy, PartialEq)]
-enum Question {
+pub(crate) enum Question {
     Allow,
     Deny,
     /// Closes the question without an answer (response code 1); nothing is stored.
@@ -109,10 +109,10 @@ struct Portal {
     open_registration: Rc<RefCell<Option<gio::DBusMethodInvocation>>>,
 }
 
-struct Scene {
-    app: adw::Application,
+pub(crate) struct Scene {
+    pub(crate) app: adw::Application,
     portal: Portal,
-    dir: PathBuf,
+    pub(crate) dir: PathBuf,
 }
 
 impl Drop for Scene {
@@ -392,7 +392,7 @@ impl Portal {
 }
 
 /// A private environment with the portal running. Nothing here touches the real session.
-fn scene(name: &str, stored: Option<&'static str>, question: Question) -> Scene {
+pub(crate) fn scene(name: &str, stored: Option<&'static str>, question: Question) -> Scene {
     scene_with_schemas(name, stored, question, &[])
 }
 
@@ -570,14 +570,14 @@ struct DeniedDialog {
 }
 
 /// Whether `widget` or anything below it passes `test`.
-fn holds(widget: &gtk::Widget, test: &dyn Fn(&gtk::Widget) -> bool) -> bool {
+pub(crate) fn holds(widget: &gtk::Widget, test: &dyn Fn(&gtk::Widget) -> bool) -> bool {
     test(widget)
         || std::iter::successors(widget.first_child(), |child| child.next_sibling())
             .any(|child| holds(&child, test))
 }
 
 /// The widget with this ID in the `.ui` file.
-fn find<W: IsA<gtk::Widget>>(root: &impl IsA<gtk::Widget>, id: &str) -> Option<W> {
+pub(crate) fn find<W: IsA<gtk::Widget>>(root: &impl IsA<gtk::Widget>, id: &str) -> Option<W> {
     let root = root.as_ref();
     if root.buildable_id().as_deref() == Some(id) {
         return root.clone().downcast().ok();
@@ -587,7 +587,7 @@ fn find<W: IsA<gtk::Widget>>(root: &impl IsA<gtk::Widget>, id: &str) -> Option<W
 }
 
 /// With `ANNOTA_SHOT_DIR` set, saves `widget` as a PNG to look at.
-fn shot(widget: &impl IsA<gtk::Widget>, name: &str) {
+pub(crate) fn shot(widget: &impl IsA<gtk::Widget>, name: &str) {
     let Some(dir) = std::env::var_os("ANNOTA_SHOT_DIR") else {
         return;
     };
@@ -1221,7 +1221,7 @@ fn a_picker_without_an_image_says_so() {
 
 // --- Window capture through the ScreenCast portal (fix-window-capture-screencast) -----------
 
-const SCREENCAST_XML: &str = r#"<node>
+pub(crate) const SCREENCAST_XML: &str = r#"<node>
   <interface name="org.freedesktop.portal.ScreenCast">
     <method name="CreateSession">
       <arg type="a{sv}" direction="in"/><arg type="o" direction="out"/>
@@ -1279,7 +1279,7 @@ impl ScreenCast {
 }
 
 /// Emits a request's `Response`.
-fn respond(
+pub(crate) fn respond(
     connection: &gio::DBusConnection,
     sender: &str,
     handle: &str,
@@ -1298,7 +1298,7 @@ fn respond(
 }
 
 /// The request or session path the portal builds from a token.
-fn portal_path(kind: &str, sender: &str, token: &str) -> String {
+pub(crate) fn portal_path(kind: &str, sender: &str, token: &str) -> String {
     let unique = sender.trim_start_matches(':').replace('.', "_");
     format!("/org/freedesktop/portal/desktop/{kind}/{unique}/{token}")
 }
@@ -1731,13 +1731,13 @@ const SHELL_KEYBINDINGS_XML: &str = r#"<schemalist>
 /// The GlobalShortcuts half of the stand-in portal, answering as GNOME 50's version-1 portal was
 /// measured to (design.md "Context"): the bind returns the triggers the desktop keeps, whatever
 /// Annota prefers.
-struct GlobalShortcutsPortal {
+pub(crate) struct GlobalShortcutsPortal {
     /// What the desktop has bound: (id, trigger description). Bind and list answer with it.
-    bound: Rc<RefCell<Vec<(&'static str, &'static str)>>>,
+    pub(crate) bound: Rc<RefCell<Vec<(&'static str, &'static str)>>>,
     /// Calls in order: "CreateSession", "BindShortcuts", "ListShortcuts", "Session.Close".
     log: Rc<RefCell<Vec<String>>>,
     /// The preferred triggers of every bind: (id, preferred trigger).
-    preferred: Rc<RefCell<Vec<(String, String)>>>,
+    pub(crate) preferred: Rc<RefCell<Vec<(String, String)>>>,
     /// Annota's bus name and session, for the signals.
     client: Rc<RefCell<Option<(String, String)>>>,
     /// `BindShortcuts` answers with response code 2 and no results (D8).
@@ -1758,7 +1758,9 @@ fn shortcut_list(bound: &[(&str, &str)]) -> glib::Variant {
         .to_variant()
 }
 
-fn add_global_shortcuts(bound: &[(&'static str, &'static str)]) -> GlobalShortcutsPortal {
+pub(crate) fn add_global_shortcuts(
+    bound: &[(&'static str, &'static str)],
+) -> GlobalShortcutsPortal {
     let connection = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE).unwrap();
     let info = gio::DBusNodeInfo::for_xml(GLOBAL_SHORTCUTS_XML).unwrap();
     let session_interface = info
@@ -1881,7 +1883,7 @@ impl GlobalShortcutsPortal {
     }
 
     /// The user presses the trigger bound to `id`.
-    fn activate(&self, id: &str) {
+    pub(crate) fn activate(&self, id: &str) {
         let options: HashMap<String, glib::Variant> = HashMap::new();
         let body = (self.session(), id, 0u64, options).to_variant();
         self.emit("Activated", body);
@@ -1901,7 +1903,7 @@ fn set_reported_settings() {
 }
 
 /// Starts Annota's portal shortcuts and waits until the portal's answer is in.
-fn bind_through_the_portal(scene: &Scene) {
+pub(crate) fn bind_through_the_portal(scene: &Scene) {
     shortcuts::start_portal_shortcuts(&scene.app);
     wait_for(
         || shortcuts::shown_trigger(CaptureMode::Region).trigger != ShownTrigger::Pending,
@@ -1986,6 +1988,8 @@ fn every_surface_shows_the_portals_triggers() {
             (String::from("region"), String::from("CTRL+p")),
             (String::from("window"), String::from("CTRL+w")),
             (String::from("screen"), String::from("CTRL+q")),
+            // add-screen-recording: Record video, bound with them (Super+Alt+R, design.md Q7).
+            (String::from("record"), String::from("ALT+LOGO+r")),
         ]
     );
     let screen = shortcuts::shown_trigger(CaptureMode::Screen);
@@ -2535,4 +2539,490 @@ fn a_change_in_gnomes_keybindings_moves_the_mark() {
         card.tooltip_text().as_deref(),
         Some("Used by GNOME: Take a screenshot of a window")
     );
+}
+
+/// A stand-in for GNOME Shell's keybindings where one of GNOME's own actions holds Super+Alt+R,
+/// the Record shortcut's preferred trigger (add-screen-recording "Record trigger taken by GNOME").
+const SHELL_RECORD_KEYBINDINGS_XML: &str = r#"<schemalist>
+  <schema id="org.gnome.shell.keybindings" path="/org/gnome/shell/keybindings/">
+    <key name="screenshot" type="as">
+      <default><![CDATA[['<Shift>Print']]]></default>
+      <summary>Take a screenshot</summary>
+    </key>
+    <key name="show-screen-recording-ui" type="as">
+      <default><![CDATA[['<Super><Alt>r']]]></default>
+      <summary>Record a screencast</summary>
+    </key>
+  </schema>
+</schemalist>"#;
+
+/// Stand-ins for GNOME Settings' media-keys schemas (the custom keybindings), as on GNOME 46.
+const MEDIA_KEYS_XML: &str = r#"<schemalist>
+  <schema id="org.gnome.settings-daemon.plugins.media-keys"
+          path="/org/gnome/settings-daemon/plugins/media-keys/">
+    <key name="custom-keybindings" type="as">
+      <default>[]</default>
+      <summary>Custom keybindings</summary>
+    </key>
+  </schema>
+  <schema id="org.gnome.settings-daemon.plugins.media-keys.custom-keybinding">
+    <key name="name" type="s"><default>''</default><summary>Name</summary></key>
+    <key name="command" type="s"><default>''</default><summary>Command</summary></key>
+    <key name="binding" type="s"><default>''</default><summary>Binding</summary></key>
+  </schema>
+</schemalist>"#;
+
+/// [`shot`] of `widget` in the light and the dark scheme (`<name>-light`, `<name>-dark`).
+pub(crate) fn scheme_shots(widget: &impl IsA<gtk::Widget>, name: &str) {
+    if std::env::var_os("ANNOTA_SHOT_DIR").is_none() {
+        return;
+    }
+    for (scheme, name_suffix) in [
+        (adw::ColorScheme::ForceLight, "light"),
+        (adw::ColorScheme::ForceDark, "dark"),
+    ] {
+        adw::StyleManager::default().set_color_scheme(scheme);
+        pump(300);
+        shot(widget, &format!("{name}-{name_suffix}"));
+    }
+    adw::StyleManager::default().set_color_scheme(adw::ColorScheme::ForceLight);
+    pump(200);
+}
+
+/// The welcome page's Record card and the "Record video" row, and the recording control's Stop
+/// chip (`shortcuts::record_trigger`), for the trigger the portal reports for `record`.
+fn record_surfaces(
+    window: &adw::ApplicationWindow,
+    dialog: &adw::PreferencesDialog,
+) -> (Vec<String>, String) {
+    let keys: gtk::Widget = find(window, "welcome_record_keys").expect("the Record card's keys");
+    let row_keys: gtk::ShortcutLabel = find(dialog, "shortcut_record_label").unwrap();
+    let row_accel = if row_keys.is_visible() {
+        row_keys.accelerator().unwrap_or_default().to_string()
+    } else {
+        String::new()
+    };
+    (texts(&keys), row_accel)
+}
+
+/// Scenarios "Portal assigns a different record trigger" and "Record row shows the portal's
+/// trigger": Annota binds `record` with the capture shortcuts and asks for Super+Alt+R; GNOME
+/// answers Ctrl+W, and the "Record video" row, the Record card and the control's Stop chip show
+/// Ctrl+W and nowhere Super+Alt+R. GNOME Settings then rebinds it to Ctrl+Alt+R: all follow.
+// spec: screen-recording / Record shortcut / Portal assigns a different record trigger
+// spec: screen-recording / Record shortcut / Record row shows the portal's trigger
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn the_record_row_and_card_show_the_portals_record_trigger() {
+    let scene = scene("portal-record-trigger", Some("yes"), Question::CannotShow);
+    let portal = add_global_shortcuts(&[
+        ("region", "Press Print"),
+        ("window", "Press <Alt>Print"),
+        ("screen", "Press <Shift>Print"),
+        ("record", "Press <Control>w"),
+    ]);
+    bind_through_the_portal(&scene);
+    assert!(
+        portal
+            .preferred
+            .borrow()
+            .contains(&(String::from("record"), String::from("ALT+LOGO+r"))),
+        "Annota asked for Super+Alt+R: {:?}",
+        portal.preferred.borrow()
+    );
+    assert_eq!(portal.count("BindShortcuts"), 1, "one bind for all four");
+    let window = crate::application::present_window(&scene.app);
+    pump(200);
+    let dialog = open_preferences(&window);
+    let row: adw::ActionRow = find(&dialog, "shortcut_record_row").unwrap();
+    assert_eq!(row.title(), "Record video");
+    assert!(!row.is_activatable(), "read-only on the portal path");
+    let chevron: gtk::Image = find(&dialog, "shortcut_record_chevron").unwrap();
+    assert!(!chevron.is_visible());
+    assert_eq!(
+        record_surfaces(&window, &dialog),
+        (
+            vec![String::from("Ctrl"), String::from("W")],
+            String::from("<Control>w")
+        )
+    );
+    assert_eq!(
+        crate::capture::shortcuts::record_trigger().as_deref(),
+        Some("<Control>w"),
+        "the Stop chip"
+    );
+    for label in ["Super", "Super+Alt+R"] {
+        assert!(
+            !holds(dialog.upcast_ref(), &|w| w
+                .downcast_ref::<gtk::Label>()
+                .is_some_and(|l| l.is_visible() && l.text() == label)),
+            "{label} shown in Preferences"
+        );
+        assert!(
+            !holds(window.upcast_ref(), &|w| w
+                .downcast_ref::<gtk::Label>()
+                .is_some_and(|l| l.is_visible() && l.text() == label)),
+            "{label} shown on the welcome page"
+        );
+    }
+    scheme_shots(&window, "14-preferences-record-ctrl-w");
+
+    portal.changed(&[
+        ("region", "Press Print"),
+        ("window", "Press <Alt>Print"),
+        ("screen", "Press <Shift>Print"),
+        ("record", "Press <Control><Alt>r"),
+    ]);
+    wait_for(
+        || record_surfaces(&window, &dialog).1 == "<Control><Alt>r",
+        "the rebound trigger in the row",
+    );
+    assert_eq!(
+        record_surfaces(&window, &dialog).0,
+        ["Ctrl", "Alt", "R"],
+        "the Record card"
+    );
+    assert_eq!(
+        crate::capture::shortcuts::record_trigger().as_deref(),
+        Some("<Control><Alt>r")
+    );
+}
+
+/// Scenario "Record trigger taken by GNOME": the portal reports `record` on Super+Alt+R, and
+/// GNOME's own "Record a screencast" holds that key: the row shows the keys with "Used by GNOME:
+/// Record a screencast" and the warning, the Record card marks its keycaps, and the Stop button
+/// shows no chip for a key that does not stop the recording.
+// spec: screen-recording / Record shortcut / Record trigger taken by GNOME
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn a_record_trigger_gnome_holds_is_marked() {
+    let scene = scene_with_schemas(
+        "portal-record-taken",
+        Some("yes"),
+        Question::CannotShow,
+        &[("org.gnome.shell.gschema.xml", SHELL_RECORD_KEYBINDINGS_XML)],
+    );
+    let _portal =
+        add_global_shortcuts(&[("region", "Press Print"), ("record", "Press <Super><Alt>r")]);
+    bind_through_the_portal(&scene);
+    let window = crate::application::present_window(&scene.app);
+    pump(200);
+    let keys: gtk::Widget = find(&window, "welcome_record_keys").unwrap();
+    assert_eq!(texts(&keys), ["Alt", "Super", "R"]);
+    assert!(has_warning(&keys), "the Record card marks its keycaps");
+    let card: gtk::Button = find(&window, "welcome_record_card").unwrap();
+    assert_eq!(
+        card.tooltip_text().as_deref(),
+        Some("Used by GNOME: Record a screencast")
+    );
+    assert!(!has_warning(
+        &find::<gtk::Widget>(&window, "welcome_region_keys").unwrap()
+    ));
+    let dialog = open_preferences(&window);
+    let row: adw::ActionRow = find(&dialog, "shortcut_record_row").unwrap();
+    let label: gtk::ShortcutLabel = find(&dialog, "shortcut_record_label").unwrap();
+    assert_eq!(
+        label.accelerator().unwrap_or_default().as_str(),
+        "<Super><Alt>r"
+    );
+    assert_eq!(
+        row.subtitle().as_deref(),
+        Some("Used by GNOME: Record a screencast")
+    );
+    let warning: gtk::Image = find(&dialog, "shortcut_record_warning").unwrap();
+    assert!(warning.is_visible() && warning.has_css_class("warning"));
+    assert_eq!(
+        crate::capture::shortcuts::record_trigger(),
+        None,
+        "no Stop chip"
+    );
+    scheme_shots(&window, "14-preferences-record-taken");
+
+    // GNOME's action moves to another key: the mark goes.
+    gio::Settings::new("org.gnome.shell.keybindings")
+        .set_strv("show-screen-recording-ui", ["<Shift><Control><Alt>r"])
+        .unwrap();
+    wait_for(|| !has_warning(&keys), "the mark leaving the Record card");
+    wait_for(|| !warning.is_visible(), "the mark leaving the row");
+    assert_eq!(card.tooltip_text().as_deref(), Some("Record video"));
+    assert_eq!(
+        crate::capture::shortcuts::record_trigger().as_deref(),
+        Some("<Super><Alt>r")
+    );
+}
+
+/// Presses `key` with `state` the way GTK delivers it, through the `key-pressed` signal of the
+/// `EventControllerKey`s on `widget`, until one handles it.
+fn press_keys(widget: &impl IsA<gtk::Widget>, key: gdk::Key, state: gdk::ModifierType) -> bool {
+    use gtk::glib::translate::IntoGlib;
+    let controllers = widget.as_ref().observe_controllers();
+    (0..controllers.n_items()).any(|i| {
+        controllers
+            .item(i)
+            .and_downcast::<gtk::EventControllerKey>()
+            .is_some_and(|keys| {
+                keys.emit_by_name::<bool>("key-pressed", &[&key.into_glib(), &0u32, &state])
+            })
+    })
+}
+
+/// Annota's custom keybinding for `id` (name, command, binding), if it is listed.
+fn custom_keybinding(id: &str) -> Option<(String, String, String)> {
+    let path =
+        format!("/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/annota-{id}/");
+    let listed = gio::Settings::new("org.gnome.settings-daemon.plugins.media-keys")
+        .strv("custom-keybindings")
+        .iter()
+        .any(|p| p.as_str() == path);
+    listed.then(|| {
+        let binding = gio::Settings::with_path(
+            "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding",
+            &path,
+        );
+        (
+            binding.string("name").to_string(),
+            binding.string("command").to_string(),
+            binding.string("binding").to_string(),
+        )
+    })
+}
+
+/// The Set Shortcut dialog over Preferences, once it is open.
+fn shortcut_dialog_of(window: &adw::ApplicationWindow) -> adw::Dialog {
+    wait_for(
+        || find::<adw::Dialog>(window, "shortcut_dialog").is_some(),
+        "the Set Shortcut dialog",
+    );
+    find(window, "shortcut_dialog").unwrap()
+}
+
+/// Scenario "Record shortcut on GNOME 46": without the GlobalShortcuts portal the "Record video"
+/// row is editable like the capture rows. "Create GNOME Shortcuts" writes a custom keybinding for
+/// Super+Alt+R running `annota --record toggle`, beside the capture ones. Disabled in the Set
+/// Shortcut dialog (Backspace) it is removed; enabled again there (Super+Alt+R, Enter) it is
+/// created again. The control's Stop chip follows the setting on this path.
+// spec: screen-recording / Record shortcut / Record shortcut on GNOME 46
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn without_the_portal_the_record_shortcut_is_a_gnome_keybinding() {
+    let scene = scene_with_schemas(
+        "fallback-record",
+        Some("yes"),
+        Question::CannotShow,
+        &[(
+            "org.gnome.settings-daemon.plugins.media-keys.gschema.xml",
+            MEDIA_KEYS_XML,
+        )],
+    );
+    shortcuts::start_portal_shortcuts(&scene.app);
+    let window = crate::application::present_window(&scene.app);
+    let keys: gtk::Widget = find(&window, "welcome_record_keys").unwrap();
+    wait_for(
+        || texts(&keys) == ["Alt", "Super", "R"],
+        "the configured Record keys",
+    );
+    let dialog = open_preferences(&window);
+    let row: adw::ActionRow = find(&dialog, "shortcut_record_row").unwrap();
+    wait_for(|| row.is_activatable(), "the editable row");
+    let chevron: gtk::Image = find(&dialog, "shortcut_record_chevron").unwrap();
+    assert!(chevron.is_visible());
+    let label: gtk::ShortcutLabel = find(&dialog, "shortcut_record_label").unwrap();
+    assert_eq!(
+        label.accelerator().unwrap_or_default().as_str(),
+        "<Super><Alt>r"
+    );
+    assert_eq!(custom_keybinding("record"), None, "nothing written yet");
+
+    let banner: adw::Banner = find(&dialog, "shortcuts_banner").unwrap();
+    assert!(banner.is_revealed());
+    banner.emit_by_name::<()>("button-clicked", &[]);
+    pump(200);
+    let (name, command, binding) = custom_keybinding("record").expect("the Record keybinding");
+    assert_eq!(name, "Annota: Record video");
+    assert!(command.ends_with(" --record toggle"), "{command}");
+    assert!(
+        shortcuts::same_accel(&binding, "<Super><Alt>r"),
+        "{binding}"
+    );
+    assert!(
+        custom_keybinding("region").is_some(),
+        "beside the capture ones"
+    );
+    assert!(
+        row.subtitle()
+            .unwrap_or_default()
+            .contains("--record toggle"),
+        "{:?}",
+        row.subtitle()
+    );
+    assert_eq!(
+        crate::capture::shortcuts::record_trigger().as_deref(),
+        Some("<Super><Alt>r")
+    );
+    scheme_shots(&window, "14-preferences-record-gnome-46");
+
+    // Disabled in the Set Shortcut dialog.
+    row.emit_by_name::<()>("activated", &[]);
+    let set = shortcut_dialog_of(&window);
+    assert!(press_keys(
+        &set,
+        gdk::Key::BackSpace,
+        gdk::ModifierType::empty()
+    ));
+    pump(200);
+    assert_eq!(custom_keybinding("record"), None, "removed when disabled");
+    assert_eq!(
+        gio::Settings::new(config::APP_ID)
+            .string("shortcut-record")
+            .as_str(),
+        ""
+    );
+    wait_for(|| texts(&keys).is_empty(), "no keycaps on the Record card");
+
+    // Enabled again: Super+Alt+R, Enter.
+    row.emit_by_name::<()>("activated", &[]);
+    let set = shortcut_dialog_of(&window);
+    assert!(press_keys(
+        &set,
+        gdk::Key::r,
+        gdk::ModifierType::SUPER_MASK | gdk::ModifierType::ALT_MASK
+    ));
+    assert!(press_keys(
+        &set,
+        gdk::Key::Return,
+        gdk::ModifierType::empty()
+    ));
+    pump(200);
+    let (_, command, binding) = custom_keybinding("record").expect("created again");
+    assert!(command.ends_with(" --record toggle"), "{command}");
+    assert!(
+        shortcuts::same_accel(&binding, "<Super><Alt>r"),
+        "{binding}"
+    );
+    wait_for(
+        || texts(&keys) == ["Alt", "Super", "R"],
+        "the Record card's keys",
+    );
+}
+
+/// Writes the custom keybinding at `path` and lists it in `custom-keybindings`.
+fn add_custom_keybinding(path: &str, name: &str, binding: &str) {
+    let custom = gio::Settings::with_path(
+        "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding",
+        path,
+    );
+    custom.set_string("name", name).unwrap();
+    custom.set_string("command", "true").unwrap();
+    custom.set_string("binding", binding).unwrap();
+    let media = gio::Settings::new("org.gnome.settings-daemon.plugins.media-keys");
+    let mut listed: Vec<String> = media
+        .strv("custom-keybindings")
+        .iter()
+        .map(|p| p.to_string())
+        .collect();
+    listed.push(path.to_string());
+    let refs: Vec<&str> = listed.iter().map(String::as_str).collect();
+    media
+        .set_strv("custom-keybindings", refs.as_slice())
+        .unwrap();
+}
+
+/// Scenario "Record shortcut on GNOME 46", for GNOME shortcuts created before `record` existed
+/// (design.md "GNOME-keybinding path, existing setups: a one-time migration"): the first start
+/// adds the keybinding running `annota --record toggle` once. Deleted in GNOME Settings, it is
+/// not added again at the next start. A key the user's own keybinding holds is not written
+/// (the shortcut is disabled instead, "Not set"), and a disabled shortcut writes nothing, not
+/// even the `custom-keybindings` list.
+// spec: screen-recording / Record shortcut / Record shortcut on GNOME 46
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn gnome_shortcuts_from_before_get_the_record_keybinding_once() {
+    let scene = scene_with_schemas(
+        "fallback-record-migration",
+        Some("yes"),
+        Question::CannotShow,
+        &[(
+            "org.gnome.settings-daemon.plugins.media-keys.gschema.xml",
+            MEDIA_KEYS_XML,
+        )],
+    );
+    let settings = gio::Settings::new(config::APP_ID);
+    // As an Annota without `record` left it: its capture keybinding written, the flag set.
+    add_custom_keybinding(
+        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/annota-region/",
+        "Annota: Capture region",
+        "Print",
+    );
+    settings
+        .set_boolean("gnome-shortcuts-created", true)
+        .unwrap();
+    assert!(!settings.boolean("record-keybinding-migrated"));
+
+    shortcuts::start_portal_shortcuts(&scene.app);
+    let (name, command, binding) = custom_keybinding("record").expect("the Record keybinding");
+    assert_eq!(name, "Annota: Record video");
+    assert!(command.ends_with(" --record toggle"), "{command}");
+    assert!(
+        shortcuts::same_accel(&binding, "<Super><Alt>r"),
+        "{binding}"
+    );
+    assert!(
+        custom_keybinding("region").is_some(),
+        "the capture one kept"
+    );
+    assert!(settings.boolean("record-keybinding-migrated"));
+
+    // The user deletes it in GNOME Settings; Annota starts again.
+    let media = gio::Settings::new("org.gnome.settings-daemon.plugins.media-keys");
+    media
+        .set_strv(
+            "custom-keybindings",
+            ["/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/annota-region/"],
+        )
+        .unwrap();
+    shortcuts::start_portal_shortcuts(&scene.app);
+    assert_eq!(custom_keybinding("record"), None, "not added again");
+    assert_eq!(settings.string("shortcut-record").as_str(), "<Super><Alt>r");
+
+    // A setup not migrated yet where the user's own keybinding holds Super+Alt+R.
+    settings
+        .set_boolean("record-keybinding-migrated", false)
+        .unwrap();
+    add_custom_keybinding(
+        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/",
+        "My recorder",
+        "<Super><Alt>r",
+    );
+    shortcuts::start_portal_shortcuts(&scene.app);
+    assert_eq!(
+        custom_keybinding("record"),
+        None,
+        "a taken key is not written"
+    );
+    assert_eq!(
+        settings.string("shortcut-record").as_str(),
+        "",
+        "the row says Not set"
+    );
+    assert_eq!(
+        shortcuts::shown_trigger(shortcuts::GlobalShortcut::Record).trigger,
+        ShownTrigger::NotSet
+    );
+    assert!(settings.boolean("record-keybinding-migrated"));
+
+    // Disabled: nothing is written, not even the list.
+    settings
+        .set_boolean("record-keybinding-migrated", false)
+        .unwrap();
+    let writes = Rc::new(Cell::new(0));
+    let counted = Rc::clone(&writes);
+    let handler = media.connect_changed(Some("custom-keybindings"), move |_, _| {
+        counted.set(counted.get() + 1);
+    });
+    shortcuts::start_portal_shortcuts(&scene.app);
+    pump(50);
+    media.disconnect(handler);
+    assert_eq!(writes.get(), 0, "custom-keybindings rewritten");
+    assert_eq!(custom_keybinding("record"), None);
+    assert!(settings.boolean("record-keybinding-migrated"));
 }

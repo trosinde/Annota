@@ -1,0 +1,384 @@
+using Gtk 4.0;
+using Adw 1;
+// "Export Recording" (add-screen-recording mockups 07–11, redline "07–11 Export Recording
+// window"): Annota's own window, 560 px wide, not resizable, header bar with the title and the
+// close button only. It opens right after a recording ended (design.md D1); GNOME places it.
+// States (src/recording/export_window.rs): settings (07, 11 with the error banner), exporting
+// (08: rows insensitive, progress + Cancel), saved (09: success, Show in Files, Close).
+// "Discard Recording?" (10) is discard-recording-dialog.blp.
+Adw.Window export_window {
+  title: _("Export Recording");
+  resizable: false;
+  default-widget: export_button;
+  // The window's own size requests include the client-side decoration's border (measured on
+  // X11: 560 gave 550 px of content), so the 560 px are the content's. A window that cannot be
+  // resized takes its content's natural width: the clamp keeps it at 560 px (the banner's
+  // one-line natural width is wider; it wraps).
+  content: Adw.Clamp {
+    maximum-size: 560;
+    tightening-threshold: 560;
+
+    child: Adw.ToolbarView {
+      width-request: 560;
+      // The separator under the header bar (07-11).
+      top-bar-style: raised_border;
+
+      [top]
+      Adw.HeaderBar {
+        decoration-layout: ":close";
+      }
+
+      // Mockup 11: below the header bar, full width, no button.
+
+      [top]
+      Adw.Banner error_banner {
+        title: _("The recording stopped because of an error. What was recorded until then is kept.");
+        revealed: false;
+
+        styles [
+          "annota-recording-error-banner",
+        ]
+      }
+
+      content: Box {
+        orientation: vertical;
+
+        Box {
+          orientation: vertical;
+          spacing: 18;
+          margin-top: 18;
+          margin-start: 24;
+          margin-end: 24;
+          // Poster row: 192 × 120 frame with the duration badge, name and caption beside it.
+          Box {
+            spacing: 18;
+
+            Overlay {
+              valign: center;
+              overflow: hidden;
+
+              styles [
+                "annota-recording-poster",
+              ]
+
+              child: Picture poster_picture {
+                width-request: 192;
+                height-request: 120;
+                content-fit: cover;
+                can-shrink: true;
+                accessible-role: presentation;
+              };
+
+              [overlay]
+              Label duration_badge {
+                halign: end;
+                valign: end;
+                margin-end: 6;
+                margin-bottom: 6;
+
+                styles [
+                  "annota-recording-duration-badge",
+                  "numeric",
+                ]
+              }
+            }
+
+            Box {
+              orientation: vertical;
+              spacing: 4;
+              valign: center;
+              hexpand: true;
+
+              Label name_label {
+                xalign: 0;
+                ellipsize: end;
+
+                styles [
+                  "annota-recording-export-name",
+                ]
+              }
+
+              Label caption_label {
+                xalign: 0;
+                ellipsize: end;
+
+                styles [
+                  "dim-label",
+                ]
+              }
+            }
+          }
+
+          Stack body_stack {
+            vhomogeneous: false;
+            hhomogeneous: false;
+            interpolate-size: true;
+
+            StackPage {
+              name: "settings";
+
+              child: Box settings_box {
+                orientation: vertical;
+                spacing: 18;
+
+                ListBox {
+                  selection-mode: none;
+
+                  styles [
+                    "boxed-list",
+                  ]
+
+                  // The extension is shown dimmed and is not part of the text.
+                  Adw.EntryRow name_row {
+                    title: _("File name");
+                    activates-default: true;
+
+                    styles [
+                      "annota-recording-name-row",
+                    ]
+
+                    [suffix]
+                    Label extension_label {
+                      styles [
+                        "dim-label",
+                      ]
+                    }
+                  }
+
+                  Adw.ActionRow folder_row {
+                    title: _("Folder");
+                    activatable-widget: folder_button;
+
+                    [suffix]
+                    Button folder_button {
+                      icon-name: "folder-symbolic";
+                      valign: center;
+                      tooltip-text: _("Choose Folder…");
+
+                      styles [
+                        "flat",
+                      ]
+
+                      accessibility {
+                        label: _("Choose Folder…");
+                      }
+                    }
+                  }
+                }
+
+                ListBox {
+                  selection-mode: none;
+
+                  styles [
+                    "boxed-list",
+                  ]
+
+                  Adw.ActionRow format_row {
+                    title: _("Format");
+                    activatable: false;
+
+                    // The kit's compact toggle group (34 px, as the setup's source toggle).
+                    [suffix]
+                    Box {
+                      valign: center;
+
+                      styles [
+                        "annota-segmented",
+                        "annota-recording-format",
+                      ]
+
+                      accessibility {
+                        labelled-by: format_row;
+                      }
+
+                      ToggleButton mp4_button {
+                        label: "MP4";
+                        active: true;
+                      }
+
+                      ToggleButton webm_button {
+                        label: "WebM";
+                        group: mp4_button;
+                      }
+                    }
+                  }
+
+                  Adw.SwitchRow audio_row {
+                    title: _("Include audio");
+                    subtitle: _("Mixes microphone and system audio into one track");
+                  }
+                }
+              };
+            }
+
+            // Mockup 09.
+            StackPage {
+              name: "saved";
+
+              child: Box saved_box {
+                orientation: vertical;
+                margin-top: 12;
+                margin-bottom: 24;
+
+                Box {
+                  halign: center;
+                  width-request: 64;
+                  height-request: 64;
+
+                  styles [
+                    "annota-recording-saved-badge",
+                  ]
+
+                  Image {
+                    icon-name: "object-select-symbolic";
+                    pixel-size: 32;
+                    hexpand: true;
+                    vexpand: true;
+                    halign: center;
+                    valign: center;
+                    accessible-role: presentation;
+                  }
+                }
+
+                Label saved_title {
+                  label: _("Saved");
+                  margin-top: 18;
+
+                  styles [
+                    "title-2",
+                    "annota-recording-saved-title",
+                  ]
+                }
+
+                Label saved_name {
+                  margin-top: 14;
+                  ellipsize: middle;
+                  selectable: true;
+
+                  styles [
+                    "heading",
+                  ]
+                }
+
+                // A long folder is shortened in its middle; the window stays 560 px wide.
+                Label saved_caption {
+                  margin-top: 4;
+                  ellipsize: middle;
+
+                  styles [
+                    "dim-label",
+                  ]
+                }
+
+                Box {
+                  margin-top: 24;
+                  spacing: 12;
+                  halign: center;
+                  homogeneous: true;
+
+                  Button show_button {
+                    label: _("Show in Files");
+                    width-request: 140;
+                  }
+
+                  Button close_button {
+                    label: _("Close");
+                    width-request: 140;
+
+                    styles [
+                      "suggested-action",
+                    ]
+                  }
+                }
+              };
+            }
+          }
+        }
+
+        Stack footer_stack {
+          margin-top: 24;
+          margin-start: 24;
+          margin-end: 24;
+          margin-bottom: 24;
+          vhomogeneous: false;
+
+          StackPage {
+            name: "buttons";
+
+            child: Box {
+              Button discard_button {
+                label: _("Discard");
+
+                styles [
+                  "flat",
+                  "error",
+                  "annota-recording-discard",
+                ]
+              }
+
+              Box {
+                hexpand: true;
+              }
+
+              Button export_button {
+                label: C_("verb", "Export");
+
+                styles [
+                  "suggested-action",
+                ]
+              }
+            };
+          }
+
+          // Mockup 08.
+          StackPage {
+            name: "progress";
+
+            child: Box {
+              spacing: 12;
+
+              Box {
+                orientation: vertical;
+                spacing: 6;
+                hexpand: true;
+                valign: center;
+
+                Box {
+                  Label {
+                    label: _("Exporting…");
+                    xalign: 0;
+                    hexpand: true;
+                  }
+
+                  Label percent_label {
+                    label: "0 %";
+
+                    styles [
+                      "dim-label",
+                      "numeric",
+                    ]
+                  }
+                }
+
+                ProgressBar progress_bar {
+                  styles [
+                    "annota-recording-progress",
+                  ]
+
+                  accessibility {
+                    label: _("Exporting…");
+                  }
+                }
+              }
+
+              Button cancel_button {
+                label: _("Cancel");
+                valign: center;
+              }
+            };
+          }
+        }
+      };
+    };
+  };
+}

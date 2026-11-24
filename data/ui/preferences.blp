@@ -224,6 +224,41 @@ Adw.PreferencesDialog preferences_dialog {
           icon-name: "go-next-symbolic";
         }
       }
+
+      Adw.ActionRow shortcut_record_row {
+        title: _("Record video");
+
+        // add-screen-recording mockup 14: as the capture rows, for the Record shortcut.
+        [suffix]
+        Box {
+          valign: center;
+          spacing: 12;
+
+          Image shortcut_record_warning {
+            icon-name: "dialog-warning-symbolic";
+            accessible-role: presentation;
+            visible: false;
+            styles ["warning"]
+          }
+
+          ShortcutLabel shortcut_record_label {
+            valign: center;
+            disabled-text: "";
+          }
+
+          Label shortcut_record_text {
+            visible: false;
+            ellipsize: end;
+            max-width-chars: 24;
+            styles ["dim-label"]
+          }
+        }
+
+        [suffix]
+        Image shortcut_record_chevron {
+          icon-name: "go-next-symbolic";
+        }
+      }
     }
 
     Adw.PreferencesGroup {

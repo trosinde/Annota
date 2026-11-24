@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Recording paused, microphone muted</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+.keys{display:inline-flex;gap:4px;align-items:center}
+kbd.okey{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:5px;background:var(--osd-fill-hover);color:var(--osd-fg);font-family:var(--font-ui);font-size:var(--fs-caption);font-weight:var(--fw-bold)}
+.scene{position:relative;width:1280px;height:800px;overflow:hidden;background:var(--desktop-bg)}
+.topbar{position:absolute;left:0;right:0;top:0;height:32px;background:#000006;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;font-weight:700;z-index:40}
+.topbar .ws{display:flex;gap:5px;align-items:center;width:120px}
+.topbar .ws i{width:7px;height:7px;border-radius:4px;background:rgb(255 255 255 / 45%)}
+.topbar .ws i.on{width:28px;background:#fff}
+.topbar .sys{display:flex;gap:12px;align-items:center;width:120px;justify-content:flex-end}
+.topbar .gind{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:11px;background:rgb(255 255 255 / 22%);box-shadow:inset 0 0 0 2px rgb(255 255 255 / 55%)}
+.app{position:absolute;left:0;top:32px;width:1280px;height:768px;overflow:hidden}
+.app img{display:block;width:1280px;height:800px}
+.ptr{position:absolute;width:22px;height:30px;z-index:45}
+.ann{position:absolute;z-index:46;padding:12px 14px;border-radius:var(--radius-l);background:var(--view-bg);color:var(--view-fg);box-shadow:0 0 0 2px var(--annota-violet),var(--shadow-popover);font-size:var(--fs-small);line-height:1.45}
+.ann b{display:block;font-size:var(--fs-body);margin-bottom:3px;color:var(--annota-violet)}
+.ann kbd.key{height:18px;min-width:18px}
+.lead{position:absolute;z-index:45;border-top:2px dashed var(--annota-violet);height:0}
+.leadv{position:absolute;z-index:45;border-left:2px dashed var(--annota-violet);width:0}
+.tagl{position:absolute;z-index:46;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--radius-s);background:var(--view-bg);color:var(--window-fg);font-size:var(--fs-caption);font-weight:var(--fw-bold);box-shadow:inset 0 0 0 2px var(--annota-violet)}
+code{font-family:var(--font-mono);font-size:12px;padding:1px 5px;border-radius:4px;background:var(--fill-1)}
+
+.rctl{display:inline-flex;align-items:center;gap:6px;height:52px;box-sizing:border-box;padding:0 8px 0 18px;border-radius:26px;background:var(--osd-bg-solid);color:#fff;box-shadow:0 0 0 1px rgb(255 255 255 / 8%),0 2px 6px rgb(0 0 6 / 30%),0 10px 30px rgb(0 0 6 / 28%);white-space:nowrap}
+.rctl.at{position:absolute;z-index:44}
+.rctl .dot{width:10px;height:10px;border-radius:50%;background:var(--destructive-bg);box-shadow:0 0 0 3px rgb(224 27 36 / 35%);flex:none}
+.rctl .pz{color:var(--annota-amber);display:inline-flex}
+.rctl .time{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;min-width:40px;padding-left:4px}
+.rctl .plabel{font-size:var(--fs-small);font-weight:700;color:var(--annota-amber);padding-right:2px}
+.rctl .sep{width:1px;height:24px;background:rgb(255 255 255 / 20%);margin:0 4px;flex:none}
+.rctl .b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;min-width:36px;box-sizing:border-box;padding:0 10px;border-radius:18px;background:transparent;color:#fff;position:relative}
+.rctl .b.circ{width:36px;padding:0}
+.rctl .b.fill{background:var(--osd-fill)}
+.rctl .b.stop{background:var(--destructive-bg)}
+.rctl .b.hover{background:var(--osd-fill-hover)}
+.rctl .b.stop.hover{background:#ec3a42}
+.rctl .b.focus{outline:2px solid rgb(120 174 237 / 85%);outline-offset:1px}
+.meter{display:inline-flex;gap:2px;align-items:center}
+.meter i{width:3px;height:12px;border-radius:1px;background:rgb(255 255 255 / 25%)}
+.meter i.on{background:var(--success-bg)}
+.meter i.hot{background:var(--warning-bg)}
+.ic{position:relative;display:inline-flex}
+.ic.muted::after{content:"";position:absolute;left:50%;top:50%;width:21px;height:2px;margin:-1px 0 0 -10.5px;background:currentColor;transform:rotate(-45deg);border-radius:1px}
+.rctl .b .tooltip{position:absolute;top:50px;left:50%;transform:translateX(-50%);font-weight:400}
+.rctl .b .tooltip.tip-r{left:auto;right:-8px;transform:none}
+</style>
+</head>
+<body class="mock-frame flush">
+<div class="scene"><div class="topbar"><span class="ws"><i class="on"></i><i></i><i></i></span><span>Sun 22 Nov 10:42</span><span class="sys"><span class="gind"><svg class="icon"><use href="#i-capture-screen"/></svg></span><svg class="icon"><use href="#i-speaker"/></svg><svg class="icon"><use href="#i-settings"/></svg></span></div><div class="app"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div>
+<div class="rctl at" style="left:352px;top:676px"><span class="pz"><svg class="icon"><use href="#i-pause"/></svg></span><span class="time">0:27</span><span class="plabel">Paused</span><span class="sep"></span><span class="b circ fill focus" title="Resume (Space)"><svg class="icon"><use href="#i-play"/></svg></span><span class="b circ stop" title="Stop (Super+Alt+R)"><svg class="icon"><use href="#i-stop"/></svg></span><span class="sep"></span><span class="b hover"><span class="ic muted"><svg class="icon"><use href="#i-microphone"/></svg></span><span class="meter"><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></span><span class="tooltip">Microphone muted<span class="shortcut">M</span></span></span><span class="b"><span class="ic"><svg class="icon"><use href="#i-speaker"/></svg></span><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span></span><span class="sep"></span><span class="b circ" title="Minimize"><svg class="icon" viewBox="0 0 16 16"><rect x="3" y="10" width="10" height="2" rx="1" fill="currentColor"/></svg></span></div>
+<svg class="ptr" style="left:634px;top:704px" viewBox="0 0 22 30"><path d="M2 2v22l6-5.5 4 9 4-1.8-4-8.7h8z" fill="#000006" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+<div class="leadv" style="left:1196px;top:30px;height:26px"></div>
+<span class="tagl" style="left:1000px;top:56px">GNOME's indicator, not drawn by Annota</span>
+<div class="ann" style="left:834px;top:520px;width:414px"><b>Paused</b>Red dot → amber <code>pause</code> glyph + "Paused" (amber text, never colour alone). Time frozen at the moment of pausing (<code>0:27</code>), resumes from there. Pause → <b style="display:inline;color:inherit;font-size:inherit">Resume</b> (<code>play</code> icon, tooltip "Resume" <kbd class="key">Space</kbd>), keyboard focus stays on it. Stop and the Record shortcut still end the recording.</div>
+<div class="ann" style="left:834px;top:676px;width:414px"><b>Microphone muted</b>Slashed microphone, meter grey (no level), tooltip "Microphone muted" <kbd class="key">M</kbd>. Silence is written while muted; the recording keeps its length.</div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>

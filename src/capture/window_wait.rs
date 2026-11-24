@@ -14,6 +14,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use futures_channel::oneshot;
+use gettextrs::gettext;
 use gtk::{cairo, gdk, glib, graphene, prelude::*};
 
 use super::portal::{CaptureError, ParentWindow};
@@ -27,6 +28,42 @@ pub(super) const RING_STROKE: f64 = 6.0;
 pub(super) const RING_RADIUS: f64 = 32.0;
 const ARC: f64 = std::f64::consts::FRAC_PI_2;
 const CORAL: (f64, f64, f64) = (1.0, 0x5a as f64 / 255.0, 0x4e as f64 / 255.0);
+
+/// What the OSD waits for. The window capture and a window recording wait for a window; a region
+/// or screen recording waits for a screen (add-screen-recording mockup 03, same component).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WaitFor {
+    /// A window capture.
+    Window,
+    /// A window recording: the same OSD, titled for a recording.
+    RecordWindow,
+    Screen,
+}
+
+impl WaitFor {
+    pub fn label(self) -> String {
+        match self {
+            Self::Window | Self::RecordWindow => gettext("Waiting for a window…"),
+            Self::Screen => gettext("Waiting for a screen…"),
+        }
+    }
+
+    pub fn icon_name(self) -> &'static str {
+        match self {
+            Self::Window | Self::RecordWindow => "annota-capture-window-symbolic",
+            Self::Screen => "annota-capture-screen-symbolic",
+        }
+    }
+
+    /// The window title (not shown: the OSD is undecorated; read by assistive technology).
+    fn title(self) -> String {
+        match self {
+            Self::Window => gettext("Capture Window"),
+            Self::RecordWindow => gettext("Record Window"),
+            Self::Screen => gettext("Record Screen"),
+        }
+    }
+}
 
 thread_local! {
     /// The OSD while it is shown, for [`raise`].
@@ -47,7 +84,7 @@ pub fn raise() -> bool {
 
 /// Whether the OSD is on the screen, for tests.
 #[cfg(test)]
-pub(super) fn shown() -> Option<gtk::Window> {
+pub(crate) fn shown() -> Option<gtk::Window> {
     SHOWN.with(|shown| shown.borrow().clone())
 }
 
@@ -59,7 +96,7 @@ pub async fn choose(
     include_pointer: bool,
 ) -> Result<Chosen, CaptureError> {
     let cursor = screencast::cursor_mode(include_pointer, source.offers_embedded_pointer());
-    let Some((window, cancelled)) = show(app) else {
+    let Some((window, cancelled)) = show(app, WaitFor::Window) else {
         // A broken resource bundle: without a parent GNOME's chooser was measured not to show.
         return Err(CaptureError::Failed(String::from(
             "window-wait.ui is incomplete",
@@ -76,18 +113,37 @@ pub async fn choose(
     };
     let result = screencast::choose_window(source, cursor, identifier, cancel).await;
     drop(parent);
-    SHOWN.with(|shown| shown.borrow_mut().take());
-    window.destroy();
+    hide(&window);
     result
 }
 
+/// Takes the OSD off the screen (unmapped at once) and destroys it.
+pub(crate) fn hide(window: &gtk::Window) {
+    SHOWN.with(|shown| {
+        let mut shown = shown.borrow_mut();
+        if shown.as_ref() == Some(window) {
+            shown.take();
+        }
+    });
+    window.set_visible(false);
+    window.destroy();
+}
+
 /// Builds and presents the OSD. The receiver resolves on Cancel, `Esc` or a close request.
-fn show(app: &adw::Application) -> Option<(gtk::Window, oneshot::Receiver<()>)> {
+pub(crate) fn show(
+    app: &adw::Application,
+    wait_for: WaitFor,
+) -> Option<(gtk::Window, oneshot::Receiver<()>)> {
     let builder = gtk::Builder::from_resource(UI_WINDOW_WAIT);
     let window = builder.object::<gtk::Window>("wait_window")?;
     let osd = builder.object::<gtk::Box>("wait_box")?;
     let ring = builder.object::<gtk::DrawingArea>("ring")?;
     let cancel = builder.object::<gtk::Button>("cancel_button")?;
+    let label = builder.object::<gtk::Label>("wait_label")?;
+    let icon = builder.object::<gtk::Image>("wait_icon")?;
+    window.set_title(Some(&wait_for.title()));
+    label.set_label(&wait_for.label());
+    icon.set_icon_name(Some(wait_for.icon_name()));
 
     let (sender, receiver) = oneshot::channel::<()>();
     let sender = Rc::new(RefCell::new(Some(sender)));
@@ -150,7 +206,7 @@ fn show(app: &adw::Application) -> Option<(gtk::Window, oneshot::Receiver<()>)> 
 }
 
 /// The OSD's rectangle in surface coordinates.
-fn input_rect(window: &gtk::Window, osd: &gtk::Box) -> Option<cairo::RectangleInt> {
+pub(crate) fn input_rect(window: &gtk::Window, osd: &gtk::Box) -> Option<cairo::RectangleInt> {
     let bounds = osd.compute_bounds(window)?;
     let (dx, dy) = window.surface_transform();
     let rect = graphene::Rect::new(

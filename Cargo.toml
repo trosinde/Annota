@@ -47,6 +47,8 @@ libwebp-sys = { version = "0.14", default-features = false, features = ["std"] }
 gstreamer = "0.23"
 gstreamer-app = "0.23"
 gstreamer-video = "0.23"
+# Discoverer for the Export Recording window's poster frame and duration (add-screen-recording).
+gstreamer-pbutils = "0.23"
 
 [profile.release]
 lto = "thin"

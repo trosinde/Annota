@@ -1,0 +1,164 @@
+using Gtk 4.0;
+
+// The Recording control (add-screen-recording, mockups 05 and 06, redline "05–06 Recording
+// control"): Annota's own small undecorated toplevel, an OSD pill. GNOME places it; it is moved
+// by dragging its body (the WindowHandle) and is neither kept above other windows nor kept out
+// of the recording (design.md D4). The window itself is transparent: the margins around the
+// pill hold its drop shadow and take no pointer input (control.rs sets the input region).
+// Order: rec dot · time | Pause · Stop | Microphone · System audio | Minimize. control.rs hides
+// the audio button of a source that is not recorded, and the group with its separator when no
+// audio is recorded.
+
+Window control_window {
+  title: _("Recording");
+  decorated: false;
+  resizable: false;
+  styles ["annota-recording-control-window"]
+
+  child: WindowHandle {
+    child: Box control_box {
+      spacing: 6;
+      margin-top: 20;
+      margin-bottom: 40;
+      margin-start: 30;
+      margin-end: 30;
+      halign: center;
+      valign: center;
+      styles ["annota-recording-control"]
+
+      Box rec_dot {
+        valign: center;
+        accessible-role: presentation;
+        styles ["annota-recording-control-dot"]
+      }
+
+      Image paused_icon {
+        valign: center;
+        icon-name: "annota-pause-symbolic";
+        visible: false;
+        accessible-role: presentation;
+        styles ["annota-recording-control-paused"]
+      }
+
+      Label time_label {
+        label: "0:00";
+        xalign: 0;
+        styles ["annota-recording-control-time"]
+
+        // A description, not a label: the label's own text (the time) stays its name.
+        accessibility {
+          description: _("Elapsed time");
+        }
+      }
+
+      Label paused_label {
+        label: _("Paused");
+        visible: false;
+        styles ["annota-recording-control-paused", "annota-recording-control-paused-label"]
+      }
+
+      Separator {
+        orientation: vertical;
+        valign: center;
+        styles ["annota-recording-control-separator"]
+      }
+
+      Button pause_button {
+        valign: center;
+        icon-name: "annota-pause-symbolic";
+        has-tooltip: true;
+        styles ["annota-recording-control-circular", "annota-recording-control-fill"]
+
+        accessibility {
+          label: _("Pause");
+        }
+      }
+
+      Button stop_button {
+        valign: center;
+        icon-name: "annota-stop-symbolic";
+        has-tooltip: true;
+        styles ["annota-recording-control-circular", "annota-recording-control-stop"]
+
+        accessibility {
+          label: _("Stop");
+        }
+      }
+
+      Separator audio_separator {
+        orientation: vertical;
+        valign: center;
+        styles ["annota-recording-control-separator"]
+      }
+
+      Button microphone_button {
+        valign: center;
+        has-tooltip: true;
+        styles ["annota-recording-control-audio"]
+
+        accessibility {
+          label: _("Mute microphone");
+        }
+
+        child: Box {
+          spacing: 8;
+
+          Image microphone_icon {
+            icon-name: "annota-microphone-symbolic";
+            accessible-role: presentation;
+          }
+
+          DrawingArea microphone_meter {
+            content-width: 23;
+            content-height: 12;
+            valign: center;
+            accessible-role: presentation;
+          }
+        };
+      }
+
+      Button system_button {
+        valign: center;
+        has-tooltip: true;
+        styles ["annota-recording-control-audio"]
+
+        accessibility {
+          label: _("Mute system audio");
+        }
+
+        child: Box {
+          spacing: 8;
+
+          Image system_icon {
+            icon-name: "annota-speaker-symbolic";
+            accessible-role: presentation;
+          }
+
+          DrawingArea system_meter {
+            content-width: 23;
+            content-height: 12;
+            valign: center;
+            accessible-role: presentation;
+          }
+        };
+      }
+
+      Separator {
+        orientation: vertical;
+        valign: center;
+        styles ["annota-recording-control-separator"]
+      }
+
+      Button minimize_button {
+        valign: center;
+        icon-name: "window-minimize-symbolic";
+        tooltip-text: _("Minimize");
+        styles ["annota-recording-control-circular", "annota-recording-control-flat"]
+
+        accessibility {
+          label: _("Minimize");
+        }
+      }
+    };
+  };
+}

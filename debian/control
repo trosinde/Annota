@@ -19,6 +19,11 @@ Build-Depends:
  desktop-file-utils,
  appstream,
  libglib2.0-bin,
+ gstreamer1.0-plugins-base <!nocheck>,
+ gstreamer1.0-plugins-good <!nocheck>,
+ gstreamer1.0-plugins-ugly <!nocheck>,
+ gstreamer1.0-plugins-bad <!nocheck>,
+ gstreamer1.0-libav <!nocheck>,
 Standards-Version: 4.7.0
 Homepage: https://github.com/trosinde/Annota
 Vcs-Browser: https://github.com/trosinde/Annota
@@ -33,6 +38,9 @@ Depends:
  xdg-desktop-portal-gnome | xdg-desktop-portal-backend,
  gstreamer1.0-pipewire,
  gstreamer1.0-plugins-base,
+ gstreamer1.0-plugins-good,
+ gstreamer1.0-plugins-ugly,
+ gstreamer1.0-plugins-bad,
 Recommends:
  tesseract-ocr,
 Description: screenshot, annotation and screen recording for GNOME

@@ -1,25 +1,54 @@
 # Tasks
 
+Scenario names below are `screen-recording / <Requirement> / <Scenario>` unless another
+capability is named. Every test carries a `spec:` tag for the scenarios it proves.
+
 ## 1. Design gate
-- [ ] 1.1 `designer` agent: mockups for all scenarios in `docs/design/add-screen-recording/` (light + dark, 1x + 2x)
-- [ ] 1.2 Maintainer approval recorded in design.md
+- [x] 1.1 `designer` agent: core mockups in `docs/design/add-screen-recording/` (14 screens, light + dark, 1x + 2x); out-of-scope screens moved to `docs/design/add-recording-extras/`
+- [x] 1.2 Maintainer decisions recorded in design.md: Q1 post-recording flow (D1), Q2 H.264 encoder, Q3 AAC encoder, Q4 working-file location, Q5 shortcut, Q6 control details (2026-11-22); mockups 04-06 updated (red countdown ring, Minimize button)
+- [x] 1.3 Maintainer approval recorded in design.md (`Design approved: 2026-11-22 (maintainer)`)
 
-## 2. Recording
-- [ ] 2.1 ScreenCast portal + PipeWire
-- [ ] 2.2 Countdown + floating control
-- [ ] 2.3 Audio
-- [ ] 2.4 Webcam
-- [ ] 2.5 Cursor effects
-- [ ] 2.6 Screen draw
+## 2. Foundation (probes before code)
+- [ ] 2.1 Probes P1–P12 of design.md with `tools/recording-probe.py` (written 2026-11-22, syntax-checked only — it has never touched a portal). The maintainer runs the commands in `manual-checks.md` § "Probe run (task 2.1)" on GNOME 50 (own desktop) and, where possible, GNOME 46 (Ubuntu 24.04, Wayland and "GNOME on Xorg" for P9); the tool appends to `probe-results/<date>-<os>-<session>.md`, which is committed. Then correct spec and design wherever a result contradicts them before any code relies on it
+  - [x] 2.1a Script written, `python3 -m py_compile` and `--help` pass
+  - [x] 2.1b Maintainer run on GNOME 50 (Wayland), log committed — runs of 2026-11-23 committed: P1-P5, P10-P12 measured; P6 measured at 20:48 with no human through `tools/recording-probe-drive.py window-end` (RemoteDesktop token + AT-SPI drive the chooser). P7 settled by design (D3), P8 moved to 6.2, P9 with 2.1c
+  - [ ] 2.1c Run on GNOME 46 (Ubuntu 24.04), Wayland and X11 (P9), log committed
+  - [x] 2.1d Spec/design corrected from the results — probe table with status and evidence for P1-P12 (2026-11-23); P6: per-buffer crop meta, close → `Session.Closed`, damage-driven window streams
+- [ ] 2.2 Measure `pulsesrc` default source, `@DEFAULT_MONITOR@` and `GstDeviceMonitor` on Ubuntu 24.04 (pipewire-pulse): `tools/recording-probe.py audio`
+- [x] 2.3 Verify every element of "Recording runtime dependencies" and its package on clean Ubuntu 24.04, Ubuntu 26.04 and Debian 13 containers; settle Q2/Q3 with the result — done 2026-11-24 in clean Docker containers (`probe-results/2026-11-24-containers-elements.md`): every element present from the planned packages on all three; `pulsesrc` is in plugins-good on 24.04 too; `openh264dec` and `h264timestamper` ship in plugins-bad everywhere, so no `gstreamer1.0-libav` dependency
+- [x] 2.4 Crates: `gstreamer-pbutils` 0.23.5 (+ `gstreamer-audio` 0.23.6 pulled in by it; both rust-version 1.71.1, MIT OR Apache-2.0 / MIT, glib 0.20 shared), `Cargo.lock` changed only by these four crates, re-vendored, `build-aux/update-copyright.py` (MSRV is 1.91 since ADR 0003; CI's `.deb (lintian)` job builds with 1.91)
+- [x] 2.5 GSettings keys of design.md D8 with defaults; `cli.rs` `--record region|window|screen|toggle` — Recording on the command line / Invalid record mode
 
-## 3. Editing
-- [ ] 3.1 Timeline trim/cut
-- [ ] 3.2 Combine
-- [ ] 3.3 Frame grab
-- [ ] 3.4 Exporters
+## 3. Recording pipeline
+- [x] 3.1 `screencast.rs`: keep a stream for recording (monitor and window sources, no restore token, cursor mode) — Recording source / Pointer in the recording, Source request cancelled, Chooser cancelled in the desktop, Session closed while waiting, Waiting indicator with one monitor, Source not offered (fake portal) — Phase B: `src/recording/source.rs`; `source::offered()` is in place; the insensitive setup segment and its tagged test came with 4.1
+- [x] 3.2 Region crop mapping from probe P2/P3 (logical selection × buffer size ÷ `size`) — Recording source / Record a region, Record a region on a scaled monitor, Region not on the chosen screen
+- [x] 3.3 Window and screen recording incl. per-buffer crop from the crop meta (shadow trim recomputed only on a crop change) and scaling to the first frame — Recording source / Record a window, Window crop meta in buffer pixels (unit test of crop meta × (buffer ÷ `size`) ÷ monitor scale), Recorded window resized, Record the screen — 2026-11-24: the rectangle is `screencast::window_rect`'s (PR #12) with an edge-line check per buffer, and the frame is the window's size on screen in monitor pixels (maintainer decision, design.md D2a) — Window crop meta in buffer pixels, Window recorded at its on-screen size
+- [x] 3.4 Pipeline to the Matroska working file (videotestsrc/audiotestsrc in tests), stream timestamps + `videorate` 30 fps — Working file / Recording survives a crash, Name already taken, Recording error; Recording frame rate / Still screen, Burst of buffers
+- [x] 3.5 Pause/resume via drop probe + running-time offset — Pause and resume / Paused time is not recorded
+- [x] 3.6 Audio: device presence, mute, level — Audio / Mute the microphone, Mute system audio, No microphone, No audio selected — pipeline tests (silence while muted, no audio track) plus the control's `M`/`S` with the file checked (Phase C2), the setup's missing-device row (C1)
+- [x] 3.7 Stop paths: button, shortcut, `Session::Closed`, window stream end — Stop recording / Stop by button, Stop by hotkey, Session ended by the desktop, Recorded window closed (both measured as `Session.Closed` without EOS, P5/P6) — Phase B: `recording::stop`/`RecordingSession`, ends delivered to `Hooks::on_ended`; the control disappears (4.4) and the Export Recording window opens (5.1) for each end, proven by the live tests of all four (Phase D1)
 
-## 4. Verify
-- [ ] 4.1 Tests for every scenario (unit, golden-image or documented manual check)
-- [ ] 4.2 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green
-- [ ] 4.3 `.deb` builds and installs on Ubuntu 24.04, lintian clean
-- [ ] 4.4 German translation updated
+## 4. UI chrome
+- [x] 4.1 Overlay mode pill + recording setup (Blueprint), settings persisted — Recording setup / Switch the overlay to video, Choices are remembered, Cancel the setup (mockups 01, 02) — also Recording source / Source not offered, Audio / No microphone, Record shortcut / Shortcut opens the setup (through `app.record toggle`, the action `--record toggle` runs; since Phase D2 the test drives it by the portal's `Activated` for `record`), `--record region|toggle` wired (Phase C1)
+- [x] 4.2 Waiting indicator "Waiting for a screen…" reusing the window-wait OSD (mockup 03)
+- [x] 4.3 Countdown label and recording start after the waiting indicator and the OSD have gone — Recording countdown / Countdown is not recorded, Cancel the countdown, No countdown, Waiting indicator is not recorded (mockup 04) — also Record shortcut / Shortcut cancels the countdown (since Phase D2 by the portal's `Activated` for `record`), Recording on the command line / Record a screen from the command line (Phase C1)
+- [x] 4.4 Control window: time, pause, stop, mutes, meters, `Space`/`M`/`S`, second request raises it — Recording control / Elapsed time, Second recording request; Recording control / Minimize the control; Pause and resume / Paused state (mockups 05, 06) — Phase C2; Stop by button / Stop by hotkey tagged in Phase D1 (control gone, session closed, `Ended` once, also while paused, and the Export Recording window opens); Minimize and the raise of a second request observed with a window manager (twm) on the test display; the Record-card half of Second recording request and Stop by hotkey through the portal's `Activated` in Phase D2
+- [x] 4.5 Record shortcut (portal ID `record` + GNOME-keybinding fallback), Preferences › Capture row — Record shortcut / all six scenarios incl. Portal assigns a different record trigger and Record trigger taken by GNOME (mockup 14); preferred trigger `Super+Alt+R` (design.md Q7) — Phase D2: `capture::shortcuts::GlobalShortcut` (one bind and one keybinding path for all four), the Stop chip from `shortcuts::record_trigger`
+- [x] 4.6 Welcome page Record card — `app-shell` / Welcome page / Record card starts the recording setup, and the existing Welcome page scenarios stay green (mockup 12); region-not-on-screen toast (mockup 13) — Phase D2; the card also presents the control while a recording runs (Second recording request)
+- [x] 4.7 `designer` agent: mockup for the toast "The desktop ended the screen-sharing request. Nothing was recorded." in the style of mockup 13 (design.md Q9), light + dark, 1x + 2x, mapped in `index.md` to Recording source / Session closed while waiting; then implement it — mockup 15 drawn; implemented in Phase D2 (same path as 13), asserted by the Session closed while waiting test
+
+## 5. Export and integration
+- [x] 5.1 Export Recording window: poster frame and duration (discoverer), name, folder, format, include audio (mockup 07) — opens from `Hooks::on_ended` for every end; new key `record-export-folder` (design.md, Phase D1)
+- [x] 5.2 MP4 remux + AAC mix, WebM VP9 + Opus transcode, progress and Cancel — Export after recording / Export as MP4, Export as WebM, Export without audio, Cancel the export, Target name taken (mockups 07, 08)
+- [x] 5.3 "Saved" state, Show in Files via `org.freedesktop.FileManager1` — Export after recording / Show in Files (mockup 09)
+- [x] 5.4 Discard + close confirmation — Discard a recording / Discard, Close asks first (mockup 10); error banner (mockup 11)
+- [x] 5.5 `debian/control` Depends per design.md "Dependencies" (plugins-good, plugins-ugly for x264enc, plugins-bad for voaacenc and `h264timestamper`, and a software H.264 decoder for WebM and the poster: `gstreamer1.0-libav` or plugins-bad's `openh264dec`, design.md Phase D1) — `debian-packaging` / Recording runtime dependencies / Recording elements installed
+- [x] 5.6 Shortcuts window, metainfo/README feature text, `docs/feature-catalog.md` status — Phase D2: Record video in the Capture group, a Recording group (Space, M, S); metainfo and README paragraph; Video table status column
+
+## 6. Verify
+- [x] 6.1 Tests for every scenario (unit, pipeline tests with test sources, fake-portal live tests); `manual-checks.md` rows only where automation is impossible (real chooser, real audio devices), each run with result and date — done: every scenario of the change has green tagged tests (`scenario-report.md`); manual rows only for the real portal, chooser, devices and the installed .deb, each run on 2026-11-24
+- [ ] 6.2 Live run on the maintainer's desktop for region, window and screen with audio, including the probe-dependent scenarios; P8 measured here with the real implementation: a 30 min 4K screen recording (dropped frames, CPU, RSS) — 2026-11-24: region, window, screen, desktop stop, window close, export MP4/WebM, discard run with `tools/live-recording.py` (manual-checks.md); P8 with the real implementation ran 16 min 35 s (ended by GNOME's stop, not 30 min): 29862 frames = 995.4 s at 30 fps, CPU ≈ 1.3 cores, peak RSS 3.7 GB → x264 threads capped and poster/probe made lean (design.md P8, synthetic 4K re-measure ≈ 1.05 GB flat). **Open (maintainer):** a full 30 min whole-screen re-run with the fixed build (it records the maintainer's screen, so only with their OK), and the real Record key (GNOME's "Add Keyboard Shortcuts" dialog stores bindings in the maintainer's settings)
+- [x] 6.3 `reviewer` agent: specs, mockup fidelity, clippy/fmt/tests green — final pass 2026-11-24 at 5bdf27a: no blocking findings; non-blocking ones in design.md "Risks / open questions"
+- [x] 6.4 `.deb` builds and installs on Ubuntu 24.04 (Rust 1.91, ADR 0003), lintian clean, recording elements present — CI `.deb (lintian)` on ubuntu-24.04 green (run 45311800952), its artifact installed with apt in a clean `ubuntu:24.04` container and every element found (manual-checks.md)
+- [x] 6.5 German translation updated — `po/de.po` complete for every new string, `msgfmt -c` clean
+- [x] 6.6 `python3 tools/scenario_gate.py verify add-screen-recording` exits 0, `scenario-report.md` committed

@@ -163,14 +163,14 @@ async fn register() {
 /// leaves GNOME's question open, so the request gets a plain copy of the handle
 /// ([`ParentWindow::for_request`]) and this keeps the real identifier, which goes when the request
 /// ends or, before the surface does, when the window closes.
-pub(super) struct ParentWindow {
+pub(crate) struct ParentWindow {
     window: gtk::Window,
     identifier: Rc<RefCell<Option<WindowIdentifier>>>,
     on_unrealize: Option<glib::SignalHandlerId>,
 }
 
 impl ParentWindow {
-    pub(super) async fn new(window: &gtk::Window) -> Self {
+    pub(crate) async fn new(window: &gtk::Window) -> Self {
         let identifier = WindowIdentifier::from_native(window).await;
         let identifier = Rc::new(RefCell::new(identifier));
         // Runs ahead of GTK's own handler, which destroys the surface.
@@ -185,7 +185,7 @@ impl ParentWindow {
         }
     }
 
-    pub(super) fn for_request(&self) -> Option<WindowIdentifier> {
+    pub(crate) fn for_request(&self) -> Option<WindowIdentifier> {
         self.identifier.borrow().as_ref().and_then(plain_copy)
     }
 

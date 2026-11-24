@@ -19,6 +19,9 @@
     <file compressed="true" preprocess="xml-stripblanks">ui/batch-export-dialog.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">ui/save-changes-dialog.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">ui/replace-file-dialog.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/recording-control.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/export-recording.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/discard-recording-dialog.ui</file>
     <file compressed="true">style.css</file>
     <file compressed="true">style-dark.css</file>
     <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-capture-region-symbolic.svg</file>
@@ -41,5 +44,11 @@
     <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-highlighter-symbolic.svg</file>
     <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-redact-symbolic.svg</file>
     <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-export-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-record-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-microphone-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-speaker-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-pause-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-play-symbolic.svg</file>
+    <file compressed="true" preprocess="xml-stripblanks">icons/scalable/actions/annota-stop-symbolic.svg</file>
   </gresource>
 </gresources>

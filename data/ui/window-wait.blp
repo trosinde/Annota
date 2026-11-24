@@ -4,6 +4,8 @@ using Gtk 4.0;
 // ScreenCast portal's Start until the desktop's window chooser answers, and the chooser's parent
 // window. Placed like the countdown OSD (countdown.blp): a transparent, maximised window with the
 // OSD centred in it. Only the OSD takes pointer input (window_wait.rs); nothing is dimmed.
+// add-screen-recording (mockup 03) shows the same component with the icon `capture-screen` and
+// "Waiting for a screen…": window_wait.rs sets title, icon and label per `WaitFor`.
 
 Window wait_window {
   title: _("Capture Window");
@@ -32,7 +34,7 @@ Window wait_window {
       };
 
       [overlay]
-      Image {
+      Image wait_icon {
         icon-name: "annota-capture-window-symbolic";
         pixel-size: 32;
         halign: center;

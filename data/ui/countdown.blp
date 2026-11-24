@@ -1,65 +1,105 @@
 using Gtk 4.0;
 
 // Delay countdown OSD (mockup 07 of add-screen-capture). The window is transparent and lets
-// all pointer input through; only the centred OSD is visible.
+// all pointer input through; only the centred OSD is visible. add-screen-recording (mockup 04)
+// uses the same OSD before a recording: countdown.rs shows `recording_hints` instead of
+// `capture_hints` and draws a region's dashed outline on `outline`.
 
 Window countdown_window {
   title: _("Capture Countdown");
   decorated: false;
   styles ["annota-countdown-window"]
 
-  child: Box countdown_box {
-    halign: center;
-    valign: center;
-    orientation: vertical;
-    spacing: 14;
-    styles ["annota-countdown"]
+  child: Overlay {
+    child: DrawingArea outline {
+      hexpand: true;
+      vexpand: true;
+      can-target: false;
+    };
 
-    Overlay {
+    [overlay]
+    Box countdown_box {
       halign: center;
+      valign: center;
+      orientation: vertical;
+      spacing: 14;
+      styles ["annota-countdown"]
 
-      child: DrawingArea ring {
-        content-width: 148;
-        content-height: 148;
-      };
-
-      [overlay]
-      Label number {
+      Overlay {
         halign: center;
-        valign: center;
-        styles ["annota-countdown-number", "numeric"]
-      }
-    }
 
-    Label message {
-      styles ["annota-countdown-message"]
-    }
+        child: DrawingArea ring {
+          content-width: 148;
+          content-height: 148;
+        };
 
-    Box {
-      halign: center;
-      spacing: 6;
-
-      Label {
-        label: C_("keyboard key", "Esc");
-        styles ["annota-keycap"]
+        [overlay]
+        Label number {
+          halign: center;
+          valign: center;
+          styles ["annota-countdown-number", "numeric"]
+        }
       }
 
-      Label {
-        label: _("Cancel");
+      Label message {
+        styles ["annota-countdown-message"]
       }
 
-      Label {
-        label: "·";
-        styles ["annota-chip-dim"]
+      Box capture_hints {
+        halign: center;
+        spacing: 6;
+
+        Label {
+          label: C_("keyboard key", "Esc");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Cancel");
+        }
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+
+        Label {
+          label: C_("keyboard key", "Enter");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Capture now");
+        }
       }
 
-      Label {
-        label: C_("keyboard key", "Enter");
-        styles ["annota-keycap"]
-      }
+      Box recording_hints {
+        visible: false;
+        halign: center;
+        spacing: 6;
 
-      Label {
-        label: _("Capture now");
+        Label {
+          label: C_("keyboard key", "Enter");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Start now");
+        }
+
+        Label {
+          label: "·";
+          styles ["annota-chip-dim"]
+        }
+
+        Label {
+          label: C_("keyboard key", "Esc");
+          styles ["annota-keycap"]
+        }
+
+        Label {
+          label: _("Cancel");
+        }
       }
     }
   };

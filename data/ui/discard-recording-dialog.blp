@@ -1,0 +1,19 @@
+using Gtk 4.0;
+using Adw 1;
+
+// "Discard Recording?" (add-screen-recording mockup 10, redline "07–11 Export Recording
+// window"): over the Export Recording window, from Discard, its close button or Esc before an
+// export has finished. Cancel is the default (and what Esc or closing the alert means); the
+// body names the recording and its duration (src/recording/export_window.rs). Built afresh for
+// each question.
+
+Adw.AlertDialog discard_dialog {
+  heading: _("Discard Recording?");
+  default-response: "cancel";
+  close-response: "cancel";
+
+  responses [
+    cancel: _("_Cancel"),
+    discard: _("_Discard") destructive,
+  ]
+}

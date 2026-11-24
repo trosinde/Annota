@@ -123,6 +123,241 @@ window.annota-overlay {
   font-weight: bold;
 }
 
+/* --- Mode pill and recording setup (add-screen-recording 01–02) ------------------------ */
+
+.annota-hint.annota-mode-pill {
+  padding: 6px 14px 6px 6px;
+}
+
+.annota-mode-pill-toggle {
+  background-color: rgba(255, 255, 255, 0.1); /* --osd-fill */
+  border-radius: 9999px;
+  padding: 2px;
+}
+
+.annota-mode-pill-toggle > button {
+  background: none;
+  box-shadow: none;
+  color: white;
+  border-radius: 9999px;
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.annota-mode-pill-toggle > button:hover {
+  background-color: rgba(255, 255, 255, 0.17); /* --osd-fill-hover */
+}
+
+.annota-mode-pill-toggle > button:checked {
+  background-color: rgba(255, 255, 255, 0.28); /* --osd-fill-active */
+}
+
+.annota-mode-pill-toggle > button:focus-visible {
+  outline: 2px solid rgba(120, 174, 237, 0.85);
+  outline-offset: 1px;
+}
+
+/* Kit `.popover`: 380 wide (width-request), padding 12, gap 12 (spacing), --shadow-popover. */
+.annota-record-setup {
+  background-color: @popover_bg_color;
+  color: @popover_fg_color;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 6, 0.08), 0 1px 5px 1px rgba(0, 0, 6, 0.09),
+    0 2px 14px 3px rgba(0, 0, 6, 0.05);
+}
+
+.annota-record-setup-arrow {
+  background-color: @popover_bg_color;
+  min-width: 14px;
+  min-height: 14px;
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 1px rgba(0, 0, 6, 0.08);
+}
+
+/* Kit `.toggle-group`: 34 px tall, padding 3, segments 28 px (redline 01; the Export
+ * Recording window's Format toggle, 07, too). */
+.annota-segmented.annota-record-sources,
+.annota-segmented.annota-recording-format {
+  padding: 3px;
+}
+
+.annota-segmented.annota-record-sources > button,
+.annota-segmented.annota-recording-format > button {
+  min-height: 28px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+/* Rows 50 px with a 13 px title and a 12 px subtitle (redline 01): no row padding, and the
+ * separator drawn inside the next row (as the kit's boxed list) instead of a border below. */
+.annota-record-rows > row {
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.annota-record-rows > row + row {
+  box-shadow: inset 0 1px @card_shade_color;
+}
+
+.annota-record-rows > row > box.header {
+  min-height: 50px;
+}
+
+.annota-record-rows row > box.header > box.title {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  border-spacing: 1px;
+}
+
+.annota-record-rows row .title {
+  font-size: 13px; /* --fs-small */
+}
+
+.annota-record-rows row .subtitle {
+  font-size: 12px; /* --fs-caption */
+}
+
+.annota-record-rows row:disabled image,
+.annota-record-rows row:disabled .title,
+.annota-record-rows row:disabled .subtitle {
+  opacity: 0.55; /* --dim-opacity */
+}
+
+.annota-record-rows spinbutton {
+  min-height: 34px;
+}
+
+button.annota-record-start {
+  min-height: 40px;
+  padding: 0 16px;
+  background-color: #e01b24; /* --destructive-bg, the same in light and dark */
+  color: white;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+button.annota-record-start:hover {
+  background-color: #e4353d; /* --destructive-bg-hover */
+}
+
+button.annota-record-start:disabled {
+  opacity: 0.5;
+}
+
+button.annota-record-start:focus-visible {
+  outline: 2px solid rgba(53, 132, 228, 0.5); /* --accent-a50 */
+  outline-offset: 2px;
+}
+
+.annota-keycap.annota-record-start-key {
+  background-color: rgba(255, 255, 255, 0.22);
+  color: white;
+}
+
+/* --- Recording control (add-screen-recording 05–06) -------------------------------------
+ * An OSD pill in its own transparent, undecorated window: --osd-bg-solid, radius 26, height 52,
+ * padding 0 8 0 18, gap 6 (the box's spacing); the window's margins hold the shadow. */
+
+window.annota-recording-control-window {
+  background: none;
+  box-shadow: none;
+}
+
+.annota-recording-control {
+  background-color: #303034; /* --osd-bg-solid */
+  color: white;
+  border-radius: 26px;
+  min-height: 52px;
+  padding: 0 8px 0 18px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 6, 0.3),
+    0 10px 30px rgba(0, 0, 6, 0.28);
+}
+
+/* Rec dot 10 px --destructive-bg with a 3 px 35 % halo. */
+.annota-recording-control-dot {
+  min-width: 10px;
+  min-height: 10px;
+  border-radius: 9999px;
+  background-color: #e01b24;
+  box-shadow: 0 0 0 3px rgba(224, 27, 36, 0.35);
+}
+
+/* Time 15 px bold, tabular, min 40 px. */
+.annota-recording-control-time {
+  font-size: 15px;
+  font-weight: bold;
+  font-feature-settings: "tnum";
+  min-width: 40px;
+  padding-left: 4px;
+}
+
+/* Paused (06): the pause glyph and "Paused" in --annota-amber. */
+.annota-recording-control-paused {
+  color: #f5a524;
+}
+
+.annota-recording-control-paused-label {
+  font-size: 13px;
+  font-weight: bold;
+  padding-right: 2px;
+}
+
+.annota-recording-control separator.annota-recording-control-separator {
+  min-width: 1px;
+  min-height: 24px;
+  margin: 0 4px;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.annota-recording-control button {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0 10px;
+  border-radius: 18px;
+  background: none;
+  box-shadow: none;
+  color: white;
+}
+
+.annota-recording-control button.annota-recording-control-circular {
+  min-width: 36px;
+  padding: 0;
+}
+
+.annota-recording-control button.annota-recording-control-fill {
+  background-color: rgba(255, 255, 255, 0.1); /* --osd-fill */
+}
+
+.annota-recording-control button:hover,
+.annota-recording-control button.annota-recording-control-fill:hover {
+  background-color: rgba(255, 255, 255, 0.17); /* --osd-fill-hover */
+}
+
+.annota-recording-control button:active,
+.annota-recording-control button.annota-recording-control-fill:active {
+  background-color: rgba(255, 255, 255, 0.28); /* --osd-fill-active */
+}
+
+.annota-recording-control button.annota-recording-control-stop {
+  background-color: #e01b24; /* --destructive-bg */
+}
+
+.annota-recording-control button.annota-recording-control-stop:hover,
+.annota-recording-control button.annota-recording-control-stop:active {
+  background-color: #ec3a42;
+}
+
+.annota-recording-control button:focus-visible {
+  outline: 2px solid rgba(120, 174, 237, 0.85);
+  outline-offset: 1px;
+}
+
 /* --- Countdown OSD (07) ----------------------------------------------------------------- */
 
 window.annota-countdown-window {
@@ -871,5 +1106,68 @@ popover.annota-style-menu stack > box > box > box:last-child modelbutton {
 
 /* The theme dropdown (redline: chips + theme name, 13 px, flat). */
 .annota-theme-button label {
+  font-weight: normal;
+}
+
+/* --- Export Recording window (add-screen-recording 07–11) -------------------------------- */
+
+/* Mockup 11: the error banner below the header bar, full width, square. */
+banner.annota-recording-error-banner > revealer > widget {
+  background-color: mix(@error_bg_color, @window_bg_color, 0.78);
+  color: @window_fg_color;
+}
+
+/* Poster frame 192 × 120, radius 9, 1 px --borders. */
+.annota-recording-poster {
+  border-radius: 9px;
+  box-shadow: inset 0 0 0 1px alpha(currentColor, 0.15);
+  background-color: alpha(currentColor, 0.08);
+}
+
+/* Duration badge: --osd-bg-solid, 12 px bold, tabular. */
+.annota-recording-duration-badge {
+  background-color: #303034;
+  color: white;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.annota-recording-export-name {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.annota-recording-discard {
+  font-weight: bold;
+}
+
+/* The export's progress bar: 6 px. */
+progressbar.annota-recording-progress > trough,
+progressbar.annota-recording-progress > trough > progress {
+  min-height: 6px;
+  border-radius: 3px;
+}
+
+/* Mockup 09: a 64 px --success-bg circle with a 32 px check. */
+.annota-recording-saved-badge {
+  border-radius: 32px;
+  background-color: @success_bg_color;
+  color: @success_fg_color;
+}
+
+.annota-recording-format > button {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+/* "Saved": --fs-title-2 (26 px) heavy. */
+.annota-recording-saved-title {
+  font-size: 26px;
+  font-weight: 900;
+}
+
+banner.annota-recording-error-banner label {
   font-weight: normal;
 }

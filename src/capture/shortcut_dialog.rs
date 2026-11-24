@@ -1,4 +1,4 @@
-//! Set Shortcut dialog (mockup 11): press a new key combination for one capture mode.
+//! Set Shortcut dialog (mockup 11): press a new key combination for one global shortcut.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -7,8 +7,7 @@ use adw::prelude::*;
 use gettextrs::gettext;
 use gtk::{gdk, gio, glib};
 
-use super::shortcuts::{self, Conflict, ShortcutError};
-use crate::cli::CaptureMode;
+use super::shortcuts::{self, Conflict, GlobalShortcut, ShortcutError};
 
 const UI_SHORTCUT_DIALOG: &str = "/io/github/trosinde/Annota/ui/shortcut-dialog.ui";
 
@@ -77,9 +76,10 @@ fn interpret(key: gdk::Key, state: gdk::ModifierType) -> Press {
 pub fn present(
     parent: &impl IsA<gtk::Widget>,
     settings: &gio::Settings,
-    mode: CaptureMode,
+    mode: impl Into<GlobalShortcut>,
     done: impl Fn(Result<(), ShortcutError>) + 'static,
 ) {
+    let mode = mode.into();
     let builder = gtk::Builder::from_resource(UI_SHORTCUT_DIALOG);
     let (
         Some(dialog),

@@ -18,8 +18,9 @@ matters, hide what is private, and change your mind until the moment you share i
 It is a native GNOME app for Ubuntu and Debian, and it never sends anything anywhere.
 
 > **Status: pre-alpha.** Capture, the editor, the annotation tools, styles and export work today.
-> Version 0.1.0 is out – [install it from the APT repository](#get-started). The capture
-> library, screen recording and text recognition are [planned](#roadmap).
+> Version 0.1.0 is out – [install it from the APT repository](#get-started). Screen recording
+> is built and comes with the next release; the capture library and text recognition are
+> [planned](#roadmap).
 
 ## Why Annota
 
@@ -48,6 +49,12 @@ when blur or pixelate is not enough – and it never opens a network connection.
 Quick styles and themes give every arrow, callout and step the same colours and fonts.
 
 <img src="docs/assets/feature-4-styles.png" width="720" alt="A selected arrow with eight quick styles for arrows in the sidebar, from the Annota theme">
+
+### Show it as a video
+
+Some steps are easier to show than to describe. Record a region, a window or the whole screen,
+with your microphone and the system audio if you like, then save it as MP4 or WebM. Press the
+Record shortcut again to stop.
 
 ## Before and after
 

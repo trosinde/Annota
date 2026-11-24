@@ -100,8 +100,12 @@ License: ((MIT OR Apache-2.0) AND IJG) AND ((MIT OR Apache-2.0) AND Unicode-3.0)
  gstreamer 0.23.7: MIT OR Apache-2.0
  gstreamer-app 0.23.5: MIT OR Apache-2.0
  gstreamer-app-sys 0.23.5: MIT
+ gstreamer-audio 0.23.6: MIT OR Apache-2.0
+ gstreamer-audio-sys 0.23.6: MIT
  gstreamer-base 0.23.6: MIT OR Apache-2.0
  gstreamer-base-sys 0.23.6: MIT
+ gstreamer-pbutils 0.23.5: MIT OR Apache-2.0
+ gstreamer-pbutils-sys 0.23.5: MIT
  gstreamer-sys 0.23.6: MIT
  gstreamer-video 0.23.6: MIT OR Apache-2.0
  gstreamer-video-sys 0.23.6: MIT

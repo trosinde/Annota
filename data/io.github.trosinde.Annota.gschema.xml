@@ -16,6 +16,10 @@
     <value nick="window" value="1"/>
     <value nick="screen" value="2"/>
   </enum>
+  <enum id="io.github.trosinde.Annota.RecordExportFormat">
+    <value nick="mp4" value="0"/>
+    <value nick="webm" value="1"/>
+  </enum>
 
   <schema id="io.github.trosinde.Annota" path="/io/github/trosinde/Annota/">
     <key name="save-folder" type="s">
@@ -74,10 +78,57 @@
       <summary>Screen capture shortcut</summary>
       <description>Global shortcut (GTK accelerator syntax) that starts a screen capture. Empty disables it.</description>
     </key>
+    <key name="shortcut-record" type="s">
+      <default>'&lt;Super&gt;&lt;Alt&gt;r'</default>
+      <summary>Record video shortcut</summary>
+      <description>Global shortcut (GTK accelerator syntax) that opens the recording setup or stops a running recording, used for the GNOME custom keybinding when the GlobalShortcuts portal is unavailable. Empty disables it.</description>
+    </key>
+    <key name="record-source" enum="io.github.trosinde.Annota.CaptureMode">
+      <default>'region'</default>
+      <summary>Recording source</summary>
+      <description>What the recording setup records: a region, a window or a screen.</description>
+    </key>
+    <key name="record-microphone" type="b">
+      <default>true</default>
+      <summary>Record the microphone</summary>
+    </key>
+    <key name="record-system-audio" type="b">
+      <default>false</default>
+      <summary>Record system audio</summary>
+      <description>Records the monitor of the default audio output.</description>
+    </key>
+    <key name="record-countdown" type="i">
+      <range min="0" max="10"/>
+      <default>3</default>
+      <summary>Recording countdown in seconds</summary>
+    </key>
+    <key name="record-folder" type="s">
+      <default>''</default>
+      <summary>Recordings folder</summary>
+      <description>Where working files of recordings are written. Empty means ~/Videos/Annota.</description>
+    </key>
+    <key name="record-export-format" enum="io.github.trosinde.Annota.RecordExportFormat">
+      <default>'mp4'</default>
+      <summary>Recording export format</summary>
+    </key>
+    <key name="record-export-folder" type="s">
+      <default>''</default>
+      <summary>Recording export folder</summary>
+      <description>The folder the Export Recording window used last. Empty means the recordings folder.</description>
+    </key>
+    <key name="record-include-audio" type="b">
+      <default>true</default>
+      <summary>Include audio when exporting a recording</summary>
+    </key>
     <key name="gnome-shortcuts-created" type="b">
       <default>false</default>
       <summary>GNOME shortcuts created</summary>
       <description>Whether Annota has written GNOME custom keybindings that run annota --capture (used when the GlobalShortcuts portal is unavailable).</description>
+    </key>
+    <key name="record-keybinding-migrated" type="b">
+      <default>false</default>
+      <summary>Record keybinding migrated</summary>
+      <description>Whether Annota has once tried to add the "Record video" GNOME custom keybinding where its GNOME shortcuts were created before it existed. It is not added again after that, even if the user removed it.</description>
     </key>
     <key name="moved-gnome-keys" type="a(ss)">
       <default>[]</default>

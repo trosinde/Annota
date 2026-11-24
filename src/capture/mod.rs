@@ -7,7 +7,7 @@ pub mod frame;
 pub mod geometry;
 pub mod import;
 #[cfg(test)]
-mod live_tests;
+pub(crate) mod live_tests;
 pub mod overlay;
 pub mod permission;
 pub mod portal;
@@ -18,7 +18,7 @@ pub mod snap;
 pub mod texture;
 pub mod window_wait;
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::time::Duration;
 
 use adw::prelude::*;
@@ -30,7 +30,7 @@ use crate::cli::CaptureMode;
 use crate::config;
 use delivery::Source;
 use frame::Frame;
-use overlay::{Desktop, Outcome, PointerAt};
+use overlay::{Desktop, Mode, Outcome, PointerAt};
 use permission::{FirstStep, Refusal};
 use portal::{CaptureError, GrabOptions};
 
@@ -63,12 +63,43 @@ impl Request {
 
 thread_local! {
     static BUSY: Cell<bool> = const { Cell::new(false) };
+    /// The mode the region overlay of the running request opens in.
+    static OVERLAY_MODE: Cell<Mode> = const { Cell::new(Mode::Screenshot) };
+    /// Start Recording in the overlay's Video mode: what to record, handed to the recording
+    /// flow once the capture flow has ended (add-screen-recording).
+    static RECORD: Cell<Option<(CaptureMode, Option<geometry::IRect>)>> = const { Cell::new(None) };
+    /// The windows `run_hidden` hid, when Start Recording ended the flow: they stay hidden and
+    /// go to the recording flow, which shows them again once it ends (design.md, "Decided
+    /// during apply", Phase C1 review).
+    static HIDDEN_FOR_RECORDING: RefCell<Vec<gtk::Window>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Starts a capture. Annota's own windows are hidden first so they are not captured, except for
 /// the permission question (see [`with_permission`]), and the application is held while no window
 /// is open (`annota --capture` from a shortcut).
 pub fn start(app: &adw::Application, request: Request) {
+    start_in(app, request, Mode::Screenshot);
+}
+
+/// Whether a capture flow runs (live tests of other modules).
+#[cfg(test)]
+pub(crate) fn busy() -> bool {
+    BUSY.with(Cell::get)
+}
+
+/// Opens the region overlay in Video mode with the recording setup (add-screen-recording
+/// "Recording setup": `--record region`, `--record toggle`, the Record shortcut and card). Its
+/// Start Recording continues in `recording::start_from_setup`; `Esc` ends it with nothing
+/// requested and nothing written.
+pub fn start_recording_setup(app: &adw::Application) {
+    start_in(
+        app,
+        Request::with_defaults(CaptureMode::Region, Some(0)),
+        Mode::Video,
+    );
+}
+
+fn start_in(app: &adw::Application, request: Request, overlay_mode: Mode) {
     if BUSY.with(|busy| busy.replace(true)) {
         // A window capture waiting for its chooser: raise its OSD, start nothing new.
         if request.mode == CaptureMode::Window {
@@ -82,8 +113,14 @@ pub fn start(app: &adw::Application, request: Request) {
     // glib can decide to quit before an async-block `app.hold()` ever gets a chance to run.
     let hold = app.hold();
     glib::spawn_future_local(async move {
+        OVERLAY_MODE.with(|mode| mode.set(overlay_mode));
+        RECORD.with(|record| record.set(None));
         let result = with_permission(&app, request).await;
         BUSY.with(|busy| busy.set(false));
+        if let Some((source, selection)) = RECORD.with(Cell::take) {
+            let hidden = HIDDEN_FOR_RECORDING.with(RefCell::take);
+            crate::recording::start_from_setup(&app, source, selection, hidden);
+        }
 
         match result {
             Ok(Some((frame, source))) => {
@@ -227,8 +264,15 @@ async fn run_hidden(
     let result = run(app, request).await;
     // Anything can have closed one of them by now, and showing a destroyed window is not safe.
     let open = app.windows();
-    for window in visible.iter().filter(|w| open.contains(w)) {
-        window.set_visible(true);
+    let hidden = visible.into_iter().filter(|w| open.contains(w));
+    if RECORD.with(Cell::get).is_some() {
+        // Start Recording: the area was chosen on a frozen desktop without Annota, so Annota
+        // stays off the screen until the recording flow ends.
+        HIDDEN_FOR_RECORDING.with(|keep| keep.replace(hidden.collect()));
+    } else {
+        for window in hidden {
+            window.set_visible(true);
+        }
     }
     result
 }
@@ -259,8 +303,15 @@ async fn run(
             }
             CaptureMode::Region => {
                 let desktop = Desktop::new(portal::grab(GrabOptions::FROZEN).await?);
-                match overlay::select_region(app, &desktop, request.include_pointer).await {
+                let overlay_mode = OVERLAY_MODE.with(Cell::get);
+                match overlay::select_region(app, &desktop, request.include_pointer, overlay_mode)
+                    .await
+                {
                     Outcome::Cancelled => return Ok(None),
+                    Outcome::Record { source, selection } => {
+                        RECORD.with(|record| record.set(Some((source, selection))));
+                        return Ok(None);
+                    }
                     Outcome::Switch(next) => {
                         // The overlay must be off the screen before the next grab.
                         glib::timeout_future(HIDE_SETTLE).await;

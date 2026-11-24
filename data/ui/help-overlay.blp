@@ -68,6 +68,31 @@ ShortcutsWindow help_overlay {
         title: C_("shortcut window", "Capture screen");
         accelerator: "<Shift>Print";
       }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Record video");
+        accelerator: "<Super><Alt>R";
+      }
+    }
+
+    // The Recording control's keys (add-screen-recording mockups 05, 06), while it is focused.
+    ShortcutsGroup {
+      title: C_("shortcut window", "Recording");
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Pause or resume");
+        accelerator: "space";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Mute or unmute the microphone");
+        accelerator: "M";
+      }
+
+      ShortcutsShortcut {
+        title: C_("shortcut window", "Mute or unmute system audio");
+        accelerator: "S";
+      }
     }
 
     ShortcutsGroup {

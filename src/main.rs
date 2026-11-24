@@ -3,6 +3,7 @@ mod capture;
 mod cli;
 mod config;
 mod preferences;
+mod recording;
 mod ui;
 
 use gettextrs::{bind_textdomain_codeset, bindtextdomain, textdomain};
