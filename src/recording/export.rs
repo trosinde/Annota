@@ -42,10 +42,17 @@ const POSTER_AT: gst::ClockTime = gst::ClockTime::from_seconds(1);
 const VP9_CPU_USED: i32 = 6;
 const VP9_CQ_LEVEL: i32 = 32;
 const VP9_MAX_BITRATE: i32 = 8_000_000;
+/// The software H.264 decoders, in order of preference (see [`h264_decoder`]).
+const H264_DECODERS: &[&str] = &["avdec_h264", "openh264dec"];
 /// AAC and the mixed track's format.
 const AAC_BITRATE: i32 = 160_000;
 const MIX_RATE: i32 = 48_000;
 const MIX_CHANNELS: i32 = 2;
+/// `voaacenc`'s encoder delay: its output starts with 1600 samples (at [`MIX_RATE`]) of priming
+/// that its timestamps do not account for, and `mp4mux` writes no edit list for it (measured,
+/// GStreamer 1.28: the sound 33.3 ms behind the picture). The MP4's video is delayed by as much
+/// instead; `mp4mux` starts it with an empty edit.
+const AAC_DELAY: gst::ClockTime = gst::ClockTime::from_nseconds(1600 * 1_000_000_000 / 48_000);
 
 /// The export formats (redline 07, setting `record-export-format`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -119,6 +126,11 @@ impl Export {
     pub fn cancel(&self) {
         self.cancel.store(true, Ordering::SeqCst);
     }
+
+    #[cfg(test)]
+    fn is_cancelled(&self) -> bool {
+        self.cancel.load(Ordering::SeqCst)
+    }
 }
 
 /// What the working file holds.
@@ -164,12 +176,21 @@ pub struct Poster {
 /// One frame of the working file, [`POSTER_WIDTH`] wide, taken one second in (the middle of a
 /// shorter recording). Blocks.
 pub fn poster(path: &Path, duration: gst::ClockTime) -> Result<Poster, ExportError> {
+    poster_with(path, duration, H264_DECODERS)
+}
+
+/// [`poster`] with the first installed of `decoders` (tests force one).
+fn poster_with(
+    path: &Path,
+    duration: gst::ClockTime,
+    decoders: &[&str],
+) -> Result<Poster, ExportError> {
     gst::init().map_err(|e| ExportError::Build(e.to_string()))?;
     let pipeline = gst::Pipeline::new();
     let src = make("filesrc")?;
     src.set_property("location", path.to_string_lossy().as_ref());
     let demux = make("matroskademux")?;
-    let decode = [make("queue")?, make("h264parse")?, h264_decoder()?];
+    let decode = [make("queue")?, make("h264parse")?, h264_decoder(decoders)?];
     let convert = make("videoconvert")?;
     let scale = make("videoscale")?;
     let sink = gstreamer_app::AppSink::builder()
@@ -256,11 +277,11 @@ fn set_and_wait(pipeline: &gst::Pipeline, state: gst::State) -> Result<(), Expor
 /// `openh264dec` (gstreamer1.0-plugins-bad). Named, not left to `decodebin`, which picks a
 /// hardware decoder where one ranks higher (seen: NVIDIA's, whose threads kept a test process
 /// from exiting).
-fn h264_decoder() -> Result<gst::Element, ExportError> {
-    ["avdec_h264", "openh264dec"]
-        .into_iter()
+fn h264_decoder(decoders: &[&str]) -> Result<gst::Element, ExportError> {
+    decoders
+        .iter()
         .find_map(|factory| make(factory).ok())
-        .ok_or_else(|| ExportError::MissingElement(String::from("avdec_h264 or openh264dec")))
+        .ok_or_else(|| ExportError::MissingElement(decoders.join(" or ")))
 }
 
 fn make(factory: &str) -> Result<gst::Element, ExportError> {
@@ -286,6 +307,49 @@ pub fn start(
     audio_tracks: usize,
     duration: gst::ClockTime,
 ) -> Result<(Export, mpsc::UnboundedReceiver<ExportEvent>), ExportError> {
+    start_with(
+        source,
+        folder,
+        name,
+        format,
+        include_audio,
+        audio_tracks,
+        duration,
+        Options::default(),
+    )
+}
+
+/// What tests change in an export.
+#[derive(Clone, Copy)]
+struct Options {
+    /// WebM's H.264 decoder: the first of these that is installed.
+    decoders: &'static [&'static str],
+    /// Tests: the video holds for a second once it has reached this time (a remux is too fast
+    /// to be cancelled while it runs otherwise).
+    stall_at: Option<gst::ClockTime>,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            decoders: H264_DECODERS,
+            stall_at: None,
+        }
+    }
+}
+
+/// [`start`] with `options`.
+#[allow(clippy::too_many_arguments)]
+fn start_with(
+    source: &Path,
+    folder: &Path,
+    name: &str,
+    format: Format,
+    include_audio: bool,
+    audio_tracks: usize,
+    duration: gst::ClockTime,
+    options: Options,
+) -> Result<(Export, mpsc::UnboundedReceiver<ExportEvent>), ExportError> {
     gst::init().map_err(|e| ExportError::Build(e.to_string()))?;
     let (target, file) = files::create_unique(folder, name, format.extension())
         .map_err(|e| ExportError::Target(e.to_string()))?;
@@ -299,6 +363,7 @@ pub fn start(
         audio: include_audio && audio_tracks > 0,
         duration,
         cancel: cancel.clone(),
+        options,
     };
     let spawned = std::thread::Builder::new()
         .name(String::from("annota-export"))
@@ -323,6 +388,7 @@ struct Job {
     audio: bool,
     duration: gst::ClockTime,
     cancel: Arc<AtomicBool>,
+    options: Options,
 }
 
 impl Job {
@@ -423,7 +489,7 @@ impl Job {
                     vec![
                         make("queue")?,
                         make("h264parse")?,
-                        h264_decoder()?,
+                        h264_decoder(self.options.decoders)?,
                         make("videoconvert")?,
                         encode,
                         make("queue")?,
@@ -450,14 +516,32 @@ impl Job {
             .static_pad("src")
             .ok_or_else(|| ExportError::Build(String::from("no video output")))?;
         video_out.link(&mux_video).map_err(build_error)?;
-        // Progress: the newest video time that reached the muxer.
+        if self.format == Format::Mp4 && self.audio {
+            video_out.set_offset(AAC_DELAY.nseconds() as i64);
+        }
+        // Progress: the newest video time that reached the muxer, in stream time
+        // (`h264timestamper` moves its timestamps 1000 h on and its segment with them).
         let position = Arc::clone(position);
-        mux_video.add_probe(gst::PadProbeType::BUFFER, move |_, info| {
-            if let Some(buffer) = info.buffer() {
-                if let Some(pts) = buffer.pts() {
-                    let end = pts + buffer.duration().unwrap_or(gst::ClockTime::ZERO);
-                    position.fetch_max(end.nseconds(), Ordering::Relaxed);
-                }
+        let stall_at = self.options.stall_at;
+        let stalled = AtomicBool::new(false);
+        mux_video.add_probe(gst::PadProbeType::BUFFER, move |pad, info| {
+            let Some((pts, duration)) = info.buffer().and_then(|b| Some((b.pts()?, b.duration())))
+            else {
+                return gst::PadProbeReturn::Ok;
+            };
+            let at = pad
+                .sticky_event::<gst::event::Segment>(0)
+                .and_then(|event| {
+                    event
+                        .segment()
+                        .downcast_ref::<gst::ClockTime>()
+                        .and_then(|segment| segment.to_stream_time(pts))
+                })
+                .unwrap_or(pts);
+            let end = at + duration.unwrap_or(gst::ClockTime::ZERO);
+            position.fetch_max(end.nseconds(), Ordering::Relaxed);
+            if stall_at.is_some_and(|stall| at >= stall) && !stalled.swap(true, Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_secs(1));
             }
             gst::PadProbeReturn::Ok
         });

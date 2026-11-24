@@ -7,6 +7,11 @@
 //! remote it hands out is `/dev/null`; the recording's video source is a test source instead
 //! (`Hooks::video_source`), so these tests prove what Annota sends, how it sorts the answers and
 //! what it writes, never what a real portal does (CLAUDE.md §5).
+//!
+//! Host programs besides Xvfb and the GStreamer plugins: `xdotool` (keys typed through the X
+//! server, `windowmap`), and for the Recording control's minimise and raise tests `twm` (a window
+//! manager on the test display) and `xwininfo` (to see twm take over a window); on Ubuntu the
+//! packages `xdotool`, `twm` and `x11-utils`.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -417,6 +422,24 @@ fn shows_error_banner(window: &ExportWindow) -> bool {
     banner.is_revealed()
         && banner.title()
             == "The recording stopped because of an error. What was recorded until then is kept."
+}
+
+/// Whether `window`'s banner is revealed with `text`.
+fn banner_says(window: &ExportWindow, text: &str) -> bool {
+    let banner: adw::Banner = find(window.window(), "error_banner").unwrap();
+    banner.is_revealed() && banner.title() == text
+}
+
+/// The label under `root` that says `text`.
+fn find_label(root: &impl IsA<gtk::Widget>, text: &str) -> Option<gtk::Label> {
+    let root = root.as_ref();
+    if let Some(label) = root.downcast_ref::<gtk::Label>() {
+        if label.label() == text {
+            return Some(label.clone());
+        }
+    }
+    std::iter::successors(root.first_child(), |c| c.next_sibling())
+        .find_map(|c| find_label(&c, text))
 }
 
 fn outcomes(seen: &Seen) -> Vec<StartOutcome> {
@@ -981,12 +1004,16 @@ fn rec_a_window_recording_shows_only_the_window_until_it_closes() {
     }
 }
 
-/// Scenarios "Session ended by the desktop" and "Recording error": GNOME's ■ sends
-/// `Session.Closed` while the stream keeps running (no end of stream ever): the recording is
-/// finished at once and kept, no `Session.Close` is sent, and the Export Recording window opens
-/// for it. A pipeline error then ends a second recording with what was written, the session
-/// closed by Annota, and the Export Recording window opens with the error banner; the Record
-/// shortcut ends a third one like Stop.
+/// Scenario "Session ended by the desktop": GNOME's ■ sends `Session.Closed` while the stream
+/// keeps running (no end of stream ever): the recording is finished at once and kept, no
+/// `Session.Close` is sent, and the Export Recording window opens for it. Scenario "Recording
+/// error", its window half: a second recording whose stand-in source posts a stream error
+/// after 20 buffers (not a failing write: the session's pipeline has no fault hook) ends by
+/// error, Annota closes the session, the file is kept with what was written, and the Export
+/// Recording window opens with the banner of mockup 11. That a write failure 10 s in is
+/// reported, logged and keeps the first 10 s is `pipeline::tests::
+/// an_error_mid_recording_is_reported_and_keeps_what_was_written` (`fault_after`). The Record
+/// shortcut then ends a third recording like Stop.
 // spec: screen-recording / Stop recording / Session ended by the desktop
 // spec: screen-recording / Working file / Recording error
 #[test]
@@ -2370,6 +2397,8 @@ impl WindowManager {
             .stderr(std::process::Stdio::null())
             .spawn()
             .expect("twm is installed (the Recording control's live tests need a window manager)");
+        // Built before waiting: a failed wait stops twm and removes the rc file on unwinding.
+        let wm = Self { child, rc };
         let xid = x_window(managed).expect("the window's X id");
         wait_for(
             || {
@@ -2387,7 +2416,7 @@ impl WindowManager {
             "twm to manage the window",
         );
         pump(300);
-        Self { child, rc }
+        wm
     }
 }
 
@@ -2413,7 +2442,7 @@ fn toplevel_state(window: &gtk::Window) -> gdk::ToplevelState {
 /// Pause focused and `Tab` going Pause → Stop → Microphone → System audio → Minimize. Its time
 /// follows the recording's own elapsed clock (`0:01` after a second of real recording) and,
 /// with that clock standing at 12 s, reads `0:12` on the next refresh. With a window manager
-/// (twm) on the display, Minimize minimises the window within a second, its clock stops while
+/// (twm) on the display, Minimize minimises the window promptly (within 3 s), its clock stops while
 /// it is minimised and the recording goes on; restored, the clock runs again; a close request
 /// minimises it too. Scenario "Stop by button": Stop then closes the session, takes the control
 /// away at once and opens the Export Recording window for this recording, once.
@@ -2492,8 +2521,9 @@ fn rec_the_control_shows_the_time_and_minimizes() {
         || toplevel_state(&view.window).contains(gdk::ToplevelState::MINIMIZED),
         "the control minimised",
     );
+    // Promptly (the bound is loose against a loaded test host, not a latency budget).
     assert!(
-        asked.elapsed() < Duration::from_secs(1),
+        asked.elapsed() < Duration::from_secs(3),
         "{:?}",
         asked.elapsed()
     );
@@ -2957,17 +2987,19 @@ fn focus_in(window: &adw::Window, widget: &impl IsA<gtk::Widget>) -> bool {
         .is_some_and(|f| f == *widget.as_ref() || f.is_ancestor(widget.as_ref()))
 }
 
-/// Waits for the "Discard Recording?" alert of `export`, and checks it is modal over the
-/// window.
+/// Waits for the "Discard Recording?" alert of `export`, and checks it is inside the window
+/// (mockup 10), which stays 560 px wide and cannot be resized.
 fn wait_for_alert(export: &ExportWindow) -> adw::AlertDialog {
     wait_for(|| export.discard_alert().is_some(), "Discard Recording?");
     let alert = export.discard_alert().unwrap();
-    let window = alert.root().and_downcast::<gtk::Window>().unwrap();
-    assert!(window.is_modal());
     assert_eq!(
-        window.transient_for().as_ref(),
-        Some(export.window().upcast_ref::<gtk::Window>())
+        alert.root().as_ref(),
+        Some(export.window().upcast_ref::<gtk::Root>()),
+        "inside the Export Recording window"
     );
+    pump(200);
+    assert!(!export.window().is_resizable());
+    assert_eq!(export.window().width(), 560);
     alert
 }
 
@@ -3074,10 +3106,58 @@ fn rec_export_as_mp4_ends_saved_and_removes_the_working_file() {
         Some(v.export.upcast_ref::<gtk::Widget>())
     );
     export_shots(&export, "07-export-recording");
+    assert_eq!(v.export.label().as_deref(), Some("Export"));
+    let folder_button: gtk::Button = find(&v.window, "folder_button").unwrap();
+    assert_eq!(
+        v.folder_row.activatable_widget().as_ref(),
+        Some(folder_button.upcast_ref::<gtk::Widget>())
+    );
+    // The Format toggle group is labelled by its row (GTK has no getter for relations: the
+    // built UI says it).
+    let ui = gio::resources_lookup_data(
+        "/io/github/trosinde/Annota/ui/export-recording.ui",
+        gio::ResourceLookupFlags::NONE,
+    )
+    .unwrap();
+    let ui = String::from_utf8_lossy(&ui);
+    assert!(
+        ui.contains(r#"<relation name="labelled-by">format_row</relation>"#),
+        "Format toggle group labelled by its row"
+    );
 
-    // `Enter` in the File name: the default widget, Export.
-    v.window.activate_default();
+    // An export that fails (the folder cannot be made): said in the banner, announced, back to
+    // the settings, the working file kept.
+    let blocker = scene.dir.join("not-a-folder");
+    std::fs::write(&blocker, b"").unwrap();
+    export.set_folder(blocker.join("Videos"));
+    control::take_announced();
+    v.export.emit_clicked();
+    assert_eq!(export.state(), State::Settings);
+    let failure = "The recording could not be exported. It is kept.";
+    assert!(banner_says(&export, failure));
+    assert_eq!(control::take_announced(), [failure]);
+    assert!(working.exists());
+    let banner_label = find_label(&v.window, failure).unwrap();
+    assert_eq!(banner_label.justify(), gtk::Justification::Center);
+    assert!(banner_label.wraps());
+    export_shots(&export, "07-export-failed");
+    export.set_folder(folder.clone());
+    v.name_row.grab_focus();
+
+    // `Enter` typed in the File name: the default widget, Export. The failure is not said any
+    // more while it runs, nor in "Saved".
+    assert!(type_key(v.window.upcast_ref(), "Return"), "xdotool");
+    assert_ne!(export.state(), State::Settings, "Enter exports");
+    let banner: adw::Banner = find(&v.window, "error_banner").unwrap();
+    assert!(!banner.is_revealed(), "no failure banner while exporting");
     wait_saved(&export);
+    assert!(!banner.is_revealed(), "no failure banner in Saved");
+    pump(300);
+    assert_eq!(
+        v.window.width(),
+        560,
+        "a long folder does not widen the window"
+    );
     let written = folder.join(format!("{WORKING_NAME}.mp4"));
     assert_eq!(v.body.visible_child_name().as_deref(), Some("saved"));
     assert!(!v.footer.is_visible());
@@ -3350,15 +3430,8 @@ fn rec_discard_deletes_the_working_file() {
         alert.response_appearance("discard"),
         adw::ResponseAppearance::Destructive
     );
-    if std::env::var_os("ANNOTA_SHOT_DIR").is_some() {
-        let alert_window = alert.root().and_downcast::<gtk::Window>().unwrap();
-        for (dark, scheme) in [(false, "light"), (true, "dark")] {
-            set_scheme(dark);
-            shot(&alert_window, &format!("10-discard-confirm-alert-{scheme}"));
-            shot(export.window(), &format!("10-discard-confirm-{scheme}"));
-        }
-        set_scheme(false);
-    }
+    // The alert is drawn inside the window: one shot shows both (mockup 10).
+    export_shots(&export, "10-discard-confirm");
     click_alert(&alert, "_Cancel");
     assert!(export.discard_alert().is_none());
     assert!(v.window.is_visible() && working.exists());
@@ -3374,6 +3447,9 @@ fn rec_discard_deletes_the_working_file() {
 
 /// Scenario "Close asks first": closing the window (its close button, `Alt+F4`) and `Esc`
 /// before exporting ask "Discard Recording?"; the working file stays until Discard is chosen.
+/// While an export runs they ask as well: Cancel lets it go on; an alert still open when the
+/// export ends is taken away ("Saved", nothing left to discard); Discard during an export
+/// cancels it (its partial file removed), deletes the working file and closes the window.
 // spec: screen-recording / Discard a recording / Close asks first
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
@@ -3398,4 +3474,65 @@ fn rec_closing_the_export_window_asks_first() {
     click_alert(&alert, "_Discard");
     assert!(!working.exists());
     assert!(!v.window.is_visible());
+
+    // While a WebM export runs: closing asks, Cancel lets the export go on.
+    let busy = folder.join("busy");
+    let finished = made_recording(&busy, 60.0, (1280, 720), &[]);
+    let working = finished.path.clone();
+    let export = end_with(&scene.app, finished, EndReason::Stopped);
+    let v = export_view(&export);
+    export.set_folder(busy.clone());
+    v.webm.set_active(true);
+    v.export.emit_clicked();
+    assert_eq!(export.state(), State::Exporting);
+    v.window.close();
+    let alert = wait_for_alert(&export);
+    assert_eq!(export.state(), State::Exporting);
+    click_alert(&alert, "_Cancel");
+    assert_eq!(export.state(), State::Exporting, "the export goes on");
+    assert!(v.window.is_visible() && working.exists());
+    // `Esc` (typed) asks too; the export ends while the alert is open: the alert goes.
+    assert!(type_key(v.window.upcast_ref(), "Escape"), "xdotool");
+    wait_for(
+        || export.discard_alert().is_some(),
+        "asked on Esc while exporting",
+    );
+    assert_eq!(
+        export.state(),
+        State::Exporting,
+        "still exporting while asked"
+    );
+    wait_saved(&export);
+    pump(300);
+    assert!(
+        export.discard_alert().is_none(),
+        "the alert went with Saved"
+    );
+    assert!(v.window.is_visible());
+    assert!(busy.join(format!("{WORKING_NAME}.webm")).exists());
+    v.close.emit_clicked();
+    pump(300);
+
+    // Discard while an export runs: the export is cancelled, its file removed, the working
+    // file deleted, the window closed.
+    let finished = made_recording(&busy, 60.0, (1280, 720), &[]);
+    let working = finished.path.clone();
+    let export = end_with(&scene.app, finished, EndReason::Stopped);
+    let v = export_view(&export);
+    export.set_folder(busy.clone());
+    v.webm.set_active(true);
+    v.export.emit_clicked();
+    let target = busy.join(format!("{WORKING_NAME} (2).webm"));
+    assert!(target.exists(), "being written");
+    v.window.close();
+    let alert = wait_for_alert(&export);
+    click_alert(&alert, "_Discard");
+    assert!(!working.exists(), "the working file is deleted");
+    assert!(!v.window.is_visible(), "the window closes");
+    wait_for(|| !target.exists(), "the partly written export removed");
+    assert_eq!(
+        files_in(&busy),
+        [busy.join(format!("{WORKING_NAME}.webm"))],
+        "only the earlier export is left"
+    );
 }

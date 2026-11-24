@@ -177,12 +177,15 @@ window.annota-overlay {
   box-shadow: 0 0 0 1px rgba(0, 0, 6, 0.08);
 }
 
-/* Kit `.toggle-group`: 34 px tall, padding 3, segments 28 px (redline 01). */
-.annota-segmented.annota-record-sources {
+/* Kit `.toggle-group`: 34 px tall, padding 3, segments 28 px (redline 01; the Export
+ * Recording window's Format toggle, 07, too). */
+.annota-segmented.annota-record-sources,
+.annota-segmented.annota-recording-format {
   padding: 3px;
 }
 
-.annota-segmented.annota-record-sources > button {
+.annota-segmented.annota-record-sources > button,
+.annota-segmented.annota-recording-format > button {
   min-height: 28px;
   padding-top: 0;
   padding-bottom: 0;
@@ -1154,13 +1157,15 @@ progressbar.annota-recording-progress > trough > progress {
   color: @success_fg_color;
 }
 
-.annota-recording-saved-title {
-  font-weight: 900;
+.annota-recording-format > button {
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
-/* File name: no edit pencil beside the dimmed extension (mockups 08, 10). */
-row.annota-recording-name-row .edit-icon {
-  opacity: 0;
+/* "Saved": --fs-title-2 (26 px) heavy. */
+.annota-recording-saved-title {
+  font-size: 26px;
+  font-weight: 900;
 }
 
 banner.annota-recording-error-banner label {

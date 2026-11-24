@@ -533,7 +533,9 @@ follow-ups; `src/recording/{export,export_window}.rs`, `data/ui/export-recording
   the newest window. Nothing else changed in the C1 handling of hidden windows.
 - **New key `record-export-folder`** (D8 had none for it; `record-folder` is where working files
   go): the folder of the last successful export; empty = the recordings folder. Written when an
-  export has been saved, not when a folder is merely chosen.
+  export has been saved, not when a folder is merely chosen. A stored folder that has been
+  deleted since is created again by the next export (`files::create_unique`); one that cannot
+  be created fails the export with the banner below.
 - **MP4 remux needs `h264timestamper`** (plugins-bad, GStreamer ≥ 1.22): Matroska stores no
   decoding timestamps, and with x264's B-frames `mp4mux` wrote a 20 s recording as 44 s without
   it (measured). Chain: `matroskademux ! queue ! h264parse ! h264timestamper ! mp4mux
@@ -544,9 +546,11 @@ follow-ups; `src/recording/{export,export_window}.rs`, `data/ui/export-recording
 - **WebM and the poster frame need a software H.264 decoder**, named explicitly: `avdec_h264`
   (gstreamer1.0-libav), else `openh264dec` (gstreamer1.0-plugins-bad). `decodebin` was tried
   first: it picks a hardware decoder where one ranks higher (NVIDIA's on the build host), whose
-  threads kept a test process from exiting. **Open for task 5.5:** neither decoder is in design.md
-  "Dependencies"; the `.deb` needs `gstreamer1.0-libav` or the openh264 plugin (verify that
-  Ubuntu 24.04's plugins-bad ships `openh264dec`). VP9: `vp9enc deadline=1 cpu-used=6 row-mt
+  threads kept a test process from exiting. Settled for task 5.5: plugins-bad ships `openh264dec`
+  on Ubuntu 24.04, 26.04 and Debian 13 (`probe-results/2026-11-24-containers-elements.md`), so
+  `Depends: gstreamer1.0-plugins-bad` covers it; `avdec_h264` is used only where libav happens to
+  be installed. A unit test forces `openh264dec` for the poster and a WebM export of a working
+  file with B-frames (this host has both). VP9: `vp9enc deadline=1 cpu-used=6 row-mt
   end-usage=cq cq-level=32 target-bitrate=8000000` (cap), threads = cores (≤ 16),
   `keyframe-max-dist=120`; Opus mix like MP4's into `opusenc`; `webmmux`. A 20 s 1920 × 1080
   synthetic recording exports in a few seconds on the build host; tuning with real screen
@@ -569,10 +573,8 @@ follow-ups; `src/recording/{export,export_window}.rs`, `data/ui/export-recording
   - The extension (`.mp4`) is the File name row's dimmed suffix at the row's end, as in the
     Export Image dialog (add-export-share), not directly after the typed text as drawn in 07:
     `GtkText` cannot show non-editable text inline. The row's edit pencil is hidden (08, 10).
-  - "Discard Recording?" is a window of its own, modal and transient for the Export Recording
-    window: libadwaita (1.9, measured) presents the dialogs of a window that cannot be resized
-    that way, never inside it. GNOME attaches such a dialog to its parent and dims the parent,
-    close to mockup 10, which draws it inside. The window stays not resizable (redline).
+  - ~~"Discard Recording?" is a window of its own~~ (fixed in the D1 review round, below): it
+    is inside the Export Recording window as mockup 10 draws it.
   - An export that fails (folder not writable, element missing, pipeline error) has no mockup:
     the window returns to its settings and the banner reads "The recording could not be
     exported. It is kept."; the cause is logged.
@@ -597,6 +599,39 @@ follow-ups; `src/recording/{export,export_window}.rs`, `data/ui/export-recording
   cannot de-iconify a window under twm (no `_NET_ACTIVE_WINDOW`, GTK then only raises and
   focuses), so the test restores the minimised control through the window manager (`xdotool
   windowmap`), as a user would; on GNOME `present()` uses the activation protocols.
+
+Phase D1 review round (2026-11-24; `src/recording/{export,export_window,live_tests}.rs`,
+`export/tests.rs`, `data/ui/export-recording.blp`, `data/style.css`):
+- **"Discard Recording?" inside the window.** libadwaita 1.6+ presents an `AdwDialog` of a
+  window that cannot be resized in a window of its own. The Export Recording window is made
+  resizable just for `present()` and not resizable again at once (measured with libadwaita
+  1.9.1 / GTK 4.22: the alert is inside, the window stays 560 px wide and cannot be resized; the
+  live tests assert all three). libadwaita 1.5 (Ubuntu 24.04) always presents inside; the toggle
+  is harmless there. The alert keeps libadwaita's stock destructive response (red label), as
+  Annota's other alerts ("Save Changes?", "A file with this name already exists") do; mockup 10
+  draws a solid red button. Pending the maintainer if the solid button is wanted everywhere.
+- **The failure banner goes when the next export starts** (back to the opening state: hidden,
+  or mockup 11's text after an error end), is centred and wraps, and is announced to assistive
+  technology (`control::announce`, same guard against GTK's stand-in context). "Discard
+  Recording?" still open when an export ends is closed (`force_close`) on "Saved".
+- **MP4 audio/video sync.** `voaacenc` starts its output with 1600 samples (33.3 ms at 48 kHz)
+  of encoder delay that neither its timestamps nor `mp4mux` (no edit list for priming)
+  account for: the sound played 33 ms behind the picture (measured with a flash and a beep at
+  the same time through the real recording pipeline; working file and WebM: 0 ms). The MP4's
+  video pad now carries an offset of that delay, so `mp4mux` starts the video with an empty
+  edit of 33 ms; measured after the fix: 0.1 ms in GStreamer and ffmpeg (the unit test allows
+  5 ms). The constant is `voaacenc`'s (measured on GStreamer 1.28); a different encoder or
+  version would show in that test.
+- **MP4 progress was 100 % at once:** `h264timestamper` moves its timestamps 1000 h on (and its
+  segment with them), so the progress probe now converts to stream time. Found by the new
+  mid-run MP4 cancel test, which holds the video for a second (a test-only `stall_at`, since a
+  remux finishes within the first progress poll) and checks that the partial file and the
+  hidden faststart file are gone.
+- **Polish:** separator under the header bar (`top-bar-style: raised_border`), the Format toggle
+  as the kit's 34 px toggle group (as the setup's source toggle) labelled by its row, Folder
+  row activates its button, "Saved" 26 px heavy (`--fs-title-2`), a long folder in "Saved"
+  ellipsized in the middle (it widened the window), the File name row's edit pencil hidden
+  without keeping its room, Export's German label "Exportieren" (`msgctxt "verb"`).
 
 Phase D2 (Record shortcut, welcome page Record card, toasts, shortcuts window and texts; tasks
 4.5-4.7, 5.6; `src/capture/shortcuts.rs`, `src/application.rs`, `src/preferences.rs`,

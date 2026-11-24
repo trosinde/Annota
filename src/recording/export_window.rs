@@ -24,7 +24,7 @@ use gstreamer as gst;
 use gtk::{gdk, gio, glib};
 
 use super::audio::AudioSource;
-use super::control::format_elapsed;
+use super::control::{announce, format_elapsed};
 use super::export::{self, Export, ExportError, ExportEvent, Format, Info};
 use super::files;
 use super::session::Ended;
@@ -93,6 +93,8 @@ pub struct ExportWindow {
     closing: Cell<bool>,
     /// "Discard Recording?" while it is shown.
     alert: RefCell<Option<adw::AlertDialog>>,
+    /// The recording ended by an error: the window opened with the banner of mockup 11.
+    by_error: bool,
 }
 
 thread_local! {
@@ -124,8 +126,9 @@ pub fn open(app: &adw::Application, ended: Ended) {
         saved: RefCell::new(None),
         closing: Cell::new(false),
         alert: RefCell::new(None),
+        by_error: ended.by_error(),
     });
-    this.setup(app, ended.by_error());
+    this.setup(app);
     OPEN.with(|open| open.borrow_mut().push(this.clone()));
     this.w.window.present();
     // Redline: File name has the initial focus, the cursor after the name (mockup 07).
@@ -181,10 +184,12 @@ pub fn saved_caption(bytes: u64, folder: &Path) -> String {
 }
 
 impl ExportWindow {
-    fn setup(self: &Rc<Self>, app: &adw::Application, by_error: bool) {
+    fn setup(self: &Rc<Self>, app: &adw::Application) {
         let w = &self.w;
         w.window.set_application(Some(app));
-        w.error_banner.set_revealed(by_error);
+        center_banner_text(&w.error_banner);
+        self.show_opening_banner();
+        hide_edit_icon(&w.name_row);
         let name = files::stem(&self.path);
         w.name_label.set_label(&name);
         w.name_row.set_text(&name);
@@ -288,6 +293,17 @@ impl ExportWindow {
             })),
         ));
         w.window.add_controller(escape);
+    }
+
+    /// The banner as the window opened: mockup 11's after an error, else none.
+    fn show_opening_banner(&self) {
+        let banner = &self.w.error_banner;
+        if self.by_error {
+            banner.set_title(&gettext(
+                "The recording stopped because of an error. What was recorded until then is kept.",
+            ));
+        }
+        banner.set_revealed(self.by_error);
     }
 
     fn format(&self) -> Format {
@@ -428,7 +444,9 @@ impl ExportWindow {
                 w.window.set_default_widget(Some(&w.export_button));
             }
             State::Exporting => {
-                // Rows insensitive, progress + Cancel (focused) in the footer.
+                // Rows insensitive, progress + Cancel (focused) in the footer; a failure of an
+                // earlier export is not said any more.
+                self.show_opening_banner();
                 w.settings_box.set_sensitive(false);
                 w.progress_bar.set_fraction(0.0);
                 w.percent_label.set_label(&percent(0.0));
@@ -437,6 +455,11 @@ impl ExportWindow {
                 w.cancel_button.grab_focus();
             }
             State::Saved => {
+                // "Discard Recording?" asked during the export has nothing left to discard.
+                let alert = self.alert.borrow().clone();
+                if let Some(alert) = alert {
+                    alert.force_close();
+                }
                 w.body_stack.set_visible_child_name("saved");
                 w.footer_stack.set_visible(false);
                 w.window.set_default_widget(Some(&w.close_button));
@@ -542,10 +565,10 @@ impl ExportWindow {
     fn failed(&self, err: &ExportError) {
         eprintln!("annota: recording: export failed: {err}");
         self.set_state(State::Settings);
-        self.w
-            .error_banner
-            .set_title(&gettext("The recording could not be exported. It is kept."));
+        let text = gettext("The recording could not be exported. It is kept.");
+        self.w.error_banner.set_title(&text);
         self.w.error_banner.set_revealed(true);
+        announce(&self.w.window, &text);
         self.w.export_button.grab_focus();
     }
 
@@ -583,9 +606,15 @@ impl ExportWindow {
             }
         });
         self.alert.replace(Some(alert.clone()));
-        // libadwaita shows a dialog of a window that cannot be resized in a window of its own
-        // (modal, transient for this one; GNOME attaches it and dims this window).
-        alert.present(Some(&self.w.window));
+        // Inside this window, as mockup 10 draws it: libadwaita (1.6 and later) shows the
+        // dialogs of a window that cannot be resized in a window of their own, so the window is
+        // resizable only while the alert is presented (measured with libadwaita 1.9: the alert
+        // stays inside, the window keeps its 560 px and cannot be resized). Harmless with 1.5,
+        // which always presents inside.
+        let window = &self.w.window;
+        window.set_resizable(true);
+        alert.present(Some(window));
+        window.set_resizable(false);
     }
 
     /// Discard: the working file is deleted (a running export is cancelled), the window closes.
@@ -626,6 +655,47 @@ fn poster_paintable(texture: &gdk::MemoryTexture) -> Option<gdk::Paintable> {
     );
     snapshot.pop();
     snapshot.to_paintable(Some(&gtk::graphene::Size::new(w, h)))
+}
+
+/// The banner's title centred and wrapping, as mockup 11 draws it (two centred lines at 560
+/// px). `AdwBanner` has no property for it; its title is its only label.
+fn center_banner_text(banner: &adw::Banner) {
+    if let Some(label) = descendants(banner.upcast_ref())
+        .into_iter()
+        .find_map(|w| w.downcast::<gtk::Label>().ok())
+    {
+        label.set_justify(gtk::Justification::Center);
+        label.set_wrap(true);
+        label.set_xalign(0.5);
+    }
+}
+
+/// The File name row without its edit pencil, and without the room it takes (mockups 08, 10:
+/// the dimmed extension ends the row). `AdwEntryRow` has no property for it.
+fn hide_edit_icon(row: &adw::EntryRow) {
+    for widget in descendants(row.upcast_ref()) {
+        if widget.has_css_class("edit-icon") {
+            widget.set_visible(false);
+            // libadwaita shows it again when the row's state changes.
+            widget.connect_visible_notify(|w| {
+                if w.is_visible() {
+                    w.set_visible(false);
+                }
+            });
+        }
+    }
+}
+
+/// `widget`'s descendants, depth first.
+fn descendants(widget: &gtk::Widget) -> Vec<gtk::Widget> {
+    let mut all = Vec::new();
+    let mut child = widget.first_child();
+    while let Some(c) = child {
+        all.push(c.clone());
+        all.extend(descendants(&c));
+        child = c.next_sibling();
+    }
+    all
 }
 
 /// "46 %".

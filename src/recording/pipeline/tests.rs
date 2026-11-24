@@ -154,6 +154,11 @@ impl TestAudio {
     }
 
     fn tone(&self, from: f64, to: f64) {
+        self.tone_of(from, to, self.amplitude);
+    }
+
+    /// The tone at `amplitude` (0: silence) from `from` to `to`.
+    fn tone_of(&self, from: f64, to: f64, amplitude: f64) {
         let chunk = Self::RATE / 50;
         let mut start = (from * Self::RATE as f64).round() as usize;
         let end = (to * Self::RATE as f64).round() as usize;
@@ -162,7 +167,7 @@ impl TestAudio {
             let data: Vec<u8> = (start..start + n)
                 .flat_map(|i| {
                     let t = i as f64 / Self::RATE as f64;
-                    let v = (t * 440.0 * std::f64::consts::TAU).sin() * self.amplitude;
+                    let v = (t * 440.0 * std::f64::consts::TAU).sin() * amplitude;
                     ((v * f64::from(i16::MAX)) as i16).to_le_bytes()
                 })
                 .collect();
@@ -1196,6 +1201,18 @@ pub(crate) fn working_file(
     size: (u32, u32),
     audio: &[(AudioSource, f64)],
 ) -> Finished {
+    working_file_marked(name, seconds, size, audio, None)
+}
+
+/// [`working_file`], or with `marker`: black frames and silence until `marker` seconds, from
+/// there red frames and the tone (an A/V sync marker: flash and beep at the same time).
+pub(crate) fn working_file_marked(
+    name: &str,
+    seconds: f64,
+    size: (u32, u32),
+    audio: &[(AudioSource, f64)],
+    marker: Option<f64>,
+) -> Finished {
     let video = TestVideo::new(size.0, size.1);
     let tones: Vec<TestAudio> = audio.iter().map(|(_, a)| TestAudio::new(*a)).collect();
     let mut config = RecordingConfig::new(folder(name), video.element(), VideoArea::Whole)
@@ -1211,6 +1228,11 @@ pub(crate) fn working_file(
         let (w, h) = (video.w, video.h);
         std::thread::spawn(move || {
             let video = TestVideo { src, w, h };
+            if let Some(at) = marker {
+                video.frames(0.0, at, 30.0, BLACK);
+                video.frames(at, seconds, 30.0, RED);
+                return;
+            }
             for second in 0..=whole {
                 let from = second as f64;
                 let to = (from + 1.0).min(seconds);
@@ -1222,7 +1244,13 @@ pub(crate) fn working_file(
     };
     // Audio on this thread while the video goes in on its own (the muxer interleaves both).
     for tone in &tones {
-        tone.tone(0.0, seconds);
+        match marker {
+            Some(at) => {
+                tone.tone_of(0.0, at, 0.0);
+                tone.tone(at, seconds);
+            }
+            None => tone.tone(0.0, seconds),
+        }
     }
     feeder.join().unwrap();
     let refs: Vec<&TestAudio> = tones.iter().collect();

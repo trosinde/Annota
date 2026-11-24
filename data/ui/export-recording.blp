@@ -20,6 +20,8 @@ Adw.Window export_window {
 
     child: Adw.ToolbarView {
       width-request: 560;
+      // The separator under the header bar (07-11).
+      top-bar-style: raised_border;
 
       [top]
       Adw.HeaderBar {
@@ -145,6 +147,7 @@ Adw.Window export_window {
 
                   Adw.ActionRow folder_row {
                     title: _("Folder");
+                    activatable-widget: folder_button;
 
                     [suffix]
                     Button folder_button {
@@ -174,14 +177,19 @@ Adw.Window export_window {
                     title: _("Format");
                     activatable: false;
 
+                    // The kit's compact toggle group (34 px, as the setup's source toggle).
                     [suffix]
                     Box {
                       valign: center;
-                      homogeneous: true;
 
                       styles [
                         "annota-segmented",
+                        "annota-recording-format",
                       ]
+
+                      accessibility {
+                        labelled-by: format_row;
+                      }
 
                       ToggleButton mp4_button {
                         label: "MP4";
@@ -252,8 +260,10 @@ Adw.Window export_window {
                   ]
                 }
 
+                // A long folder is shortened in its middle; the window stays 560 px wide.
                 Label saved_caption {
                   margin-top: 4;
+                  ellipsize: middle;
 
                   styles [
                     "dim-label",
@@ -311,7 +321,7 @@ Adw.Window export_window {
               }
 
               Button export_button {
-                label: _("Export");
+                label: C_("verb", "Export");
 
                 styles [
                   "suggested-action",

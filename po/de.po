@@ -3837,6 +3837,12 @@ msgstr "Mischt Mikrofon und Systemton in eine Spur"
 msgid "Saved"
 msgstr "Gespeichert"
 
+#. The Export Recording window's button (add-screen-recording mockup 07).
+#: data/ui/export-recording.blp
+msgctxt "verb"
+msgid "Export"
+msgstr "Exportieren"
+
 #: data/ui/export-recording.blp
 msgid "Exporting…"
 msgstr "Wird exportiert …"

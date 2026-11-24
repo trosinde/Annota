@@ -176,7 +176,7 @@ thread_local! {
 /// else would be read). GTK's stand-in context, used when there is no accessibility bus or with
 /// `GTK_A11Y=none`, has no announce implementation and crashes in it (measured with GTK 4.22),
 /// so only a real context is asked.
-fn announce(widget: &impl IsA<gtk::Accessible>, message: &str) {
+pub(crate) fn announce(widget: &impl IsA<gtk::Accessible>, message: &str) {
     #[cfg(test)]
     ANNOUNCED.with(|a| a.borrow_mut().push(message.to_string()));
     if widget.at_context().type_().name() == "GtkTestATContext" {
