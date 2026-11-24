@@ -1,7 +1,7 @@
 # Keyboard shortcuts reference
 
-The same list is in the app under **Ctrl+?**. Source: `data/ui/help-overlay.blp` and
-`src/ui/editor/mod.rs`.
+The same list is in the app under **Ctrl+?**. Source: `data/ui/help-overlay.blp`,
+`src/ui/editor/mod.rs` and `src/recording/control.rs`.
 
 ## Capture
 
@@ -10,7 +10,23 @@ The same list is in the app under **Ctrl+?**. Source: `data/ui/help-overlay.blp`
 | Capture region | Print |
 | Capture window | Alt+Print |
 | Capture screen | Shift+Print |
+| Record video (start or stop) | Super+Alt+R |
 | New capture (from the editor) | Ctrl+N |
+
+The capture and record keys are global shortcuts. Annota asks GNOME for the keys above, but
+GNOME may assign others; **Preferences › Capture** shows the ones actually in use.
+
+## Recording
+
+While the Recording window has the focus. See [How to record the screen](../how-to/record-the-screen.md).
+
+| Action | Shortcut |
+|---|---|
+| Pause or resume | Space |
+| Mute or unmute the microphone | M |
+| Mute or unmute system audio | S |
+
+In the recording setup and the countdown, **Enter** starts and **Esc** cancels.
 
 ## General
 
