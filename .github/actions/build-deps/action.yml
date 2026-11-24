@@ -7,17 +7,53 @@ description: >
 runs:
   using: composite
   steps:
-    - name: Install build dependencies
+    # The runner's apt mirror is sometimes so slow (about 100 kB/s, measured 2026-11-24 on
+    # us-east-2.ec2.archive.ubuntu.com) that downloading the ~280 MB below took 30–45 minutes and
+    # the jobs hit their timeouts. Two remedies, neither changes what gets installed:
+    # - the downloaded .debs are cached (key: runner image, this file, ISO week), so a warm run
+    #   downloads only what changed in the archive since;
+    # - the mirrors are ranked by a short throughput probe before `apt-get update`, with the
+    #   others kept as fallbacks, and apt retries and times out stalled connections.
+    - name: Apt cache key
+      id: apt-key
       shell: bash
       run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
+        hash=$(sha256sum "$GITHUB_ACTION_PATH/action.yml" | cut -c1-16)
+        prefix="apt-debs-${ImageOS:-unknown}-$hash"
+        echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+        echo "key=$prefix-$(date -u +%G-W%V)-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+        echo "dir=$RUNNER_TEMP/apt-debs" >> "$GITHUB_OUTPUT"
+
+    - name: Restore cached .debs
+      id: apt-cache
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.apt-key.outputs.dir }}
+        key: ${{ steps.apt-key.outputs.key }}
+        restore-keys: |
+          ${{ steps.apt-key.outputs.prefix }}-
+
+    - name: Install build dependencies
+      shell: bash
+      env:
+        APT_DEBS: ${{ steps.apt-key.outputs.dir }}
+      run: |
+        "$GITHUB_ACTION_PATH/apt-install.sh" \
           build-essential debhelper meson ninja-build pkgconf cargo-1.91 rustc-1.91 \
           rustfmt-1.91 rust-1.91-clippy \
           libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
           blueprint-compiler gettext \
           desktop-file-utils appstream libglib2.0-bin lintian devscripts \
           fonts-dejavu-core fontconfig
+
+    # Saved here, not in a post step, so a later failing step (tests, lintian) still leaves a
+    # warm cache behind. Parallel jobs race for the same key; the losers only log a warning.
+    - name: Save cached .debs
+      if: steps.apt-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ steps.apt-key.outputs.dir }}
+        key: ${{ steps.apt-key.outputs.key }}
 
     # Same as `export PATH=/usr/lib/rust-1.91/bin:$PATH` in CLAUDE.md, for every later step.
     - name: Use Rust 1.91
