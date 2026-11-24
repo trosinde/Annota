@@ -5,14 +5,15 @@
 //! - [`region_crop`]: a region selection (overlay, logical px) to a crop of the monitor stream's
 //!   buffers, at the buffer's pixel density (Q8).
 //! - [`window_crop_in_buffer`] / [`window_content`]: a window stream's crop meta (monitor-scale px,
-//!   measured on GNOME 50) to the window's content rectangle in buffer pixels, with the alpha rule
-//!   of `capture::screencast::window_rect` as the fallback. Kept self-contained so it can later be
+//!   measured on GNOME 50) to the window's content rectangle in buffer pixels, trimmed by the alpha
+//!   rule of `capture::screencast::window_rect` ([`alpha_bounds`] finds the same box scanning
+//!   from the edges in, cheap enough for every buffer). Kept self-contained so it can later be
 //!   swapped for the window-still fix's own helper in `src/capture`.
 //! - [`letterbox`]: a content rectangle into the fixed frame of a window recording (D2 confirmed
 //!   2026-11-23): scaled to fit, aspect kept, centred, never stretched.
 
 use crate::capture::geometry::IRect;
-use crate::capture::screencast::{window_rect, Pixels};
+use crate::capture::screencast::{Pixels, OPAQUE_ALPHA};
 
 /// A size in pixels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,8 +150,9 @@ pub fn fallback_scale(matching: &[f64], all: &[f64]) -> f64 {
 
 /// The window's content rectangle in one buffer: the crop meta converted to buffer pixels
 /// ([`window_crop_in_buffer`]), then trimmed to the window without its shadow by
-/// `capture::screencast::window_rect`'s alpha rule. Where the factor cannot be computed, the
-/// alpha rule alone over the whole buffer. `None`: no visible pixel.
+/// `capture::screencast::window_rect`'s alpha rule (the box of alpha ≥ [`OPAQUE_ALPHA`], else of
+/// alpha > 0). Where the factor cannot be computed, the alpha rule alone over the whole buffer.
+/// `None`: no visible pixel.
 pub fn window_content(
     pixels: &Pixels,
     crop_meta: Option<IRect>,
@@ -161,17 +163,40 @@ pub fn window_content(
         i32::try_from(pixels.width).ok()?,
         i32::try_from(pixels.height).ok()?,
     );
+    let whole = IRect::new(0, 0, buffer.w, buffer.h);
     let area = crop_meta
         .and_then(|crop| window_crop_in_buffer(crop, stream_size, buffer, monitor_scale))
-        .and_then(|r| {
-            Some((
-                u32::try_from(r.x).ok()?,
-                u32::try_from(r.y).ok()?,
-                u32::try_from(r.w).ok()?,
-                u32::try_from(r.h).ok()?,
-            ))
-        });
-    window_rect(pixels, area)
+        .unwrap_or(whole);
+    alpha_bounds(pixels, area, |alpha| alpha >= OPAQUE_ALPHA)
+        .or_else(|| alpha_bounds(pixels, area, |alpha| alpha > 0))
+}
+
+/// The byte of a pixel that holds its alpha (BGRA in memory on little-endian hosts, ARGB on
+/// big-endian ones: `capture::screencast`'s frame format).
+#[cfg(target_endian = "little")]
+const ALPHA_BYTE: usize = 3;
+#[cfg(target_endian = "big")]
+const ALPHA_BYTE: usize = 0;
+
+/// The bounding box of the pixels within `area` whose alpha passes `keep`: the same box as
+/// `capture::screencast`'s full scan, found from the edges in. For a window that is the rows
+/// and columns of its shadow margin, not the whole buffer, so it can run on every buffer of a
+/// recording (a damage-driven window stream sends at most a frame per redraw).
+pub fn alpha_bounds(pixels: &Pixels, area: IRect, keep: impl Fn(u8) -> bool) -> Option<IRect> {
+    let width = i32::try_from(pixels.width).ok()?;
+    let height = i32::try_from(pixels.height).ok()?;
+    let area = area.intersect(IRect::new(0, 0, width, height))?;
+    let alpha = |x: i32, y: i32| -> u8 {
+        let offset = y as usize * pixels.stride + x as usize * 4 + ALPHA_BYTE;
+        pixels.data.get(offset).copied().unwrap_or(0)
+    };
+    let row = |y: i32| (area.x..area.right()).any(|x| keep(alpha(x, y)));
+    let top = (area.y..area.bottom()).find(|&y| row(y))?;
+    let bottom = (top..area.bottom()).rev().find(|&y| row(y))?;
+    let column = |x: i32| (top..=bottom).any(|y| keep(alpha(x, y)));
+    let left = (area.x..area.right()).find(|&x| column(x))?;
+    let right = (left..area.right()).rev().find(|&x| column(x))?;
+    Some(IRect::new(left, top, right - left + 1, bottom - top + 1))
 }
 
 /// Where `content` goes inside a fixed `frame` (D2): scaled by one factor so it fits, centred,
@@ -418,6 +443,65 @@ mod tests {
             let content = window_content(&pixels, Some(meta), size, Some(scale)).unwrap();
             assert_eq!(content.intersect(crop), Some(content), "scale {scale}");
             assert!(content.right() <= 40, "scale {scale}: {content:?}");
+        }
+    }
+
+    /// The edge-in scan finds exactly the box of `capture::screencast::window_rect`'s full scan
+    /// (opaque box, else the translucent box, else none), over the whole buffer and inside a
+    /// crop, for windows with shadow, without shadow, translucent, empty, and with stray pixels.
+    // spec: screen-recording / Recording source / Recorded window resized
+    #[test]
+    fn the_edge_in_scan_finds_the_same_box_as_the_full_scan() {
+        use crate::capture::screencast::window_rect;
+        let (w, h) = (96u32, 64u32);
+        let cases: [&[(IRect, u8)]; 6] = [
+            &[
+                (IRect::new(0, 0, 60, 40), 30),
+                (IRect::new(8, 6, 44, 28), 255),
+            ],
+            &[(IRect::new(0, 0, 96, 64), 255)],
+            &[(IRect::new(5, 7, 30, 20), 60)],
+            &[],
+            &[
+                (IRect::new(10, 10, 20, 20), 255),
+                (IRect::new(70, 50, 1, 1), 200),
+            ],
+            &[
+                (IRect::new(3, 30, 1, 1), 128),
+                (IRect::new(90, 2, 1, 1), 127),
+            ],
+        ];
+        for (n, layers) in cases.iter().enumerate() {
+            let mut data = vec![0u8; (w * h * 4) as usize];
+            for (rect, alpha) in *layers {
+                for y in rect.y..rect.bottom() {
+                    for x in rect.x..rect.right() {
+                        data[((y as u32 * w + x as u32) * 4 + ALPHA_BYTE as u32) as usize] = *alpha;
+                    }
+                }
+            }
+            let pixels = Pixels {
+                width: w,
+                height: h,
+                stride: (w * 4) as usize,
+                data: &data,
+            };
+            for crop in [
+                None,
+                Some((0u32, 0u32, 64u32, 48u32)),
+                Some((20, 12, 70, 52)),
+            ] {
+                let area = crop.map_or(IRect::new(0, 0, 96, 64), |(x, y, cw, ch)| {
+                    IRect::new(x as i32, y as i32, cw as i32, ch as i32)
+                });
+                let edge_in = alpha_bounds(&pixels, area, |a| a >= OPAQUE_ALPHA)
+                    .or_else(|| alpha_bounds(&pixels, area, |a| a > 0));
+                assert_eq!(
+                    edge_in,
+                    window_rect(&pixels, crop),
+                    "case {n}, crop {crop:?}"
+                );
+            }
         }
     }
 

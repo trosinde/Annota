@@ -109,8 +109,9 @@ Alternatives considered:
   pixels"); the shipped window still capture reads the crop meta as buffer pixels and captures
   only the top-left 62.5 % (fixed separately, not in this change). Every buffer is cropped to
   its own content rectangle, never to the buffer or stream size. The shadow is trimmed by
-  `screencast::window_rect`'s alpha rule, computed on the first buffer and again only when the
-  crop meta changes (a full alpha scan per 4K buffer is too costly). The encoded frame size is
+  `screencast::window_rect`'s alpha rule, on every buffer (an edge-in scan finds the same box
+  cheaply; a rectangle cached per crop meta kept GNOME's animation frame, see "Decided during
+  apply", 2026-11-24). The encoded frame size is
   fixed at start (the first trimmed window, even-sized for x264); later frames are scaled to fit
   and letterboxed, never stretched (D2 confirmed by the maintainer 2026-11-23). Window
   streams are damage-driven: no buffers while the window is still, so `videorate` repeats the
@@ -386,11 +387,26 @@ Phase B (portal session, stop paths, waiting indicator; `src/recording/{source,s
 - **Window crop meta and `videocrop`.** `videocrop` applies an upstream `VideoCropMeta` on top
   of its own crop (found with a window stream whose meta does not start at (0, 0); every frame
   was wrong). The content rectangle already accounts for the meta, so Phase A's crop probe now
-  removes the meta from the buffer after reading it. The alpha scan of `window.rs` runs on the
-  first buffer and when the crop meta or buffer size changes; the monitor scale is the scale of
+  removes the meta from the buffer after reading it. The alpha scan of `window.rs` runs on
+  every buffer (changed 2026-11-24, next entry); the monitor scale is the scale of
   the GDK monitor whose logical geometry equals the stream's `size` (and `position`, if given);
   none or several of different scales → the alpha rule alone. Buffers without alpha (BGRx)
   use the converted crop meta, else the whole buffer.
+- **Window content rectangle per buffer (2026-11-24, live failure of "Recorded window
+  resized" 3/3).** Measured with dumped stream buffers (GNOME 50.1, scale 1.25, 640×400 target):
+  on maximize/unmaximize mutter renders the window *with GNOME's size-change animation applied*
+  under the new crop meta (maximized: the window squeezed to 1280×800 at (4762, 2458) of the
+  (0, 0, 6144, 3360) crop; unmaximized: the old content over the whole new crop, shadow margin
+  included) and renders the settled window only on the window's next redraw, under the same
+  crop meta. The rectangle cached per crop meta came from that first buffer and stayed until
+  the next crop change. Now: the alpha rule runs on every buffer with an edge-in scan
+  (`geometry::alpha_bounds`, the same box as the full scan, test-checked; it reads only the
+  shadow margin's rows and columns), a new rectangle within `window::SAME_RECT` (2 px per edge)
+  of the current one keeps the current one (the 1 px outline's alpha hovers around 128: 1284
+  vs 1283 px), and `Cropper` crops a rectangle within 2 px of the frame size to exactly the
+  frame size, so the window back at its start size is framed pixel for pixel as at start. Not
+  fixable in Annota: a window that never redraws after the resize keeps the animation frame in
+  the stream (and so in the recording) until it does.
 - **Region without `position`:** `(0, 0)` only with a single GDK monitor; otherwise the start
   fails (P2 measured `position` present on GNOME 50).
 - **Hooks for Phases C/D and tests** (`recording::Hooks`): video source (`pipewiresrc` on the

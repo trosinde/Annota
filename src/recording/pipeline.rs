@@ -42,6 +42,7 @@ use gtk::glib;
 use super::audio::AudioSource;
 use super::files;
 use super::geometry::{self, MonitorStream, RegionError, Size};
+use super::window;
 use crate::capture::geometry::IRect;
 
 /// The recording's constant frame rate (requirement "Recording frame rate").
@@ -857,13 +858,11 @@ impl Cropper {
                 frame
             }
         };
-        // A rectangle of the frame's size once trimmed to even is cropped to exactly that: no
-        // resampling by a pixel (`videoscale` would stretch an odd width by 0.999).
-        let rect = if Size::new(even.w, even.h) == frame {
-            even
-        } else {
-            rect
-        };
+        // A rectangle within a few pixels of the frame's size (odd, or the window's outline
+        // counted one frame and not the next) is cropped to exactly the frame's size at its
+        // origin: no resampling by a pixel (`videoscale` would stretch an odd width by 0.999),
+        // and a window back at its start size is framed exactly as at the start.
+        let rect = snap_to_frame(rect, frame, buffer);
         if self.current == Some(rect) {
             return;
         }
@@ -875,6 +874,23 @@ impl Cropper {
             crop.set_property("bottom", (buffer.h - rect.bottom()).max(0));
         }
     }
+}
+
+/// `rect` as exactly `frame`'s size when each side is within [`window::SAME_RECT`] of it and
+/// the frame fits in the buffer (moved in from the right and bottom edges where needed); any
+/// other rectangle as it is, to be scaled into the frame.
+fn snap_to_frame(rect: IRect, frame: Size, buffer: Size) -> IRect {
+    let near = |a: i32, b: i32| (a - b).abs() <= window::SAME_RECT;
+    if !near(rect.w, frame.w) || !near(rect.h, frame.h) || frame.w > buffer.w || frame.h > buffer.h
+    {
+        return rect;
+    }
+    IRect::new(
+        rect.x.min(buffer.w - frame.w).max(0),
+        rect.y.min(buffer.h - frame.h).max(0),
+        frame.w,
+        frame.h,
+    )
 }
 
 /// The running time of a sample's buffer in its segment.

@@ -46,9 +46,13 @@ struct TestVideo {
 
 impl TestVideo {
     fn new(w: u32, h: u32) -> Self {
+        Self::with_format(w, h, "BGRx")
+    }
+
+    fn with_format(w: u32, h: u32, format: &str) -> Self {
         gst::init().unwrap();
         let caps = gst::Caps::builder("video/x-raw")
-            .field("format", "BGRx")
+            .field("format", format)
             .field("width", w as i32)
             .field("height", h as i32)
             .field("framerate", gst::Fraction::new(0, 1))
@@ -575,6 +579,127 @@ fn a_resized_window_is_cropped_per_buffer_and_letterboxed() {
     assert!(near(larger.at(640, 20), BLACK) && near(larger.at(640, 780), BLACK));
     assert!(near(larger.at(640, 60), BLUE) && near(larger.at(640, 740), BLUE));
     assert!(near(larger.at(3, 400), BLUE) && near(larger.at(1276, 400), BLUE));
+    cleanup(&done.path);
+}
+
+/// The live sequence of 2026-11-24 through the real encoder, with the production
+/// [`WindowContent`](crate::recording::window::WindowContent) (alpha trim per buffer): P6's
+/// 6144×3456 BGRA buffers at scale 1.25, the window at rest with its CSD shadow, GNOME's
+/// maximize animation frame and then the settled maximized window under the same crop meta,
+/// the unmaximize animation frames and the window at rest again. The settled maximized window
+/// is letterboxed whole (header and title buttons), and the window at rest is framed exactly
+/// as at the start; the shadow (red here) and the undefined pixels never show.
+// spec: screen-recording / Recording source / Recorded window resized
+#[test]
+fn a_maximized_and_restored_window_is_letterboxed_whole_and_framed_as_at_start() {
+    use crate::recording::window::tests::{layered, MAX_META, REST_META};
+    use crate::recording::window::WindowContent;
+    // B, G, R as in a BGRA buffer.
+    let bgr = |c: [u8; 3]| [c[2], c[1], c[0]];
+    const WHITE: [u8; 3] = [255, 255, 255];
+    const STALE: [u8; 3] = [200, 0, 200];
+    let rest = |outline: u8| {
+        layered(
+            6144,
+            3456,
+            &[
+                (IRect::new(2000, 0, 4144, 3456), bgr(STALE), 255),
+                (IRect::new(0, 0, 1484, 1004), bgr(RED), 30),
+                (IRect::new(100, 100, 1283, 804), bgr(GREEN), 255),
+                (IRect::new(1383, 100, 1, 804), bgr(GREEN), outline),
+                (IRect::new(100, 100, 1284, 80), bgr(WHITE), 255),
+                (IRect::new(1290, 120, 60, 40), bgr(BLUE), 255),
+            ],
+        )
+    };
+    let maximized = layered(
+        6144,
+        3456,
+        &[
+            (IRect::new(0, 3360, 6144, 96), bgr(STALE), 255),
+            (IRect::new(0, 0, 6144, 3360), bgr(GREEN), 255),
+            (IRect::new(0, 0, 6144, 96), bgr(WHITE), 255),
+            (IRect::new(5900, 20, 200, 56), bgr(BLUE), 255),
+        ],
+    );
+    let mid_maximize = layered(
+        6144,
+        3456,
+        &[(IRect::new(4762, 2458, 1280, 800), bgr(GREEN), 255)],
+    );
+    let mid_unmaximize = layered(
+        6144,
+        3456,
+        &[(IRect::new(0, 0, 1484, 1004), bgr(STALE), 255)],
+    );
+    let meta = |r: IRect| Some((r.x as u32, r.y as u32, r.w as u32, r.h as u32));
+
+    let video = TestVideo::with_format(6144, 3456, "BGRA");
+    let area = WindowContent::new(Size::new(3072, 1728), Some(1.25)).into_area();
+    let recording = record("window-maximize", &video, area);
+    video.push(0.0, rest(255), meta(REST_META));
+    video.push(FRAME, mid_maximize, meta(MAX_META));
+    video.push(2.0 * FRAME, maximized.clone(), meta(MAX_META));
+    video.push(3.0 * FRAME, maximized, meta(MAX_META));
+    video.push(
+        4.0 * FRAME,
+        mid_unmaximize.clone(),
+        meta(IRect::new(0, 0, 830, 530)),
+    );
+    video.push(5.0 * FRAME, mid_unmaximize, meta(REST_META));
+    video.push(6.0 * FRAME, rest(100), meta(REST_META));
+    video.push(7.0 * FRAME, rest(255), meta(REST_META));
+    drain(&recording, &video, &[]);
+    let done = recording.stop_now(secs(8.0 * FRAME));
+    assert_eq!(done.error, None);
+    let analysis = analyse(&done.path);
+    assert!(analysis.frames.len() >= 8);
+    for frame in &analysis.frames {
+        assert_eq!((frame.width, frame.height), (1284, 804), "frame size kept");
+        assert!(
+            frame.grid().iter().all(|c| !near(*c, RED)),
+            "frame at {} s shows the shadow",
+            frame.pts
+        );
+    }
+    let at = |i: f64| {
+        analysis
+            .frames
+            .iter()
+            .find(|f| (f.pts - i * FRAME).abs() < 0.005)
+            .expect("a frame at each buffer's time")
+    };
+    // At rest, at the start and after the unmaximize alike: the window whole, framed exactly.
+    for i in [0.0, 6.0, 7.0] {
+        let f = at(i);
+        assert!(f.grid().iter().all(|c| !near(*c, STALE)), "frame {i}");
+        assert!(near(f.at(640, 40), WHITE), "frame {i}: header");
+        assert!(near(f.at(1220, 40), BLUE), "frame {i}: title buttons");
+        assert!(
+            near(f.at(640, 400), GREEN) && near(f.at(3, 400), GREEN),
+            "frame {i}"
+        );
+        assert!(near(f.at(1280, 400), GREEN), "frame {i}: right edge");
+    }
+    // Maximized and settled: 6144×3360 scaled by 1284/6144 to 1284×702, black bars of 51 px
+    // above and below; the header and the title buttons inside the picture.
+    let fit = geometry::letterbox(Size::new(1284, 804), Size::new(6144, 3360));
+    assert_eq!(fit, IRect::new(0, 51, 1284, 702));
+    for i in [2.0, 3.0] {
+        let f = at(i);
+        assert!(f.grid().iter().all(|c| !near(*c, STALE)), "frame {i}");
+        assert!(
+            near(f.at(640, 20), BLACK) && near(f.at(640, 790), BLACK),
+            "frame {i}"
+        );
+        assert!(near(f.at(640, 60), WHITE), "frame {i}: header");
+        assert!(near(f.at(1254, 62), BLUE), "frame {i}: title buttons");
+        assert!(near(f.at(640, 400), GREEN), "frame {i}");
+        assert!(
+            near(f.at(3, 400), GREEN) && near(f.at(1280, 400), GREEN),
+            "frame {i}"
+        );
+    }
     cleanup(&done.path);
 }
 
