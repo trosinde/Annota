@@ -125,6 +125,11 @@
       <summary>GNOME shortcuts created</summary>
       <description>Whether Annota has written GNOME custom keybindings that run annota --capture (used when the GlobalShortcuts portal is unavailable).</description>
     </key>
+    <key name="record-keybinding-migrated" type="b">
+      <default>false</default>
+      <summary>Record keybinding migrated</summary>
+      <description>Whether Annota has once tried to add the "Record video" GNOME custom keybinding where its GNOME shortcuts were created before it existed. It is not added again after that, even if the user removed it.</description>
+    </key>
     <key name="moved-gnome-keys" type="a(ss)">
       <default>[]</default>
       <summary>GNOME screenshot keys moved aside</summary>

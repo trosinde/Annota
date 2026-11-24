@@ -2573,7 +2573,7 @@ const MEDIA_KEYS_XML: &str = r#"<schemalist>
 </schemalist>"#;
 
 /// [`shot`] of `widget` in the light and the dark scheme (`<name>-light`, `<name>-dark`).
-fn scheme_shots(widget: &impl IsA<gtk::Widget>, name: &str) {
+pub(crate) fn scheme_shots(widget: &impl IsA<gtk::Widget>, name: &str) {
     if std::env::var_os("ANNOTA_SHOT_DIR").is_none() {
         return;
     }
@@ -2903,4 +2903,126 @@ fn without_the_portal_the_record_shortcut_is_a_gnome_keybinding() {
         || texts(&keys) == ["Alt", "Super", "R"],
         "the Record card's keys",
     );
+}
+
+/// Writes the custom keybinding at `path` and lists it in `custom-keybindings`.
+fn add_custom_keybinding(path: &str, name: &str, binding: &str) {
+    let custom = gio::Settings::with_path(
+        "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding",
+        path,
+    );
+    custom.set_string("name", name).unwrap();
+    custom.set_string("command", "true").unwrap();
+    custom.set_string("binding", binding).unwrap();
+    let media = gio::Settings::new("org.gnome.settings-daemon.plugins.media-keys");
+    let mut listed: Vec<String> = media
+        .strv("custom-keybindings")
+        .iter()
+        .map(|p| p.to_string())
+        .collect();
+    listed.push(path.to_string());
+    let refs: Vec<&str> = listed.iter().map(String::as_str).collect();
+    media
+        .set_strv("custom-keybindings", refs.as_slice())
+        .unwrap();
+}
+
+/// Scenario "Record shortcut on GNOME 46", for GNOME shortcuts created before `record` existed
+/// (design.md "GNOME-keybinding path, existing setups: a one-time migration"): the first start
+/// adds the keybinding running `annota --record toggle` once. Deleted in GNOME Settings, it is
+/// not added again at the next start. A key the user's own keybinding holds is not written
+/// (the shortcut is disabled instead, "Not set"), and a disabled shortcut writes nothing, not
+/// even the `custom-keybindings` list.
+// spec: screen-recording / Record shortcut / Record shortcut on GNOME 46
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn gnome_shortcuts_from_before_get_the_record_keybinding_once() {
+    let scene = scene_with_schemas(
+        "fallback-record-migration",
+        Some("yes"),
+        Question::CannotShow,
+        &[(
+            "org.gnome.settings-daemon.plugins.media-keys.gschema.xml",
+            MEDIA_KEYS_XML,
+        )],
+    );
+    let settings = gio::Settings::new(config::APP_ID);
+    // As an Annota without `record` left it: its capture keybinding written, the flag set.
+    add_custom_keybinding(
+        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/annota-region/",
+        "Annota: Capture region",
+        "Print",
+    );
+    settings
+        .set_boolean("gnome-shortcuts-created", true)
+        .unwrap();
+    assert!(!settings.boolean("record-keybinding-migrated"));
+
+    shortcuts::start_portal_shortcuts(&scene.app);
+    let (name, command, binding) = custom_keybinding("record").expect("the Record keybinding");
+    assert_eq!(name, "Annota: Record video");
+    assert!(command.ends_with(" --record toggle"), "{command}");
+    assert!(
+        shortcuts::same_accel(&binding, "<Super><Alt>r"),
+        "{binding}"
+    );
+    assert!(
+        custom_keybinding("region").is_some(),
+        "the capture one kept"
+    );
+    assert!(settings.boolean("record-keybinding-migrated"));
+
+    // The user deletes it in GNOME Settings; Annota starts again.
+    let media = gio::Settings::new("org.gnome.settings-daemon.plugins.media-keys");
+    media
+        .set_strv(
+            "custom-keybindings",
+            ["/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/annota-region/"],
+        )
+        .unwrap();
+    shortcuts::start_portal_shortcuts(&scene.app);
+    assert_eq!(custom_keybinding("record"), None, "not added again");
+    assert_eq!(settings.string("shortcut-record").as_str(), "<Super><Alt>r");
+
+    // A setup not migrated yet where the user's own keybinding holds Super+Alt+R.
+    settings
+        .set_boolean("record-keybinding-migrated", false)
+        .unwrap();
+    add_custom_keybinding(
+        "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/",
+        "My recorder",
+        "<Super><Alt>r",
+    );
+    shortcuts::start_portal_shortcuts(&scene.app);
+    assert_eq!(
+        custom_keybinding("record"),
+        None,
+        "a taken key is not written"
+    );
+    assert_eq!(
+        settings.string("shortcut-record").as_str(),
+        "",
+        "the row says Not set"
+    );
+    assert_eq!(
+        shortcuts::shown_trigger(shortcuts::GlobalShortcut::Record).trigger,
+        ShownTrigger::NotSet
+    );
+    assert!(settings.boolean("record-keybinding-migrated"));
+
+    // Disabled: nothing is written, not even the list.
+    settings
+        .set_boolean("record-keybinding-migrated", false)
+        .unwrap();
+    let writes = Rc::new(Cell::new(0));
+    let counted = Rc::clone(&writes);
+    let handler = media.connect_changed(Some("custom-keybindings"), move |_, _| {
+        counted.set(counted.get() + 1);
+    });
+    shortcuts::start_portal_shortcuts(&scene.app);
+    pump(50);
+    media.disconnect(handler);
+    assert_eq!(writes.get(), 0, "custom-keybindings rewritten");
+    assert_eq!(custom_keybinding("record"), None);
+    assert!(settings.boolean("record-keybinding-migrated"));
 }

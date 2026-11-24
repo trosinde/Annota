@@ -240,7 +240,9 @@ Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume"
 
 - Welcome (based on fix-portal-shortcut-bindings 05): fourth card "Record" (`record` icon 32 px)
   after Region, Window, Screen; same 156 × 108 cards, gap 12; keycaps = the trigger of `record`
-  (none if unbound). Description: "Pick what to capture or record. A capture opens here, ready to
+  (none if unbound). Keycaps follow GTK's modifier order (`gtk::accelerator_get_label`, as GNOME
+  Settings shows them), so Super+Alt+R reads `Alt` `Super` `R` where the mockups draw `Super`
+  `Alt` `R` (pending maintainer sign-off; mockups not redrawn). Description: "Pick what to capture or record. A capture opens here, ready to
   mark up. Every annotation stays editable until you export." Region stays the first focused card.
 - Toast (13): kit `.toast`, no action button, dismiss `close`; text "The selected area is not on
   the screen you chose. Nothing was recorded." Shown in the main window, which is presented if

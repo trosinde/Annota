@@ -254,6 +254,8 @@ impl Analysis {
 
 /// Decodes a working file completely (also one that was never finished).
 pub(crate) fn analyse(path: &Path) -> Analysis {
+    // The parent of a crash test creates no pipeline of its own before this.
+    gst::init().unwrap();
     let frames = Arc::new(Mutex::new(Vec::<VFrame>::new()));
     let audio = Arc::new(Mutex::new(Vec::<Vec<AChunk>>::new()));
     let pipeline = gst::Pipeline::new();

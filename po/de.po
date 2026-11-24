@@ -191,6 +191,20 @@ msgstr ""
 "Ob Annota eigene GNOME-Tastenkürzel angelegt hat, die annota --capture "
 "ausführen (wenn das GlobalShortcuts-Portal fehlt)."
 
+#: data/io.github.trosinde.Annota.gschema.xml:130
+msgid "Record keybinding migrated"
+msgstr "Aufnahme-Tastenkürzel übernommen"
+
+#: data/io.github.trosinde.Annota.gschema.xml:131
+msgid ""
+"Whether Annota has once tried to add the \"Record video\" GNOME custom "
+"keybinding where its GNOME shortcuts were created before it existed. It is "
+"not added again after that, even if the user removed it."
+msgstr ""
+"Ob Annota einmal versucht hat, das GNOME-Tastenkürzel „Video aufnehmen“ "
+"anzulegen, wo seine GNOME-Tastenkürzel schon vorher angelegt waren. Danach "
+"wird es nicht mehr angelegt, auch wenn es entfernt wurde."
+
 #: data/io.github.trosinde.Annota.gschema.xml:84
 msgid "GNOME screenshot keys moved aside"
 msgstr "Beiseitegelegte GNOME-Bildschirmfototasten"
@@ -3900,7 +3914,7 @@ msgstr "Video aufnehmen"
 #: data/ui/help-overlay.blp
 msgctxt "shortcut window"
 msgid "Recording"
-msgstr "Aufnahme"
+msgstr "Videoaufnahme"
 
 #: data/ui/help-overlay.blp
 msgctxt "shortcut window"

@@ -622,6 +622,21 @@ Phase D1 review round (2026-11-24; `src/recording/{export,export_window,live_tes
   edit of 33 ms; measured after the fix: 0.1 ms in GStreamer and ffmpeg (the unit test allows
   5 ms). The constant is `voaacenc`'s (measured on GStreamer 1.28); a different encoder or
   version would show in that test.
+- **Ubuntu 24.04 (GStreamer 1.24) in CI** (red since the recording tests ran there; it was not
+  a flake, it failed every time on 1.24 and never on 1.28). (1) At the end of stream `videorate`
+  1.24 passes on its last buffer once and does not fill the second half of the gap before it
+  (1.28 does): a still end after a pause lost 5 of its 10 s (file 15.03 s instead of 20 s). The
+  stop now also pushes the last frame one frame before the stop time (`held_until`, as after
+  any gap), so both versions write the still end to the stop. In production the gap is at most
+  a heartbeat, so the loss there was ≤ ~0.1 s. (2) The A/V sync test measured the MP4 with
+  `faad`, the only AAC decoder without gstreamer1.0-libav: it puts the sound one AAC frame
+  (1024 samples, 21.3 ms) earlier than FFmpeg's `avdec_aac` (same result with `faad` forced on
+  1.28), so the export is right and the reference decoder was missing. The test now requires
+  `avdec_aac`; `gstreamer1.0-libav` is added to the CI build dependencies and to Build-Depends
+  `<!nocheck>`. Reproduced and verified in an `ubuntu:24.04` container (Rust 1.91, GStreamer
+  1.24.2). (3) `a_killed_recording_stays_playable` alone failed ("GStreamer has not been
+  initialized"): the parent process decodes without having built a pipeline; `analyse` now
+  initialises GStreamer.
 - **MP4 progress was 100 % at once:** `h264timestamper` moves its timestamps 1000 h on (and its
   segment with them), so the progress probe now converts to stream time. Found by the new
   mid-run MP4 cancel test, which holds the video for a second (a test-only `stall_at`, since a
@@ -648,23 +663,32 @@ Phase D2 (Record shortcut, welcome page Record card, toasts, shortcuts window an
 - **Keycap order:** keycaps come from `gtk::accelerator_get_label`, which says "Alt+Super+R", so
   the Record card and the row show `Alt` `Super` `R` where mockups 12 and 14 draw `Super` `Alt`
   `R`. Kept: the row's `GtkShortcutLabel` orders the keys the same way, and so does every other
-  Annota surface. Pending the maintainer.
+  Annota surface and GNOME Settings. Noted in the redlines (index.md, 12–15); pending the
+  maintainer.
 - **The Record card runs `app.record region`, not `toggle`:** idle both open the region overlay in
   Video mode; while a recording runs, `toggle` would stop it, `region` presents the control
   (spec "Second recording request"). During a countdown the card does nothing visible.
 - **Stop's tooltip chip** = the Record trigger every surface shows (the portal's report, or the
   setting on the GNOME-keybinding path), none when it is text, unbound, or held by GNOME (that
   key does not stop the recording; the launcher's Capture hint follows the same rule).
-- **GNOME-keybinding path, existing setups:** where Annota's GNOME shortcuts were created before
-  `record` existed, its keybinding (`annota --record toggle` on `shortcut-record`) is added at
-  start-up if `custom-keybindings` does not list it and the shortcut is not disabled; otherwise
-  the row would claim a keybinding that does not exist. A user who deletes that keybinding in
-  GNOME Settings gets it back at the next start; disabling it in Preferences keeps it gone.
+- **GNOME-keybinding path, existing setups: a one-time migration** (Phase D2 review). Where
+  Annota's GNOME shortcuts were created before `record` existed, its keybinding (`annota
+  --record toggle` on `shortcut-record`) is added once, at the first start-up with
+  `gnome-shortcuts-created`; otherwise the row would claim a keybinding that does not exist. The
+  new key `record-keybinding-migrated` (default false) is set after that first attempt, whatever
+  its result, and by "Create GNOME Shortcuts" (which writes the Record keybinding itself), so a
+  keybinding the user deleted in GNOME Settings is never re-added. Nothing is written when
+  `custom-keybindings` lists it already or the shortcut is disabled (the list is not rewritten
+  either). When the key is taken (`find_conflict`: another Annota shortcut, one of GNOME's
+  actions or the user's own custom keybindings, Annota's left out), nothing is written and
+  `shortcut-record` is set to empty: on this path the setting is the bound key, so the row says
+  "Not set" (no "Used by GNOME" here, as for the capture rows) and the user picks a key in the
+  Set Shortcut dialog, which shows the conflict.
 - **Toasts (mockups 13, 15):** `Hooks::on_outcome`'s default calls
   `application::show_recording_message`: `present_window` (the main window, created or shown
-  again), a kit toast without an action, the focus on the Record card. GTK shows the focus ring
-  only after keyboard input, so with a pointer-started flow the focus is there without the ring
-  mockup 13 draws.
+  again), a kit toast without an action, the focus on the Record card with its focus ring
+  (`set_focus_visible(true)`, Phase D2 review: GTK otherwise shows the ring only after keyboard
+  input, and mockups 13/15 draw it).
 - **Welcome description** keeps `max-width-chars: 52` but is now `halign: center`: with four cards
   the row is 660 px wide and the label wrapped at the row's width instead of its own (mockup 12
   wraps after "ready" / "to").

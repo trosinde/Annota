@@ -1330,8 +1330,13 @@ impl Finisher {
                 if !last.pushed && last.out < self.stop_out {
                     due.push(last.at(last.out));
                 }
-                // A still screen at the end: the last frame again at the stop time.
+                // A still screen at the end: the last frame again at the stop time, and one
+                // frame before it (as after any gap, `held_until`). At the end of stream
+                // `videorate` passes on its last buffer just once: GStreamer 1.24 (Ubuntu 24.04)
+                // does not fill the second half of the gap before it, so without the frame before
+                // the stop the file would end halfway through a still end (1.28 fills it).
                 if last.out < self.stop_out {
+                    due.extend(held_until(last, self.stop_out));
                     due.push(last.at(self.stop_out));
                 }
                 for (buffer, caps) in due {

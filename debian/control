@@ -23,6 +23,7 @@ Build-Depends:
  gstreamer1.0-plugins-good <!nocheck>,
  gstreamer1.0-plugins-ugly <!nocheck>,
  gstreamer1.0-plugins-bad <!nocheck>,
+ gstreamer1.0-libav <!nocheck>,
 Standards-Version: 4.7.0
 Homepage: https://github.com/trosinde/Annota
 Vcs-Browser: https://github.com/trosinde/Annota

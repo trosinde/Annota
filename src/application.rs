@@ -463,6 +463,8 @@ pub fn show_recording_message(app: &adw::Application, text: &str) {
         .and_then(|content| find_buildable(&content, WELCOME_RECORD_CARD))
     {
         gtk::prelude::GtkWindowExt::set_focus(&window, Some(&card));
+        // The focus ring on the card, as after keyboard navigation (mockups 13, 15).
+        window.set_focus_visible(true);
     }
 }
 

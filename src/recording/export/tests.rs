@@ -456,6 +456,14 @@ fn picture_and_sound_stay_in_sync_in_mp4_and_webm() {
         &[(AudioSource::Microphone, 0.5)],
         Some(2.0),
     );
+    // The reference is FFmpeg's AAC decoder (`avdec_aac`), as in most players. `faad`, the
+    // only other one (gstreamer1.0-plugins-bad, picked where libav is missing), puts the decoded
+    // sound one AAC frame (1024 samples) earlier: measured 21.3 ms early on Ubuntu 24.04 and
+    // with `faad` forced on 1.28.
+    assert!(
+        gst::ElementFactory::find("avdec_aac").is_some(),
+        "measuring needs avdec_aac (gstreamer1.0-libav)"
+    );
     let folder = export_folder("sync");
     let mut offsets = vec![("working file", recording.path.clone())];
     for format in [Format::Mp4, Format::Webm] {

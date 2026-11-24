@@ -31,8 +31,8 @@ use gtk::{gdk, gio, glib};
 use super::*;
 use crate::capture::frame::Frame;
 use crate::capture::live_tests::{
-    add_global_shortcuts, bind_through_the_portal, find, holds, portal_path, respond, scene, shot,
-    GlobalShortcutsPortal, Question, Scene, SCREENCAST_XML,
+    add_global_shortcuts, bind_through_the_portal, find, holds, portal_path, respond, scene,
+    scheme_shots, shot, GlobalShortcutsPortal, Question, Scene, SCREENCAST_XML,
 };
 use crate::capture::overlay::{self, Desktop, Mode, Outcome};
 use crate::capture::window_wait;
@@ -482,7 +482,7 @@ fn shows_toast(window: &impl IsA<gtk::Widget>, text: &str) -> bool {
 }
 
 /// The toast of mockup 13 or 15: shown in the main window, which is on the screen, with the
-/// keyboard focus on the welcome page's Record card.
+/// keyboard focus on the welcome page's Record card and its focus ring showing.
 fn assert_recording_toast(app: &adw::Application, text: &str) {
     wait_for(
         || main_window(app).is_some_and(|w| w.is_visible() && shows_toast(&w, text)),
@@ -493,6 +493,10 @@ fn assert_recording_toast(app: &adw::Application, text: &str) {
     assert!(
         gtk::prelude::GtkWindowExt::focus(&window).as_ref() == Some(card.upcast_ref()),
         "the keyboard focus is back on the Record card"
+    );
+    assert!(
+        window.gets_focus_visible(),
+        "the focus ring shows on the Record card"
     );
 }
 
@@ -2326,18 +2330,6 @@ fn elapsed_now() -> f64 {
 
 /// With `ANNOTA_SHOT_DIR` set, saves the control's window on the kit's `--desktop-bg`, in the
 /// light and the dark colour scheme (`<name>-light.png`, `<name>-dark.png`).
-/// [`shot`] of `widget` in the light and the dark scheme (`<name>-light`, `<name>-dark`).
-fn scheme_shots(widget: &impl IsA<gtk::Widget>, name: &str) {
-    if std::env::var_os("ANNOTA_SHOT_DIR").is_none() {
-        return;
-    }
-    for (dark, scheme) in [(false, "light"), (true, "dark")] {
-        set_scheme(dark);
-        shot(widget, &format!("{name}-{scheme}"));
-    }
-    set_scheme(false);
-}
-
 fn control_shots(window: &gtk::Window, name: &str) {
     let Some(dir) = std::env::var_os("ANNOTA_SHOT_DIR") else {
         return;

@@ -559,32 +559,44 @@ pub fn create_gnome_shortcuts(settings: &gio::Settings) -> Result<usize, Shortcu
     write_custom_keybindings(&entries, &disabled)?;
     take_over(settings, &enabled_accels(settings))?;
     settings.set_boolean("gnome-shortcuts-created", true)?;
+    // Created with the Record keybinding: nothing left to migrate.
+    settings.set_boolean("record-keybinding-migrated", true)?;
     Ok(entries.len())
 }
 
-/// GNOME-keybinding path: "Record video" came after the capture shortcuts (add-screen-recording).
-/// Where Annota's GNOME shortcuts were created before it existed, its keybinding is added once
-/// the user had agreed to Annota's GNOME shortcuts, so the Preferences row that says "GNOME
-/// shortcut · runs annota --record toggle" is true. Nothing happens if it is listed already or the
-/// shortcut is disabled.
+/// GNOME-keybinding path, a one-time migration (`record-keybinding-migrated`): "Record video"
+/// came after the capture shortcuts (add-screen-recording). Where Annota's GNOME shortcuts were
+/// created before it existed, its keybinding is added once, so the Preferences row that says
+/// "GNOME shortcut · runs annota --record toggle" is true. Never again after that first attempt:
+/// a keybinding the user deleted in GNOME Settings stays deleted. Nothing is written if it is
+/// listed already or the shortcut is disabled; if the key is taken (one of GNOME's or the user's
+/// own keybindings, or another Annota shortcut), the shortcut is disabled instead, so the row
+/// shows "Not set" and the user picks a key in the Set Shortcut dialog, which shows conflicts.
 fn add_record_keybinding(settings: &gio::Settings) -> Result<(), ShortcutError> {
-    if !gnome_keybindings_supported() {
+    if settings.boolean("record-keybinding-migrated") || !gnome_keybindings_supported() {
         return Ok(());
     }
+    let added = migrate_record_keybinding(settings);
+    settings.set_boolean("record-keybinding-migrated", true)?;
+    added
+}
+
+fn migrate_record_keybinding(settings: &gio::Settings) -> Result<(), ShortcutError> {
     let path = keybinding_path(GlobalShortcut::Record);
     let listed = gio::Settings::new(MEDIA_KEYS_SCHEMA)
         .strv("custom-keybindings")
         .iter()
         .any(|p| p.as_str() == path);
-    if listed {
+    let key = settings_key(GlobalShortcut::Record);
+    let accel = settings.string(key).to_string();
+    if listed || Accel::parse(&accel).is_none() {
         return Ok(());
     }
-    let accels = [(
-        GlobalShortcut::Record,
-        settings
-            .string(settings_key(GlobalShortcut::Record))
-            .to_string(),
-    )];
+    if find_conflict(settings, None, GlobalShortcut::Record, &accel).is_some() {
+        settings.set_string(key, "")?;
+        return Ok(());
+    }
+    let accels = [(GlobalShortcut::Record, accel)];
     write_custom_keybindings(
         &keybinding_entries(&accels, &program(), keybinding_name),
         &[],
