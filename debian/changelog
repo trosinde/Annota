@@ -1,3 +1,23 @@
+annota (0.2.0) noble; urgency=medium
+
+  * Screen recording: record a region, a window or the whole screen through
+    the ScreenCast portal and PipeWire, with a countdown, a recording
+    control (pause, stop, mute microphone and system audio) and the Record
+    shortcut (Super+Alt+R preferred) or `annota --record`. Export to MP4
+    (H.264 + AAC) or WebM (VP9 + Opus); recordings survive a crash.
+  * Window captures contain the whole window at its on-screen size on
+    scaled displays (they held only the top-left part at 125 %).
+  * The pointer is drawn where it is in delayed region captures and in
+    screen captures.
+  * Region captures with "Include pointer" draw the pointer where it is at
+    confirmation.
+  * zip 9.8.1 (security fixes); Rust 1.91 is the minimum toolchain, Debian 13
+    is no longer a build platform.
+  * New runtime dependencies for recording: gstreamer1.0-plugins-good,
+    -ugly and -bad.
+
+ -- Thorsten Rosin <thorsten.rosin@gmail.com>  Tue, 24 Nov 2026 18:00:00 +0100
+
 annota (0.1.0) noble; urgency=medium
 
   * First release.
