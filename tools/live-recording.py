@@ -831,8 +831,9 @@ def s_load(ctx, run_dir, facts):
     and system audio, countdown 0, while a small moving test picture plays (a 960x540 window;
     the rest of the screen is whatever the user does). Samples Annota's CPU and RSS every 10 s,
     stops by `--record toggle`, exports MP4 and records Annota's frame counters (stream buffers,
-    videorate in/out/dropped/repeated). The videos are deleted afterwards; only numbers stay."""
-    tone = Tone()
+    videorate in/out/dropped/repeated). No test tone: 30 minutes of it would disturb whoever sits
+    at the desk; both audio sources are still recorded. The videos are deleted afterwards; only
+    numbers stay."""
     movie = subprocess.Popen(
         ["gst-launch-1.0", "-q", "videotestsrc", "is-live=true", "pattern=ball", "motion=sweep",
          "!", "video/x-raw,width=960,height=540,framerate=30/1", "!", "autovideosink"],
@@ -870,7 +871,6 @@ def s_load(ctx, run_dir, facts):
         for path in facts["exports"]:
             facts.setdefault("export_analysis", {})[os.path.basename(path)] = analyze(path)
     finally:
-        tone.stop()
         if movie.poll() is None:
             movie.send_signal(signal.SIGINT)
             try:
