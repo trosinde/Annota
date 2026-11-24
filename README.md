@@ -6,7 +6,7 @@
 
 **Capture it. Mark it up. Make it obvious.**
 
-Annotated screenshots for GNOME – editable until you export.
+Annotated screenshots and screen recordings for GNOME – editable until you export.
 
 <img src="docs/assets/hero.png" width="860" alt="The Annota editor with a settings page marked up: numbered steps 1 to 3, a callout saying Turn this on, an arrow and two pixelated private fields">
 
@@ -15,11 +15,13 @@ Annotated screenshots for GNOME – editable until you export.
 You explain software with screenshots – in a support ticket, a how-to, a bug report or a handout.
 A plain screenshot makes the reader guess where to look. Annota lets you point at exactly what
 matters, hide what is private, and change your mind until the moment you share it.
+And when a click path is easier to show than to describe, Annota records it as a video.
 It is a native GNOME app for Ubuntu and Debian, and it never sends anything anywhere.
 
-> **Status: pre-alpha.** Capture, the editor, the annotation tools, styles and export work today.
-> Version 0.1.0 is out – [install it from the APT repository](#get-started). Screen recording
-> is built and comes with the next release; the capture library and text recognition are
+> **Status: pre-alpha.** Version 0.2.0 is out – [install it from the APT repository](#get-started).
+> New in 0.2.0: **[screen recording](docs/how-to/record-the-screen.md)** of a region, a window
+> or the whole screen, with audio, saved as MP4 or WebM. Capture, the editor, the annotation
+> tools, styles and export work since 0.1.0. The capture library and text recognition are
 > [planned](#roadmap).
 
 ## Why Annota
@@ -52,9 +54,13 @@ Quick styles and themes give every arrow, callout and step the same colours and 
 
 ### Show it as a video
 
-Some steps are easier to show than to describe. Record a region, a window or the whole screen,
-with your microphone and the system audio if you like, then save it as MP4 or WebM. Press the
-Record shortcut again to stop.
+Some steps are easier to show than to describe. Press the Record shortcut (`Super+Alt+R`) or
+click **Record** in the start window, then record a region, a window or the whole screen – with
+your microphone and the system audio if you like. Pause and mute while you record, press the
+shortcut again to stop, and save the video as MP4 or WebM.
+[How to record the screen](docs/how-to/record-the-screen.md)
+
+<img src="docs/assets/recording-setup.png" width="720" alt="A region selected over a settings page in Video mode; next to it the recording setup: Region, Window or Screen, microphone and system audio with level meters, include pointer, a 3-second countdown and a red Start Recording button">
 
 ## Before and after
 
@@ -81,21 +87,30 @@ Prefer not to add a repository? Download the `.deb` from the
 `sudo apt install ./annota_*_amd64.deb`. You then install updates by hand. To build from
 source instead, see [Install Annota](docs/how-to/install.md#build-from-source).
 
-Annota opens with three buttons: **Region**, **Window** and **Screen**. Pick one, and the capture
-opens in the editor. Next: [your first annotated screenshot](docs/tutorials/first-steps.md).
+Annota opens with **Region**, **Window** and **Screen** for screenshots and **Record** for a
+video. Pick a screenshot mode, and the capture opens in the editor. Next:
+[your first annotated screenshot](docs/tutorials/first-steps.md) or
+[your first screen recording](docs/how-to/record-the-screen.md).
+
+<img src="docs/assets/welcome.png" width="720" alt="Annota's start window, Capture Anything, with four cards: Region, Window and Screen for screenshots and Record for a video, each with its keyboard shortcut">
+
+Annota does not start, or still behaves like the old version after an update? See
+[Troubleshooting](docs/how-to/troubleshooting.md).
 
 ## Learn more
 
 - **Tutorial** – [Your first annotated screenshot](docs/tutorials/first-steps.md)
-- **How-to guides** – [Install Annota](docs/how-to/install.md) · [Build the Debian package](docs/development/building.md)
+- **How-to guides** – [Install Annota](docs/how-to/install.md) · [Record the screen](docs/how-to/record-the-screen.md) · [Troubleshooting](docs/how-to/troubleshooting.md) · [Build the Debian package](docs/development/building.md)
 - **Reference** – [Keyboard shortcuts](docs/reference/keyboard-shortcuts.md) · [Feature catalogue](docs/feature-catalog.md)
 - **Explanation** – [Architecture](docs/explanation/architecture.md) · [Decision records](docs/adr/)
 - **All documentation** – [docs/](docs/README.md)
 
 ## Roadmap
 
-- **MVP 0.1:** app shell and packaging · screen capture · editor and `.annota` format · core tools · quick styles and themes · export and share · capture library
-- **Phase 2:** advanced tools · effects · capture presets · text recognition · smart redaction · library search, tags and collections · templates · screen recording
+- **0.1.0 (released):** app shell and packaging · screen capture · editor and `.annota` format · core tools · quick styles and themes · export and share
+- **0.2.0 (released):** screen recording – region, window or screen, microphone and system audio, pause and mute, MP4 and WebM
+- **Next (MVP):** capture library
+- **Phase 2:** recording extras (webcam, cursor effects, drawing on screen, trimming, GIF) · advanced tools · effects · capture presets · text recognition · smart redaction · library search, tags and collections · templates
 - **Phase 3:** scrolling capture · step capture · smart move and simplify
 
 Every change is specified in [`openspec/changes/`](openspec/changes) before it is built –

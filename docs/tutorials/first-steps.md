@@ -5,10 +5,15 @@ five minutes. You need Annota running – see [Install Annota](../how-to/install
 
 ## 1. Capture something
 
-Press **Print**, or click **Region** in Annota's start window. Drag a rectangle over the part of
-the screen you want and confirm. The capture opens in the editor.
+Click **Region** in Annota's start window, or press the shortcut shown on that card. Drag a
+rectangle over the part of the screen you want and confirm. The capture opens in the editor.
 
-**Alt+Print** captures a window, **Shift+Print** the whole screen.
+The **Window** and **Screen** cards work the same way. Each card shows the key GNOME has really
+assigned to it. On GNOME 48 and later, GNOME decides the keys (change them in Settings › Apps ›
+Annota › Global Shortcuts), so they can differ from Annota's defaults **Print**, **Alt+Print** and
+**Shift+Print**.
+
+![Annota's start window, Capture Anything, with the cards Region, Window, Screen and Record, each showing its keyboard shortcut](../assets/welcome.png)
 
 ## 2. Point at what matters
 
@@ -35,5 +40,8 @@ sidebar. Nothing is baked into the image yet.
 - **Ctrl+S** saves an `.annota` file you can keep editing later.
 - **Ctrl+E** exports PNG, JPG, WebP or PDF.
 - **Ctrl+C** copies the finished image, ready to paste into a chat or ticket.
+
+Some things are easier to show than to annotate: **Super+Alt+R** or the **Record** card
+records a video instead – see [How to record the screen](../how-to/record-the-screen.md).
 
 Next: the full list of [keyboard shortcuts](../reference/keyboard-shortcuts.md).

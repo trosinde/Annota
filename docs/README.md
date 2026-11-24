@@ -1,11 +1,13 @@
 # Annota documentation
 
 New here? Start with **[Your first annotated screenshot](tutorials/first-steps.md)**.
+Want a video instead? See **[How to record the screen](how-to/record-the-screen.md)**.
 
 | I want to … | Go to |
 |---|---|
 | learn the basics | [Tutorials](tutorials/first-steps.md) |
-| get a specific task done | [How-to guides](how-to/install.md) |
+| get a specific task done | [Install Annota](how-to/install.md) · [Record the screen](how-to/record-the-screen.md) |
+| fix a problem | [Troubleshooting](how-to/troubleshooting.md) |
 | look something up | [Keyboard shortcuts](reference/keyboard-shortcuts.md) · [Feature catalogue](feature-catalog.md) |
 | understand how it works | [Architecture](explanation/architecture.md) · [Decision records](adr/) |
 | build or contribute | [Building](development/building.md) · [Workflow](development/workflow.md) |
