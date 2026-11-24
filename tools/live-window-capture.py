@@ -454,17 +454,15 @@ def toast_size(text):
 
 
 def expect_size(text, target):
-    """The toast's size must be the whole window at one scale: the target's aspect ratio, and at
-    least its size in monitor pixels. The window stream's buffer can be at a higher scale than
-    the monitor (2 for a 1.25 monitor on GNOME 50.1, design.md D3 amendment), and its pixels are
-    taken as they are, so the size itself is not fixed."""
+    """The toast's size must be the window's size on screen in monitor pixels: its logical size
+    times the monitor's scale, within 2 px (design.md D3, maintainer decision 2026-11-24). The
+    window stream's buffer can be at a higher scale than the monitor (2 for a 1.25 monitor on
+    GNOME 50.1); Annota scales it down, so a region capture of the window would be the same."""
     w, h = toast_size(text)
-    least = round(target.width * target.scale), round(target.height * target.scale)
-    if w < least[0] - 2 or h < least[1] - 2:
-        raise Fail("captured %d × %d, less than the window's %d × %d" % (w, h, *least))
-    if abs(w * target.height - h * target.width) > 0.015 * w * target.height + 4 * target.width:
-        raise Fail("captured %d × %d, not the window's aspect ratio %d : %d"
-                   % (w, h, target.width, target.height))
+    want = round(target.width * target.scale), round(target.height * target.scale)
+    if abs(w - want[0]) > 2 or abs(h - want[1]) > 2:
+        raise Fail("captured %d × %d, the window is %d × %d on screen (%d × %d logical x %.2f)"
+                   % (w, h, *want, target.width, target.height, target.scale))
     return w, h
 
 

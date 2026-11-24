@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Window capture
-The system SHALL capture a single window without its shadow. Where the ScreenCast portal offers windows, the window SHALL be chosen in the desktop's chooser for screen sharing; Annota SHALL take one frame, cut it to the window, close the session at once, keep no stream, and request no restore token, while a cancellable waiting indicator is the chooser's parent. Otherwise window mode SHALL use the Screenshot portal's interactive UI, where an ending without an image says "Nothing was captured".
+The system SHALL capture a single window without its shadow. Where the ScreenCast portal offers windows, the window SHALL be chosen in the desktop's chooser for screen sharing; Annota SHALL take one frame, cut it to the window, bring it to the size the window has on screen in monitor pixels, close the session at once, keep no stream, and request no restore token, while a cancellable waiting indicator is the chooser's parent. Otherwise window mode SHALL use the Screenshot portal's interactive UI, where an ending without an image says "Nothing was captured".
 
 #### Scenario: Window on Wayland
 - **WHEN** the user chooses window mode on GNOME Wayland
@@ -13,6 +13,12 @@ The system SHALL capture a single window without its shadow. Where the ScreenCas
 - **WHEN** the user captures a window on a display with fractional scaling, e.g. 125 %, whether the window is small, decorated or maximised
 - **THEN** the image shows the whole window: all four of its edges and corners, with its content where it is in the window
 - **AND** no part of the window is cut off and nothing outside it is added
+
+#### Scenario: Window image at screen size
+- **WHEN** the user captures a window, on any display scale Annota can tell from the desktop (the monitor's scale, or a crop meta at that scale)
+- **THEN** the image has the size the window has on screen in monitor pixels, as a region or screen capture of the same window would, e.g. 800 × 500 for a window of 640 × 400 logical pixels on a monitor at 125 %, and 3840 × 2100 for a window maximised on a 3840 × 2160 monitor at 125 % below a 60-pixel top bar
+- **AND** where the desktop delivers the window at a higher scale than the monitor's, the image is scaled down to the monitor's scale with smooth resampling, its four corners and transparency intact
+- **AND** where the desktop delivers the window at the monitor's scale, or the scale cannot be told, or the window comes at a lower scale than the monitor's, the image is the window's pixels unchanged
 
 #### Scenario: Window mode from the welcome page
 - **WHEN** the user activates the Window card on the welcome page and chooses a window in the chooser

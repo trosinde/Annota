@@ -23,7 +23,11 @@ use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
 use gstreamer_video as gst_video;
 use gstreamer_video::prelude::*;
+use gtk::gdk;
+use gtk::gdk::prelude::{DisplayExt, MonitorExt};
+use gtk::gio::prelude::ListModelExt;
 use gtk::glib;
+use gtk::glib::prelude::CastNone;
 
 use super::frame::Frame;
 use super::geometry::IRect;
@@ -119,6 +123,8 @@ pub fn map_error(err: &ashpd::Error) -> CaptureError {
 pub struct Chosen {
     held: Held<OwnedFd, PortalSession>,
     node: u32,
+    /// The stream's `size`: the logical size of the monitor, not of the window (design.md D3).
+    stream_size: Option<(i32, i32)>,
 }
 
 /// Opens the desktop's window chooser with `parent` as its parent window and waits for it.
@@ -171,10 +177,10 @@ pub async fn choose_window(
     let streams = answer
         .and_then(|request| request.response())
         .map_err(|e| map_error(&e))?;
-    let node = streams
+    let (node, stream_size) = streams
         .streams()
         .first()
-        .map(|stream| stream.pipe_wire_node_id())
+        .map(|stream| (stream.pipe_wire_node_id(), stream.size()))
         .ok_or_else(|| CaptureError::Failed(String::from("the portal started no stream")))?;
     let fd = proxy
         .open_pipe_wire_remote(&guard.get()?.0)
@@ -186,6 +192,7 @@ pub async fn choose_window(
             session: guard,
         },
         node,
+        stream_size,
     })
 }
 
@@ -199,13 +206,18 @@ impl Chosen {
             return Err(CaptureError::Failed(String::from("no PipeWire remote")));
         };
         let node = self.node;
+        // GDK is read here, on the main thread; the worker only gets the numbers.
+        let scales = Scales {
+            stream_size: self.stream_size,
+            monitor: monitor_scale(self.stream_size),
+        };
         let pulled = pull_then_close(fd, session, FRAME_TIMEOUT + WORKER_GRACE, move |stream| {
             // Already done alongside the chooser; this only reports a failure.
             gst::init().map_err(|err| format!("GStreamer: {err}"))?;
             let fd = stream.fd.as_ref().ok_or("no PipeWire remote")?.as_raw_fd();
             let (pipeline, sink) = one_frame_pipeline(fd, node)?;
             stream.pipeline = Some(pipeline.clone());
-            play_and_pull(&pipeline, &sink)
+            play_and_pull(&pipeline, &sink, scales)
         })
         .await;
         match pulled {
@@ -298,19 +310,23 @@ fn one_frame_pipeline(fd: i32, node: u32) -> Result<(gst::Pipeline, gst_app::App
 }
 
 /// Worker thread: starts the stream, waits up to [`FRAME_TIMEOUT`] for the one frame and cuts it
-/// to the window.
-fn play_and_pull(pipeline: &gst::Pipeline, sink: &gst_app::AppSink) -> Result<Frame, String> {
+/// to the window at its size on screen.
+fn play_and_pull(
+    pipeline: &gst::Pipeline,
+    sink: &gst_app::AppSink,
+    scales: Scales,
+) -> Result<Frame, String> {
     pipeline
         .set_state(gst::State::Playing)
         .map_err(|_| String::from("the stream did not start"))?;
     let sample = sink
         .try_pull_sample(gst::ClockTime::from_seconds(FRAME_TIMEOUT.as_secs()))
         .ok_or_else(|| String::from("no frame within 5 s"))?;
-    window_frame(&sample)
+    window_frame(&sample, scales)
 }
 
-/// The window's pixels out of one stream sample (design.md D3).
-fn window_frame(sample: &gst::Sample) -> Result<Frame, String> {
+/// The window's image out of one stream sample (design.md D3).
+fn window_frame(sample: &gst::Sample, scales: Scales) -> Result<Frame, String> {
     let caps = sample.caps().ok_or("the frame has no format")?;
     let info = gst_video::VideoInfo::from_caps(caps).map_err(|err| err.to_string())?;
     let buffer = sample.buffer().ok_or("no frame")?;
@@ -327,8 +343,116 @@ fn window_frame(sample: &gst::Sample) -> Result<Frame, String> {
         stride,
         data: video.plane_data(0).map_err(|err| err.to_string())?,
     };
-    let rect = window_rect(&pixels, crop).ok_or("no frame (no visible pixel)")?;
-    pixels.copy(rect).ok_or_else(|| String::from("no frame"))
+    window_image(&pixels, crop, scales)
+}
+
+/// What is known about the scales of a window stream (design.md D3, maintainer decision
+/// 2026-11-24).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Scales {
+    /// The stream's `size` in logical pixels: on GNOME 50.1 the monitor's logical size.
+    pub stream_size: Option<(i32, i32)>,
+    /// GDK's scale of the monitor that shows the window, where it can be told.
+    pub monitor: Option<f64>,
+}
+
+/// At or above this, output size ÷ buffer size counts as 1 (no scaling): the buffer is already
+/// at the monitor's scale, or below it, and the image is taken as it is.
+const SAME_SCALE: f64 = 0.999;
+
+/// The window cut out of `pixels` (design.md D3), at the size it has on screen in monitor
+/// pixels, like a region or screen capture: GNOME's window stream can be at a higher scale than
+/// the monitor (2 for a monitor at 1.25), and the image is then shrunk to the monitor's scale.
+pub fn window_image(
+    pixels: &Pixels,
+    crop: Option<(u32, u32, u32, u32)>,
+    scales: Scales,
+) -> Result<Frame, String> {
+    let rect = window_rect(pixels, crop).ok_or("no frame (no visible pixel)")?;
+    let frame = pixels.copy(rect).ok_or("no frame")?;
+    match screen_size(rect, pixels.width, crop, scales) {
+        Some((width, height)) => frame
+            .scaled(width, height)
+            .map_err(|err| format!("scaling the window image: {err}")),
+        None => Ok(frame),
+    }
+}
+
+/// The size of the window `rect` (buffer pixels) in monitor pixels, or `None` to keep it as it
+/// is. The factor is the monitor's scale ÷ the buffer's scale, where the buffer's scale is the
+/// buffer's width ÷ the stream's logical width. Without both, a crop meta that cut the window
+/// (it was at the monitor's scale, D3 amendment) gives the factor directly: meta ÷ window.
+/// Nothing is enlarged: a buffer below the monitor's scale is kept (never measured).
+fn screen_size(
+    rect: IRect,
+    buffer_width: u32,
+    crop: Option<(u32, u32, u32, u32)>,
+    scales: Scales,
+) -> Option<(i32, i32)> {
+    let factor = match (scales.stream_size, scales.monitor) {
+        (Some((logical, _)), Some(monitor)) if logical > 0 && buffer_width > 0 => {
+            monitor * f64::from(logical) / f64::from(buffer_width)
+        }
+        _ => meta_factor(rect, crop)?,
+    };
+    if !factor.is_finite() || factor <= 0.0 || factor >= SAME_SCALE {
+        return None;
+    }
+    let size = |side: i32| ((f64::from(side) * factor).round() as i32).max(1);
+    let (width, height) = (size(rect.w), size(rect.h));
+    ((width, height) != (rect.w, rect.h)).then_some((width, height))
+}
+
+/// Meta ÷ window, when the crop meta is smaller than the window in both directions by the same
+/// ratio (within 2 %): a meta at the monitor's scale that cut the window.
+fn meta_factor(rect: IRect, crop: Option<(u32, u32, u32, u32)>) -> Option<f64> {
+    let (_, _, w, h) = crop?;
+    let fx = f64::from(w) / f64::from(rect.w);
+    let fy = f64::from(h) / f64::from(rect.h);
+    (fx < SAME_SCALE && fy < SAME_SCALE && (fx - fy).abs() <= 0.02 * fx.max(fy))
+        .then_some((fx + fy) / 2.0)
+}
+
+/// GDK's scale for the monitor that shows the window. The portal does not say which monitor
+/// that is, but the stream's size is that monitor's logical size (design.md D3), so the monitor
+/// of that size; failing that, the one scale all monitors share.
+fn monitor_scale(stream_size: Option<(i32, i32)>) -> Option<f64> {
+    let display = gdk::Display::default()?;
+    let model = display.monitors();
+    let monitors: Vec<((i32, i32), f64)> = (0..model.n_items())
+        .filter_map(|i| model.item(i).and_downcast::<gdk::Monitor>())
+        .map(|monitor| {
+            let geometry = monitor.geometry();
+            ((geometry.width(), geometry.height()), monitor.scale())
+        })
+        .collect();
+    pick_monitor_scale(&monitors, stream_size)
+}
+
+/// [`monitor_scale`] on plain numbers: (logical size, scale) per monitor. `None` when it cannot
+/// be told (no monitor, or several of the stream's size at different scales, or no monitor of
+/// that size and different scales).
+fn pick_monitor_scale(
+    monitors: &[((i32, i32), f64)],
+    stream_size: Option<(i32, i32)>,
+) -> Option<f64> {
+    let one = |scales: Vec<f64>| {
+        let first = *scales.first()?;
+        scales
+            .iter()
+            .all(|scale| (scale - first).abs() < 1e-6)
+            .then_some(first)
+    };
+    let matching: Vec<f64> = monitors
+        .iter()
+        .filter(|(size, _)| Some(*size) == stream_size)
+        .map(|(_, scale)| *scale)
+        .collect();
+    if matching.is_empty() {
+        one(monitors.iter().map(|(_, scale)| *scale).collect())
+    } else {
+        one(matching)
+    }
 }
 
 /// One frame's pixels in [`FRAME_FORMAT`], borrowed.
@@ -895,8 +1019,13 @@ mod tests {
     /// `window` (x, y, w, h) in a 768 × 432 buffer, with `shadow` px of shadow (alpha 28–41)
     /// around it. As on GNOME 50.1 (2026-11-23), the buffer keeps its size whatever the window's.
     fn cornered_window(window: (u32, u32, u32, u32), shadow: u32) -> Image {
+        cornered_window_in((768, 432), window, shadow)
+    }
+
+    /// [`cornered_window`] in a buffer of `buffer` (w, h).
+    fn cornered_window_in(buffer: (u32, u32), window: (u32, u32, u32, u32), shadow: u32) -> Image {
         let (wx, wy, ww, wh) = window;
-        Image::painted(768, 432, move |x, y| {
+        Image::painted(buffer.0, buffer.1, move |x, y| {
             if x >= wx && x < wx + ww && y >= wy && y < wy + wh {
                 let (left, top) = (x - wx < SQUARE, y - wy < SQUARE);
                 let (right, bottom) = (wx + ww - x <= SQUARE, wy + wh - y <= SQUARE);
@@ -1001,10 +1130,182 @@ mod tests {
         // The same through a real GStreamer buffer, as `pipewiresrc` hands it over.
         gst::init().unwrap();
         let image = cornered_window((24, 16, 400, 250), 12);
-        let frame = window_frame(&image.sample((7, 2, 265, 171))).unwrap();
+        let frame = window_frame(&image.sample((7, 2, 265, 171)), AT_BUFFER_SCALE).unwrap();
         assert_eq!((frame.width(), frame.height()), (400, 250));
         assert_eq!(frame.pixel(0, 0), Some(RED));
         assert_eq!(frame.pixel(399, 249), Some(YELLOW));
+    }
+
+    /// A 768 × 432 buffer at the monitor's own scale (2), so nothing is scaled.
+    const AT_BUFFER_SCALE: Scales = Scales {
+        stream_size: Some((384, 216)),
+        monitor: Some(2.0),
+    };
+
+    /// `colour` within 2 per channel: resampling may round a uniform area by one.
+    fn assert_near(frame: &Frame, x: i32, y: i32, colour: Rgb, what: &str) {
+        let pixel = frame.pixel(x, y).unwrap_or(Rgb { r: 0, g: 0, b: 0 });
+        let close = |a: u8, b: u8| a.abs_diff(b) <= 2;
+        assert!(
+            close(pixel.r, colour.r) && close(pixel.g, colour.g) && close(pixel.b, colour.b),
+            "{what}: {pixel:?}, expected {colour:?}"
+        );
+    }
+
+    /// A 640 × 400 window (logical) as GNOME 50.1 streams it on a monitor at 1.25 (design.md D3,
+    /// amendment): buffer scale 2, so 1280 × 800 at the origin of a 2048 × 1280 buffer for a
+    /// stream of 1024 × 640 logical, with its crop meta at the monitor's scale: (0, 0, 800, 500).
+    fn scale_2_window() -> Image {
+        cornered_window_in((2048, 1280), (0, 0, 1280, 800), 0)
+    }
+
+    fn assert_screen_size_window(frame: &Frame) {
+        assert_eq!((frame.width(), frame.height()), (800, 500));
+        assert_near(frame, 0, 0, RED, "top-left corner");
+        assert_near(frame, 799, 0, GREEN, "top-right corner");
+        assert_near(frame, 0, 499, BLUE, "bottom-left corner");
+        assert_near(frame, 799, 499, YELLOW, "bottom-right corner");
+        assert_near(frame, 400, 250, MAGENTA, "centre");
+        // Premultiplied alpha stays opaque up to the edges: padded, not faded out.
+        for (x, y) in [(0, 0), (799, 0), (0, 499), (799, 499), (400, 250)] {
+            let at = y * frame.stride() + x * BPP + ALPHA;
+            assert_eq!(frame.data()[at], 255, "alpha at ({x}, {y})");
+        }
+    }
+
+    // spec: capture / Window capture / Window image at screen size
+    #[test]
+    fn a_scale_2_window_on_a_125_monitor_comes_out_at_screen_size() {
+        // Maintainer decision 2026-11-24: the window's size on screen, 640 × 400 × 1.25.
+        let image = scale_2_window();
+        let scales = Scales {
+            stream_size: Some((1024, 640)),
+            monitor: Some(1.25),
+        };
+        let frame = window_image(&image.pixels(), Some((0, 0, 800, 500)), scales).unwrap();
+        assert_screen_size_window(&frame);
+    }
+
+    // spec: capture / Window capture / Window image at screen size
+    #[test]
+    fn without_the_monitor_scale_the_cutting_crop_meta_gives_the_factor() {
+        // GDK cannot tell the monitor: the crop meta at the monitor's scale, which cut the
+        // window, is meta ÷ window = 1/1.6 of it.
+        let image = scale_2_window();
+        let crop = Some((0, 0, 800, 500));
+        for scales in [
+            Scales::default(),
+            Scales {
+                stream_size: Some((1024, 640)),
+                monitor: None,
+            },
+        ] {
+            let frame = window_image(&image.pixels(), crop, scales).unwrap();
+            assert_screen_size_window(&frame);
+        }
+    }
+
+    // spec: capture / Window capture / Window image at screen size
+    #[test]
+    fn the_scale_2_stream_through_gstreamer_comes_out_at_screen_size() {
+        gst::init().unwrap();
+        let scales = Scales {
+            stream_size: Some((1024, 640)),
+            monitor: Some(1.25),
+        };
+        let frame = window_frame(&scale_2_window().sample((0, 0, 800, 500)), scales).unwrap();
+        assert_screen_size_window(&frame);
+    }
+
+    // spec: capture / Window capture / Window image at screen size
+    #[test]
+    fn scaling_keeps_translucent_pixels_valid_and_their_alpha() {
+        // A translucent window (alpha 128, e.g. a terminal with background opacity) shrunk from
+        // scale 2 to 1.25: its alpha is averaged, not lost, and every colour channel stays at or
+        // below it (valid premultiplied pixels).
+        let image = Image::painted(1280, 800, |_, _| (128, RED));
+        let scales = Scales {
+            stream_size: Some((640, 400)),
+            monitor: Some(1.25),
+        };
+        let frame = window_image(&image.pixels(), None, scales).unwrap();
+        assert_eq!((frame.width(), frame.height()), (800, 500));
+        for (x, y) in [(0, 0), (799, 0), (0, 499), (799, 499), (400, 250)] {
+            let at = y * frame.stride() + x * BPP;
+            let argb = u32::from_ne_bytes(frame.data()[at..at + BPP].try_into().unwrap());
+            let alpha = argb >> 24;
+            assert!(alpha.abs_diff(128) <= 1, "alpha {alpha} at ({x}, {y})");
+            for shift in [16, 8, 0] {
+                assert!(
+                    (argb >> shift) & 0xFF <= alpha,
+                    "channel above alpha at ({x}, {y})"
+                );
+            }
+            assert!((argb >> 16) & 0xFF >= 126, "red kept at ({x}, {y})");
+        }
+    }
+
+    // spec: capture / Window capture / Window image at screen size
+    #[test]
+    fn a_maximised_window_at_scale_2_on_a_4k_monitor_at_125_is_3840_by_2100() {
+        // Measured 2026-11-23: 6144 × 3360 of a 6144 × 3456 buffer for a 3072 × 1728 stream.
+        let scales = Scales {
+            stream_size: Some((3072, 1728)),
+            monitor: Some(1.25),
+        };
+        let rect = IRect::new(0, 0, 6144, 3360);
+        assert_eq!(
+            screen_size(rect, 6144, Some((0, 0, 3840, 2100)), scales),
+            Some((3840, 2100))
+        );
+        // A crop meta in buffer pixels changes nothing when the scales are known.
+        assert_eq!(
+            screen_size(rect, 6144, Some((0, 0, 6144, 3360)), scales),
+            Some((3840, 2100))
+        );
+    }
+
+    // spec: capture / Window capture / Window image at screen size
+    #[test]
+    fn equal_buffer_and_monitor_scales_leave_the_image_unchanged() {
+        // Bit-identical to the cut window, at scale 2 on a monitor at 2 and at 1 on a monitor
+        // at 1, and also when nothing is known and the meta is in buffer pixels.
+        let image = cornered_window((24, 16, 400, 250), 12);
+        let window = IRect::new(24, 16, 400, 250);
+        let cut = image.pixels().copy(window).unwrap();
+        let crop = Some((12, 4, 424, 274));
+        let at_one = Scales {
+            stream_size: Some((768, 432)),
+            monitor: Some(1.0),
+        };
+        for scales in [AT_BUFFER_SCALE, at_one, Scales::default()] {
+            let frame = window_image(&image.pixels(), crop, scales).unwrap();
+            assert_eq!(frame, cut, "{scales:?}");
+        }
+        // A buffer below the monitor's scale is not enlarged.
+        let below = Scales {
+            stream_size: Some((768, 432)),
+            monitor: Some(1.25),
+        };
+        assert_eq!(screen_size(window, 768, crop, below), None);
+    }
+
+    // spec: capture / Window capture / Window image at screen size
+    #[test]
+    fn the_monitor_scale_comes_from_the_monitor_of_the_stream_size() {
+        let laptop = ((1536, 960), 1.25);
+        let external = ((2560, 1440), 1.0);
+        let monitors = [laptop, external];
+        assert_eq!(pick_monitor_scale(&monitors, Some((1536, 960))), Some(1.25));
+        assert_eq!(pick_monitor_scale(&monitors, Some((2560, 1440))), Some(1.0));
+        // No monitor of the stream's size: only a scale all monitors share is taken.
+        assert_eq!(pick_monitor_scale(&monitors, Some((800, 600))), None);
+        assert_eq!(pick_monitor_scale(&monitors, None), None);
+        assert_eq!(pick_monitor_scale(&[laptop], None), Some(1.25));
+        // Two monitors of the stream's size at different scales cannot be told apart.
+        let twin = ((1536, 960), 1.0);
+        assert_eq!(pick_monitor_scale(&[laptop, twin], Some((1536, 960))), None);
+        assert_eq!(pick_monitor_scale(&[], Some((1536, 960))), None);
     }
 
     // spec: capture / Window capture / Window on Wayland
@@ -1063,7 +1364,7 @@ mod tests {
         let stray = 400 * image.stride + 700 * BPP + ALPHA;
         image.data[stray] = 255;
         let sample = image.sample((4, 6, 304, 244));
-        let frame = window_frame(&sample).unwrap();
+        let frame = window_frame(&sample, AT_BUFFER_SCALE).unwrap();
         assert_eq!((frame.width(), frame.height()), (280, 220));
         let first = 18 * image.stride + 16 * BPP;
         assert_eq!(&frame.data()[..BPP], &image.data[first..first + BPP]);
