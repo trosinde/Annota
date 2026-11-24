@@ -3940,3 +3940,85 @@ msgstr ""
 "Annota zeichnet auch Ihren Bildschirm auf: einen Bereich, ein Fenster oder "
 "den ganzen Bildschirm als Video, auf Wunsch mit Mikrofon und Systemton, "
 "gespeichert als MP4 oder WebM."
+
+#: src/schema_check.rs
+msgid "complete"
+msgstr "vollständig"
+
+#: src/schema_check.rs
+msgid "lacks {n} key"
+msgid_plural "lacks {n} keys"
+msgstr[0] "{n} Schlüssel fehlt"
+msgstr[1] "{n} Schlüssel fehlen"
+
+#: src/schema_check.rs
+msgid "compile the complete schema file: run `{command}` (as root for a system directory)."
+msgstr "Kompilieren Sie die vollständige Schema-Datei: Führen Sie `{command}` aus (für ein Systemverzeichnis als root)."
+
+#: src/schema_check.rs
+msgid "no complete schema file of this version was found: reinstall Annota."
+msgstr "Es wurde keine vollständige Schema-Datei dieser Version gefunden: Installieren Sie Annota neu."
+
+#: src/schema_check.rs
+msgid "{compiled} does not match the complete {file} next to it: run `{command}` (as root for a system directory)."
+msgstr "{compiled} passt nicht zur vollständigen {file} daneben: Führen Sie `{command}` aus (für ein Systemverzeichnis als root)."
+
+#: src/schema_check.rs
+msgid "no complete schema of this version is installed: reinstall Annota."
+msgstr "Es ist kein vollständiges Schema dieser Version installiert: Installieren Sie Annota neu."
+
+#: src/schema_check.rs
+msgid "the stale schema in {compiled} has no source file left: run `{command}` (as root for a system directory) to drop it."
+msgstr "Zum veralteten Schema in {compiled} gibt es keine Quelldatei mehr: Führen Sie `{command}` aus (für ein Systemverzeichnis als root), um es zu entfernen."
+
+#: src/schema_check.rs
+msgid "the stale schema in {dir} shadows the complete one further down (often left by an old `meson install` into /usr/local): remove {file}, then run `{command}` (as root for a system directory)."
+msgstr "Das veraltete Schema in {dir} verdeckt das vollständige weiter hinten (oft Überrest eines alten `meson install` nach /usr/local): Entfernen Sie {file} und führen Sie dann `{command}` aus (für ein Systemverzeichnis als root)."
+
+#: src/schema_check.rs
+msgid "the settings schema {schema} is not installed."
+msgstr "Das Einstellungsschema {schema} ist nicht installiert."
+
+#: src/schema_check.rs
+msgid "the settings schema {schema} in use does not match this version of Annota."
+msgstr "Das verwendete Einstellungsschema {schema} passt nicht zu dieser Annota-Version."
+
+#: src/schema_check.rs
+msgid "missing keys: {keys}"
+msgstr "Fehlende Schlüssel: {keys}"
+
+#: src/schema_check.rs
+msgid "no {file} and no compiled schema {schema} on the schema search path."
+msgstr "Keine {file} und kein kompiliertes Schema {schema} im Schema-Suchpfad."
+
+#: src/schema_check.rs
+msgid "schema files on the search path, in lookup order (GLib uses the first {compiled} that holds the schema):"
+msgstr "Schema-Dateien im Suchpfad, in Suchreihenfolge (GLib verwendet die erste {compiled}, die das Schema enthält):"
+
+#: src/schema_check.rs
+msgid "shadowed"
+msgstr "verdeckt"
+
+#: src/schema_check.rs
+msgid "in use"
+msgstr "in Verwendung"
+
+#: src/schema_check.rs
+msgid "source"
+msgstr "Quelle"
+
+#: src/schema_check.rs
+msgid "unreadable"
+msgstr "nicht lesbar"
+
+#: src/schema_check.rs
+msgid "not compiled"
+msgstr "nicht kompiliert"
+
+#: src/schema_check.rs
+msgid "the stale schema in {compiled} has no source file left and shadows the complete schema file {later_file}, which GLib does not use yet: run `{command}`, then `{later_command}` (as root for a system directory)."
+msgstr "Zum veralteten Schema in {compiled} gibt es keine Quelldatei mehr, und es verdeckt die vollständige Schema-Datei {later_file}, die GLib noch nicht verwendet: Führen Sie `{command}` und danach `{later_command}` aus (für ein Systemverzeichnis als root)."
+
+#: src/schema_check.rs
+msgid "the stale schema in {dir} shadows the complete schema file {later_file}, which GLib does not use yet: remove {file}, then run `{command}` and `{later_command}` (as root for a system directory)."
+msgstr "Das veraltete Schema in {dir} verdeckt die vollständige Schema-Datei {later_file}, die GLib noch nicht verwendet: Entfernen Sie {file} und führen Sie dann `{command}` und `{later_command}` aus (für ein Systemverzeichnis als root)."
