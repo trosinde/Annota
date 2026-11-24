@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport-size" content="1280x800">
+<title>Annota — Recording swapped to the webcam</title>
+<link rel="stylesheet" href="../../kit/tokens.css">
+<link rel="stylesheet" href="../../kit/adwaita.css">
+<style>
+.keys{display:inline-flex;gap:4px;align-items:center}
+kbd.okey{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:5px;background:var(--osd-fill-hover);color:var(--osd-fg);font-family:var(--font-ui);font-size:var(--fs-caption);font-weight:var(--fw-bold)}
+.scene{position:relative;width:1280px;height:800px;overflow:hidden;background:var(--desktop-bg)}
+.topbar{position:absolute;left:0;right:0;top:0;height:32px;background:#000006;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px;font-weight:700;z-index:40}
+.topbar .ws{display:flex;gap:5px;align-items:center;width:120px}
+.topbar .ws i{width:7px;height:7px;border-radius:4px;background:rgb(255 255 255 / 45%)}
+.topbar .ws i.on{width:28px;background:#fff}
+.topbar .sys{display:flex;gap:12px;align-items:center;width:120px;justify-content:flex-end}
+.topbar .gind{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:11px;background:rgb(255 255 255 / 22%);box-shadow:inset 0 0 0 2px rgb(255 255 255 / 55%)}
+.app{position:absolute;left:0;top:32px;width:1280px;height:768px;overflow:hidden}
+.app img{display:block;width:1280px;height:800px}
+.ptr{position:absolute;width:22px;height:30px;z-index:45}
+.ann{position:absolute;z-index:46;padding:12px 14px;border-radius:var(--radius-l);background:var(--view-bg);color:var(--view-fg);box-shadow:0 0 0 2px var(--annota-violet),var(--shadow-popover);font-size:var(--fs-small);line-height:1.45}
+.ann b{display:block;font-size:var(--fs-body);margin-bottom:3px;color:var(--annota-violet)}
+.ann b.in{display:inline;color:inherit;font-size:inherit;margin:0}
+.ann kbd.key{height:18px;min-width:18px}
+.lead{position:absolute;z-index:45;border-top:2px dashed var(--annota-violet);height:0}
+.leadv{position:absolute;z-index:45;border-left:2px dashed var(--annota-violet);width:0}
+.tagl{position:absolute;z-index:46;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--radius-s);background:var(--view-bg);color:var(--window-fg);font-size:var(--fs-caption);font-weight:var(--fw-bold);box-shadow:inset 0 0 0 2px var(--annota-violet);white-space:nowrap}
+code{font-family:var(--font-mono);font-size:12px;padding:1px 5px;border-radius:4px;background:var(--fill-1)}
+/* "In the recording" frame-preview inset (designer note, not UI) */
+.inrec{position:absolute;z-index:46;padding:10px 12px 12px;border-radius:var(--radius-l);background:var(--view-bg);color:var(--view-fg);box-shadow:0 0 0 2px var(--annota-violet),var(--shadow-popover);font-size:var(--fs-small);line-height:1.4;display:flex;flex-direction:column;gap:8px}
+.inrec .h{display:flex;align-items:baseline;gap:8px}
+.inrec .h b{color:var(--annota-violet);font-size:var(--fs-body)}
+.inrec .h span{color:var(--dim-label);font-size:var(--fs-caption)}
+.inrec .fr{position:relative;overflow:hidden;border-radius:4px;box-shadow:0 0 0 1px var(--borders);background:#000}
+.inrec .fr > .sc{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;overflow:hidden;background:var(--desktop-bg)}
+.inrec p{margin:0;font-size:var(--fs-caption);color:var(--dim-label);max-width:100%}
+/* composited elements (inside the frame) */
+.cam{position:absolute;overflow:hidden;box-shadow:0 2px 10px rgb(0 0 6 / 30%)}
+.cam svg{display:block;width:100%;height:100%}
+.ring{position:absolute;border-radius:50%;box-sizing:border-box;border:4px solid rgb(245 165 36 / 95%);background:rgb(245 165 36 / 20%)}
+/* recording control (core 05) */
+.rctl{display:inline-flex;align-items:center;gap:6px;height:52px;box-sizing:border-box;padding:0 8px 0 18px;border-radius:26px;background:var(--osd-bg-solid);color:#fff;box-shadow:0 0 0 1px rgb(255 255 255 / 8%),0 2px 6px rgb(0 0 6 / 30%),0 10px 30px rgb(0 0 6 / 28%);white-space:nowrap}
+.rctl.at{position:absolute;z-index:44}
+.rctl .dot{width:10px;height:10px;border-radius:50%;background:var(--destructive-bg);box-shadow:0 0 0 3px rgb(224 27 36 / 35%);flex:none}
+.rctl .time{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;min-width:40px;padding-left:4px}
+.rctl .sep{width:1px;height:24px;background:rgb(255 255 255 / 20%);margin:0 4px;flex:none}
+.rctl .b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;min-width:36px;box-sizing:border-box;padding:0 10px;border-radius:18px;background:transparent;color:#fff;position:relative;font-size:var(--fs-small);font-weight:700}
+.rctl .b.circ{width:36px;padding:0}
+.rctl .b.fill{background:var(--osd-fill)}
+.rctl .b.stop{background:var(--destructive-bg)}
+.rctl .b.hover{background:var(--osd-fill-hover)}
+.rctl .b.active{background:var(--osd-fill-active)}
+.rctl .b.active.hover{background:rgb(255 255 255 / 34%)}
+.rctl .b.insens > *:not(.tooltip){opacity:.4}
+.rctl .b.done{background:var(--accent-bg);padding:0 14px}
+.rctl .b.focus{outline:2px solid rgb(120 174 237 / 85%);outline-offset:1px}
+.rctl .b .tooltip{position:absolute;top:50px;left:50%;transform:translateX(-50%);font-weight:400;font-size:var(--fs-small)}
+.rctl .b .tooltip.tip-r{left:auto;right:-8px;transform:none}
+.rctl .b .tooltip.tip-l{left:-8px;transform:none}
+.rctl .warnl{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px 0 10px;border-radius:18px;color:var(--annota-amber);font-size:var(--fs-small);font-weight:700;position:relative;background:rgb(245 165 36 / 14%)}
+.rctl .warnl .tooltip{position:absolute;top:50px;left:50%;transform:translateX(-50%);font-weight:400;color:var(--tooltip-fg)}
+.rctl .dgroup{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 4px;border-radius:22px;background:rgb(255 255 255 / 6%)}
+.rctl .sw{width:22px;height:22px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgb(255 255 255 / 25%);margin:0 1px}
+.rctl .sw.sel{box-shadow:0 0 0 2px var(--osd-bg-solid),0 0 0 4px #fff}
+.rctl .fade{display:inline-flex;align-items:center;gap:4px;height:36px;padding:0 8px 0 12px;border-radius:18px;background:var(--osd-fill);font-size:var(--fs-small);font-weight:400;position:relative}
+.meter{display:inline-flex;gap:2px;align-items:center}
+.meter i{width:3px;height:12px;border-radius:1px;background:rgb(255 255 255 / 25%)}
+.meter i.on{background:var(--success-bg)}
+.ic{position:relative;display:inline-flex}
+/* states band (core 05) */
+body.mock-frame{display:block;background:var(--window-bg)}
+.band{padding:24px 24px 30px;display:flex;flex-direction:column;gap:18px;background:var(--window-bg);color:var(--window-fg)}
+.band h2{margin:0;font-size:var(--fs-title-4);font-weight:var(--fw-bold)}
+.band h2 small{font-size:var(--fs-body);font-weight:400;color:var(--dim-label);margin-left:9px}
+.states{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.st{background:var(--card-bg);border-radius:var(--radius-l);box-shadow:var(--shadow-card);padding:12px 18px 18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.st.wide{grid-column:1 / -1}
+.st .sl{font-size:var(--fs-caption);font-weight:var(--fw-bold);color:var(--dim-label)}
+.st .stage{height:150px;border-radius:var(--radius-m);background:var(--desktop-bg);display:flex;align-items:flex-start;justify-content:center;padding-top:22px;box-sizing:border-box;position:relative;overflow:hidden}
+.st p{margin:0;font-size:var(--fs-small);line-height:1.5}
+/* strokes */
+.stroke{position:absolute;z-index:30;overflow:visible}
+.stepn{position:absolute;z-index:30;width:34px;height:34px;border-radius:50%;background:var(--annota-coral);color:#fff;display:grid;place-items:center;font-weight:800;font-size:17px;box-shadow:0 0 0 2px #fff,0 2px 6px rgb(0 0 6 / 30%);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body class="mock-frame flush">
+
+<div class="scene"><div class="topbar"><span class="ws"><i class="on"></i><i></i><i></i></span><span>Sun 22 Nov 10:42</span><span class="sys"><span class="gind"><svg class="icon"><use href="#i-capture-screen"/></svg></span><svg class="icon"><use href="#i-speaker"/></svg><svg class="icon"><use href="#i-settings"/></svg></span></div><div class="app"><img src="../../kit/sample-content/png/d-tidewater-analytics.png" alt=""></div>
+<div class="rctl at" style="left:330px;top:676px"><span class="dot"></span><span class="time">0:07</span><span class="sep"></span><span class="b circ fill "><svg class="icon"><use href="#i-pause"/></svg></span><span class="b circ stop "><svg class="icon"><use href="#i-stop"/></svg></span><span class="sep"></span><span class="b "><span class="ic"><svg class="icon"><use href="#i-microphone"/></svg></span><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></span><span class="b "><span class="ic"><svg class="icon"><use href="#i-speaker"/></svg></span><span class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></span><span class="sep"></span><span class="b circ active hover"><svg class="icon" viewBox="0 0 16 16"><path fill="currentColor" d="M1 5.5 4.5 2v2.5H13v2H4.5V9zM15 10.5 11.5 7v2.5H3v2h8.5V14z"/></svg><span class="tooltip ">Show Screen<span class="shortcut">W</span></span></span><span class="b circ "><svg class="icon"><use href="#i-pen"/></svg></span><span class="sep"></span><span class="b circ "><svg class="icon" viewBox="0 0 16 16"><rect x="3" y="10" width="10" height="2" rx="1" fill="currentColor"/></svg></span></div>
+<svg class="ptr" style="left:560px;top:300px" viewBox="0 0 22 30"><path d="M2 2v22l6-5.5 4 9 4-1.8-4-8.7h8z" fill="#000006" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+<div class="inrec" style="left:838px;top:150px;width:408px"><div class="h"><b>In the recording</b><span>video frame · composited by the pipeline</span></div><div class="fr" style="width:384px;height:240px"><div class="sc" style="transform:scale(0.3)"><div style="position:absolute;inset:0;background:#000"><div style="position:absolute;left:0;top:40px;width:1280px;height:720px"><svg style="width:100%;height:100%;display:block" viewBox="0 0 160 120" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="wallf5" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#dfe6ea"/><stop offset="1" stop-color="#c3cdd4"/></linearGradient><radialGradient id="ltf5" cx=".25" cy=".2" r=".7"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
+<rect width="160" height="120" fill="url(#wallf5)"/><rect x="8" y="14" width="40" height="52" rx="2" fill="#f4f1ea" stroke="#b9c3ca" stroke-width="1.5"/><path d="M28 14v52M8 40h40" stroke="#b9c3ca" stroke-width="1.5"/>
+<rect x="112" y="30" width="44" height="3" fill="#8a7a66"/><rect x="116" y="18" width="6" height="12" fill="#14b8a6"/><rect x="124" y="21" width="5" height="9" fill="#f5a524"/><rect x="131" y="16" width="7" height="14" fill="#2f80ed"/><circle cx="148" cy="24" r="6" fill="#6f9e5b"/>
+<path d="M44 120c2-26 17-38 36-38s34 12 36 38z" fill="#2f6f73"/><path d="M70 74h20v12c-3 4-17 4-20 0z" fill="#c98f6b"/>
+<ellipse cx="80" cy="56" rx="18" ry="21" fill="#d9a77f"/><path d="M61 54c-1-16 9-25 20-25 12 0 21 8 19 24-3-7-9-11-19-11-9 0-16 4-20 12z" fill="#3b2f2a"/>
+<ellipse cx="73" cy="58" rx="1.8" ry="2.2" fill="#3b2f2a"/><ellipse cx="87" cy="58" rx="1.8" ry="2.2" fill="#3b2f2a"/><path d="M75 67c3 2.4 7 2.4 10 0" stroke="#8a4f3c" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+<rect width="160" height="120" fill="url(#ltf5)"/></svg></div></div></div></div><p>From Swap (0:05) until Show Screen the frames contain only the camera picture, scaled to the recorded frame size (1280 × 800) and letterboxed: 16 : 9 camera → black bars top and bottom. No pointer ring, no strokes, no control.</p></div>
+<div class="leadv" style="left:1196px;top:30px;height:26px"></div>
+<span class="tagl" style="left:1000px;top:56px">GNOME's indicator, not drawn by Annota</span>
+<div class="ann" style="left:24px;top:540px;width:300px"><b>Swapped</b>The desktop does not change. In the control, Swap is shown pressed (<code>--osd-fill-active</code>); its tooltip turns into <b class="in">Show Screen</b> <kbd class="key">W</kbd>. The accessible name follows the tooltip. Swapping back returns to the screen with the camera overlay.</div>
+</div>
+<script src="../../kit/icons.js"></script>
+</body>
+</html>
