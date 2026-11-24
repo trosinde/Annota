@@ -341,6 +341,8 @@ struct Shared {
     end: Mutex<End>,
     ended: Condvar,
     events: mpsc::UnboundedSender<RecordingEvent>,
+    /// Buffers the video stream delivered (logged at the end, design.md P8).
+    stream_frames: std::sync::atomic::AtomicU64,
 }
 
 impl Shared {
@@ -420,6 +422,7 @@ pub fn start(
         end: Mutex::new(End::default()),
         ended: Condvar::new(),
         events: sender,
+        stream_frames: std::sync::atomic::AtomicU64::new(0),
     });
     let clock = config.clock.clone();
     match build(config, &path, &shared) {
@@ -610,6 +613,11 @@ fn build(
             gst_app::AppSinkCallbacks::builder()
                 .new_sample(move |sink| {
                     let sample = sink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
+                    if let Some(shared) = shared_sample.upgrade() {
+                        shared
+                            .stream_frames
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    }
                     glue_video(&shared_sample, &input, sample)
                 })
                 .eos(move |_| {
@@ -1374,6 +1382,7 @@ impl Finisher {
                 self.shared.fail(RecordingError::Timeout, true);
             }
         }
+        log_frame_counts(&self.encoder, &self.shared);
         let _ = self.encoder.set_state(gst::State::Null);
         unset_bus_handlers(&[&self.encoder, &self.sources]);
         let (eos, error) = {
@@ -1395,6 +1404,27 @@ impl Finisher {
             error,
         }
     }
+}
+
+/// Logs `videorate`'s counters at the end of a recording (counts only, never content): frames
+/// that came from the stream, frames written at 30 fps, frames dropped because two arrived
+/// within one output frame, and frames repeated across gaps (a still screen, a stall). Used to
+/// measure dropped frames on a long recording (design.md P8).
+fn log_frame_counts(encoder: &gst::Pipeline, shared: &Shared) {
+    let Some(rate) = encoder.by_name("rate") else {
+        return;
+    };
+    let count = |name: &str| rate.property::<u64>(name);
+    eprintln!(
+        "annota: recording: stream buffers {}, frames in {}, out {}, dropped {}, repeated {}",
+        shared
+            .stream_frames
+            .load(std::sync::atomic::Ordering::Relaxed),
+        count("in"),
+        count("out"),
+        count("drop"),
+        count("duplicate")
+    );
 }
 
 impl Drop for Finisher {

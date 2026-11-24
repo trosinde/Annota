@@ -26,6 +26,7 @@ single instance would forward into it). Do not touch keyboard or mouse while it 
 
     tools/live-recording.py --dev run screen window region desktop-stop
     tools/live-recording.py --dev run shortcut          # presses the reported Record trigger
+    tools/live-recording.py --dev run load --minutes 30  # P8: CPU, RSS, frame counters
     tools/live-recording.py analyze _build/scratch/live-recording/screen/x.mp4 --frames DIR
 
 Safety: every run uses fresh, temporary settings and data directories (GSETTINGS_BACKEND=keyfile,
@@ -199,7 +200,7 @@ def prepare_dev(work):
 
 
 class Annota:
-    def __init__(self, ctx, run_dir, args=(), settings=None):
+    def __init__(self, ctx, run_dir, args=(), settings=None, gst_debug=None):
         self.ctx = ctx
         self.home = os.path.join(run_dir, "home")
         shutil.rmtree(self.home, ignore_errors=True)
@@ -221,7 +222,7 @@ class Annota:
                    XDG_DATA_HOME=os.path.join(self.home, "data"),
                    XDG_STATE_HOME=os.path.join(self.home, "state"),
                    XDG_CACHE_HOME=os.path.join(self.home, "cache"),
-                   GST_DEBUG=os.environ.get("GST_DEBUG", "pipewiresrc:4,basesrc:4"),
+                   GST_DEBUG=gst_debug or os.environ.get("GST_DEBUG", "pipewiresrc:4,basesrc:4"),
                    GST_DEBUG_NO_COLOR="1")
         if ctx.dev:
             env["GSETTINGS_SCHEMA_DIR"] = ctx.dev["schemas"]
@@ -455,7 +456,7 @@ def export(app, facts, run_dir, rec_dir, export_dir, keep_working=True):
     time.sleep(1.0)
     press_button(win, "Export")
     facts.event("Export pressed")
-    wait(lambda: label_text(win, lambda t: t == "Saved"), 120, "'Saved'")
+    wait(lambda: label_text(win, lambda t: t == "Saved"), 900, "'Saved'")
     facts.event("Saved shown")
     out = sorted(glob.glob(os.path.join(export_dir, "*")))
     facts["exported"] = out
@@ -815,8 +816,75 @@ def s_shortcut(ctx, run_dir, facts):
         annota.stop()
 
 
+def proc_sample(pid):
+    """CPU seconds (user + system, all threads) and RSS in MiB of a process, from /proc."""
+    with open("/proc/%d/stat" % pid) as f:
+        fields = f.read().rsplit(")", 1)[1].split()
+    ticks = os.sysconf("SC_CLK_TCK")
+    cpu = (int(fields[11]) + int(fields[12])) / ticks
+    rss = int(fields[21]) * os.sysconf("SC_PAGE_SIZE") / 2**20
+    return cpu, rss
+
+
+def s_load(ctx, run_dir, facts):
+    """P8: a long screen recording (`--minutes`, default 30) of the whole monitor with microphone
+    and system audio, countdown 0, while a small moving test picture plays (a 960x540 window;
+    the rest of the screen is whatever the user does). Samples Annota's CPU and RSS every 10 s,
+    stops by `--record toggle`, exports MP4 and records Annota's frame counters (stream buffers,
+    videorate in/out/dropped/repeated). The videos are deleted afterwards; only numbers stay."""
+    tone = Tone()
+    movie = subprocess.Popen(
+        ["gst-launch-1.0", "-q", "videotestsrc", "is-live=true", "pattern=ball", "motion=sweep",
+         "!", "video/x-raw,width=960,height=540,framerate=30/1", "!", "autovideosink"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    annota = Annota(ctx, run_dir, ["--record", "screen"],
+                    {"record-countdown": "0", "record-microphone": "true",
+                     "record-system-audio": "true", "include-pointer": "true"},
+                    gst_debug="0")
+    try:
+        app = annota.app()
+        dismiss_shortcut_dialogs(facts)
+        wait(lwc.chooser, 15, "GNOME's chooser")
+        facts["row"] = choose_first(ctx.inp)
+        seen = watch_start(app, facts)
+        t_start = seen["control"]
+        cpu0, rss0 = proc_sample(annota.proc.pid)
+        samples = []
+        end = t_start + ctx.minutes * 60
+        while time.monotonic() - facts.t0 < end:
+            time.sleep(10)
+            cpu, rss = proc_sample(annota.proc.pid)
+            samples.append((round(time.monotonic() - facts.t0 - t_start, 1),
+                            round(cpu - cpu0, 2), round(rss, 1)))
+        facts["samples"] = samples
+        wall = samples[-1][0]
+        facts["cpu_percent_of_one_core"] = round(100 * samples[-1][1] / wall, 1)
+        facts["rss_mib_start"] = round(rss0, 1)
+        facts["rss_mib_max"] = max(r for _, _, r in samples)
+        facts["rss_mib_end"] = samples[-1][2]
+        t_stop = facts.event("--record toggle")
+        facts["toggle_exit"] = annota.cli("--record", "toggle")
+        facts["expected_duration"] = round(t_stop - t_start, 2)
+        facts["exports"], _ = export(app, facts, run_dir, annota.rec_dir, annota.export_dir,
+                                     keep_working=False)
+        for path in facts["exports"]:
+            facts.setdefault("export_analysis", {})[os.path.basename(path)] = analyze(path)
+    finally:
+        tone.stop()
+        if movie.poll() is None:
+            movie.send_signal(signal.SIGINT)
+            try:
+                movie.wait(3)
+            except subprocess.TimeoutExpired:
+                movie.kill()
+        annota.stop()
+        for path in glob.glob(os.path.join(run_dir, "*", "*.m*")) + glob.glob(
+                os.path.join(run_dir, "*", "*.webm")):
+            os.remove(path)
+
+
 SCENARIOS = {"screen": s_screen, "window": s_window, "region": s_region,
-             "desktop-stop": s_desktop_stop, "shortcut": s_shortcut}
+             "desktop-stop": s_desktop_stop, "shortcut": s_shortcut, "load": s_load}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -912,6 +980,8 @@ def main():
     run.add_argument("--dev", action="store_true",
                      help="run _build/src/annota with the build's schema and resources")
     run.add_argument("--work", default=os.path.join(REPO, "_build", "scratch", "live-recording"))
+    run.add_argument("--minutes", type=float, default=30,
+                     help="length of the `load` recording (P8)")
     run.add_argument("--out", default="", help="folder for the JSON facts and logs "
                      "(default: the work folder)")
     an = sub.add_parser("analyze", help="streams, levels and frames of a recording")
@@ -928,6 +998,7 @@ def main():
         return 2
     ctx = Context()
     ctx.work = os.path.abspath(args.work)
+    ctx.minutes = args.minutes
     ctx.out = os.path.abspath(args.out or args.work)
     os.makedirs(ctx.work, exist_ok=True)
     os.makedirs(ctx.out, exist_ok=True)
