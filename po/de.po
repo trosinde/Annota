@@ -3868,3 +3868,55 @@ msgstr "Die Aufnahme konnte nicht exportiert werden. Sie bleibt erhalten."
 #: src/recording/export_window.rs
 msgid "“{name}” ({duration}) will be deleted. This cannot be undone."
 msgstr "„{name}“ ({duration}) wird gelöscht. Das kann nicht rückgängig gemacht werden."
+
+#: src/capture/shortcuts.rs data/ui/preferences.blp data/ui/window.blp
+msgid "Record video"
+msgstr "Video aufnehmen"
+
+#: data/ui/window.blp
+msgid "Record"
+msgstr "Aufzeichnen"
+
+#: data/ui/window.blp
+msgid ""
+"Pick what to capture or record. A capture opens here, ready to mark up. "
+"Every annotation stays editable until you export."
+msgstr ""
+"Wählen Sie, was Sie aufnehmen oder als Video aufzeichnen möchten. Eine "
+"Aufnahme öffnet sich hier, bereit zum Markieren. Jede Anmerkung bleibt bis "
+"zum Export bearbeitbar."
+
+#: data/ui/help-overlay.blp
+msgctxt "shortcut window"
+msgid "Record video"
+msgstr "Video aufnehmen"
+
+#: data/ui/help-overlay.blp
+msgctxt "shortcut window"
+msgid "Recording"
+msgstr "Aufnahme"
+
+#: data/ui/help-overlay.blp
+msgctxt "shortcut window"
+msgid "Pause or resume"
+msgstr "Pausieren oder fortsetzen"
+
+#: data/ui/help-overlay.blp
+msgctxt "shortcut window"
+msgid "Mute or unmute the microphone"
+msgstr "Mikrofon stumm- oder lautschalten"
+
+#: data/ui/help-overlay.blp
+msgctxt "shortcut window"
+msgid "Mute or unmute system audio"
+msgstr "Systemton stumm- oder lautschalten"
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in
+msgid ""
+"Annota also records your screen: a region, a window or the whole screen as a "
+"video, with the microphone and the system audio if you like, saved as MP4 or "
+"WebM."
+msgstr ""
+"Annota zeichnet auch Ihren Bildschirm auf: einen Bereich, ein Fenster oder "
+"den ganzen Bildschirm als Video, auf Wunsch mit Mikrofon und Systemton, "
+"gespeichert als MP4 oder WebM."

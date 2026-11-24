@@ -22,6 +22,7 @@ core scope). Scenario-to-mockup mapping, redlines and platform notes:
 | 12 | [welcome-record-card](../../../docs/design/add-screen-recording/png/12-welcome-record-card-light@1x.png) | Welcome page with the Record card |
 | 13 | [region-not-on-screen](../../../docs/design/add-screen-recording/png/13-region-not-on-screen-light@1x.png) | Toast when the region is not on the chosen screen |
 | 14 | [preferences-record-shortcut](../../../docs/design/add-screen-recording/png/14-preferences-record-shortcut-light@1x.png) | "Record video" row in Preferences › Capture |
+| 15 | [desktop-ended-request](../../../docs/design/add-screen-recording/png/15-desktop-ended-request-light@1x.png) | Toast when the desktop ends the request (Q9, task 4.7) |
 
 Dark and 2× renders sit next to each file (`-dark@1x.png`, `@2x.png`). The out-of-scope screens
 of the first set moved to `docs/design/add-recording-extras/`.
@@ -597,3 +598,42 @@ follow-ups; `src/recording/{export,export_window}.rs`, `data/ui/export-recording
   focuses), so the test restores the minimised control through the window manager (`xdotool
   windowmap`), as a user would; on GNOME `present()` uses the activation protocols.
 
+Phase D2 (Record shortcut, welcome page Record card, toasts, shortcuts window and texts; tasks
+4.5-4.7, 5.6; `src/capture/shortcuts.rs`, `src/application.rs`, `src/preferences.rs`,
+`data/ui/{window,preferences,help-overlay}.blp`, 2026-11-24):
+- **One code path for four shortcuts.** `capture::shortcuts::GlobalShortcut` is `Capture(mode)`
+  or `Record`; the functions that took a `CaptureMode` take `impl Into<GlobalShortcut>`, so the
+  capture callers are unchanged. `record` is bound in the same `BindShortcuts` as the capture
+  IDs, its trigger resolved and marked "Used by GNOME" by the same rules, and its `Activated`
+  runs `app.record toggle`, the action `annota --record toggle` from the GNOME keybinding runs.
+- **Preferred trigger spelling:** the shared `Accel::to_xdg_trigger` writes `<Super><Alt>r` as
+  `ALT+LOGO+r` (Annota's modifier order), not `LOGO+ALT+r` as Q7 wrote it; the XDG shortcuts
+  format does not order modifiers. Not probed with GNOME (P11 bound `Shift+Ctrl+Print`): to be
+  seen in task 6.2.
+- **Keycap order:** keycaps come from `gtk::accelerator_get_label`, which says "Alt+Super+R", so
+  the Record card and the row show `Alt` `Super` `R` where mockups 12 and 14 draw `Super` `Alt`
+  `R`. Kept: the row's `GtkShortcutLabel` orders the keys the same way, and so does every other
+  Annota surface. Pending the maintainer.
+- **The Record card runs `app.record region`, not `toggle`:** idle both open the region overlay in
+  Video mode; while a recording runs, `toggle` would stop it, `region` presents the control
+  (spec "Second recording request"). During a countdown the card does nothing visible.
+- **Stop's tooltip chip** = the Record trigger every surface shows (the portal's report, or the
+  setting on the GNOME-keybinding path), none when it is text, unbound, or held by GNOME (that
+  key does not stop the recording; the launcher's Capture hint follows the same rule).
+- **GNOME-keybinding path, existing setups:** where Annota's GNOME shortcuts were created before
+  `record` existed, its keybinding (`annota --record toggle` on `shortcut-record`) is added at
+  start-up if `custom-keybindings` does not list it and the shortcut is not disabled; otherwise
+  the row would claim a keybinding that does not exist. A user who deletes that keybinding in
+  GNOME Settings gets it back at the next start; disabling it in Preferences keeps it gone.
+- **Toasts (mockups 13, 15):** `Hooks::on_outcome`'s default calls
+  `application::show_recording_message`: `present_window` (the main window, created or shown
+  again), a kit toast without an action, the focus on the Record card. GTK shows the focus ring
+  only after keyboard input, so with a pointer-started flow the focus is there without the ring
+  mockup 13 draws.
+- **Welcome description** keeps `max-width-chars: 52` but is now `halign: center`: with four cards
+  the row is 660 px wide and the label wrapped at the row's width instead of its own (mockup 12
+  wraps after "ready" / "to").
+- **Shortcuts window:** "Record video" in the Capture group with `<Super><Alt>R`, like the capture
+  rows' static defaults there (the window shows no portal triggers; unchanged pattern), and a
+  "Recording" group with the control's `Space`, `M`, `S`. The setup's `Enter`/`Esc` are not
+  listed, as the region overlay's keys are not.

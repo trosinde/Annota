@@ -48,21 +48,65 @@ const CONFLICT_SCHEMAS: [&str; 5] = [
     MEDIA_KEYS_SCHEMA,
 ];
 
-/// Annota settings key holding the accelerator for `mode` (GTK syntax, empty = disabled).
-pub fn settings_key(mode: CaptureMode) -> &'static str {
-    match mode {
-        CaptureMode::Region => "shortcut-region",
-        CaptureMode::Window => "shortcut-window",
-        CaptureMode::Screen => "shortcut-screen",
+/// One of Annota's global shortcuts: the three capture modes and "Record video"
+/// (add-screen-recording, ID `record`). All four go through the same code: one portal bind, one
+/// set of GNOME custom keybindings on the fallback path, one rule for what the surfaces show.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GlobalShortcut {
+    Capture(CaptureMode),
+    Record,
+}
+
+impl GlobalShortcut {
+    /// Every shortcut, in the order of the Preferences rows and the welcome cards.
+    pub const ALL: [GlobalShortcut; 4] = [
+        Self::Capture(CaptureMode::Region),
+        Self::Capture(CaptureMode::Window),
+        Self::Capture(CaptureMode::Screen),
+        Self::Record,
+    ];
+
+    /// The GlobalShortcuts portal's shortcut ID: `region`, `window`, `screen`, `record`.
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Capture(mode) => mode.as_str(),
+            Self::Record => "record",
+        }
+    }
+
+    /// Inverse of [`GlobalShortcut::id`].
+    pub fn parse(id: &str) -> Option<Self> {
+        match id {
+            "record" => Some(Self::Record),
+            other => CaptureMode::parse(other).map(Self::Capture),
+        }
     }
 }
 
-/// Row title in Preferences, also the conflict name for Annota's own shortcuts.
-pub fn mode_title(mode: CaptureMode) -> String {
-    match mode {
-        CaptureMode::Region => gettext("Region capture"),
-        CaptureMode::Window => gettext("Window capture"),
-        CaptureMode::Screen => gettext("Screen capture"),
+impl From<CaptureMode> for GlobalShortcut {
+    fn from(mode: CaptureMode) -> Self {
+        Self::Capture(mode)
+    }
+}
+
+/// Annota settings key holding the accelerator for `shortcut` (GTK syntax, empty = disabled).
+pub fn settings_key(shortcut: impl Into<GlobalShortcut>) -> &'static str {
+    match shortcut.into() {
+        GlobalShortcut::Capture(CaptureMode::Region) => "shortcut-region",
+        GlobalShortcut::Capture(CaptureMode::Window) => "shortcut-window",
+        GlobalShortcut::Capture(CaptureMode::Screen) => "shortcut-screen",
+        GlobalShortcut::Record => "shortcut-record",
+    }
+}
+
+/// Row title in Preferences, also the conflict name for Annota's own shortcuts and the
+/// description the portal shows for the shortcut.
+pub fn mode_title(shortcut: impl Into<GlobalShortcut>) -> String {
+    match shortcut.into() {
+        GlobalShortcut::Capture(CaptureMode::Region) => gettext("Region capture"),
+        GlobalShortcut::Capture(CaptureMode::Window) => gettext("Window capture"),
+        GlobalShortcut::Capture(CaptureMode::Screen) => gettext("Screen capture"),
+        GlobalShortcut::Record => gettext("Record video"),
     }
 }
 
@@ -175,13 +219,17 @@ pub struct KeybindingEntry {
     pub binding: String,
 }
 
-pub fn keybinding_path(mode: CaptureMode) -> String {
-    format!("{CUSTOM_KEYBINDINGS_BASE}annota-{}/", mode.as_str())
+pub fn keybinding_path(shortcut: impl Into<GlobalShortcut>) -> String {
+    format!("{CUSTOM_KEYBINDINGS_BASE}annota-{}/", shortcut.into().id())
 }
 
-/// The command a GNOME keybinding runs, e.g. `annota --capture region`.
-pub fn capture_command(program: &str, mode: CaptureMode) -> String {
-    format!("{program} --capture {}", mode.as_str())
+/// The command a GNOME keybinding runs, e.g. `annota --capture region`; Record runs
+/// `annota --record toggle`, which acts as the Record shortcut.
+pub fn shortcut_command(program: &str, shortcut: impl Into<GlobalShortcut>) -> String {
+    match shortcut.into() {
+        GlobalShortcut::Capture(mode) => format!("{program} --capture {}", mode.as_str()),
+        GlobalShortcut::Record => format!("{program} --record toggle"),
+    }
 }
 
 /// How the keybinding refers to Annota: plain `annota` when the running binary is the one on
@@ -208,19 +256,20 @@ pub fn program_for_keybinding(exe: Option<&Path>, path_env: Option<&OsStr>) -> S
 }
 
 /// Keybinding entries for all enabled shortcuts.
-pub fn keybinding_entries(
-    accels: &[(CaptureMode, String)],
+pub fn keybinding_entries<M: Copy + Into<GlobalShortcut>>(
+    accels: &[(M, String)],
     program: &str,
-    name: impl Fn(CaptureMode) -> String,
+    name: impl Fn(GlobalShortcut) -> String,
 ) -> Vec<KeybindingEntry> {
     accels
         .iter()
         .filter_map(|(mode, accel)| {
             let accel = Accel::parse(accel)?;
+            let shortcut: GlobalShortcut = (*mode).into();
             Some(KeybindingEntry {
-                path: keybinding_path(*mode),
-                name: name(*mode),
-                command: capture_command(program, *mode),
+                path: keybinding_path(shortcut),
+                name: name(shortcut),
+                command: shortcut_command(program, shortcut),
                 binding: accel.to_gtk(),
             })
         })
@@ -349,9 +398,9 @@ pub fn gnome_keybindings_supported() -> bool {
     schema(MEDIA_KEYS_SCHEMA).is_some() && schema(CUSTOM_KEYBINDING_SCHEMA).is_some()
 }
 
-/// Accelerators currently configured in Annota, one per mode (empty = disabled).
-pub fn configured_accels(settings: &gio::Settings) -> Vec<(CaptureMode, String)> {
-    CaptureMode::ALL
+/// Accelerators currently configured in Annota, one per shortcut (empty = disabled).
+pub fn configured_accels(settings: &gio::Settings) -> Vec<(GlobalShortcut, String)> {
+    GlobalShortcut::ALL
         .into_iter()
         .map(|mode| (mode, settings.string(settings_key(mode)).to_string()))
         .collect()
@@ -482,11 +531,11 @@ fn program() -> String {
 }
 
 /// The command Annota's GNOME keybinding for `mode` runs (shown in Preferences, mockup 10).
-pub fn keybinding_command(mode: CaptureMode) -> String {
-    capture_command(&program(), mode)
+pub fn keybinding_command(mode: impl Into<GlobalShortcut>) -> String {
+    shortcut_command(&program(), mode)
 }
 
-fn keybinding_name(mode: CaptureMode) -> String {
+fn keybinding_name(mode: GlobalShortcut) -> String {
     format!("Annota: {}", mode_title(mode))
 }
 
@@ -513,12 +562,61 @@ pub fn create_gnome_shortcuts(settings: &gio::Settings) -> Result<usize, Shortcu
     Ok(entries.len())
 }
 
+/// GNOME-keybinding path: "Record video" came after the capture shortcuts (add-screen-recording).
+/// Where Annota's GNOME shortcuts were created before it existed, its keybinding is added once
+/// the user had agreed to Annota's GNOME shortcuts, so the Preferences row that says "GNOME
+/// shortcut · runs annota --record toggle" is true. Nothing happens if it is listed already or the
+/// shortcut is disabled.
+fn add_record_keybinding(settings: &gio::Settings) -> Result<(), ShortcutError> {
+    if !gnome_keybindings_supported() {
+        return Ok(());
+    }
+    let path = keybinding_path(GlobalShortcut::Record);
+    let listed = gio::Settings::new(MEDIA_KEYS_SCHEMA)
+        .strv("custom-keybindings")
+        .iter()
+        .any(|p| p.as_str() == path);
+    if listed {
+        return Ok(());
+    }
+    let accels = [(
+        GlobalShortcut::Record,
+        settings
+            .string(settings_key(GlobalShortcut::Record))
+            .to_string(),
+    )];
+    write_custom_keybindings(
+        &keybinding_entries(&accels, &program(), keybinding_name),
+        &[],
+    )
+}
+
+/// The Record shortcut's trigger for the Recording control's Stop tooltip chip, as every other
+/// surface shows it (the portal's report, or the setting on the GNOME-keybinding path); `None`
+/// when there is none to show as keys, or when GNOME's own keybinding holds it, since that key
+/// then does not stop the recording (as the launcher's Capture hint, fix-portal-shortcut-bindings
+/// mockup 06b).
+pub fn record_trigger() -> Option<String> {
+    let shown = shown_triggers()
+        .into_iter()
+        .find(|(shortcut, _)| *shortcut == GlobalShortcut::Record)?
+        .1;
+    match shown {
+        Shown {
+            trigger: ShownTrigger::Accel(accel),
+            taken_by: None,
+        } => Some(accel),
+        _ => None,
+    }
+}
+
 /// Applies a shortcut change made in the Set Shortcut dialog. `new_accel` empty disables it.
 pub fn change_shortcut(
     settings: &gio::Settings,
-    mode: CaptureMode,
+    mode: impl Into<GlobalShortcut>,
     new_accel: &str,
 ) -> Result<(), ShortcutError> {
+    let mode = mode.into();
     let old_accel = settings.string(settings_key(mode)).to_string();
     settings.set_string(settings_key(mode), new_accel)?;
     if settings.boolean("gnome-shortcuts-created") {
@@ -549,9 +647,10 @@ pub fn change_shortcut(
 pub fn find_conflict(
     settings: &gio::Settings,
     app: Option<&gtk::Application>,
-    mode: CaptureMode,
+    mode: impl Into<GlobalShortcut>,
     accel: &str,
 ) -> Option<Conflict> {
+    let mode = mode.into();
     let own: Vec<(String, Vec<String>)> = configured_accels(settings)
         .into_iter()
         .filter(|(other, _)| *other != mode)
@@ -835,9 +934,10 @@ pub fn trigger_from_description(description: &str) -> ShownTrigger {
 pub fn resolve_trigger(
     path: ShortcutPath,
     bound: Option<&BoundTriggers>,
-    mode: CaptureMode,
+    mode: impl Into<GlobalShortcut>,
     setting: &str,
 ) -> ShownTrigger {
+    let mode = mode.into();
     match path {
         ShortcutPath::Unknown => ShownTrigger::Pending,
         ShortcutPath::Fallback if Accel::parse(setting).is_some() => {
@@ -847,7 +947,7 @@ pub fn resolve_trigger(
         ShortcutPath::Portal => match bound {
             None => ShownTrigger::Pending,
             Some(bound) => bound
-                .get(mode.as_str())
+                .get(mode.id())
                 .map_or(ShownTrigger::NotSet, |d| trigger_from_description(d)),
         },
     }
@@ -863,13 +963,13 @@ pub fn shortcut_path(settings: &gio::Settings) -> ShortcutPath {
     }
 }
 
-/// What Preferences, the launcher and the welcome page show for every mode, in
-/// [`CaptureMode::ALL`] order. GNOME's keybindings are read at most once for all three (N8).
-pub fn shown_triggers() -> [(CaptureMode, Shown); 3] {
+/// What Preferences, the launcher and the welcome page show for every shortcut, in
+/// [`GlobalShortcut::ALL`] order. GNOME's keybindings are read at most once for all (N8).
+pub fn shown_triggers() -> [(GlobalShortcut, Shown); 4] {
     let settings = gio::Settings::new(config::APP_ID);
     let path = shortcut_path(&settings);
     let mut bindings: Option<Rc<Vec<GnomeBinding>>> = None;
-    CaptureMode::ALL.map(|mode| {
+    GlobalShortcut::ALL.map(|mode| {
         let trigger = BOUND.with(|bound| {
             resolve_trigger(
                 path,
@@ -888,9 +988,10 @@ pub fn shown_triggers() -> [(CaptureMode, Shown); 3] {
     })
 }
 
-/// [`shown_triggers`] for one mode.
+/// [`shown_triggers`] for one shortcut.
 #[cfg(test)]
-pub fn shown_trigger(mode: CaptureMode) -> Shown {
+pub fn shown_trigger(mode: impl Into<GlobalShortcut>) -> Shown {
+    let mode = mode.into();
     shown_triggers()
         .into_iter()
         .find(|(m, _)| *m == mode)
@@ -1145,6 +1246,9 @@ pub fn portal_active() -> bool {
 pub fn start_portal_shortcuts(app: &adw::Application) {
     let settings = gio::Settings::new(config::APP_ID);
     if settings.boolean("gnome-shortcuts-created") {
+        if let Err(err) = add_record_keybinding(&settings) {
+            eprintln!("annota: could not add the Record video GNOME shortcut: {err}");
+        }
         return;
     }
     PORTAL_APP.with(|cell| cell.replace(Some(app.downgrade())));
@@ -1208,10 +1312,7 @@ async fn run_portal_shortcuts(
         .filter_map(|(mode, accel)| {
             let accel = Accel::parse(&accel)?;
             let trigger = accel.to_xdg_trigger();
-            Some(
-                NewShortcut::new(mode.as_str(), mode_title(mode))
-                    .preferred_trigger(trigger.as_str()),
-            )
+            Some(NewShortcut::new(mode.id(), mode_title(mode)).preferred_trigger(trigger.as_str()))
         })
         .collect();
     if shortcuts.is_empty() {
@@ -1263,10 +1364,21 @@ async fn run_portal_shortcuts(
         }
         match event {
             PortalEvent::Activated(id) => {
-                let (Some(app), Some(mode)) = (app.upgrade(), CaptureMode::parse(&id)) else {
+                let (Some(app), Some(shortcut)) = (app.upgrade(), GlobalShortcut::parse(&id))
+                else {
                     continue;
                 };
-                app.activate_action("capture", Some(&mode.as_str().to_variant()));
+                match shortcut {
+                    GlobalShortcut::Capture(mode) => {
+                        app.activate_action("capture", Some(&mode.as_str().to_variant()))
+                    }
+                    // The Record shortcut (add-screen-recording D7): toggle semantics, the same
+                    // action `annota --record toggle` runs on the GNOME-keybinding path.
+                    GlobalShortcut::Record => app.activate_action(
+                        "record",
+                        Some(&crate::cli::RecordMode::Toggle.as_str().to_variant()),
+                    ),
+                }
             }
             PortalEvent::Changed(shortcuts) => {
                 LAST_CHANGE.with(|last| last.set(Some(Instant::now())));
@@ -1361,7 +1473,7 @@ mod tests {
             (CaptureMode::Window, s("<Alt>Print")),
             (CaptureMode::Screen, s("")),
         ];
-        let entries = keybinding_entries(&accels, "annota", |m| format!("Annota: {}", m.as_str()));
+        let entries = keybinding_entries(&accels, "annota", |m| format!("Annota: {}", m.id()));
         assert_eq!(entries.len(), 2);
         assert_eq!(
             entries[0],
@@ -1377,6 +1489,91 @@ mod tests {
         // The command is accepted by Annota's own command line.
         let mode = entries[0].command.rsplit(' ').next().unwrap();
         assert_eq!(CaptureMode::parse(mode), Some(CaptureMode::Region));
+    }
+
+    // spec: screen-recording / Record shortcut / Record shortcut on GNOME 46
+    #[test]
+    fn the_record_keybinding_runs_annota_record_toggle() {
+        // The schema's default is the preferred trigger Super+Alt+R (design.md Q7).
+        let schema = include_str!("../../data/io.github.trosinde.Annota.gschema.xml");
+        let key = format!(
+            "<key name=\"{}\" type=\"s\">",
+            settings_key(GlobalShortcut::Record)
+        );
+        let at = schema.find(&key).expect("shortcut-record in the schema");
+        assert!(schema[at..].contains("<default>'&lt;Super&gt;&lt;Alt&gt;r'</default>"));
+        let accels = vec![
+            (GlobalShortcut::Capture(CaptureMode::Region), s("Print")),
+            (GlobalShortcut::Record, s("<Super><Alt>r")),
+        ];
+        let entries = keybinding_entries(&accels, "annota", |m| format!("Annota: {}", m.id()));
+        assert_eq!(entries.len(), 2);
+        assert_eq!(
+            entries[1],
+            KeybindingEntry {
+                path: s("/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/annota-record/"),
+                name: s("Annota: record"),
+                command: s("annota --record toggle"),
+                // Super+Alt+R in GTK's canonical spelling.
+                binding: s("<Alt><Super>r"),
+            }
+        );
+        assert!(same_accel(&entries[1].binding, "<Super><Alt>r"));
+        // The command is accepted by Annota's own command line, as the Record shortcut.
+        let mode = entries[1].command.rsplit(' ').next().unwrap();
+        assert_eq!(
+            crate::cli::RecordMode::parse(mode),
+            Some(crate::cli::RecordMode::Toggle)
+        );
+        // Disabled: no keybinding.
+        let none = keybinding_entries(&[(GlobalShortcut::Record, s(""))], "annota", |_| s("x"));
+        assert!(none.is_empty());
+        // The portal gets the same preferred trigger in the XDG spelling (modifiers unordered).
+        assert_eq!(
+            Accel::parse("<Super><Alt>r").unwrap().to_xdg_trigger(),
+            "ALT+LOGO+r"
+        );
+        // One ID per shortcut, `record` among them.
+        for shortcut in GlobalShortcut::ALL {
+            assert_eq!(GlobalShortcut::parse(shortcut.id()), Some(shortcut));
+        }
+        assert_eq!(GlobalShortcut::Record.id(), "record");
+    }
+
+    // spec: screen-recording / Record shortcut / Record row shows the portal's trigger
+    // spec: screen-recording / Record shortcut / Portal assigns a different record trigger
+    #[test]
+    fn the_record_row_shows_the_portals_record_trigger() {
+        let preferred = "<Super><Alt>r";
+        let reported = bound(&[("record", "Press <Control><Alt>r")]);
+        assert_eq!(
+            resolve_trigger(
+                ShortcutPath::Portal,
+                Some(&reported),
+                GlobalShortcut::Record,
+                preferred
+            ),
+            ShownTrigger::Accel(s("<Control><Alt>r"))
+        );
+        let moved = bound(&[("record", "Press <Control>w")]);
+        let shown = resolve_trigger(
+            ShortcutPath::Portal,
+            Some(&moved),
+            GlobalShortcut::Record,
+            preferred,
+        );
+        assert_eq!(shown, ShownTrigger::Accel(s("<Control>w")));
+        assert_ne!(shown, ShownTrigger::Accel(s(preferred)));
+        // Not bound at all: nothing, never the preferred trigger.
+        assert_eq!(
+            resolve_trigger(
+                ShortcutPath::Portal,
+                Some(&bound(&[("region", "Press Print")])),
+                GlobalShortcut::Record,
+                preferred
+            ),
+            ShownTrigger::NotSet
+        );
     }
 
     #[test]

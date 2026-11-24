@@ -26,7 +26,8 @@ use gtk::{gdk, gio, glib};
 use super::*;
 use crate::capture::frame::Frame;
 use crate::capture::live_tests::{
-    find, portal_path, respond, scene, shot, Question, Scene, SCREENCAST_XML,
+    add_global_shortcuts, bind_through_the_portal, find, holds, portal_path, respond, scene, shot,
+    GlobalShortcutsPortal, Question, Scene, SCREENCAST_XML,
 };
 use crate::capture::overlay::{self, Desktop, Mode, Outcome};
 use crate::capture::window_wait;
@@ -422,6 +423,67 @@ fn outcomes(seen: &Seen) -> Vec<StartOutcome> {
     seen.outcomes.borrow().clone()
 }
 
+/// The real outcome handling (the toast of mockups 13 and 15) behind `seen`'s note.
+fn show_outcomes(seen: &Rc<Seen>) {
+    let seen = seen.clone();
+    let real = Hooks::default().on_outcome;
+    set_hooks(move |hooks| {
+        hooks.on_outcome = Rc::new(move |app, outcome| {
+            seen.outcomes.borrow_mut().push(outcome.clone());
+            real(app, outcome);
+        });
+    });
+}
+
+/// Annota's main window (the welcome page), if one exists.
+fn main_window(app: &adw::Application) -> Option<adw::ApplicationWindow> {
+    app.windows()
+        .into_iter()
+        .find_map(|w| w.downcast::<adw::ApplicationWindow>().ok())
+}
+
+/// Whether `window` shows a kit toast with exactly this text and no action button (mockups 13,
+/// 15).
+fn shows_toast(window: &impl IsA<gtk::Widget>, text: &str) -> bool {
+    holds(window.as_ref(), &|toast| {
+        toast.type_().name() == "AdwToastWidget"
+            && holds(toast, &|w| {
+                w.downcast_ref::<gtk::Label>()
+                    .is_some_and(|l| l.is_visible() && l.text() == text)
+            })
+            && !holds(toast, &|w| {
+                w.downcast_ref::<gtk::Button>()
+                    .is_some_and(|b| b.is_visible() && b.label().is_some())
+            })
+    })
+}
+
+/// The toast of mockup 13 or 15: shown in the main window, which is on the screen, with the
+/// keyboard focus on the welcome page's Record card.
+fn assert_recording_toast(app: &adw::Application, text: &str) {
+    wait_for(
+        || main_window(app).is_some_and(|w| w.is_visible() && shows_toast(&w, text)),
+        "the toast in the main window",
+    );
+    let window = main_window(app).unwrap();
+    let card: gtk::Button = find(&window, "welcome_record_card").unwrap();
+    assert!(
+        gtk::prelude::GtkWindowExt::focus(&window).as_ref() == Some(card.upcast_ref()),
+        "the keyboard focus is back on the Record card"
+    );
+}
+
+/// The GlobalShortcuts stand-in with `record` bound to Super+Alt+R, and Annota's shortcuts bound
+/// through it (the Record shortcut's `Activated` reaches `app.record toggle`).
+fn record_shortcut(scene: &Scene) -> GlobalShortcutsPortal {
+    let portal = add_global_shortcuts(&[
+        ("region", "Press <Shift><Control>p"),
+        ("record", "Press <Super><Alt>r"),
+    ]);
+    bind_through_the_portal(scene);
+    portal
+}
+
 /// Scenarios "Waiting indicator with one monitor", "Waiting indicator is not recorded" and
 /// "Record the screen": `--record screen` on one monitor shows "Waiting for a screen…" until
 /// Start answers; the indicator is unmapped before the video source exists and before its first
@@ -696,6 +758,7 @@ fn rec_cancel_in_the_indicator_closes_the_session() {
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
 fn rec_a_session_closed_while_waiting_ends_the_request_at_once() {
     let (scene, seen, folder) = recording_scene("rec-closed-waiting", false);
+    show_outcomes(&seen);
     let cast = add_cast(&scene, 7, screen_stream());
     start(
         &scene.app,
@@ -716,6 +779,13 @@ fn rec_a_session_closed_while_waiting_ends_the_request_at_once() {
         Some(DESKTOP_ENDED)
     );
     assert!(!is_active());
+    // Mockup 15: the toast in the main window (created, as none was open), the focus on the
+    // Record card.
+    assert_recording_toast(&scene.app, DESKTOP_ENDED);
+    scheme_shots(
+        &main_window(&scene.app).unwrap(),
+        "15-desktop-ended-request",
+    );
     // The late answer changes nothing.
     cast.answer(0);
     pump(800);
@@ -733,6 +803,11 @@ fn rec_a_session_closed_while_waiting_ends_the_request_at_once() {
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
 fn rec_a_region_off_the_chosen_screen_closes_the_session() {
     let (scene, seen, folder) = recording_scene("rec-region-off", false);
+    show_outcomes(&seen);
+    // The main window exists but is off the screen (hidden for the setup): it is presented.
+    let main = crate::application::present_window(&scene.app);
+    pump(200);
+    main.set_visible(false);
     let stream = screen_stream();
     let cast = add_cast(&scene, 7, stream);
     cast.auto.set(Some(0));
@@ -749,6 +824,14 @@ fn rec_a_region_off_the_chosen_screen_closes_the_session() {
     assert!(seen.built.get().is_none(), "no stream opened");
     assert!(files_in(&folder).is_empty(), "nothing written");
     assert!(!is_active());
+    // Mockup 13: the toast in the main window, presented again, focus on the Record card.
+    assert_recording_toast(&scene.app, NOT_ON_SCREEN);
+    assert_eq!(
+        main_window(&scene.app).as_ref(),
+        Some(&main),
+        "the same window"
+    );
+    scheme_shots(&main, "13-region-not-on-screen");
 }
 
 /// Scenarios "Record a window" and "Recorded window closed": "Waiting for a window…" goes when a
@@ -1572,9 +1655,10 @@ fn the_setup_is_placed_clear_of_the_pill() {
     assert_eq!(pill_rect(true, pill_size, area).y, 24.0);
 }
 
-/// Scenarios "Shortcut opens the setup" and "Cancel the setup": `--record toggle` with nothing
-/// running (the action the GNOME-keybinding fallback runs, and the Record shortcut's entry)
-/// opens the region overlay in Video mode with the setup; `Esc` closes it with no
+/// Scenarios "Shortcut opens the setup" and "Cancel the setup": the Record shortcut (the
+/// GlobalShortcuts portal's `Activated` for `record`) with nothing running opens the region
+/// overlay in Video mode with the setup, as does `--record toggle` (what the GNOME keybinding
+/// runs without the portal); `Esc` closes it with no
 /// screen-sharing session requested and nothing written. `--record region` opens the same.
 // spec: screen-recording / Record shortcut / Shortcut opens the setup
 // spec: screen-recording / Recording setup / Cancel the setup
@@ -1584,11 +1668,11 @@ fn rec_the_record_shortcut_opens_the_setup_and_esc_cancels_it() {
     let (scene, seen, folder) = recording_scene("rec-shortcut-setup", false);
     let cast = add_cast(&scene, 7, screen_stream());
     crate::application::setup_actions(&scene.app);
+    let shortcut = record_shortcut(&scene);
     let main = crate::application::present_window(&scene.app);
     pump(200);
-    scene
-        .app
-        .activate_action("record", Some(&RecordMode::Toggle.as_str().to_variant()));
+    // The user presses the Record shortcut: the portal's `Activated` for `record`.
+    shortcut.activate("record");
     let window = wait_for_overlay(&scene.app);
     let view = setup_view(&window);
     assert!(view.video.is_active(), "opens in Video mode");
@@ -1606,6 +1690,16 @@ fn rec_the_record_shortcut_opens_the_setup_and_esc_cancels_it() {
     assert!(!is_active());
     assert!(main.is_visible(), "Annota's window is back");
 
+    // `--record toggle` (what the GNOME keybinding runs without the portal) opens the same.
+    scene
+        .app
+        .activate_action("record", Some(&RecordMode::Toggle.as_str().to_variant()));
+    let window = wait_for_overlay(&scene.app);
+    assert!(setup_view(&window).video.is_active());
+    assert!(press(&window, gdk::Key::Escape));
+    wait_for(|| !capture::busy(), "the overlay to close");
+    pump(300);
+
     // `--record region` opens the same setup.
     scene
         .app
@@ -1617,6 +1711,96 @@ fn rec_the_record_shortcut_opens_the_setup_and_esc_cancels_it() {
     assert!(overlay_window(&scene.app).is_none());
     pump(300);
     assert!(cast.calls().is_empty());
+}
+
+/// Scenario "Record card starts the recording setup" (app-shell, mockup 12): the welcome page
+/// has a fourth card, Record, after Screen, the same size as the others, Region keeping the
+/// initial focus; its keycaps show the Record shortcut's trigger as the portal reports it.
+/// Activating it opens the region overlay in Video mode with the setup, as the Record shortcut
+/// does. While a recording runs, the card presents the Recording control and requests nothing
+/// ("Second recording request", whose Record-card half this is).
+// spec: app-shell / Welcome page / Record card starts the recording setup
+// spec: screen-recording / Recording control / Second recording request
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_the_record_card_starts_the_recording_setup() {
+    let (scene, seen, folder) = recording_scene("rec-record-card", false);
+    let cast = add_cast(&scene, 7, screen_stream());
+    crate::application::setup_actions(&scene.app);
+    let _shortcut = record_shortcut(&scene);
+    let main = crate::application::present_window(&scene.app);
+    pump(300);
+    let card: gtk::Button = find(&main, "welcome_record_card").expect("the Record card");
+    let region: gtk::Button = find(&main, "welcome_region_card").unwrap();
+    assert!(region.has_focus(), "Region keeps the initial focus");
+    let cards: Vec<gtk::Widget> =
+        std::iter::successors(region.parent().unwrap().first_child(), |c| c.next_sibling())
+            .collect();
+    assert_eq!(cards.len(), 4, "four cards");
+    assert_eq!(
+        cards[3],
+        *card.upcast_ref::<gtk::Widget>(),
+        "Record is the last card"
+    );
+    for other in &cards {
+        assert_eq!(
+            (other.width(), other.height()),
+            (card.width(), card.height()),
+            "the same size"
+        );
+    }
+    assert!(card.width() >= 156 && card.height() >= 108, "156 × 108");
+    let keys: gtk::Widget = find(&main, "welcome_record_keys").unwrap();
+    let texts: Vec<String> = std::iter::successors(keys.first_child(), |c| c.next_sibling())
+        .filter_map(|c| c.downcast::<gtk::Label>().ok())
+        .map(|l| l.text().to_string())
+        .collect();
+    assert_eq!(texts, ["Alt", "Super", "R"], "the portal's record trigger");
+    let description = "Pick what to capture or record. A capture opens here, ready to mark up. \
+                       Every annotation stays editable until you export.";
+    assert!(holds(main.upcast_ref(), &|w| w
+        .downcast_ref::<gtk::Label>()
+        .is_some_and(|l| l.text() == description)));
+    scheme_shots(&main, "12-welcome-record-card");
+
+    card.emit_clicked();
+    let window = wait_for_overlay(&scene.app);
+    let view = setup_view(&window);
+    assert!(view.video.is_active(), "opens in Video mode");
+    assert!(on_screen(&view.setup), "with the setup");
+    assert!(!is_active(), "nothing requested yet");
+    assert!(press(&window, gdk::Key::Escape));
+    wait_for(|| !capture::busy(), "the overlay to close");
+    pump(300);
+    assert!(cast.calls().is_empty());
+    assert!(files_in(&folder).is_empty());
+
+    // While a recording runs: the control is presented, nothing new starts.
+    cast.auto.set(Some(0));
+    start(
+        &scene.app,
+        RecordRequest {
+            mode: RecordMode::Screen,
+        },
+    );
+    let view = wait_for_control();
+    let (_, presented) = control::requests();
+    card.emit_clicked();
+    pump(500);
+    assert_eq!(
+        control::requests().1,
+        presented + 1,
+        "the control is presented"
+    );
+    assert!(overlay_window(&scene.app).is_none(), "no overlay");
+    assert_eq!(cast.count("CreateSession"), 1, "no second session");
+    assert!(running().is_some(), "the recording goes on");
+    assert_eq!(control::shown().as_ref(), Some(&view.window));
+    assert!(stop());
+    wait_for(
+        || !seen.ended.borrow().is_empty(),
+        "the recording to finish",
+    );
 }
 
 /// Scenario "Choices are remembered": System audio on, countdown 5 s and source Screen, then
@@ -1864,6 +2048,7 @@ fn rec_the_countdown_is_cancelled_by_esc_and_by_the_shortcut() {
     let cast = add_cast(&scene, 7, screen_stream());
     cast.auto.set(Some(0));
     crate::application::setup_actions(&scene.app);
+    let shortcut = record_shortcut(&scene);
     real_countdown(5);
     let screen = || {
         start(
@@ -1890,13 +2075,11 @@ fn rec_the_countdown_is_cancelled_by_esc_and_by_the_shortcut() {
     assert!(seen.built.get().is_none() && files_in(&folder).is_empty());
     assert!(!is_active());
 
-    // The Record shortcut (`--record toggle`).
+    // The Record shortcut (the portal's `Activated` for `record`).
     screen();
     wait_for(|| countdown_window(&scene.app).is_some(), "the countdown");
     pump(300);
-    scene
-        .app
-        .activate_action("record", Some(&RecordMode::Toggle.as_str().to_variant()));
+    shortcut.activate("record");
     wait_for(|| outcomes(&seen).len() == 2, "the outcome");
     assert_eq!(outcomes(&seen)[1], StartOutcome::Cancelled);
     cast.reaches("Session.Close", 2);
@@ -2116,6 +2299,18 @@ fn elapsed_now() -> f64 {
 
 /// With `ANNOTA_SHOT_DIR` set, saves the control's window on the kit's `--desktop-bg`, in the
 /// light and the dark colour scheme (`<name>-light.png`, `<name>-dark.png`).
+/// [`shot`] of `widget` in the light and the dark scheme (`<name>-light`, `<name>-dark`).
+fn scheme_shots(widget: &impl IsA<gtk::Widget>, name: &str) {
+    if std::env::var_os("ANNOTA_SHOT_DIR").is_none() {
+        return;
+    }
+    for (dark, scheme) in [(false, "light"), (true, "dark")] {
+        set_scheme(dark);
+        shot(widget, &format!("{name}-{scheme}"));
+    }
+    set_scheme(false);
+}
+
 fn control_shots(window: &gtk::Window, name: &str) {
     let Some(dir) = std::env::var_os("ANNOTA_SHOT_DIR") else {
         return;
@@ -2351,8 +2546,8 @@ fn rec_the_control_shows_the_time_and_minimizes() {
 /// `CreateSession` in all, no overlay. A microphone-only recording has no System audio button;
 /// one without audio has neither button nor their separator. With a window manager (twm) and
 /// another window active, the requests make the control the active window again. Scenario
-/// "Stop by hotkey": the Record shortcut (toggle) stops the recording, while it runs and while
-/// it is paused (then it lasts until the pause), the control goes with it and the Export
+/// "Stop by hotkey": the Record shortcut (the portal's `Activated` for `record`; `--record
+/// toggle` from the GNOME keybinding) stops the recording, while it runs and while it is paused (then it lasts until the pause), the control goes with it and the Export
 /// Recording window opens for it.
 // spec: screen-recording / Recording control / Second recording request
 // spec: screen-recording / Stop recording / Stop by hotkey
@@ -2363,6 +2558,7 @@ fn rec_a_second_recording_request_presents_the_control() {
     let cast = add_cast(&scene, 7, screen_stream());
     cast.auto.set(Some(0));
     crate::application::setup_actions(&scene.app);
+    let shortcut = record_shortcut(&scene);
     scene
         .app
         .activate_action("record", Some(&RecordMode::Screen.as_str().to_variant()));
@@ -2412,11 +2608,12 @@ fn rec_a_second_recording_request_presents_the_control() {
     assert!(running().is_some());
     assert_eq!(control::shown().as_ref(), Some(&view.window));
 
-    // The Record shortcut while recording: ends it as Stop.
-    scene
-        .app
-        .activate_action("record", Some(&RecordMode::Toggle.as_str().to_variant()));
-    assert!(control::shown().is_none(), "the control disappears");
+    // Stop's tooltip chip: the Record shortcut's trigger as the portal reports it.
+    assert_eq!((hooks().record_trigger)().as_deref(), Some("<Super><Alt>r"));
+    // The Record shortcut (the portal's `Activated` for `record`) while recording: ends it as
+    // Stop.
+    shortcut.activate("record");
+    wait_for(|| control::shown().is_none(), "the control to disappear");
     wait_for(
         || !seen.ended.borrow().is_empty(),
         "the recording to finish",
@@ -2446,6 +2643,7 @@ fn rec_a_second_recording_request_presents_the_control() {
         .unwrap());
     let paused_at = elapsed_now();
     pump(600);
+    // Paused, by `--record toggle` (what the GNOME keybinding runs without the portal).
     scene
         .app
         .activate_action("record", Some(&RecordMode::Toggle.as_str().to_variant()));

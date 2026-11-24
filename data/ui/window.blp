@@ -369,9 +369,11 @@ Adw.ApplicationWindow window {
             }
 
             Label {
-              label: _("Pick what to capture. The capture opens in the editor, ready to mark up. Every annotation stays editable until you export.");
+              label: _("Pick what to capture or record. A capture opens here, ready to mark up. Every annotation stays editable until you export.");
               wrap: true;
               justify: center;
+              // Wraps at its own width, not at the four cards' (mockup 12).
+              halign: center;
               max-width-chars: 52;
               margin-top: 12;
             }
@@ -456,6 +458,34 @@ Adw.ApplicationWindow window {
                   }
 
                   Box welcome_screen_keys {
+                    halign: center;
+                    spacing: 4;
+                    styles ["annota-welcome-keys"]
+                  }
+                };
+              }
+
+              // add-screen-recording mockup 12: the recording setup (the Record shortcut's).
+              Button welcome_record_card {
+                tooltip-text: _("Record video");
+                styles ["card", "annota-mode-card"]
+
+                child: Box {
+                  orientation: vertical;
+                  spacing: 6;
+                  valign: center;
+
+                  Image {
+                    icon-name: "annota-record-symbolic";
+                    pixel-size: 32;
+                  }
+
+                  Label {
+                    label: _("Record");
+                    styles ["heading"]
+                  }
+
+                  Box welcome_record_keys {
                     halign: center;
                     spacing: 4;
                     styles ["annota-welcome-keys"]

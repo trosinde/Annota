@@ -6,6 +6,8 @@ Each row maps to an OpenSpec change in `openspec/changes/`. Feasibility refers t
 
 Legend — Phase: **MVP** (0.1) · **P2** (0.2–0.4) · **P3** (0.5+) · ✗ not planned
 Feasibility: 🟢 straightforward · 🟡 platform limits/extra work · 🔴 hard
+Status (where a table has the column): **implemented** = built in that change, not yet archived
+or released · **planned** = not built yet
 
 ## Capture
 
@@ -86,15 +88,15 @@ Feasibility: 🟢 straightforward · 🟡 platform limits/extra work · 🔴 har
 
 ## Video
 
-| Feature | Phase | Change | Feasibility |
-|---|---|---|---|
-| Screen/region/window recording | P2 | add-screen-recording | 🟢 ScreenCast portal |
-| Mic + system audio | P2 | add-screen-recording | 🟢 |
-| Webcam overlay, shapes, swap | P2 | add-recording-extras | 🟡 |
-| Cursor highlight, click ripple | P2 | add-recording-extras | 🔴 Wayland exposes no global clicks; highlight via cursor metadata |
-| Draw on screen while recording | P2 | add-recording-extras | 🔴 no always-on-top overlay on Wayland |
-| Trim, cut, combine, frame grab | P2 | add-recording-extras | 🟢 |
-| MP4 / WebM / GIF export | P2 | add-screen-recording (MP4, WebM), add-recording-extras (GIF) | 🟢 MP4/WebM · 🟡 GIF: gifski is AGPL-3.0 |
+| Feature | Phase | Change | Feasibility | Status |
+|---|---|---|---|---|
+| Screen/region/window recording | P2 | add-screen-recording | 🟢 ScreenCast portal | implemented (add-screen-recording) |
+| Mic + system audio | P2 | add-screen-recording | 🟢 | implemented (add-screen-recording) |
+| Webcam overlay, shapes, swap | P2 | add-recording-extras | 🟡 | planned |
+| Cursor highlight, click ripple | P2 | add-recording-extras | 🔴 Wayland exposes no global clicks; highlight via cursor metadata | planned |
+| Draw on screen while recording | P2 | add-recording-extras | 🔴 no always-on-top overlay on Wayland | planned |
+| Trim, cut, combine, frame grab | P2 | add-recording-extras | 🟢 | planned |
+| MP4 / WebM / GIF export | P2 | add-screen-recording (MP4, WebM), add-recording-extras (GIF) | 🟢 MP4/WebM · 🟡 GIF: gifski is AGPL-3.0 | MP4, WebM implemented (add-screen-recording) · GIF planned |
 
 ## Organise & share (library, export)
 

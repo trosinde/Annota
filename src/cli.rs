@@ -11,6 +11,7 @@ pub enum CaptureMode {
 impl CaptureMode {
     pub const VALID: &'static str = "region, window, screen";
 
+    #[cfg(test)]
     pub const ALL: [CaptureMode; 3] = [Self::Region, Self::Window, Self::Screen];
 
     pub fn parse(value: &str) -> Option<Self> {

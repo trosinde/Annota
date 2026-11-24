@@ -335,7 +335,7 @@ fn fill_welcome_keys(
 
 /// One welcome card, held weakly by the listeners.
 struct WelcomeCard {
-    mode: CaptureMode,
+    mode: shortcuts::GlobalShortcut,
     card: glib::WeakRef<gtk::Button>,
     keys: glib::WeakRef<gtk::Box>,
     own_tooltip: Option<String>,
@@ -362,28 +362,35 @@ fn fill_welcome_cards(cards: &[WelcomeCard]) -> glib::ControlFlow {
     }
 }
 
-/// The welcome page's mode cards (bootstrap-app-shell mockup 01): each starts its capture,
-/// which opens in the editor; their keycaps show the trigger that starts it
-/// (`shortcuts::shown_triggers`). The first card has the keyboard focus.
+/// The welcome page's mode cards (bootstrap-app-shell mockup 01, add-screen-recording mockup 12):
+/// Region, Window and Screen start their capture, which opens in the editor; Record opens the
+/// recording setup, or while a recording runs presents its control. Their keycaps show the
+/// trigger that starts each (`shortcuts::shown_triggers`). The first card has the keyboard focus.
 fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builder: &gtk::Builder) {
+    use shortcuts::GlobalShortcut;
     let settings = gio::Settings::new(config::APP_ID);
     let mut first = None;
     let mut cards = Vec::new();
-    for (mode, card, keys) in [
+    for (shortcut, card, keys) in [
         (
-            CaptureMode::Region,
+            GlobalShortcut::Capture(CaptureMode::Region),
             "welcome_region_card",
             "welcome_region_keys",
         ),
         (
-            CaptureMode::Window,
+            GlobalShortcut::Capture(CaptureMode::Window),
             "welcome_window_card",
             "welcome_window_keys",
         ),
         (
-            CaptureMode::Screen,
+            GlobalShortcut::Capture(CaptureMode::Screen),
             "welcome_screen_card",
             "welcome_screen_keys",
+        ),
+        (
+            GlobalShortcut::Record,
+            WELCOME_RECORD_CARD,
+            "welcome_record_keys",
         ),
     ] {
         let (Some(card), Some(keys)) = (
@@ -394,7 +401,7 @@ fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builde
             continue;
         };
         cards.push(WelcomeCard {
-            mode,
+            mode: shortcut,
             card: card.downgrade(),
             keys: keys.downgrade(),
             own_tooltip: card.tooltip_text().map(|t| t.to_string()),
@@ -406,7 +413,16 @@ fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builde
             app,
             move |_| {
                 let _ = &keep;
-                app.activate_action("capture", Some(&mode.as_str().to_variant()))
+                match shortcut {
+                    GlobalShortcut::Capture(mode) => {
+                        app.activate_action("capture", Some(&mode.as_str().to_variant()))
+                    }
+                    // Idle: the region overlay in Video mode, as the Record shortcut; while a
+                    // recording runs: its control is presented ("Second recording request").
+                    // `region`, not `toggle`, which would stop the running recording.
+                    GlobalShortcut::Record => app
+                        .activate_action("record", Some(&RecordMode::Region.as_str().to_variant())),
+                }
             }
         ));
         first.get_or_insert(card);
@@ -429,6 +445,40 @@ fn setup_welcome(app: &adw::Application, window: &adw::ApplicationWindow, builde
     if let Some(card) = first {
         gtk::prelude::GtkWindowExt::set_focus(window, Some(&card));
     }
+}
+
+/// The welcome page's Record card (add-screen-recording mockup 12).
+const WELCOME_RECORD_CARD: &str = "welcome_record_card";
+
+/// A recording that ended before it began with something to say (add-screen-recording mockups 13
+/// and 15): a kit toast without an action in the main window, which is presented if it was hidden,
+/// and the keyboard focus back on the welcome page's Record card.
+pub fn show_recording_message(app: &adw::Application, text: &str) {
+    let window = present_window(app);
+    let toast = adw::Toast::new(text);
+    toast.set_use_markup(false);
+    show_toast(&window, &toast);
+    if let Some(card) = window
+        .content()
+        .and_then(|content| find_buildable(&content, WELCOME_RECORD_CARD))
+    {
+        gtk::prelude::GtkWindowExt::set_focus(&window, Some(&card));
+    }
+}
+
+/// The widget built from `window.ui` with the id `id`, under `widget`.
+fn find_buildable(widget: &gtk::Widget, id: &str) -> Option<gtk::Widget> {
+    if widget.buildable_id().as_deref() == Some(id) {
+        return Some(widget.clone());
+    }
+    let mut child = widget.first_child();
+    while let Some(c) = child {
+        if let Some(found) = find_buildable(&c, id) {
+            return Some(found);
+        }
+        child = c.next_sibling();
+    }
+    None
 }
 
 pub fn show_toast(window: &adw::ApplicationWindow, toast: &adw::Toast) {
@@ -573,7 +623,8 @@ fn setup_launcher(app: &adw::Application, window: &adw::ApplicationWindow, build
                 ) else {
                     return glib::ControlFlow::Break;
                 };
-                let Some((_, shown)) = all.iter().find(|(mode, _)| *mode == toggle.mode) else {
+                let Some((_, shown)) = all.iter().find(|(mode, _)| *mode == toggle.mode.into())
+                else {
                     continue;
                 };
                 let caption = launcher_caption(&shown.trigger);

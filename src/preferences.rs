@@ -10,6 +10,7 @@ use gettextrs::{gettext, ngettext};
 use gtk::gio;
 use gtk::glib;
 
+use crate::capture::shortcuts::GlobalShortcut;
 use crate::capture::{shortcut_dialog, shortcuts};
 use crate::cli::CaptureMode;
 use crate::config;
@@ -151,9 +152,11 @@ fn bind_capture(builder: &gtk::Builder, settings: &gio::Settings, dialog: &adw::
         };
     }
     let rows = [
-        row!(CaptureMode::Region, "region"),
-        row!(CaptureMode::Window, "window"),
-        row!(CaptureMode::Screen, "screen"),
+        row!(GlobalShortcut::Capture(CaptureMode::Region), "region"),
+        row!(GlobalShortcut::Capture(CaptureMode::Window), "window"),
+        row!(GlobalShortcut::Capture(CaptureMode::Screen), "screen"),
+        // add-screen-recording mockup 14: "Record video" after "Screen capture".
+        row!(GlobalShortcut::Record, "record"),
     ];
     // AdwPreferencesPage:banner exists from libadwaita 1.7 (Ubuntu 26.04); older versions show
     // the banner at the top of the page's content instead.
@@ -253,7 +256,7 @@ fn seconds_text(seconds: i32) -> String {
 
 /// One row of the Global Shortcuts group.
 struct ShortcutRow {
-    mode: CaptureMode,
+    mode: GlobalShortcut,
     row: adw::ActionRow,
     keys: gtk::ShortcutLabel,
     /// "Not set" or a trigger the portal described in words (fix-portal-shortcut-bindings D3).
@@ -274,7 +277,7 @@ struct ShortcutsView {
     banner_in_group: bool,
     group: adw::PreferencesGroup,
     open_settings: gtk::Button,
-    rows: [ShortcutRow; 3],
+    rows: [ShortcutRow; 4],
     /// Whether the GlobalShortcuts portal exists; `None` until known.
     portal: Cell<Option<bool>>,
 }
@@ -320,7 +323,7 @@ impl ShortcutsView {
         self.open_settings
             .set_visible(portal == Some(true) && !created && gnome_settings_installed());
 
-        // One read of GNOME's keybindings for all three rows (reviewer N8).
+        // One read of GNOME's keybindings for all rows (reviewer N8).
         let shown = portal_path.then(shortcuts::shown_triggers);
         for shortcut in &self.rows {
             match shown

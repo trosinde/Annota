@@ -29,7 +29,12 @@
 //!   ([`stop`], the desktop ending the session, an error) delivers one [`Ended`] to
 //!   [`Hooks::on_ended`] (Phase D opens the Export Recording window from it). How a start ended
 //!   goes to [`Hooks::on_outcome`] as a [`StartOutcome`], whose [`StartOutcome::message`] is the
-//!   toast text (Phase D shows it).
+//!   toast text (shown in the main window, `application::show_recording_message`).
+//! - Phase D2: the Record shortcut is the GlobalShortcuts ID `record` of
+//!   `capture::shortcuts::GlobalShortcut` (one bind with the capture shortcuts; its `Activated`
+//!   runs `app.record toggle`, as `annota --record toggle` from the GNOME keybinding does); the
+//!   welcome page's Record card runs `app.record region` (the setup, or the control while one
+//!   runs).
 //! - [`source::offered`] says which source types the portal offers (setup, "Source not offered").
 //!   [`Hooks::devices`] which audio devices exist, probed off the main loop and only when audio
 //!   is wanted.
@@ -112,7 +117,7 @@ impl Target {
     }
 }
 
-/// How a start ended, for a message (Phase D shows it as a toast, mockup 13 / task 4.7).
+/// How a start ended, for a message (a toast in the main window, mockups 13 and 15).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StartOutcome {
     /// The recording runs.
@@ -176,12 +181,12 @@ pub struct Hooks {
     pub preview_source: PreviewSource,
     /// Level meters and errors while recording (the control, Phase D).
     pub on_event: Rc<dyn Fn(&RecordingEvent)>,
-    /// How a start ended (Phase D: the toast for [`StartOutcome::message`]).
+    /// How a start ended: the toast for [`StartOutcome::message`] (mockups 13, 15).
     pub on_outcome: OnOutcome,
     /// A recording ended: the Export Recording window (D1).
     pub on_ended: OnEnded,
     /// The Record shortcut's trigger for the control's Stop tooltip, as the portal reports it
-    /// (task 4.5 fills it); `None`: no chip.
+    /// (`shortcuts::record_trigger`); `None`: no chip.
     pub record_trigger: control::RecordTrigger,
 }
 
@@ -194,15 +199,16 @@ impl Default for Hooks {
             devices: Rc::new(|| Box::pin(audio::probe_async())),
             preview_source: Rc::new(|source| audio::source_element(source).ok()),
             on_event: Rc::new(|_| {}),
-            on_outcome: Rc::new(|_, outcome| {
-                // Phase D (task 4.7, mockup 13): shown as a toast.
+            // Mockups 13 and 15 (tasks 4.6, 4.7): a toast in the main window.
+            on_outcome: Rc::new(|app, outcome| {
                 if let Some(message) = outcome.message() {
-                    eprintln!("annota: recording: {message}");
+                    crate::application::show_recording_message(app, &message);
                 }
             }),
             // The Export Recording window (D1, tasks 5.1-5.4), for every end.
             on_ended: Rc::new(export_window::open),
-            record_trigger: Rc::new(|| None),
+            // Task 4.5: the trigger every surface shows for the Record shortcut.
+            record_trigger: Rc::new(crate::capture::shortcuts::record_trigger),
         }
     }
 }
