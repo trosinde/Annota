@@ -787,6 +787,64 @@ fn temp_dir(name: &str) -> std::path::PathBuf {
     dir
 }
 
+/// What a PDF says, without the clock: the body of every stream, inflated where it is zlib data,
+/// with the values of `/CreationDate` and `/ModDate` blanked; the cross-reference stream is left
+/// out. cairo stamps every PDF with the current time inside a compressed object stream (PDF 1.7),
+/// so two encodings a second apart differ in that stream, its length object and every offset in
+/// the xref (CI, 2026-11-24). Bytes that are not a PDF are returned whole, as one item.
+fn without_pdf_dates(bytes: &[u8]) -> Vec<Vec<u8>> {
+    use std::io::Read;
+    if !bytes.starts_with(b"%PDF") {
+        return vec![bytes.to_vec()];
+    }
+    let mut streams = Vec::new();
+    let mut rest = bytes;
+    while let Some(start) = find(rest, b"stream\n") {
+        let dict = &rest[..start];
+        let dict = &dict[dict.windows(3).rposition(|w| w == b"obj").unwrap_or(0)..];
+        let body = &rest[start + b"stream\n".len()..];
+        let Some(end) = find(body, b"\nendstream") else {
+            break;
+        };
+        rest = &body[end + b"\nendstream".len()..];
+        if find(dict, b"/Type /XRef").is_some() {
+            continue;
+        }
+        let mut inflated = Vec::new();
+        let text = match flate2::read::ZlibDecoder::new(&body[..end]).read_to_end(&mut inflated) {
+            Ok(_) => inflated,
+            Err(_) => body[..end].to_vec(),
+        };
+        streams.push(blank_dates(&text));
+    }
+    streams
+}
+
+fn blank_dates(text: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(text.len());
+    let mut i = 0;
+    while i < text.len() {
+        let key = [&b"/CreationDate ("[..], &b"/ModDate ("[..]]
+            .into_iter()
+            .find(|k| text[i..].starts_with(k));
+        if let Some(key) = key {
+            out.extend_from_slice(key);
+            i += key.len();
+            while i < text.len() && text[i] != b')' {
+                i += 1;
+            }
+        } else {
+            out.push(text[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
+fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
+
 #[test]
 fn export_writes_the_file() {
     let dir = temp_dir("write");
@@ -804,8 +862,8 @@ fn export_writes_the_file() {
         export(&doc, &path, &format, 1.0).unwrap();
         let bytes = std::fs::read(&path).unwrap();
         assert_eq!(
-            bytes,
-            encode(&doc, &format, 1.0).unwrap(),
+            without_pdf_dates(&bytes),
+            without_pdf_dates(&encode(&doc, &format, 1.0).unwrap()),
             "{}",
             format.name()
         );
