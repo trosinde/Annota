@@ -106,6 +106,12 @@
       - Include pointer on and off.
       - Scale 1.25 and 1.
       - A maximised and a small window.
+      2026-11-23, automated run on the maintainer's desktop (manual-checks.md, "Live run
+      2026-11-23"): left open. The first item failed on b96c775 (fixed by PR #12, which captures the
+      whole window; live 10 of 10). On b96c775 at scale 1.25 the image held only the
+      window's top-left part, because the crop meta is in scale-1.25 pixels while the buffer is at
+      scale 2. Launcher, keybinding and scale 1 were not run. Passed: terminal start, chooser
+      closed, delay 3 s, countdown cancelled, pointer on and off, maximised and small size.
 - [ ] 6.2 Fresh Ubuntu 24.04 (VM or container with GNOME): install the `.deb` with apt, window
       capture delivers an image (debian-packaging "Window capture works on a fresh install").
       2026-11-22, helper only: the v0.1.0 release `.deb` installs with apt in a plain

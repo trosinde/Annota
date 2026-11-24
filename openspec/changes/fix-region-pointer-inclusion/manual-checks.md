@@ -53,19 +53,48 @@ and the assertion fails.
 Region capture with "Include pointer" on, on a real session. Reported 2026-11-10 on GNOME Shell
 50.1 / Wayland / xdg-desktop-portal 1.21.1.
 
-| # | Check | Expected |
-|---|---|---|
-| 1 | Select a region, move the pointer inside it, press `Enter` | The arrow is in the saved image at that position. This is the check the whole change exists for. |
-| 2 | Select a region, leave the pointer outside it, press `Enter` | No arrow, and the image is otherwise exactly the selection. |
-| 3 | Drag a region and release at the lower-right corner | Chip reads "Pointer not in capture · on the edge", hint bar says how to fix it, and the capture has no arrow. The trap this direction creates, named in place. |
-| 4 | While dragging, watch the chip and the loupe together | Both legible, no overlap; chip in the band above the loupe (mockup 05). |
-| 5 | With the pointer inside the selection, nudge the selection out from under it with `Shift+→` | The preview flips to "not in capture" without confirming anything (mockup 03). |
-| 6 | Toggle "Include pointer" off | Arrow, chip and hint segment all disappear; the hint bar is the one from add-screen-capture (mockup 04). |
-| 7 | Move the pointer over the overlay toolbar, then press `Enter` | No arrow: that chrome is not in the frozen image, so the position is forgotten rather than kept stale. |
-| 8 | Region capture with a delay: select, then move the pointer into the region during the countdown | The arrow is where it stood when the countdown ended (design.md D4; the probe it relies on was fixed for this check, see design.md "Live check 8"). **pass, 2026-11-23**: `tools/live-region-pointer.py --runs 3`, GNOME Shell 50.1 Wayland, 3840 × 2160 at 1.25, selection 750 × 500 px at 1000, 400, delay 3 s. Pointer outside at confirmation and moved to 1200, 500 during the countdown: arrow drawn from 249, 124 (hot spot expected 250, 125), 3 of 3; pointer inside throughout: same, 3 of 3; screen capture, pointer at rest at 1200, 500: arrow from 1499, 624 (expected 1500, 625), 3 of 3. The same tool on the build before the fix: "no arrow in the image, expected its hot spot at 250,125" for both region scenarios, "no arrow near 1500,625" for screen (drawn at 1383, 224). |
-| 9 | Two monitors: selection on one, pointer on the other, `Enter` | No arrow. |
-| 10 | Chip and hint segment in dark and at 2× | Legible; icons recoloured by GTK, not stuck dark. |
-| 11 | Two monitors, screen capture with Include Pointer on and off, pointer resting on monitor 2 | Only monitor 2 is captured; with the pointer on, the arrow is where the pointer rests (the probe's cover step on two monitors, design.md "Live check 8"). **Open**: not run, this desktop has one monitor. X11 was not run either. |
+| # | Check | Expected | Result | Date |
+|---|---|---|---|---|
+| 1 | Select a region, move the pointer inside it, press `Enter` | The arrow is in the saved image at that position. This is the check the whole change exists for. | pass, 2 of 2: selection 750 × 500 px, pointer moved to 300, 200 logical px inside it, `Enter`; chip "Pointer in capture"; arrow in the saved image at x 374–391, y 249–275, hot spot expected at 375, 250 | 2026-11-23 |
+| 2 | Select a region, leave the pointer outside it, press `Enter` | No arrow, and the image is otherwise exactly the selection. | pass, 2 of 2: pointer 200 px right of the selection, chip "Pointer not in capture"; image 750 × 500, every pixel the background colour | 2026-11-23 |
+| 3 | Drag a region and release at the lower-right corner | Chip reads "Pointer not in capture · on the edge", hint bar says how to fix it, and the capture has no arrow. The trap this direction creates, named in place. | pass, 2 of 2: chip "Pointer not in capture · on the edge", hint bar starts "Move the pointer into the selection to include it · Enter Capture", image has no arrow | 2026-11-23 |
+| 4 | While dragging, watch the chip and the loupe together | Both legible, no overlap; chip in the band above the loupe (mockup 05). | pass at 1.25, from an overlay screenshot taken mid-drag: chip "Pointer not in capture · on the edge" sits above the loupe and does not overlap it, and both read clearly. Comparing it against mockup 05 by eye stays the maintainer's call | 2026-11-23 |
+| 5 | With the pointer inside the selection, nudge the selection out from under it with `Shift+→` | The preview flips to "not in capture" without confirming anything (mockup 03). | pass, 2 of 2: pointer 4 px inside the left edge, chip "Pointer in capture"; after `Shift+→` it reads "Pointer not in capture" with no capture; `Enter` then gives an image without an arrow | 2026-11-23 |
+| 6 | Toggle "Include pointer" off | Arrow, chip and hint segment all disappear; the hint bar is the one from add-screen-capture (mockup 04). | pass, 3 of 3 (toggle pressed over AT-SPI): preview arrow, chip and the hint segment disappear; the hint bar reads "Enter Capture · Esc Cancel · ←↑→↓ Nudge 1 px · Shift ×10 · Space Move selection"; image has no arrow. Not compared against mockup 04 | 2026-11-23 |
+| 7 | Move the pointer over the overlay toolbar, then press `Enter` | No arrow: that chrome is not in the frozen image, so the position is forgotten rather than kept stale. | pass, 2 of 2: pointer inside first ("Pointer in capture"), then over the toolbar's W field: the chip is gone; image has no arrow | 2026-11-23 |
+| 8 | Region capture with a delay: select, then move the pointer into the region during the countdown | The arrow is where it stood when the countdown ended (design.md D4; the probe it relies on was fixed for this check, see design.md "Live check 8"). | pass after the fix (PR #11): `tools/live-region-pointer.py --runs 3`; region, pointer moved in during the countdown: arrow at 249, 124 (expected 250, 125), 3 of 3; pointer inside throughout: 3 of 3; screen capture: arrow at 1499, 624 (expected 1500, 625), 3 of 3. Before the fix: fail, 4 of 4 without an arrow (see "Live run 2026-11-23"). | 2026-11-23 |
+| 9 | Two monitors: selection on one, pointer on the other, `Enter` | No arrow. | not run: this desktop has one monitor | |
+| 10 | Chip and hint segment in dark and at 2× | Legible; icons recoloured by GTK, not stuck dark. | partly: at 1.25 the chip's icons are drawn light on the dark chip and the hint segment's icon is light on the dark bar. The overlay chrome is dark in both colour schemes, so `ADW_DEBUG_COLOR_SCHEME=prefer-dark` looks the same. 2× was not run: the desktop is at 1.25 | 2026-11-23 |
+| 11 | Two monitors, screen capture with Include Pointer on and off, pointer resting on monitor 2 | Only monitor 2 is captured; with the pointer on, the arrow is where the pointer rests (the probe's cover step on two monitors, design.md "Live check 8"). | open: not run, this desktop has one monitor; X11 not run either |  |
+
+### Live run 2026-11-23
+
+GNOME Shell 50 on Wayland, one monitor 3840 × 2160 at scale 1.25. Annota was built from `main`
+b96c775 and run with private keyfile settings (include-pointer on, after-capture "editor", save
+folder in a temporary directory). A scratch driver ran it with no human. It placed a maximised
+magenta window as the background, started `annota --capture region`, and moved and clicked the
+pointer through `tools/portal-input.py`, from a known corner and checked against the overlay's
+size label. It read the chip and hint labels over AT-SPI and pressed `Enter`, then `Ctrl+S` in
+the editor, and took `original.png` out of the saved `.annota`. Overlay screenshots came from
+the Screenshot portal. Every image was inspected pixel by pixel and by eye.
+
+**Check 8 failed on this build (b96c775); fixed by PR #11, see row 8.** The selection is 750 × 500 px at 1000, 400 logical. The toolbar's delay is set
+to "3 s" (the radio menu item, over AT-SPI). The pointer rests outside the selection at
+1800, 600, and the capture is confirmed (Capture pressed over AT-SPI; with a delay, the
+position at confirmation is not used, as `capture_pointer` decides). During the countdown the
+pointer moves to 1200, 500, inside the selection. The magenta background window logged
+"enter 1200.0 500.0" during the countdown, then "leave" when the probe window opened. Expected:
+the arrow with its hot spot at about 250, 125 in the image. Observed: a 750 × 500 image with no
+pixel other than the background colour, in 2 of 2 runs. The same happened with the pointer
+resting inside the selection the whole time (1 run), and with the pointer wiggled by 1 px every
+50 ms for 4 s after the move, so that motion events reached the probe window (1 run): 4 of 4 delayed runs without an arrow.
+`probe_pointer` waits `PROBE_TIMEOUT_MS` = 400 ms for an enter or motion event on a freshly
+presented fullscreen window. That this is too short on this desktop is a guess, not a
+measurement.
+
+Not automatable here: check 9 (needs two monitors), 2× in check 10 (the desktop is at 1.25), and
+the subjective half of checks 4 and 10 (whether it matches the mockups). A side note: the delay
+menu's seven radio items have empty accessible names over AT-SPI.
 
 ## Known, not covered
 
