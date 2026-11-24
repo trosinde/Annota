@@ -16,10 +16,17 @@ Needs: a logged-in GNOME Wayland session, Annota installed from the current buil
     tools/live-window-capture.py                 # every scenario, twice
     tools/live-window-capture.py --runs 1 -k delay
     tools/live-window-capture.py --annota /path/to/annota
+    tools/live-window-capture.py -k whole --save /tmp/shots   # keep each captured image as PNG
 
 Every run uses fresh, temporary settings and data directories (GSETTINGS_BACKEND=keyfile), so the
 user's own Annota settings, library and recovery data are never touched. The clipboard image is
-read into memory only.
+read into memory only, unless `--save DIR` asks for each captured image to be written there.
+
+The target window is magenta with a red, green, blue and yellow square in its top-left,
+top-right, bottom-left and bottom-right corner, so an image that holds only part of the window
+fails (design.md D3, amendment of 2026-11-23). Every target window and Annota process the suite
+starts is ended when it exits, also on a failure or Ctrl+C (`pgrep -f livetarget` and
+`pgrep -x annota` then find nothing of it).
 """
 
 import argparse
@@ -46,6 +53,10 @@ portal_input = __import__("portal-input")
 TARGET_TITLE = "Annota live target"
 TARGET_W, TARGET_H = 640, 400
 MAGENTA = (255, 0, 255)
+# The target's corner squares: side in logical px, colours in reading order.
+SQUARE = 48
+CORNERS = {"top-left": (255, 0, 0), "top-right": (0, 255, 0),
+           "bottom-left": (0, 0, 255), "bottom-right": (255, 255, 0)}
 SETTINGS_GROUP = "io/github/trosinde/Annota"
 
 
@@ -54,7 +65,8 @@ class Fail(Exception):
 
 
 # ---------------------------------------------------------------------------------------------
-# Target window: an undecorated, uniformly magenta GTK window in its own process.
+# Target window: a magenta GTK window with four coloured corner squares, in its own process.
+# Undecorated by default; "deco" gives it a header bar (client-side decorations and shadow).
 
 TARGET_SCRIPT = r"""
 import sys, gi
@@ -63,12 +75,24 @@ from gi.repository import Gtk, GLib
 GLib.set_prgname("livetarget")
 Gtk.init()
 css = Gtk.CssProvider()
-css.load_from_string("window, window * { background: #ff00ff; }")
+css.load_from_string("window, window * { background: #ff00ff; }"
+                     " .tl { background: #ff0000; } .tr { background: #00ff00; }"
+                     " .bl { background: #0000ff; } .br { background: #ffff00; }")
 Gtk.StyleContext.add_provider_for_display(
     __import__("gi.repository.Gdk", fromlist=["Gdk"]).Display.get_default(), css, 800)
 w = Gtk.Window(title=sys.argv[1])
-w.set_decorated(False)
+if sys.argv[5] == "deco":
+    w.set_titlebar(Gtk.HeaderBar())
+else:
+    w.set_decorated(False)
 w.set_default_size(int(sys.argv[2]), int(sys.argv[3]))
+overlay = Gtk.Overlay()
+overlay.set_child(Gtk.Box())
+for cls, h, v in (("tl", 1, 1), ("tr", 2, 1), ("bl", 1, 2), ("br", 2, 2)):
+    square = Gtk.Box(css_classes=[cls], halign=Gtk.Align(h), valign=Gtk.Align(v))
+    square.set_size_request(int(sys.argv[6]), int(sys.argv[6]))
+    overlay.add_overlay(square)
+w.set_child(overlay)
 if sys.argv[4] == "max":
     w.maximize()
 w.present()
@@ -85,21 +109,38 @@ loop.run()
 """
 
 
+# Every process the suite starts, so that main() can end what a failed scenario left behind.
+STARTED = []
+
+
+def end(proc):
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(5)
+
+
 class Target:
-    def __init__(self, maximized=False):
+    def __init__(self, maximized=False, decorated=False):
+        self.decorated = decorated
         self.proc = subprocess.Popen(
             [sys.executable, "-I", "-c", TARGET_SCRIPT, TARGET_TITLE, str(TARGET_W),
-             str(TARGET_H), "max" if maximized else "normal"],
+             str(TARGET_H), "max" if maximized else "normal",
+             "deco" if decorated else "plain", str(SQUARE)],
             stdout=subprocess.PIPE, text=True)
+        STARTED.append(self.proc)
         line = self.proc.stdout.readline().split()
         if not line or line[0] != "ready":
+            end(self.proc)
             raise Fail("target window did not start")
         time.sleep(0.5)
         self.width, self.height, self.scale = int(line[1]), int(line[2]), float(line[3])
 
     def close(self):
-        self.proc.terminate()
-        self.proc.wait(5)
+        end(self.proc)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -120,7 +161,8 @@ class Annota:
                    XDG_CACHE_HOME=os.path.join(self.home, "cache"))
         self.env = env
         self.proc = subprocess.Popen([binary, *args], env=env, stdout=subprocess.DEVNULL,
-                                     stderr=subprocess.PIPE, text=True)
+                                     stderr=subprocess.DEVNULL)
+        STARTED.append(self.proc)
 
     def app(self, timeout=10):
         return wait(lambda: atspi_app(self.proc.pid), timeout, "Annota on the accessibility bus")
@@ -386,15 +428,19 @@ def captured_image(app, inp, text):
                    % (types[:3], active, text))
 
 
-def foreign_pixels(pixbuf):
+def foreign_pixels(pixbuf, target):
     """Pixels inside the image that are not the target's magenta (pointer presence, D5)."""
     raw = pixbuf.get_pixels()
     stride, step = pixbuf.get_rowstride(), pixbuf.get_n_channels()
     w, h = pixbuf.get_width(), pixbuf.get_height()
+    # The corner squares and their antialiased edges are the target's own, not the pointer.
+    zone = (SQUARE + 8) * w / target.width
     count = 0
     for y in range(2, h - 2, 2):
         row = y * stride
         for x in range(2, w - 2, 2):
+            if (x < zone or x >= w - zone) and (y < zone or y >= h - zone):
+                continue
             p = row + x * step
             if (raw[p], raw[p + 1], raw[p + 2]) != MAGENTA:
                 count += 1
@@ -408,11 +454,75 @@ def toast_size(text):
 
 
 def expect_size(text, target):
+    """The toast's size must be the whole window at one scale: the target's aspect ratio, and at
+    least its size in monitor pixels. The window stream's buffer can be at a higher scale than
+    the monitor (2 for a 1.25 monitor on GNOME 50.1, design.md D3 amendment), and its pixels are
+    taken as they are, so the size itself is not fixed."""
     w, h = toast_size(text)
-    ew, eh = round(target.width * target.scale), round(target.height * target.scale)
-    if abs(w - ew) > 2 or abs(h - eh) > 2:
-        raise Fail("captured %d × %d, expected about %d × %d" % (w, h, ew, eh))
+    least = round(target.width * target.scale), round(target.height * target.scale)
+    if w < least[0] - 2 or h < least[1] - 2:
+        raise Fail("captured %d × %d, less than the window's %d × %d" % (w, h, *least))
+    if abs(w * target.height - h * target.width) > 0.015 * w * target.height + 4 * target.width:
+        raise Fail("captured %d × %d, not the window's aspect ratio %d : %d"
+                   % (w, h, target.width, target.height))
     return w, h
+
+
+def near(pixel, colour, tolerance=40):
+    return all(abs(a - b) <= tolerance for a, b in zip(pixel, colour))
+
+
+def colour_box(pixbuf, colour):
+    """Bounding box (left, top, right, bottom) of the pixels close to colour, or None."""
+    raw = pixbuf.get_pixels()
+    stride, step = pixbuf.get_rowstride(), pixbuf.get_n_channels()
+    box = None
+    # Every second pixel: exact enough for the checks, and a 6144 × 3360 image stays quick.
+    for y in range(0, pixbuf.get_height(), 2):
+        row = y * stride
+        for x in range(0, pixbuf.get_width(), 2):
+            p = row + x * step
+            if near((raw[p], raw[p + 1], raw[p + 2]), colour):
+                box = (x, y, x, y) if box is None else (
+                    min(box[0], x), min(box[1], y), max(box[2], x), max(box[3], y))
+    return box
+
+
+def expect_corners(pixbuf, target):
+    """Each of the target's four corner squares is in the image, whole, at its own corner, so the
+    image is the whole window and not a part of it."""
+    w, h = pixbuf.get_width(), pixbuf.get_height()
+    k = w / target.width
+    side = SQUARE * k
+    # The window's outline (and a decorated window's rounded corner) may lie between a square
+    # and the image edge; the header bar lies between the top squares and the top edge.
+    edge = 4 * k + 2
+    for corner, colour in CORNERS.items():
+        box = colour_box(pixbuf, colour)
+        if box is None:
+            raise Fail("the %s corner square is missing: only part of the window" % corner)
+        left, top, right, bottom = box
+        if abs((right - left + 1) - side) > edge or abs((bottom - top + 1) - side) > edge:
+            raise Fail("the %s corner square is %d × %d, expected about %d: cut off"
+                       % (corner, right - left + 1, bottom - top + 1, side))
+        at_left, at_right = left <= edge, right >= w - 1 - edge
+        at_bottom = bottom >= h - 1 - edge
+        at_top = top <= edge or (target.decorated and top < h / 4)
+        horizontal = at_left if corner.endswith("left") else at_right
+        vertical = at_top if corner.startswith("top") else at_bottom
+        if not (horizontal and vertical):
+            raise Fail("the %s corner square is at (%d, %d)-(%d, %d) in a %d × %d image"
+                       % (corner, left, top, right, bottom, w, h))
+    return k
+
+
+def save(ctx, pixbuf, label):
+    if ctx.save:
+        ctx.saved += 1
+        path = os.path.join(ctx.save, "%02d-%s.png" % (ctx.saved, label))
+        pixbuf.savev(path, "png", [], [])
+        return path
+    return None
 
 
 def pointer_over_target(inp):
@@ -440,11 +550,50 @@ def s_window_on_wayland(ctx, inp):
                        % (image.get_width(), image.get_height(), w, h))
         if image.get_has_alpha() and image.get_pixels()[3] != 255:
             raise Fail("transparent margin left in the image")
+        save(ctx, image, "window-on-wayland")
+        expect_corners(image, target)
         session_closes(annota, during)
         return "%d × %d" % (w, h)
     finally:
         annota.stop()
         target.close()
+
+
+def s_whole_window(ctx, inp):
+    """A small undecorated, a small decorated and a maximised decorated window, each whole."""
+    notes = []
+    for label, maximized, decorated in (("small", False, False),
+                                        ("small-decorated", False, True),
+                                        ("maximised-decorated", True, True)):
+        subprocess.run(["wl-copy", "--clear"], check=False)
+        target = Target(maximized=maximized, decorated=decorated)
+        try:
+            annota = Annota(ctx.binary, ["--capture", "window"])
+            try:
+                app = annota.app()
+                choose(inp)
+                text = wait(lambda: toast(app), 10, "the toast 'Window captured · W × H'")
+                w, h = expect_size(text, target)
+                image = captured_image(app, inp, text)
+                path = save(ctx, image, label)
+                if (image.get_width(), image.get_height()) != (w, h):
+                    raise Fail("%s: clipboard image %d × %d, toast %d × %d"
+                               % (label, image.get_width(), image.get_height(), w, h))
+                try:
+                    k = expect_corners(image, target)
+                except Fail as err:
+                    raise Fail("%s: %s" % (label, err)) from None
+                notes.append("%s %d × %d (x%.2f of %d × %d logical)%s"
+                             % (label, w, h, k, target.width, target.height,
+                                " " + path if path else ""))
+            finally:
+                annota.stop()
+        finally:
+            target.close()
+        if chooser() is not None:
+            close_chooser()
+        time.sleep(1)
+    return "; ".join(notes)
 
 
 def s_welcome_page(ctx, inp):
@@ -503,8 +652,8 @@ def s_cancel_while_waiting(ctx, inp):
             raise Fail("a message or image appeared after Cancel")
         wait(lambda: chooser() is None, 5, "GNOME's chooser to close")
         # A following capture starts normally.
-        subprocess.Popen([ctx.binary, "--capture", "window"], env=annota.env,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        STARTED.append(subprocess.Popen([ctx.binary, "--capture", "window"], env=annota.env,
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         wait(chooser, 15, "the chooser of the following capture")
         close_chooser()
         return "session closed, no message, next capture opened the chooser"
@@ -581,7 +730,9 @@ def s_pointer_in_window(ctx, inp):
         choose(inp, before_share=lambda: pointer_over_target(inp))
         text = wait(lambda: toast(app), 10, "the toast")
         image = captured_image(app, inp, text)
-        foreign = foreign_pixels(image)
+        save(ctx, image, "pointer-in-window")
+        expect_corners(image, target)
+        foreign = foreign_pixels(image, target)
         if foreign < 20:
             raise Fail("no pointer in the image (%d non-target pixels)" % foreign)
         return "pointer present (%d sampled pixels)" % foreign
@@ -599,7 +750,9 @@ def s_cursor_excluded(ctx, inp):
         choose(inp, before_share=lambda: pointer_over_target(inp))
         text = wait(lambda: toast(app), 10, "the toast")
         image = captured_image(app, inp, text)
-        foreign = foreign_pixels(image)
+        save(ctx, image, "cursor-excluded")
+        expect_corners(image, target)
+        foreign = foreign_pixels(image, target)
         if foreign:
             raise Fail("%d non-target pixels: pointer drawn although excluded" % foreign)
         return "image is the plain window"
@@ -612,6 +765,7 @@ CAP = "capture / Window capture / "
 CUR = "capture / Cursor inclusion / "
 SCENARIOS = [
     (CAP + "Window on Wayland", s_window_on_wayland),
+    (CAP + "The whole window at any display scale", s_whole_window),
     (CAP + "Window mode from the welcome page", s_welcome_page),
     (CAP + "Waiting for the chooser", s_waiting_for_chooser),
     (CAP + "Cancel while waiting", s_cancel_while_waiting),
@@ -637,12 +791,25 @@ def main():
     parser.add_argument("--annota", default=shutil.which("annota") or "annota")
     parser.add_argument("--runs", type=int, default=2)
     parser.add_argument("-k", default="", help="only scenarios whose title contains this")
+    parser.add_argument("--save", metavar="DIR", help="write each captured image there as PNG")
     args = parser.parse_args()
     if not shutil.which("wl-paste"):
         print("wl-paste (wl-clipboard) is needed", file=sys.stderr)
         return 2
     ctx = Context()
     ctx.binary = args.annota
+    ctx.save, ctx.saved = args.save, 0
+    if ctx.save:
+        os.makedirs(ctx.save, exist_ok=True)
+    try:
+        return run_suite(ctx, args)
+    finally:
+        # Whatever a scenario left behind: no target window, no Annota of this suite stays.
+        for proc in STARTED:
+            end(proc)
+
+
+def run_suite(ctx, args):
     print("Annota:", subprocess.run([ctx.binary, "--version"], capture_output=True,
                                     text=True).stdout.strip())
     selected = [s for s in SCENARIOS if args.k.lower() in s[0].lower()]

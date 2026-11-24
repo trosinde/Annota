@@ -371,34 +371,114 @@ impl Pixels<'_> {
         }
         found.map(|(l, t, r, b)| IRect::new(l, t, r - l + 1, b - t + 1))
     }
+
+    /// Whether `x` has a pixel passing `keep` in the rows of `span`.
+    fn column_has(&self, x: i32, span: IRect, keep: impl Fn(u8) -> bool) -> bool {
+        (0..self.width as i32).contains(&x)
+            && (span.y..span.bottom()).any(|y| keep(self.alpha(x as u32, y as u32)))
+    }
+
+    /// Whether row `y` has a pixel passing `keep` in the columns of `span`.
+    fn row_has(&self, y: i32, span: IRect, keep: impl Fn(u8) -> bool) -> bool {
+        (0..self.height as i32).contains(&y)
+            && (span.x..span.right()).any(|x| keep(self.alpha(x as u32, y as u32)))
+    }
+
+    /// Whether pixels passing `keep` continue right outside `area` where `found` (the box found
+    /// inside it) touches one of its edges: the window was cut by `area`, not bounded by it.
+    fn goes_on_beyond(&self, area: IRect, found: IRect, keep: impl Fn(u8) -> bool) -> bool {
+        (found.x == area.x && self.column_has(area.x - 1, found, &keep))
+            || (found.right() == area.right() && self.column_has(area.right(), found, &keep))
+            || (found.y == area.y && self.row_has(area.y - 1, found, &keep))
+            || (found.bottom() == area.bottom() && self.row_has(area.bottom(), found, &keep))
+    }
+
+    /// `rect` grown, one row or column at a time, for as long as the next row or column next to
+    /// it holds a pixel passing `keep`: the window it is part of, without anything that a fully
+    /// transparent gap separates from it (stale or stray pixels in the buffer's margin).
+    fn grow(&self, mut rect: IRect, keep: impl Fn(u8) -> bool) -> IRect {
+        loop {
+            let before = rect;
+            while self.column_has(rect.right(), rect, &keep) {
+                rect.w += 1;
+            }
+            while self.column_has(rect.x - 1, rect, &keep) {
+                rect.x -= 1;
+                rect.w += 1;
+            }
+            while self.row_has(rect.bottom(), rect, &keep) {
+                rect.h += 1;
+            }
+            while self.row_has(rect.y - 1, rect, &keep) {
+                rect.y -= 1;
+                rect.h += 1;
+            }
+            if rect == before {
+                return rect;
+            }
+        }
+    }
 }
 
-/// Where the window is in a stream frame (design.md D3):
+/// Alpha that counts as the window itself: outline and body, no shadow (design.md D3, step 2).
+fn opaque(alpha: u8) -> bool {
+    alpha >= OPAQUE_ALPHA
+}
+
+/// Alpha that counts as visible at all, the fallback for a translucent window (D3, step 3).
+fn visible(alpha: u8) -> bool {
+    alpha > 0
+}
+
+/// Which pixels count, [`opaque`] or [`visible`].
+type Keep = fn(u8) -> bool;
+
+/// The bounding box within `area` of the opaque pixels, or of the visible ones if none is
+/// opaque, with the test that found it.
+fn window_in(pixels: &Pixels, area: IRect) -> Option<(IRect, Keep)> {
+    [opaque as Keep, visible]
+        .into_iter()
+        .find_map(|keep| pixels.bounds(area, keep).map(|rect| (rect, keep)))
+}
+
+/// Where the window is in a stream frame (design.md D3 and its 2026-11-23 amendment):
 /// 1. inside the buffer's crop meta when there is one (the window plus its shadow margin),
 ///    otherwise the whole buffer;
 /// 2. the bounding box of pixels with alpha ≥ [`OPAQUE_ALPHA`] — outline and body, no shadow;
 ///    transparent rounded corners stay inside, as only the outer bound counts;
 /// 3. a translucent window has no such pixel: then the box of alpha > 0, faint shadow included.
 ///
+/// The crop meta is not always in the buffer's pixels. On GNOME 50.1 at scale 1.25 it was in
+/// buffer pixels for a terminal (2026-11-14) and at the monitor's scale for a GTK 4 window in a
+/// buffer at scale 2 (2026-11-23), where it covered only the top-left 1/1.6 of the window. Its
+/// units cannot be read from the stream, so the window's own pixels decide: when the box found in
+/// the meta reaches one of its edges and the window goes on right beyond that edge, the meta is
+/// not in buffer pixels, and the box grows past the meta for as long as the window goes on.
+/// A meta with nothing visible in it leads to a search of the whole buffer.
+///
 /// `None`: not one visible pixel, which is a failure and not an empty image.
 pub fn window_rect(pixels: &Pixels, crop: Option<(u32, u32, u32, u32)>) -> Option<IRect> {
     let width = i32::try_from(pixels.width).ok()?;
     let height = i32::try_from(pixels.height).ok()?;
     let whole = IRect::new(0, 0, width, height);
-    let area = crop
-        .and_then(|(x, y, w, h)| {
-            let rect = IRect::new(
-                i32::try_from(x).ok()?,
-                i32::try_from(y).ok()?,
-                i32::try_from(w).ok()?,
-                i32::try_from(h).ok()?,
-            );
-            rect.intersect(whole)
+    let area = crop.and_then(|(x, y, w, h)| {
+        let rect = IRect::new(
+            i32::try_from(x).ok()?,
+            i32::try_from(y).ok()?,
+            i32::try_from(w).ok()?,
+            i32::try_from(h).ok()?,
+        );
+        rect.intersect(whole)
+    });
+    let in_meta = area.and_then(|area| {
+        let (rect, keep) = window_in(pixels, area)?;
+        Some(if pixels.goes_on_beyond(area, rect, keep) {
+            pixels.grow(rect, keep)
+        } else {
+            rect
         })
-        .unwrap_or(whole);
-    pixels
-        .bounds(area, |alpha| alpha >= OPAQUE_ALPHA)
-        .or_else(|| pixels.bounds(area, |alpha| alpha > 0))
+    });
+    in_meta.or_else(|| window_in(pixels, whole).map(|(rect, _)| rect))
 }
 
 /// The pipeline is set to `NULL` before anything else goes.
@@ -487,6 +567,7 @@ impl<P: Stop, F> Drop for Stream<P, F> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::capture::frame::Rgb;
     use std::sync::{Arc, Mutex};
 
     type Log = Arc<Mutex<Vec<&'static str>>>;
@@ -688,6 +769,55 @@ mod tests {
             }
         }
 
+        /// A frame from a function giving each pixel's alpha and straight (not premultiplied)
+        /// colour.
+        fn painted(width: u32, height: u32, paint: impl Fn(u32, u32) -> (u8, Rgb)) -> Self {
+            let stride = width as usize * BPP + 16;
+            let mut data = vec![0u8; stride * height as usize];
+            for y in 0..height {
+                for x in 0..width {
+                    let (a, c) = paint(x, y);
+                    let pre = |v: u8| u32::from(v) * u32::from(a) / 255;
+                    let argb = u32::from(a) << 24 | pre(c.r) << 16 | pre(c.g) << 8 | pre(c.b);
+                    let at = y as usize * stride + x as usize * BPP;
+                    data[at..at + BPP].copy_from_slice(&argb.to_ne_bytes());
+                }
+            }
+            Self {
+                width,
+                height,
+                stride,
+                data,
+            }
+        }
+
+        /// A GStreamer sample of this frame with a video meta for its stride and `crop` as its
+        /// crop meta.
+        fn sample(&self, crop: (u32, u32, u32, u32)) -> gst::Sample {
+            let format = gst_video::VideoFormat::from_string(FRAME_FORMAT);
+            let mut buffer = gst::Buffer::from_slice(self.data.clone());
+            {
+                let buffer = buffer.get_mut().unwrap();
+                gst_video::VideoMeta::add_full(
+                    buffer,
+                    gst_video::VideoFrameFlags::empty(),
+                    format,
+                    self.width,
+                    self.height,
+                    &[0],
+                    &[i32::try_from(self.stride).unwrap()],
+                )
+                .unwrap();
+                gst_video::VideoCropMeta::add(buffer, crop);
+            }
+            let caps = gst_video::VideoInfo::builder(format, self.width, self.height)
+                .build()
+                .unwrap()
+                .to_caps()
+                .unwrap();
+            gst::Sample::builder().buffer(&buffer).caps(&caps).build()
+        }
+
         fn pixels(&self) -> Pixels<'_> {
             Pixels {
                 width: self.width,
@@ -742,6 +872,139 @@ mod tests {
                 }
             }
         })
+    }
+
+    const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
+    const GREEN: Rgb = Rgb { r: 0, g: 255, b: 0 };
+    const BLUE: Rgb = Rgb { r: 0, g: 0, b: 255 };
+    const YELLOW: Rgb = Rgb {
+        r: 255,
+        g: 255,
+        b: 0,
+    };
+    const MAGENTA: Rgb = Rgb {
+        r: 255,
+        g: 0,
+        b: 255,
+    };
+    /// Side of the coloured corner squares of [`cornered_window`], in buffer pixels.
+    const SQUARE: u32 = 24;
+
+    /// A window that a wrong cut cannot pass for a right one: a magenta body with a red, green,
+    /// blue and yellow square in its top-left, top-right, bottom-left and bottom-right corner, at
+    /// `window` (x, y, w, h) in a 768 × 432 buffer, with `shadow` px of shadow (alpha 28–41)
+    /// around it. As on GNOME 50.1 (2026-11-23), the buffer keeps its size whatever the window's.
+    fn cornered_window(window: (u32, u32, u32, u32), shadow: u32) -> Image {
+        let (wx, wy, ww, wh) = window;
+        Image::painted(768, 432, move |x, y| {
+            if x >= wx && x < wx + ww && y >= wy && y < wy + wh {
+                let (left, top) = (x - wx < SQUARE, y - wy < SQUARE);
+                let (right, bottom) = (wx + ww - x <= SQUARE, wy + wh - y <= SQUARE);
+                let colour = match (left, right, top, bottom) {
+                    (true, _, true, _) => RED,
+                    (_, true, true, _) => GREEN,
+                    (true, _, _, true) => BLUE,
+                    (_, true, _, true) => YELLOW,
+                    _ => MAGENTA,
+                };
+                (255, colour)
+            } else {
+                let gx = wx.saturating_sub(x).max(x.saturating_sub(wx + ww - 1));
+                let gy = wy.saturating_sub(y).max(y.saturating_sub(wy + wh - 1));
+                let gap = gx.max(gy);
+                let alpha = if gap <= shadow {
+                    41 - gap * 13 / shadow.max(1)
+                } else {
+                    0
+                };
+                (u8::try_from(alpha).unwrap_or(0), Rgb { r: 0, g: 0, b: 0 })
+            }
+        })
+    }
+
+    /// Cuts `image` with `crop` and checks the result is exactly the window at `window`, all four
+    /// corner squares included.
+    fn assert_whole_window(image: &Image, crop: Option<(u32, u32, u32, u32)>, window: IRect) {
+        let rect = window_rect(&image.pixels(), crop);
+        assert_eq!(rect, Some(window), "crop meta {crop:?}");
+        let frame = image.pixels().copy(window).unwrap();
+        let (r, b) = (window.w - 1, window.h - 1);
+        assert_eq!(frame.pixel(0, 0), Some(RED), "top-left corner");
+        assert_eq!(frame.pixel(r, 0), Some(GREEN), "top-right corner");
+        assert_eq!(frame.pixel(0, b), Some(BLUE), "bottom-left corner");
+        assert_eq!(frame.pixel(r, b), Some(YELLOW), "bottom-right corner");
+        assert_eq!(frame.pixel(r / 2, b / 2), Some(MAGENTA), "centre");
+    }
+
+    // spec: capture / Window capture / The whole window at any display scale
+    #[test]
+    fn a_crop_meta_in_buffer_pixels_cuts_the_whole_window() {
+        // Measured 2026-11-14 (design.md D3): the crop meta is the window plus its shadow margin,
+        // in the buffer's own pixels.
+        let image = cornered_window((24, 16, 400, 250), 12);
+        assert_whole_window(
+            &image,
+            Some((12, 4, 424, 274)),
+            IRect::new(24, 16, 400, 250),
+        );
+    }
+
+    // spec: capture / Window capture / The whole window at any display scale
+    #[test]
+    fn a_crop_meta_at_the_monitor_scale_still_cuts_the_whole_window() {
+        // Measured 2026-11-23 (design.md D3, amendment): a buffer at scale 2 with a crop meta at
+        // the monitor's scale 1.25, so 1/1.6 of the window's size in buffer pixels. A decorated
+        // window with shadow, an undecorated one at the origin, and a maximised one.
+        let image = cornered_window((24, 16, 400, 250), 12);
+        assert_whole_window(&image, Some((7, 2, 265, 171)), IRect::new(24, 16, 400, 250));
+        let image = cornered_window((0, 0, 400, 250), 0);
+        assert_whole_window(&image, Some((0, 0, 250, 156)), IRect::new(0, 0, 400, 250));
+        let image = cornered_window((0, 0, 768, 420), 0);
+        assert_whole_window(&image, Some((0, 0, 480, 262)), IRect::new(0, 0, 768, 420));
+    }
+
+    // spec: capture / Window capture / The whole window at any display scale
+    #[test]
+    fn a_monitor_scale_crop_meta_adds_no_stray_pixel() {
+        // Growing past a cutting meta follows the window only: an opaque stray pixel beyond a
+        // transparent gap, e.g. stale content in the margin of a buffer that keeps its size while
+        // the window shrinks, is not taken in.
+        let mut image = cornered_window((24, 16, 400, 250), 12);
+        let stray = 400 * image.stride + 700 * BPP;
+        image.data[stray..stray + BPP].copy_from_slice(&0xFF00_0000u32.to_ne_bytes());
+        assert_whole_window(&image, Some((7, 2, 265, 171)), IRect::new(24, 16, 400, 250));
+    }
+
+    // spec: capture / Window capture / The whole window at any display scale
+    #[test]
+    fn a_crop_meta_with_nothing_visible_in_it_searches_the_whole_buffer() {
+        let image = cornered_window((300, 150, 400, 250), 0);
+        assert_whole_window(
+            &image,
+            Some((0, 0, 100, 80)),
+            IRect::new(300, 150, 400, 250),
+        );
+    }
+
+    // spec: capture / Window capture / The whole window at any display scale
+    #[test]
+    fn a_maximised_window_with_a_crop_meta_in_buffer_pixels_is_kept() {
+        // A window that fills its crop meta exactly (no shadow) is not mistaken for a cut one:
+        // nothing visible lies beyond the meta.
+        let image = cornered_window((0, 0, 768, 420), 0);
+        assert_whole_window(&image, Some((0, 0, 768, 420)), IRect::new(0, 0, 768, 420));
+    }
+
+    // spec: capture / Window capture / The whole window at any display scale
+    #[test]
+    fn a_stream_sample_with_a_monitor_scale_crop_meta_is_the_whole_window() {
+        // The same through a real GStreamer buffer, as `pipewiresrc` hands it over.
+        gst::init().unwrap();
+        let image = cornered_window((24, 16, 400, 250), 12);
+        let frame = window_frame(&image.sample((7, 2, 265, 171))).unwrap();
+        assert_eq!((frame.width(), frame.height()), (400, 250));
+        assert_eq!(frame.pixel(0, 0), Some(RED));
+        assert_eq!(frame.pixel(399, 249), Some(YELLOW));
     }
 
     // spec: capture / Window capture / Window on Wayland
@@ -799,28 +1062,7 @@ mod tests {
         let mut image = measured_window(0);
         let stray = 400 * image.stride + 700 * BPP + ALPHA;
         image.data[stray] = 255;
-        let format = gst_video::VideoFormat::from_string(FRAME_FORMAT);
-        let mut buffer = gst::Buffer::from_slice(image.data.clone());
-        {
-            let buffer = buffer.get_mut().unwrap();
-            gst_video::VideoMeta::add_full(
-                buffer,
-                gst_video::VideoFrameFlags::empty(),
-                format,
-                image.width,
-                image.height,
-                &[0],
-                &[i32::try_from(image.stride).unwrap()],
-            )
-            .unwrap();
-            gst_video::VideoCropMeta::add(buffer, (4, 6, 304, 244));
-        }
-        let caps = gst_video::VideoInfo::builder(format, image.width, image.height)
-            .build()
-            .unwrap()
-            .to_caps()
-            .unwrap();
-        let sample = gst::Sample::builder().buffer(&buffer).caps(&caps).build();
+        let sample = image.sample((4, 6, 304, 244));
         let frame = window_frame(&sample).unwrap();
         assert_eq!((frame.width(), frame.height()), (280, 220));
         let first = 18 * image.stride + 16 * BPP;

@@ -78,6 +78,14 @@
 - [x] 4.6 Strings via gettext, `po/de.po` updated in the same commit ("Waiting for a window…" and
       "Cancel" for the OSD).
 
+- [x] 4.8 Whole window at any crop-meta scale (design.md D3, amendment of 2026-11-23): a crop
+      meta in monitor pixels while the buffer is at scale 2 cut every window to its top-left
+      62.5 %. New scenario "The whole window at any display scale" in the `capture` delta;
+      `window_rect` falls back to the alpha box of the whole buffer when the meta cuts the window.
+      Verify: unit tests with a four-coloured-corner window for a meta in buffer pixels and at
+      1/1.6 of them (failing before the fix), and `tools/live-window-capture.py`'s target now has
+      four coloured corner squares, checked in every captured image.
+
 ## 5. Spec and docs follow-through
 
 - [x] 5.1 Update `docs/design/add-screen-capture/index.md` so that mockup 05 points to this

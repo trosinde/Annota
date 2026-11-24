@@ -9,6 +9,11 @@ The system SHALL capture a single window without its shadow. Where the ScreenCas
 - **AND** the chosen window, cut to its content and without shadow or transparent margin, is handed to the after-capture destination
 - **AND** the screen-sharing session is closed once the frame is taken
 
+#### Scenario: The whole window at any display scale
+- **WHEN** the user captures a window on a display with fractional scaling, e.g. 125 %, whether the window is small, decorated or maximised
+- **THEN** the image shows the whole window: all four of its edges and corners, with its content where it is in the window
+- **AND** no part of the window is cut off and nothing outside it is added
+
 #### Scenario: Window mode from the welcome page
 - **WHEN** the user activates the Window card on the welcome page and chooses a window in the chooser
 - **THEN** a window capture of that window opens in the editor with the toast "Window captured · W × H"

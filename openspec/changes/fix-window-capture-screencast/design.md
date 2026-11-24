@@ -94,6 +94,40 @@ The cut is therefore:
 A frame with no pixel above 0 at all is a failure ("no frame"), not an empty image. The
 threshold is a named constant with unit tests built from the measured alpha profile.
 
+**Amendment, 2026-11-23: the crop meta's units are not fixed.** Measured on the same machine
+(GNOME 50.1, Wayland, one monitor at scale 1.25) with `tools/portal-probe.py --screencast-window`
+on the live suite's GTK 4 target window: the buffer is again 6144 × 3456 (scale 2, for a stream
+`size` of 3072 × 1728), but the crop meta is in **monitor pixels at scale 1.25**: (0, 0, 800, 500)
+for a 640 × 400 window, while the window's pixels fill (0, 0, 1280, 800) of the buffer, found by
+alpha. The 2026-11-14 terminal's meta happened to be in buffer pixels. Step 1 above therefore cut
+every such window to its top-left 1/1.6 = 62.5 % in width and height: a small decorated window
+came out as 828 × 528 with its title at x 517-764 instead of centred, a maximised one with its
+title centre at 3070 instead of 1920. No test saw it: the unit tests had the meta in buffer pixels
+by construction, and the live suite's target was uniformly magenta, so any part of it passed for
+the whole. Also measured that day (P6 of `add-screen-recording`'s probe): while the window is
+resized, the buffer keeps its size and the crop meta follows the window.
+
+The meta's units cannot be read from the stream: neither the caps nor the meta say which scale
+it is in, and the ratio is 1 for one window and 1.6 for another on the same monitor. So the
+window's own pixels decide (`screencast::window_rect`):
+1. Steps 1-3 run inside the crop meta as before.
+2. If the box found there reaches an edge of the meta, and pixels of the same kind (alpha ≥ 128,
+   or > 0 for the translucent fallback) continue in the row or column right outside that edge,
+   the meta has cut the window: it is not in buffer pixels. Then the box grows past the meta, one
+   row or column at a time, for as long as the next row or column next to it still holds such a
+   pixel. It stops at the window's edge, so stray or stale pixels that a transparent gap separates
+   from the window (the buffer keeps its size while the window shrinks) are not taken in. A meta
+   in buffer pixels holds the window plus its shadow, or for a maximised window exactly the
+   window, and outside it the buffer is transparent, so it is kept as before.
+3. If nothing visible lies inside the meta at all, steps 2-3 of D3 run on the whole buffer.
+The window's pixels decide, not a scaled meta: scaling it would need the ratio, which neither the
+caps nor the meta report, so it would have to be guessed.
+
+The image keeps the buffer's pixels, without resampling: a 640 × 400 window at monitor scale 1.25
+gives a 1280 × 800 image, not 800 × 500. Whether a window capture should rather match its size on
+screen (and how, given that the buffer scale is not reported either) is **open for the
+maintainer**; it is a separate decision from cutting the whole window.
+
 ### D4: Delay order
 
 `run` gets a window branch that does chooser → `countdown::run(Window, delay)` → frame. The
