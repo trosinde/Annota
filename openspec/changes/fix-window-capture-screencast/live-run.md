@@ -73,7 +73,7 @@ samples), because the image is no longer at scale 2.
 | capture / Cursor inclusion / Pointer in a window capture | pass (14 samples; the pointer landed half off the window's left edge) |
 | capture / Cursor inclusion / Cursor excluded | pass |
 
-The images were looked at. In separate runs the same day, 3 of 8 maximised captures failed with
+The images were looked at. In separate runs the same day, 3 of 9 maximised captures failed with
 "no image on the clipboard" while the toast said "Window captured · 3840 × 2100": the clipboard
 flake noted for 2026-11-14 above (the toast's Copy after a synthetic key), not the image. Live
 runs were refused earlier the same night with RemoteDesktop `CreateSession` response 2: the
