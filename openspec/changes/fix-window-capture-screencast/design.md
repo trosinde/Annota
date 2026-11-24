@@ -126,7 +126,33 @@ caps nor the meta report, so it would have to be guessed.
 The image keeps the buffer's pixels, without resampling: a 640 × 400 window at monitor scale 1.25
 gives a 1280 × 800 image, not 800 × 500. Whether a window capture should rather match its size on
 screen (and how, given that the buffer scale is not reported either) is **open for the
-maintainer**; it is a separate decision from cutting the whole window.
+maintainer**; it is a separate decision from cutting the whole window (decided 2026-11-24, below).
+
+**Maintainer decision, 2026-11-24: a window image has the window's size on screen.** A window
+capture is in monitor pixels, like a region or screen capture, and the same window gives the same
+image size in window mode and in region mode. Measured facts behind it (GNOME 50.1, one monitor
+3840 × 2160 at scale 1.25, logical 3072 × 1728; the 2026-11-14 and 2026-11-23 probe runs above):
+the stream's `size` is (3072, 1728), the monitor's logical size, for every window; the buffer is
+6144 × 3456, so the buffer is at scale 6144 / 3072 = 2; a 640 × 400 window fills 1280 × 800 of it
+and is 800 × 500 on screen; a maximised one fills 6144 × 3360 and is 3840 × 2100 on screen. The
+factor is (monitor scale) ÷ (buffer scale), here 1.25 / 2 = 0.625 (`screencast::screen_size`):
+- **Buffer scale** = buffer width ÷ the stream's logical width (`Stream::size`, kept from
+  `Start` in `Chosen`).
+- **Monitor scale** from GDK (`gdk::Monitor::scale`, GTK 4.14), read on the main thread before the
+  frame is taken. The portal does not say which monitor shows the window, but the stream's size
+  is that monitor's logical size, so the monitor with that logical size is taken; if none or
+  several of different scales match, the one scale all monitors share; otherwise it is unknown
+  (`pick_monitor_scale`).
+- **Fallback** without both numbers: a crop meta that cut the window (smaller than the window
+  found by alpha, by the same ratio in both directions within 2 %) was at the monitor's scale, so
+  meta ÷ window is the factor directly. A meta in buffer pixels holds the whole window and gives
+  no factor.
+- A factor of 1 (buffer and monitor at the same scale) or above changes nothing: the image is the
+  cut window's pixels, bit for bit as before. Nothing is enlarged: a buffer below the monitor's
+  scale was never measured, and enlarging adds no detail.
+Scaling uses cairo's `Good` filter, as the editor's thumbnails do (`Frame::scaled`), on the
+premultiplied pixels, so transparency is averaged correctly, with `EXTEND_PAD` so the image's
+edges are not faded into transparency.
 
 ### D4: Delay order
 
