@@ -1,7 +1,7 @@
 //! Exporting a recording's working file (tasks 5.1, 5.2; design.md D1, D3; spec "Export after
 //! recording").
 //!
-//! - [`probe`]: size, duration and audio tracks of the working file (GStreamer's Discoverer);
+//! - [`probe`]: size, duration and audio tracks of the working file (the Matroska headers);
 //!   [`poster`]: one decoded frame for the poster. Both block; the window runs them off the main
 //!   thread.
 //! - [`start`]: the export to MP4 (the H.264 track remuxed unchanged, `h264parse ! mp4mux
@@ -23,19 +23,19 @@ use std::time::Duration;
 use futures_channel::mpsc;
 use gstreamer as gst;
 use gstreamer::prelude::*;
-use gstreamer_pbutils as gst_pbutils;
-use gtk::glib;
 
 use super::files;
 
 /// How often the worker looks at the bus, the cancel flag and the position.
 const POLL: Duration = Duration::from_millis(100);
-/// Discoverer's limit for one file.
+/// How long reading a file's headers may take.
 const PROBE_TIMEOUT: gst::ClockTime = gst::ClockTime::from_seconds(10);
 /// The poster frame's width in pixels (192 px at scale 2, redline 07).
 pub const POSTER_WIDTH: i32 = 384;
 /// Where the poster frame is taken: one second in, or the middle of a shorter recording.
 const POSTER_AT: gst::ClockTime = gst::ClockTime::from_seconds(1);
+/// The poster's decoder threads (`avdec_h264` `max-threads`; design.md P8).
+const POSTER_DECODER_THREADS: i32 = 2;
 /// VP9 (D3): realtime deadline with a high `cpu-used` for speed, rows in parallel, constant
 /// quality capped by a bitrate. Tuned on this host (a 1280 × 800 screen recording encodes at
 /// several times real time); revisit with task 6.2.
@@ -142,26 +142,101 @@ pub struct Info {
     pub audio_tracks: usize,
 }
 
-/// Reads size, duration and audio tracks with GStreamer's Discoverer. Blocks.
+/// Reads size, duration and audio tracks from the Matroska headers (`matroskademux`, nothing
+/// decoded). Blocks. Not GStreamer's Discoverer: it decodes a frame to report raw caps, at 4K
+/// with a decoder thread per core - measured 2026-11-24 (design.md P8): ~460 MB peak and
+/// ~80 MB kept by the allocator afterwards, for three header values.
 pub fn probe(path: &Path) -> Result<Info, ExportError> {
     gst::init().map_err(|e| ExportError::Build(e.to_string()))?;
-    let discoverer = gst_pbutils::Discoverer::new(PROBE_TIMEOUT)
-        .map_err(|e| ExportError::Probe(e.to_string()))?;
-    let uri = glib::filename_to_uri(path, None).map_err(|e| ExportError::Probe(e.to_string()))?;
-    let info = discoverer
-        .discover_uri(&uri)
-        .map_err(|e| ExportError::Probe(e.to_string()))?;
-    let video = info
-        .video_streams()
-        .into_iter()
-        .next()
-        .ok_or_else(|| ExportError::Probe(String::from("no video track")))?;
-    Ok(Info {
-        width: video.width(),
-        height: video.height(),
-        duration: info.duration().unwrap_or(gst::ClockTime::ZERO),
-        audio_tracks: info.audio_streams().len(),
-    })
+    let pipeline = gst::Pipeline::new();
+    let src = make("filesrc")?;
+    src.set_property("location", path.to_string_lossy().as_ref());
+    let demux = make("matroskademux")?;
+    pipeline.add_many([&src, &demux]).map_err(build_error)?;
+    src.link(&demux).map_err(build_error)?;
+    let tracks = Arc::new(std::sync::Mutex::new(Tracks::default()));
+    let (all_pads, pads_done) = std::sync::mpsc::channel();
+    {
+        let tracks = Arc::clone(&tracks);
+        let weak = pipeline.downgrade();
+        demux.connect_pad_added(move |_, pad| {
+            if let Some(caps) = pad.current_caps().or_else(|| Some(pad.query_caps(None))) {
+                if let Some(s) = caps.structure(0) {
+                    let mut tracks = tracks.lock().unwrap_or_else(|e| e.into_inner());
+                    if s.name().starts_with("video/") && tracks.video.is_none() {
+                        let w = s
+                            .get::<i32>("width")
+                            .ok()
+                            .and_then(|w| u32::try_from(w).ok());
+                        let h = s
+                            .get::<i32>("height")
+                            .ok()
+                            .and_then(|h| u32::try_from(h).ok());
+                        if let (Some(w), Some(h)) = (w, h) {
+                            tracks.video = Some((w, h));
+                        }
+                    } else if s.name().starts_with("audio/") {
+                        tracks.audio += 1;
+                    }
+                }
+            }
+            // Linked, so the demuxer's first push after the headers is not an error.
+            if let Some(pipeline) = weak.upgrade() {
+                let _ = drop_pad(&pipeline, pad);
+            }
+        });
+    }
+    demux.connect_no_more_pads(move |_| {
+        let _ = all_pads.send(());
+    });
+    let result = (|| {
+        pipeline
+            .set_state(gst::State::Paused)
+            .map_err(|_| ExportError::Probe(String::from("the file cannot be read")))?;
+        let bus = pipeline
+            .bus()
+            .ok_or_else(|| ExportError::Build(String::from("no bus")))?;
+        let deadline = std::time::Instant::now() + Duration::from(PROBE_TIMEOUT);
+        loop {
+            if pads_done.try_recv().is_ok() {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(ExportError::Probe(String::from("timed out")));
+            }
+            if let Some(message) = bus.timed_pop_filtered(
+                gst::ClockTime::from_mseconds(20),
+                &[gst::MessageType::Error],
+            ) {
+                if let gst::MessageView::Error(err) = message.view() {
+                    return Err(ExportError::Probe(err.error().to_string()));
+                }
+            }
+        }
+        let duration = pipeline
+            .query_duration::<gst::ClockTime>()
+            .or_else(|| demux.query_duration::<gst::ClockTime>())
+            .unwrap_or(gst::ClockTime::ZERO);
+        let tracks = *tracks.lock().unwrap_or_else(|e| e.into_inner());
+        let (width, height) = tracks
+            .video
+            .ok_or_else(|| ExportError::Probe(String::from("no video track")))?;
+        Ok(Info {
+            width,
+            height,
+            duration,
+            audio_tracks: tracks.audio,
+        })
+    })();
+    let _ = pipeline.set_state(gst::State::Null);
+    result
+}
+
+/// The tracks [`probe`] found: the first video track's size, the number of audio tracks.
+#[derive(Clone, Copy, Default)]
+struct Tracks {
+    video: Option<(u32, u32)>,
+    audio: usize,
 }
 
 /// A decoded poster frame, RGBA.
@@ -191,6 +266,11 @@ fn poster_with(
     src.set_property("location", path.to_string_lossy().as_ref());
     let demux = make("matroskademux")?;
     let decode = [make("queue")?, make("h264parse")?, h264_decoder(decoders)?];
+    // One frame is wanted: `avdec_h264`'s default (a frame thread per core, up to 16) held
+    // ~600 MB at 4K and left ~260 MB with the allocator (measured 2026-11-24, design.md P8).
+    if decode[2].has_property("max-threads", None) {
+        decode[2].set_property("max-threads", POSTER_DECODER_THREADS);
+    }
     let convert = make("videoconvert")?;
     let scale = make("videoscale")?;
     let sink = gstreamer_app::AppSink::builder()

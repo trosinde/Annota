@@ -3,7 +3,7 @@
 //!
 //! It opens for every recording that ended ([`open`], from `Hooks::on_ended`): Stop, the Record
 //! shortcut, the desktop ending the session, the recorded window closed, an error (then with
-//! the banner of mockup 11). It shows a poster frame and the duration (Discoverer and one frame
+//! the banner of mockup 11). It shows a poster frame and the duration (the file's headers and one frame
 //! of the working file, both read off the main thread), File name (the working file's name),
 //! Folder (the last folder exported to, `record-export-folder`; empty: the recordings folder),
 //! Format MP4 | WebM (`record-export-format`) and Include audio (`record-include-audio`;
@@ -81,7 +81,7 @@ pub struct ExportWindow {
     settings: gio::Settings,
     /// The working file.
     path: PathBuf,
-    /// The recorded time (Discoverer's, once known).
+    /// The recorded time (the file's, once known).
     duration: Cell<gst::ClockTime>,
     audio: Vec<AudioSource>,
     info: Cell<Option<Info>>,
@@ -359,7 +359,7 @@ impl ExportWindow {
         }
     }
 
-    /// Discoverer and the poster frame, off the main thread.
+    /// The file's headers and the poster frame, off the main thread.
     fn load_poster(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
         let path = self.path.clone();

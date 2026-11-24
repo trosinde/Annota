@@ -65,6 +65,11 @@ const FRAME: gst::ClockTime = gst::ClockTime::from_nseconds(1_000_000_000 / FRAM
 const QUANTIZER: u32 = 20;
 /// A key frame at least every 2 s: a file cut short by a crash loses at most one group.
 const KEY_INT_MAX: u32 = 2 * FRAME_RATE as u32;
+/// Most x264 frame threads. x264's own choice is 1.5 per core (30 on a 20-thread CPU), and each
+/// holds its frames: at 4K that was ~3.1 GB, flat over a recording (measured 2026-11-24,
+/// design.md P8). Six hold ~1.0 GB and still encode a moving 4K picture at ~46 fps here (the
+/// single-threaded `videoconvert` in front limits it either way).
+const X264_MAX_THREADS: u32 = 6;
 
 /// The window's content rectangle in one buffer of a window stream (Phase B:
 /// `window::WindowContent`, i.e. `screencast::window_rect`). `None` keeps the previous rectangle.
@@ -535,6 +540,7 @@ fn build(
     x264.set_property_from_str("pass", "quant");
     x264.set_property("quantizer", QUANTIZER);
     x264.set_property("key-int-max", KEY_INT_MAX);
+    x264.set_property("threads", x264_threads());
     let mut chain: Vec<&gst::Element> = vec![video_in.upcast_ref()];
     let fault = match config.fault_after {
         Some(n) => {
@@ -800,6 +806,14 @@ fn frame_caps(size: Option<Size>) -> gst::Caps {
         caps = caps.field("width", size.w).field("height", size.h);
     }
     caps.build()
+}
+
+/// x264's own thread count (1.5 per core), at most [`X264_MAX_THREADS`].
+fn x264_threads() -> u32 {
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+    u32::try_from(cores * 3 / 2)
+        .unwrap_or(X264_MAX_THREADS)
+        .clamp(1, X264_MAX_THREADS)
 }
 
 /// Sets `videocrop` and the frame size from the buffers (design.md D2).
