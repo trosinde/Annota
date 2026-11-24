@@ -197,7 +197,7 @@ pub enum RecordingEvent {
 }
 
 /// A finished working file.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Finished {
     pub path: PathBuf,
     /// Recorded time without paused time.

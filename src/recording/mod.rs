@@ -40,6 +40,8 @@
 
 pub mod audio;
 pub mod control;
+pub mod export;
+pub mod export_window;
 pub mod files;
 pub mod geometry;
 #[cfg(test)]
@@ -176,7 +178,7 @@ pub struct Hooks {
     pub on_event: Rc<dyn Fn(&RecordingEvent)>,
     /// How a start ended (Phase D: the toast for [`StartOutcome::message`]).
     pub on_outcome: OnOutcome,
-    /// A recording ended (Phase D: the Export Recording window, D1).
+    /// A recording ended: the Export Recording window (D1).
     pub on_ended: OnEnded,
     /// The Record shortcut's trigger for the control's Stop tooltip, as the portal reports it
     /// (task 4.5 fills it); `None`: no chip.
@@ -198,14 +200,8 @@ impl Default for Hooks {
                     eprintln!("annota: recording: {message}");
                 }
             }),
-            // Phase D: the Export Recording window opens here (D1). Stub until then.
-            on_ended: Rc::new(|_, ended| {
-                eprintln!(
-                    "annota: recording finished ({:?}): {}",
-                    ended.reason,
-                    ended.finished.path.display()
-                );
-            }),
+            // The Export Recording window (D1, tasks 5.1-5.4), for every end.
+            on_ended: Rc::new(export_window::open),
             record_trigger: Rc::new(|| None),
         }
     }
@@ -527,7 +523,8 @@ async fn record(app: &adw::Application, target: Target) -> StartOutcome {
         move |ended: Ended| {
             control::close();
             set_active(Active::Idle);
-            // Phase D opens the Export Recording window here instead (D1).
+            // Annota's hidden windows come back first, so the Export Recording window that
+            // `on_ended` opens and presents is the newest window, in front of them.
             show_hidden(&app);
             on_ended(&app, ended);
         }

@@ -30,7 +30,10 @@ use crate::capture::live_tests::{
 };
 use crate::capture::overlay::{self, Desktop, Mode, Outcome};
 use crate::capture::window_wait;
-use crate::recording::pipeline::tests::{analyse, near, rms_range, AChunk, GREEN, RED};
+use crate::recording::export_window::{self, ExportWindow, State};
+use crate::recording::pipeline::tests::{
+    analyse, near, rms_range, working_file, AChunk, GREEN, RED,
+};
 use crate::ui::test_support::pump;
 
 const DESKTOP_ENDED: &str = "The desktop ended the screen-sharing request. Nothing was recorded.";
@@ -315,6 +318,8 @@ fn recording_scene(name: &str, include_pointer: bool) -> (Scene, Rc<Seen>, PathB
     let seen = Rc::new(Seen::default());
     let (outcomes, ended, countdown) = (seen.clone(), seen.clone(), seen.clone());
     let video = test_screen(&seen);
+    // The real end of a recording (the Export Recording window), noted on the way.
+    let open_export = Hooks::default().on_ended;
     set_hooks(move |hooks| {
         hooks.video_source = video;
         hooks.audio_sources = Rc::new(|_, _| Vec::new());
@@ -340,8 +345,12 @@ fn recording_scene(name: &str, include_pointer: bool) -> (Scene, Rc<Seen>, PathB
         hooks.on_outcome = Rc::new(move |_, outcome| {
             outcomes.outcomes.borrow_mut().push(outcome.clone());
         });
-        hooks.on_ended = Rc::new(move |_, done| {
-            ended.ended.borrow_mut().push((done, Instant::now()));
+        hooks.on_ended = Rc::new(move |app, done| {
+            ended
+                .ended
+                .borrow_mut()
+                .push((done.clone(), Instant::now()));
+            open_export(app, done);
         });
     });
     (scene, seen, folder)
@@ -380,6 +389,33 @@ fn indicator_text(osd: &gtk::Window) -> (String, String) {
         label.label().to_string(),
         icon.icon_name().map(|n| n.to_string()).unwrap_or_default(),
     )
+}
+
+/// The Export Recording window opened for the working file `path`, once it is on the screen.
+fn export_for(path: &Path) -> Rc<ExportWindow> {
+    wait_for(
+        || {
+            export_window::open_windows()
+                .iter()
+                .any(|w| w.path() == path && w.window().is_mapped())
+        },
+        "the Export Recording window",
+    );
+    let window = export_window::open_windows()
+        .into_iter()
+        .find(|w| w.path() == path)
+        .unwrap();
+    assert_eq!(window.window().title().as_deref(), Some("Export Recording"));
+    assert_eq!(window.state(), State::Settings);
+    window
+}
+
+/// Whether `window` shows the recording-error banner (mockup 11).
+fn shows_error_banner(window: &ExportWindow) -> bool {
+    let banner: adw::Banner = find(window.window(), "error_banner").unwrap();
+    banner.is_revealed()
+        && banner.title()
+            == "The recording stopped because of an error. What was recorded until then is kept."
 }
 
 fn outcomes(seen: &Seen) -> Vec<StartOutcome> {
@@ -718,7 +754,8 @@ fn rec_a_region_off_the_chosen_screen_closes_the_session() {
 /// Scenarios "Record a window" and "Recorded window closed": "Waiting for a window…" goes when a
 /// window is chosen; the recording shows only the window (its shadow and the buffer's undefined
 /// pixels around it cut away); closing the window reaches Annota only as `Session.Closed`, and
-/// the recording is finished at once, kept, without `Session.Close`.
+/// the recording is finished at once, kept, without `Session.Close`, and the Export Recording
+/// window opens for it.
 // spec: screen-recording / Recording source / Record a window
 // spec: screen-recording / Stop recording / Recorded window closed
 #[test]
@@ -835,6 +872,9 @@ fn rec_a_window_recording_shows_only_the_window_until_it_closes() {
     assert_eq!(done.reason, EndReason::DesktopEnded);
     assert!(control::shown().is_none(), "the control went with it");
     assert!(!done.by_error());
+    // The Export Recording window opens for what was recorded, without the error banner.
+    let export = export_for(&done.finished.path);
+    assert!(!shows_error_banner(&export));
     pump(500);
     assert_eq!(cast.count("Session.Close"), 0, "{:?}", cast.calls());
     assert!(!is_active());
@@ -858,11 +898,14 @@ fn rec_a_window_recording_shows_only_the_window_until_it_closes() {
     }
 }
 
-/// Scenario "Session ended by the desktop": GNOME's ■ sends `Session.Closed` while the stream
-/// keeps running (no end of stream ever): the recording is finished at once and kept, and no
-/// `Session.Close` is sent. A pipeline error then ends a second recording with what was written,
-/// the session closed by Annota; the Record shortcut ends a third one like Stop.
+/// Scenarios "Session ended by the desktop" and "Recording error": GNOME's ■ sends
+/// `Session.Closed` while the stream keeps running (no end of stream ever): the recording is
+/// finished at once and kept, no `Session.Close` is sent, and the Export Recording window opens
+/// for it. A pipeline error then ends a second recording with what was written, the session
+/// closed by Annota, and the Export Recording window opens with the error banner; the Record
+/// shortcut ends a third one like Stop.
 // spec: screen-recording / Stop recording / Session ended by the desktop
+// spec: screen-recording / Working file / Recording error
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
 fn rec_the_desktop_ending_the_session_finishes_the_recording_at_once() {
@@ -889,6 +932,8 @@ fn rec_the_desktop_ending_the_session_finishes_the_recording_at_once() {
     assert_eq!(done.reason, EndReason::DesktopEnded);
     assert!(control::shown().is_none(), "the control went with it");
     assert!(!done.by_error());
+    let export = export_for(&done.finished.path);
+    assert!(!shows_error_banner(&export));
     pump(500);
     assert_eq!(cast.count("Session.Close"), 0, "{:?}", cast.calls());
     assert!(!is_active());
@@ -938,6 +983,13 @@ fn rec_the_desktop_ending_the_session_finishes_the_recording_at_once() {
     assert!(control::shown().is_none(), "the control went with it");
     cast.reaches("Session.Close", 1);
     assert!(done.finished.path.exists(), "the file is kept");
+    // The Export Recording window opens with the error banner (mockup 11) for what was kept.
+    let export = export_for(&done.finished.path);
+    assert!(shows_error_banner(&export));
+    let analysis = analyse(&done.finished.path);
+    assert!(!analysis.frames.is_empty(), "what was recorded is kept");
+    wait_for(|| export.poster_shown(), "the poster frame");
+    export_shots(&export, "11-recording-error");
     assert_eq!(files_in(&folder).len(), 2);
     assert!(!is_active());
 
@@ -966,6 +1018,7 @@ fn rec_the_desktop_ending_the_session_finishes_the_recording_at_once() {
     let ended = std::mem::take(&mut *seen.ended.borrow_mut());
     assert_eq!(ended.len(), 1);
     assert_eq!(ended[0].0.reason, EndReason::Stopped);
+    export_for(&ended[0].0.finished.path);
     assert_eq!(files_in(&folder).len(), 3);
 }
 
@@ -1636,6 +1689,10 @@ fn rec_setup_choices_are_remembered() {
         "the recording to finish",
     );
     assert!(main.is_visible(), "back once the recording has ended");
+    // ... with the Export Recording window, presented after them.
+    let (done, _) = seen.ended.borrow_mut().remove(0);
+    let export = export_for(&done.finished.path);
+    assert!(export.window().is_visible() && main.is_visible());
 }
 
 /// Scenarios "Source not offered" and "No microphone": a portal that offers monitors only and a
@@ -2043,6 +2100,11 @@ fn button_icon(button: &gtk::Button) -> String {
         .unwrap_or_default()
 }
 
+/// The running recording's own clock, as the control reads it.
+fn elapsed_source() -> control::ElapsedSource {
+    Rc::new(|| running().and_then(|s| s.with_recording(|r| r.elapsed())))
+}
+
 /// The recorded time of the running recording, in seconds.
 fn elapsed_now() -> f64 {
     running()
@@ -2091,15 +2153,78 @@ fn control_shots(window: &gtk::Window, name: &str) {
     set_scheme(false);
 }
 
+/// A window manager on the test's X display (`twm`, which this host's `x11-apps`/`twm` package
+/// ships), so minimising and raising have an effect that can be observed. Xvfb has none of its
+/// own. `RandomPlacement` keeps twm from waiting for interactive placement; it is stopped when
+/// this is dropped.
+struct WindowManager {
+    child: std::process::Child,
+    rc: PathBuf,
+}
+
+impl WindowManager {
+    /// Starts twm and waits until it has taken over `managed` (reparented it into a frame).
+    fn start(dir: &Path, managed: &gtk::Window) -> Self {
+        let display = std::env::var("DISPLAY").expect("an X display (GDK_BACKEND=x11)");
+        let rc = dir.join("twmrc");
+        std::fs::write(&rc, "RandomPlacement\nNoTitle\n").unwrap();
+        let child = std::process::Command::new("twm")
+            .args(["-display", &display, "-f"])
+            .arg(&rc)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("twm is installed (the Recording control's live tests need a window manager)");
+        let xid = x_window(managed).expect("the window's X id");
+        wait_for(
+            || {
+                std::process::Command::new("xwininfo")
+                    .args(["-display", &display, "-children", "-id", &xid])
+                    .output()
+                    .is_ok_and(|o| {
+                        let text = String::from_utf8_lossy(&o.stdout);
+                        text.lines().any(|l| {
+                            l.trim_start().starts_with("Parent window id:")
+                                && !l.contains("(the root window)")
+                        })
+                    })
+            },
+            "twm to manage the window",
+        );
+        pump(300);
+        Self { child, rc }
+    }
+}
+
+impl Drop for WindowManager {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        let _ = std::fs::remove_file(&self.rc);
+    }
+}
+
+/// The toplevel state of `window`'s surface.
+fn toplevel_state(window: &gtk::Window) -> gdk::ToplevelState {
+    window
+        .surface()
+        .and_downcast::<gdk::Toplevel>()
+        .map(|t| t.state())
+        .unwrap_or(gdk::ToplevelState::empty())
+}
+
 /// Scenarios "Elapsed time" and "Minimize the control": once the recording runs, the undecorated
 /// "Recording" window shows rec dot, time, Pause, Stop, both audio buttons and Minimize, with
 /// Pause focused and `Tab` going Pause → Stop → Microphone → System audio → Minimize. Its time
 /// follows the recording's own elapsed clock (`0:01` after a second of real recording) and,
-/// with that clock standing at 12 s, reads `0:12` on the next refresh. Minimize asks for the
-/// window to be minimised (a display without a window manager cannot show more) and the
-/// recording goes on. Stop then closes the session and takes the control away at once.
+/// with that clock standing at 12 s, reads `0:12` on the next refresh. With a window manager
+/// (twm) on the display, Minimize minimises the window within a second, its clock stops while
+/// it is minimised and the recording goes on; restored, the clock runs again; a close request
+/// minimises it too. Scenario "Stop by button": Stop then closes the session, takes the control
+/// away at once and opens the Export Recording window for this recording, once.
 // spec: screen-recording / Recording control / Elapsed time
 // spec: screen-recording / Recording control / Minimize the control
+// spec: screen-recording / Stop recording / Stop by button
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
 fn rec_the_control_shows_the_time_and_minimizes() {
@@ -2159,18 +2284,50 @@ fn rec_the_control_shows_the_time_and_minimizes() {
     pump(control::TICK.as_millis() as u64 + 150);
     assert_eq!(view.time.label(), "1:00:12");
 
-    // Minimize: requested for the control's window; the recording continues.
+    // Minimize, with a window manager on the display: the control's window is minimised, its
+    // clock stops meanwhile, and the recording continues.
+    control::set_elapsed_source(elapsed_source());
+    let _wm = WindowManager::start(&scene.dir, &view.window);
+    assert!(control::ticking());
     let (minimized, _) = control::requests();
     view.minimize.emit_clicked();
     assert_eq!(control::requests().0, minimized + 1);
+    let asked = Instant::now();
+    wait_for(
+        || toplevel_state(&view.window).contains(gdk::ToplevelState::MINIMIZED),
+        "the control minimised",
+    );
+    assert!(
+        asked.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        asked.elapsed()
+    );
+    pump(100);
+    assert!(!control::ticking(), "no clock while minimised");
     let before = elapsed_now();
     pump(800);
     assert!(elapsed_now() > before + 0.5, "the recording continues");
     assert!(running().is_some());
     assert!(control::shown().is_some(), "minimised, not closed");
     assert_eq!(seen.ended.borrow().len(), 0);
+    // Back on the screen (the user restores it through the window manager; `present` cannot
+    // de-iconify under twm, which has no `_NET_ACTIVE_WINDOW`): the clock runs again.
+    assert!(xdotool(&["windowmap", &x_window(&view.window).unwrap()]));
+    wait_for(
+        || !toplevel_state(&view.window).contains(gdk::ToplevelState::MINIMIZED),
+        "the control shown again",
+    );
+    wait_for(control::ticking, "the clock again");
+    // A close request (Alt+F4, the window menu) minimises it as well; the recording goes on.
+    view.window.close();
+    wait_for(
+        || toplevel_state(&view.window).contains(gdk::ToplevelState::MINIMIZED),
+        "the control minimised by a close request",
+    );
+    assert!(control::shown().is_some() && running().is_some());
 
-    // Stop: the control goes at once, the session is closed, the file finished.
+    // Stop: the control goes at once, the session is closed, the file finished, and the Export
+    // Recording window opens for this recording.
     view.stop.emit_clicked();
     assert!(control::shown().is_none(), "the control disappears");
     wait_for(
@@ -2183,15 +2340,22 @@ fn rec_the_control_shows_the_time_and_minimizes() {
     assert_eq!(ended[0].0.reason, EndReason::Stopped);
     assert_eq!(ended[0].0.finished.audio.len(), 2);
     assert!(!is_active());
+    let export = export_for(&ended[0].0.finished.path);
+    assert!(!shows_error_banner(&export));
+    assert_eq!(export_window::open_windows().len(), 1, "one window, once");
 }
 
 /// Scenario "Second recording request": while a recording runs, `--record screen`, `--record
 /// region`, `--record window` (through `app.record`, which the Record card and the shortcut use
 /// too) and a region from the setup each present the control and request nothing: one
 /// `CreateSession` in all, no overlay. A microphone-only recording has no System audio button;
-/// one without audio has neither button nor their separator. The Record shortcut (toggle) still
-/// stops the recording, while it runs and while it is paused, and the control goes with it.
+/// one without audio has neither button nor their separator. With a window manager (twm) and
+/// another window active, the requests make the control the active window again. Scenario
+/// "Stop by hotkey": the Record shortcut (toggle) stops the recording, while it runs and while
+/// it is paused (then it lasts until the pause), the control goes with it and the Export
+/// Recording window opens for it.
 // spec: screen-recording / Recording control / Second recording request
+// spec: screen-recording / Stop recording / Stop by hotkey
 #[test]
 #[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
 fn rec_a_second_recording_request_presents_the_control() {
@@ -2212,6 +2376,24 @@ fn rec_a_second_recording_request_presents_the_control() {
     wait_for(|| view.time.label() == "0:01", "0:01");
     control_shots(&view.window, "05-microphone-only");
 
+    // With a window manager, another window in front of the control.
+    let _wm = WindowManager::start(&scene.dir, &view.window);
+    let other = gtk::Window::builder()
+        .application(&scene.app)
+        .title("Another window")
+        .default_width(240)
+        .default_height(160)
+        .build();
+    other.present();
+    wait_for(|| other.is_mapped(), "another window");
+    pump(200);
+    // twm gives the focus to the window under the pointer only: focus it the way a click would.
+    assert!(xdotool(&["windowfocus", &x_window(&other).unwrap()]));
+    wait_for(
+        || other.is_active() && !view.window.is_active(),
+        "another window in front",
+    );
+
     let (_, presented) = control::requests();
     for mode in [RecordMode::Screen, RecordMode::Region, RecordMode::Window] {
         scene
@@ -2221,6 +2403,9 @@ fn rec_a_second_recording_request_presents_the_control() {
     start_region(&scene.app, IRect::new(10, 10, 100, 100));
     pump(700);
     assert_eq!(control::requests().1, presented + 4, "presented each time");
+    wait_for(|| view.window.is_active(), "the control raised and active");
+    assert!(!other.is_active());
+    other.destroy();
     assert_eq!(cast.count("CreateSession"), 1, "no second session");
     assert!(overlay_window(&scene.app).is_none(), "no overlay");
     assert!(window_wait::shown().is_none());
@@ -2237,10 +2422,9 @@ fn rec_a_second_recording_request_presents_the_control() {
         "the recording to finish",
     );
     cast.reaches("Session.Close", 1);
-    assert_eq!(
-        seen.ended.borrow_mut().remove(0).0.reason,
-        EndReason::Stopped
-    );
+    let (done, _) = seen.ended.borrow_mut().remove(0);
+    assert_eq!(done.reason, EndReason::Stopped);
+    export_for(&done.finished.path);
 
     // Without audio: no audio buttons, no separator. Paused, the shortcut still stops it.
     want_audio(false, false);
@@ -2260,6 +2444,8 @@ fn rec_a_second_recording_request_presents_the_control() {
         .unwrap()
         .with_recording(|r| r.is_paused())
         .unwrap());
+    let paused_at = elapsed_now();
+    pump(600);
     scene
         .app
         .activate_action("record", Some(&RecordMode::Toggle.as_str().to_variant()));
@@ -2272,6 +2458,19 @@ fn rec_a_second_recording_request_presents_the_control() {
     let (done, _) = seen.ended.borrow_mut().remove(0);
     assert_eq!(done.reason, EndReason::Stopped);
     assert!(done.finished.audio.is_empty());
+    export_for(&done.finished.path);
+    // Stopped while paused: the recording lasts until the pause (the recorded time at the
+    // moment of pausing, not 0 and not the paused time).
+    let duration = done.finished.duration.nseconds() as f64 / 1e9;
+    assert!(
+        (duration - paused_at).abs() < 0.05,
+        "{duration} s, paused at {paused_at} s"
+    );
+    let length = analyse(&done.finished.path).duration();
+    assert!(
+        (length - paused_at).abs() < 0.1,
+        "the file lasts {length} s"
+    );
     assert_eq!(cast.count("CreateSession"), 2);
     assert!(!is_active());
 }
@@ -2304,9 +2503,11 @@ fn rec_pause_and_mutes_in_the_control() {
     );
     pump(800);
 
-    // `M`: microphone muted until `M` again.
+    // `M`: microphone muted until `M` again; each toggle is announced.
+    control::take_announced();
     let mic_muted = elapsed_now();
     assert!(press(&view.window, gdk::Key::m));
+    assert_eq!(control::take_announced(), ["Microphone muted"]);
     assert!(running()
         .unwrap()
         .with_recording(|r| r.is_muted(AudioSource::Microphone))
@@ -2322,6 +2523,7 @@ fn rec_pause_and_mutes_in_the_control() {
     pump(800);
     let mic_back = elapsed_now();
     assert!(press(&view.window, gdk::Key::m));
+    assert_eq!(control::take_announced(), ["Microphone on"]);
     assert_eq!(icon(&view.microphone_icon), "annota-microphone-symbolic");
     wait_for(
         || control::meter(AudioSource::Microphone) == Some((5, false)),
@@ -2332,6 +2534,7 @@ fn rec_pause_and_mutes_in_the_control() {
     // `S`: system audio muted until `S` again.
     let system_muted = elapsed_now();
     assert!(press(&view.window, gdk::Key::s));
+    assert_eq!(control::take_announced(), ["System audio muted"]);
     assert_eq!(icon(&view.system_icon), "audio-volume-muted-symbolic");
     assert!(running()
         .unwrap()
@@ -2342,12 +2545,14 @@ fn rec_pause_and_mutes_in_the_control() {
     pump(900);
     let system_back = elapsed_now();
     assert!(press(&view.window, gdk::Key::s));
+    assert_eq!(control::take_announced(), ["System audio on"]);
     assert_eq!(icon(&view.system_icon), "annota-speaker-symbolic");
     pump(600);
 
     // `Space`: paused, with the time from the moment of pausing.
     view.pause.grab_focus();
     assert!(press(&view.window, gdk::Key::space));
+    assert_eq!(control::take_announced(), ["Paused"]);
     assert!(running()
         .unwrap()
         .with_recording(|r| r.is_paused())
@@ -2366,16 +2571,17 @@ fn rec_pause_and_mutes_in_the_control() {
         frozen,
         control::format_elapsed(gst::ClockTime::from_nseconds((frozen_elapsed * 1e9) as u64))
     );
-    // The mockup's paused state: the microphone muted as well.
+    // The mockup's paused state: the microphone muted as well, set while paused. It stays muted
+    // after the resume, from the moment of pausing on.
     assert!(press(&view.window, gdk::Key::m));
     control_shots(&view.window, "06-paused-mic-muted");
-    assert!(press(&view.window, gdk::Key::m));
     pump(1200);
     assert_eq!(view.time.label(), frozen, "the time no longer advances");
     assert!((elapsed_now() - frozen_elapsed).abs() < 0.01);
 
-    // Resume (the focused button), then Stop.
+    // Resume (the focused button, by click), unmute, then Stop.
     view.pause.emit_clicked();
+    assert_eq!(control::take_announced(), ["Microphone muted", "Recording"]);
     assert!(!running()
         .unwrap()
         .with_recording(|r| r.is_paused())
@@ -2384,6 +2590,11 @@ fn rec_pause_and_mutes_in_the_control() {
     assert_eq!(button_icon(&view.pause), "annota-pause-symbolic");
     pump(800);
     assert!(elapsed_now() > frozen_elapsed + 0.4, "running again");
+    let mic_back_again = elapsed_now();
+    view.microphone.emit_clicked();
+    assert_eq!(control::take_announced(), ["Microphone on"]);
+    pump(800);
+    let stopped_at = elapsed_now();
     view.stop.emit_clicked();
     wait_for(
         || !seen.ended.borrow().is_empty(),
@@ -2424,7 +2635,569 @@ fn rec_pause_and_mutes_in_the_control() {
         rms_range(system, system_back + margin, frozen_elapsed - margin).0 > 0.02,
         "system after unmuting"
     );
+    // The mute set while paused starts at the pause, not before it or at 0 s.
+    assert!(
+        rms_range(mic, system_back + margin, frozen_elapsed - margin).0 > 0.1,
+        "mic until the pause"
+    );
+    assert!(
+        rms_range(mic, frozen_elapsed + margin, mic_back_again - margin).1 < 0.001,
+        "mic silent from the pause until unmuted"
+    );
+    assert!(
+        rms_range(mic, mic_back_again + margin, stopped_at - margin).0 > 0.1,
+        "mic after unmuting"
+    );
     // The tracks keep their length.
     let end = |track: &[AChunk]| track.last().map_or(0.0, |c| c.pts);
-    assert!(end(mic) > frozen_elapsed && end(system) > frozen_elapsed);
+    assert!(end(mic) > stopped_at - margin && end(system) > stopped_at - margin);
+}
+
+// --- Phase D1: the Export Recording window (tasks 5.1-5.4) ----------------------------------
+
+/// With `ANNOTA_SHOT_DIR` set, saves `window` in the light and the dark colour scheme
+/// (`<name>-light.png`, `<name>-dark.png`).
+fn export_shots(window: &ExportWindow, name: &str) {
+    if std::env::var_os("ANNOTA_SHOT_DIR").is_none() {
+        return;
+    }
+    for (dark, scheme) in [(false, "light"), (true, "dark")] {
+        set_scheme(dark);
+        shot(window.window(), &format!("{name}-{scheme}"));
+    }
+    set_scheme(false);
+}
+
+/// The mockups' working file name.
+const WORKING_NAME: &str = "Recording 2026-11-22 10-42-07";
+
+/// A finished recording in `folder` named [`WORKING_NAME`]: `seconds` of synthetic time from
+/// test sources through the real recording pipeline (fast), with the given audio tracks.
+fn made_recording(
+    folder: &Path,
+    seconds: f64,
+    size: (u32, u32),
+    audio: &[(AudioSource, f64)],
+) -> Finished {
+    let mut finished = working_file("export-window", seconds, size, audio);
+    std::fs::create_dir_all(folder).unwrap();
+    let path = folder.join(format!("{WORKING_NAME}.mkv"));
+    std::fs::copy(&finished.path, &path).unwrap();
+    crate::recording::pipeline::tests::remove_working_file(&finished.path);
+    finished.path = path;
+    finished
+}
+
+/// Ends a recording the way the flow does: the default `on_ended` (the Export Recording
+/// window) with `finished`.
+fn end_with(app: &adw::Application, finished: Finished, reason: EndReason) -> Rc<ExportWindow> {
+    let path = finished.path.clone();
+    (Hooks::default().on_ended)(app, Ended { finished, reason });
+    export_for(&path)
+}
+
+/// The window's widgets.
+struct ExportView {
+    window: adw::Window,
+    name_row: adw::EntryRow,
+    extension: gtk::Label,
+    folder_row: adw::ActionRow,
+    format_row: adw::ActionRow,
+    mp4: gtk::ToggleButton,
+    webm: gtk::ToggleButton,
+    audio_row: adw::SwitchRow,
+    caption: gtk::Label,
+    badge: gtk::Label,
+    name: gtk::Label,
+    settings_box: gtk::Widget,
+    footer: gtk::Stack,
+    body: gtk::Stack,
+    discard: gtk::Button,
+    export: gtk::Button,
+    cancel: gtk::Button,
+    progress: gtk::ProgressBar,
+    percent: gtk::Label,
+    saved_name: gtk::Label,
+    saved_caption: gtk::Label,
+    show: gtk::Button,
+    close: gtk::Button,
+}
+
+fn export_view(export: &ExportWindow) -> ExportView {
+    let window = export.window().clone();
+    let get = |id: &str| find::<gtk::Widget>(&window, id).unwrap_or_else(|| panic!("no {id}"));
+    ExportView {
+        name_row: get("name_row").downcast().unwrap(),
+        extension: get("extension_label").downcast().unwrap(),
+        folder_row: get("folder_row").downcast().unwrap(),
+        format_row: get("format_row").downcast().unwrap(),
+        mp4: get("mp4_button").downcast().unwrap(),
+        webm: get("webm_button").downcast().unwrap(),
+        audio_row: get("audio_row").downcast().unwrap(),
+        caption: get("caption_label").downcast().unwrap(),
+        badge: get("duration_badge").downcast().unwrap(),
+        name: get("name_label").downcast().unwrap(),
+        settings_box: get("settings_box"),
+        footer: get("footer_stack").downcast().unwrap(),
+        body: get("body_stack").downcast().unwrap(),
+        discard: get("discard_button").downcast().unwrap(),
+        export: get("export_button").downcast().unwrap(),
+        cancel: get("cancel_button").downcast().unwrap(),
+        progress: get("progress_bar").downcast().unwrap(),
+        percent: get("percent_label").downcast().unwrap(),
+        saved_name: get("saved_name").downcast().unwrap(),
+        saved_caption: get("saved_caption").downcast().unwrap(),
+        show: get("show_button").downcast().unwrap(),
+        close: get("close_button").downcast().unwrap(),
+        window,
+    }
+}
+
+/// Whether the focus is in `widget` (an entry row's text, a button).
+fn focus_in(window: &adw::Window, widget: &impl IsA<gtk::Widget>) -> bool {
+    gtk::prelude::GtkWindowExt::focus(window)
+        .is_some_and(|f| f == *widget.as_ref() || f.is_ancestor(widget.as_ref()))
+}
+
+/// Waits for the "Discard Recording?" alert of `export`, and checks it is modal over the
+/// window.
+fn wait_for_alert(export: &ExportWindow) -> adw::AlertDialog {
+    wait_for(|| export.discard_alert().is_some(), "Discard Recording?");
+    let alert = export.discard_alert().unwrap();
+    let window = alert.root().and_downcast::<gtk::Window>().unwrap();
+    assert!(window.is_modal());
+    assert_eq!(
+        window.transient_for().as_ref(),
+        Some(export.window().upcast_ref::<gtk::Window>())
+    );
+    alert
+}
+
+/// Clicks the alert's button labelled `label` (with its mnemonic underscore).
+fn click_alert(alert: &adw::AlertDialog, label: &str) {
+    fn button(root: &gtk::Widget, label: &str) -> Option<gtk::Button> {
+        if let Some(b) = root.downcast_ref::<gtk::Button>() {
+            if b.label().as_deref() == Some(label) {
+                return Some(b.clone());
+            }
+        }
+        std::iter::successors(root.first_child(), |c| c.next_sibling())
+            .find_map(|c| button(&c, label))
+    }
+    button(alert.upcast_ref(), label)
+        .unwrap_or_else(|| panic!("no {label} in the alert"))
+        .emit_clicked();
+    pump(300);
+}
+
+/// The caps names of a file's streams: (video, audio…).
+fn stream_caps(path: &Path) -> (String, Vec<String>) {
+    use gstreamer_pbutils::prelude::*;
+    let discoverer = gstreamer_pbutils::Discoverer::new(gst::ClockTime::from_seconds(10)).unwrap();
+    let info = discoverer
+        .discover_uri(&glib::filename_to_uri(path, None).unwrap())
+        .unwrap();
+    let name = |caps: Option<gst::Caps>| {
+        caps.and_then(|c| c.structure(0).map(|s| s.name().to_string()))
+            .unwrap_or_default()
+    };
+    (
+        info.video_streams()
+            .into_iter()
+            .next()
+            .map(|v| name(v.caps()))
+            .unwrap_or_default(),
+        info.audio_streams()
+            .into_iter()
+            .map(|a| name(a.caps()))
+            .collect(),
+    )
+}
+
+fn wait_saved(export: &ExportWindow) {
+    let end = Instant::now() + Duration::from_secs(120);
+    while export.state() != State::Saved {
+        assert!(Instant::now() < end, "timed out waiting for Saved");
+        pump(50);
+    }
+}
+
+/// Scenario "Export as MP4": after a 20 s recording with the microphone the Export Recording
+/// window opens (560 px, not resizable, close button only) with the poster frame, the duration
+/// badge `0:20`, the name and "64 × 48 · 0:20 · Microphone"; File name (focused, the working
+/// file's name, `.mp4` dimmed beside it), Folder (the recordings folder), Format MP4 with its
+/// subtitle, Include audio on; Discard and Export (the default widget, so `Enter` in the File
+/// name exports). Export writes an `.mp4` with H.264 and one AAC track lasting 20 s ± 0.2 s;
+/// the window shows "Saved", the file name, "<size> · <folder>", Show in Files and Close
+/// (focused, the default); the working file is gone and the folder is remembered. Close then
+/// just closes.
+// spec: screen-recording / Export after recording / Export as MP4
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_export_as_mp4_ends_saved_and_removes_the_working_file() {
+    let (scene, _seen, folder) = recording_scene("rec-export-mp4", false);
+    let finished = made_recording(&folder, 20.0, (64, 48), &[(AudioSource::Microphone, 0.5)]);
+    let working = finished.path.clone();
+    let export = end_with(&scene.app, finished, EndReason::Stopped);
+    let v = export_view(&export);
+    assert!(!v.window.is_resizable());
+    wait_for(|| v.window.width() > 0, "the window laid out");
+    assert_eq!(v.window.width(), 560);
+    assert!(!shows_error_banner(&export));
+    assert_eq!(v.name.label(), WORKING_NAME);
+    assert_eq!(v.badge.label(), "0:20");
+    wait_for(|| export.poster_shown(), "the poster frame");
+    wait_for(
+        || v.caption.label() == "64 × 48 · 0:20 · Microphone",
+        "the caption with the size",
+    );
+    assert!(focus_in(&v.window, &v.name_row), "File name has the focus");
+    assert_eq!(v.name_row.text(), WORKING_NAME);
+    assert_eq!(v.extension.label(), ".mp4");
+    assert!(v.extension.has_css_class("dim-label"));
+    assert_eq!(
+        v.folder_row.subtitle().as_deref(),
+        Some(crate::preferences::display_path(&folder).as_str())
+    );
+    assert!(v.mp4.is_active() && !v.webm.is_active());
+    assert_eq!(
+        v.format_row.subtitle().as_deref(),
+        Some("H.264 + AAC · plays almost everywhere")
+    );
+    assert!(v.audio_row.is_sensitive() && v.audio_row.is_active());
+    assert_eq!(
+        v.audio_row.subtitle().as_deref(),
+        Some("Mixes microphone and system audio into one track")
+    );
+    assert_eq!(v.discard.label().as_deref(), Some("Discard"));
+    assert!(v.name_row.activates_default());
+    assert_eq!(
+        v.window.default_widget().as_ref(),
+        Some(v.export.upcast_ref::<gtk::Widget>())
+    );
+    export_shots(&export, "07-export-recording");
+
+    // `Enter` in the File name: the default widget, Export.
+    v.window.activate_default();
+    wait_saved(&export);
+    let written = folder.join(format!("{WORKING_NAME}.mp4"));
+    assert_eq!(v.body.visible_child_name().as_deref(), Some("saved"));
+    assert!(!v.footer.is_visible());
+    assert_eq!(v.saved_name.label(), format!("{WORKING_NAME}.mp4"));
+    let size = std::fs::metadata(&written).unwrap().len();
+    assert_eq!(
+        v.saved_caption.label(),
+        export_window::saved_caption(size, &folder)
+    );
+    assert!(v.show.is_visible() && v.close.is_visible());
+    assert_eq!(v.show.label().as_deref(), Some("Show in Files"));
+    assert!(v.close.has_css_class("suggested-action"));
+    assert!(focus_in(&v.window, &v.close), "Close has the focus");
+    assert_eq!(
+        v.window.default_widget().as_ref(),
+        Some(v.close.upcast_ref::<gtk::Widget>())
+    );
+    assert!(!working.exists(), "the working file is removed");
+    assert_eq!(files_in(&folder), std::slice::from_ref(&written));
+    let (video, audio) = stream_caps(&written);
+    assert_eq!(video, "video/x-h264");
+    assert_eq!(audio, ["audio/mpeg"], "one AAC track");
+    let duration = analyse(&written).duration();
+    assert!((duration - 20.0).abs() <= 0.2, "lasts {duration} s");
+    assert_eq!(
+        gio::Settings::new(config::APP_ID)
+            .string("record-export-folder")
+            .as_str(),
+        folder.to_str().unwrap()
+    );
+    export_shots(&export, "09-export-saved");
+
+    // After "Saved", Close just closes.
+    v.close.emit_clicked();
+    pump(300);
+    assert!(export.discard_alert().is_none());
+    assert!(!v.window.is_visible());
+    assert!(export_window::open_windows().is_empty());
+    assert!(written.exists());
+}
+
+/// Scenario "Export as WebM": WebM (remembered in `record-export-format`, `.webm`, its
+/// subtitle) writes VP9 and Opus; while it runs the rows are insensitive and the footer shows
+/// "Exporting…", the percent and the progress bar, with Cancel focused.
+// spec: screen-recording / Export after recording / Export as WebM
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_export_as_webm_shows_progress_and_cancel() {
+    let (scene, _seen, folder) = recording_scene("rec-export-webm", false);
+    let finished = made_recording(
+        &folder,
+        20.0,
+        (1920, 1080),
+        &[
+            (AudioSource::Microphone, 0.5),
+            (AudioSource::SystemAudio, 0.1),
+        ],
+    );
+    let export = end_with(&scene.app, finished, EndReason::Stopped);
+    let v = export_view(&export);
+    wait_for(|| export.poster_shown(), "the poster frame");
+    v.webm.set_active(true);
+    let settings = gio::Settings::new(config::APP_ID);
+    assert_eq!(settings.string("record-export-format"), "webm");
+    assert_eq!(v.extension.label(), ".webm");
+    assert_eq!(
+        v.format_row.subtitle().as_deref(),
+        Some("VP9 + Opus · open format for the web")
+    );
+    v.export.emit_clicked();
+    assert_eq!(export.state(), State::Exporting);
+    assert_eq!(v.footer.visible_child_name().as_deref(), Some("progress"));
+    assert!(!v.settings_box.is_sensitive(), "rows insensitive");
+    assert!(v.cancel.is_visible() && v.progress.is_visible());
+    assert!(focus_in(&v.window, &v.cancel), "Cancel has the focus");
+    // Mid-way, for the screenshot (mockup 08).
+    let end = Instant::now() + Duration::from_secs(60);
+    while v.progress.fraction() < 0.3 && export.state() == State::Exporting {
+        assert!(Instant::now() < end);
+        pump(20);
+    }
+    if export.state() == State::Exporting {
+        assert!(v.percent.label().ends_with(" %"));
+        export_shots(&export, "08-export-progress");
+    }
+    wait_saved(&export);
+    let written = folder.join(format!("{WORKING_NAME}.webm"));
+    assert_eq!(v.saved_name.label(), format!("{WORKING_NAME}.webm"));
+    let (video, audio) = stream_caps(&written);
+    assert_eq!(video, "video/x-vp9");
+    assert_eq!(audio, ["audio/x-opus"], "one Opus track");
+    v.close.emit_clicked();
+}
+
+/// Scenario "Export without audio": a recording with both sources, Include audio turned off
+/// (remembered in `record-include-audio`): the written file has no audio track. A recording
+/// without audio has the row insensitive and off, and its caption says "No audio".
+// spec: screen-recording / Export after recording / Export without audio
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_export_without_audio_has_no_audio_track() {
+    let (scene, _seen, folder) = recording_scene("rec-export-no-audio", false);
+    let finished = made_recording(
+        &folder,
+        3.0,
+        (64, 48),
+        &[
+            (AudioSource::Microphone, 0.5),
+            (AudioSource::SystemAudio, 0.1),
+        ],
+    );
+    let export = end_with(&scene.app, finished, EndReason::Stopped);
+    let v = export_view(&export);
+    assert!(v.audio_row.is_active());
+    v.audio_row.set_active(false);
+    assert!(!gio::Settings::new(config::APP_ID).boolean("record-include-audio"));
+    v.export.emit_clicked();
+    wait_saved(&export);
+    let (video, audio) = stream_caps(&folder.join(format!("{WORKING_NAME}.mp4")));
+    assert_eq!(video, "video/x-h264");
+    assert!(audio.is_empty(), "no audio track: {audio:?}");
+    v.close.emit_clicked();
+
+    // Without audio: the row is insensitive and off; nothing is saved for it.
+    gio::Settings::new(config::APP_ID)
+        .set_boolean("record-include-audio", true)
+        .unwrap();
+    let silent_folder = folder.join("silent");
+    let finished = made_recording(&silent_folder, 2.0, (64, 48), &[]);
+    let export = end_with(&scene.app, finished, EndReason::Stopped);
+    let v = export_view(&export);
+    assert!(!v.audio_row.is_sensitive() && !v.audio_row.is_active());
+    assert!(gio::Settings::new(config::APP_ID).boolean("record-include-audio"));
+    assert!(v.caption.label().ends_with("0:02 · No audio"));
+}
+
+/// Scenario "Cancel the export": Cancel while a WebM export runs removes the partly written
+/// file, keeps the working file and brings the settings back.
+// spec: screen-recording / Export after recording / Cancel the export
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_cancel_the_export_keeps_the_working_file() {
+    let (scene, _seen, folder) = recording_scene("rec-export-cancel", false);
+    let finished = made_recording(&folder, 20.0, (1920, 1080), &[]);
+    let working = finished.path.clone();
+    let export = end_with(&scene.app, finished, EndReason::Stopped);
+    let v = export_view(&export);
+    v.webm.set_active(true);
+    v.export.emit_clicked();
+    let target = folder.join(format!("{WORKING_NAME}.webm"));
+    assert!(target.exists(), "being written");
+    wait_for(|| v.progress.fraction() > 0.0, "the export under way");
+    assert_eq!(export.state(), State::Exporting);
+    v.cancel.emit_clicked();
+    wait_for(|| export.state() == State::Settings, "back to the settings");
+    assert!(!target.exists(), "the partly written file is removed");
+    assert!(working.exists(), "the working file is kept");
+    assert_eq!(files_in(&folder), std::slice::from_ref(&working));
+    assert_eq!(v.footer.visible_child_name().as_deref(), Some("buttons"));
+    assert!(v.settings_box.is_sensitive());
+    assert_eq!(v.body.visible_child_name().as_deref(), Some("settings"));
+}
+
+/// Scenario "Target name taken": the folder already has `<name>.mp4`: the export is written as
+/// `<name> (2).mp4`, the "Saved" state names that file, and the other file is unchanged.
+// spec: screen-recording / Export after recording / Target name taken
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_a_taken_export_name_gets_a_suffix() {
+    let (scene, _seen, folder) = recording_scene("rec-export-taken", false);
+    let finished = made_recording(&folder, 2.0, (64, 48), &[]);
+    let taken = folder.join(format!("{WORKING_NAME}.mp4"));
+    std::fs::write(&taken, b"an earlier export").unwrap();
+    let export = end_with(&scene.app, finished, EndReason::Stopped);
+    let v = export_view(&export);
+    v.export.emit_clicked();
+    wait_saved(&export);
+    assert_eq!(v.saved_name.label(), format!("{WORKING_NAME} (2).mp4"));
+    assert!(folder.join(format!("{WORKING_NAME} (2).mp4")).exists());
+    assert_eq!(std::fs::read(&taken).unwrap(), b"an earlier export");
+}
+
+/// `ShowItems` calls: (URIs, startup id).
+type ShowItemsCalls = Rc<RefCell<Vec<(Vec<String>, String)>>>;
+
+/// A stand-in `org.freedesktop.FileManager1` on the test's private bus; the `ShowItems` calls.
+fn fake_file_manager() -> ShowItemsCalls {
+    const XML: &str = r#"<node><interface name="org.freedesktop.FileManager1">
+      <method name="ShowItems"><arg type="as" name="uris" direction="in"/>
+      <arg type="s" name="startup_id" direction="in"/></method></interface></node>"#;
+    let connection = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE).unwrap();
+    let info = gio::DBusNodeInfo::for_xml(XML).unwrap();
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let seen = calls.clone();
+    connection
+        .register_object(
+            "/org/freedesktop/FileManager1",
+            &info
+                .lookup_interface("org.freedesktop.FileManager1")
+                .unwrap(),
+        )
+        .method_call(move |_, _, _, _, method, parameters, invocation| {
+            assert_eq!(method, "ShowItems");
+            let (uris, startup): (Vec<String>, String) = parameters.get().unwrap();
+            seen.borrow_mut().push((uris, startup));
+            invocation.return_value(None);
+        })
+        .build()
+        .unwrap();
+    let owned = Rc::new(Cell::new(false));
+    let got = owned.clone();
+    // Owned until the test process ends.
+    let _owner = gio::bus_own_name_on_connection(
+        &connection,
+        "org.freedesktop.FileManager1",
+        gio::BusNameOwnerFlags::NONE,
+        move |_, _| got.set(true),
+        |_, name| panic!("could not own {name}"),
+    );
+    wait_for(|| owned.get(), "the stand-in file manager's name");
+    calls
+}
+
+/// Scenario "Show in Files": after "Saved", Show in Files calls `FileManager1.ShowItems` with
+/// the exported file's URI (the file manager opens its folder with it selected).
+// spec: screen-recording / Export after recording / Show in Files
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_show_in_files_selects_the_exported_file() {
+    let (scene, _seen, folder) = recording_scene("rec-export-show", false);
+    let calls = fake_file_manager();
+    let finished = made_recording(&folder, 2.0, (64, 48), &[]);
+    let export = end_with(&scene.app, finished, EndReason::Stopped);
+    let v = export_view(&export);
+    v.export.emit_clicked();
+    wait_saved(&export);
+    v.show.emit_clicked();
+    wait_for(|| !calls.borrow().is_empty(), "ShowItems");
+    let uri = gio::File::for_path(folder.join(format!("{WORKING_NAME}.mp4"))).uri();
+    assert_eq!(
+        calls.borrow().clone(),
+        [(vec![uri.to_string()], String::new())]
+    );
+    assert!(v.window.is_visible(), "the window stays");
+}
+
+/// Scenario "Discard": Discard asks "Discard Recording?" naming the recording and its duration,
+/// Cancel the default; Cancel keeps everything; Discard deletes the working file and closes the
+/// window.
+// spec: screen-recording / Discard a recording / Discard
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_discard_deletes_the_working_file() {
+    let (scene, _seen, folder) = recording_scene("rec-export-discard", false);
+    let finished = made_recording(&folder, 52.0, (64, 40), &[]);
+    let working = finished.path.clone();
+    let export = end_with(&scene.app, finished, EndReason::Stopped);
+    let v = export_view(&export);
+    wait_for(|| export.poster_shown(), "the poster frame");
+    v.discard.emit_clicked();
+    let alert = wait_for_alert(&export);
+    assert_eq!(alert.heading().as_deref(), Some("Discard Recording?"));
+    assert_eq!(
+        alert.body(),
+        format!("“{WORKING_NAME}” (0:52) will be deleted. This cannot be undone.")
+    );
+    assert_eq!(alert.default_response().as_deref(), Some("cancel"));
+    assert_eq!(alert.close_response(), "cancel");
+    assert_eq!(
+        alert.response_appearance("discard"),
+        adw::ResponseAppearance::Destructive
+    );
+    if std::env::var_os("ANNOTA_SHOT_DIR").is_some() {
+        let alert_window = alert.root().and_downcast::<gtk::Window>().unwrap();
+        for (dark, scheme) in [(false, "light"), (true, "dark")] {
+            set_scheme(dark);
+            shot(&alert_window, &format!("10-discard-confirm-alert-{scheme}"));
+            shot(export.window(), &format!("10-discard-confirm-{scheme}"));
+        }
+        set_scheme(false);
+    }
+    click_alert(&alert, "_Cancel");
+    assert!(export.discard_alert().is_none());
+    assert!(v.window.is_visible() && working.exists());
+
+    v.discard.emit_clicked();
+    let alert = wait_for_alert(&export);
+    click_alert(&alert, "_Discard");
+    assert!(!working.exists(), "the working file is deleted");
+    assert!(!v.window.is_visible(), "the window closes");
+    assert!(export_window::open_windows().is_empty());
+    assert!(files_in(&folder).is_empty());
+}
+
+/// Scenario "Close asks first": closing the window (its close button, `Alt+F4`) and `Esc`
+/// before exporting ask "Discard Recording?"; the working file stays until Discard is chosen.
+// spec: screen-recording / Discard a recording / Close asks first
+#[test]
+#[ignore = "opens windows and owns portal names; needs an isolated bus, see the module docs"]
+fn rec_closing_the_export_window_asks_first() {
+    let (scene, _seen, folder) = recording_scene("rec-export-close", false);
+    let finished = made_recording(&folder, 2.0, (64, 48), &[]);
+    let working = finished.path.clone();
+    let export = end_with(&scene.app, finished, EndReason::DesktopEnded);
+    let v = export_view(&export);
+    v.window.close();
+    let alert = wait_for_alert(&export);
+    assert_eq!(alert.heading().as_deref(), Some("Discard Recording?"));
+    assert!(v.window.is_visible() && working.exists());
+    click_alert(&alert, "_Cancel");
+    assert!(v.window.is_visible() && working.exists());
+
+    // `Esc` as a real key press.
+    assert!(type_key(v.window.upcast_ref(), "Escape"), "xdotool");
+    wait_for(|| export.discard_alert().is_some(), "asked on Esc");
+    assert!(working.exists());
+    let alert = export.discard_alert().unwrap();
+    click_alert(&alert, "_Discard");
+    assert!(!working.exists());
+    assert!(!v.window.is_visible());
 }

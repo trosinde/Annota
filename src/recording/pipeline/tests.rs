@@ -1185,3 +1185,52 @@ fn without_audio_sources_the_file_has_no_audio_track() {
     assert!(analysis.audio.is_empty(), "no audio track");
     cleanup(&done.path);
 }
+
+/// A finished working file for the export tests: `seconds` of synthetic time (frames of
+/// `size`, a colour per second, 30 fps) through the real pipeline, with a 440 Hz tone of the
+/// given amplitude per audio source. Encodes much faster than real time. The caller removes
+/// the file's folder ([`remove_working_file`]).
+pub(crate) fn working_file(
+    name: &str,
+    seconds: f64,
+    size: (u32, u32),
+    audio: &[(AudioSource, f64)],
+) -> Finished {
+    let video = TestVideo::new(size.0, size.1);
+    let tones: Vec<TestAudio> = audio.iter().map(|(_, a)| TestAudio::new(*a)).collect();
+    let mut config = RecordingConfig::new(folder(name), video.element(), VideoArea::Whole)
+        .manual_clock(&Arc::new(Mutex::new(None)));
+    for ((source, _), tone) in audio.iter().zip(&tones) {
+        config = config.with_audio(*source, tone.element());
+    }
+    let (recording, _events) = start(config).unwrap();
+    let colours = [GREEN, BLUE, RED, BLACK];
+    let whole = seconds.floor() as usize;
+    let feeder = {
+        let src = video.src.clone();
+        let (w, h) = (video.w, video.h);
+        std::thread::spawn(move || {
+            let video = TestVideo { src, w, h };
+            for second in 0..=whole {
+                let from = second as f64;
+                let to = (from + 1.0).min(seconds);
+                if to > from {
+                    video.frames(from, to, 30.0, colours[second % colours.len()]);
+                }
+            }
+        })
+    };
+    // Audio on this thread while the video goes in on its own (the muxer interleaves both).
+    for tone in &tones {
+        tone.tone(0.0, seconds);
+    }
+    feeder.join().unwrap();
+    let refs: Vec<&TestAudio> = tones.iter().collect();
+    drain(&recording, &video, &refs);
+    recording.stop_now(secs(seconds))
+}
+
+/// Removes a file made by [`working_file`] and its folder.
+pub(crate) fn remove_working_file(path: &Path) {
+    cleanup(path);
+}

@@ -21,6 +21,8 @@ blueprints = custom_target(
     'ui/save-changes-dialog.blp',
     'ui/replace-file-dialog.blp',
     'ui/recording-control.blp',
+    'ui/export-recording.blp',
+    'ui/discard-recording-dialog.blp',
   ),
   output: '.',
   command: [blueprint_compiler, 'batch-compile', '@OUTPUT@', '@CURRENT_SOURCE_DIR@', '@INPUT@'],

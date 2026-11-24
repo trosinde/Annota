@@ -210,6 +210,7 @@ recording/paused → stop. `--record region|window|screen|toggle` is parsed in `
 `record-source` (region|window|screen, default region), `record-microphone` (true),
 `record-system-audio` (false), `record-countdown` (0–10, 3), `record-folder` (empty = 
 `~/Videos/Annota`), `record-export-format` (mp4|webm, mp4), `record-include-audio` (true),
+`record-export-folder` (empty = the recordings folder; added during apply, Phase D1),
 `shortcut-record` (fallback path). Include pointer reuses the capture setting.
 
 ## Dependencies
@@ -230,6 +231,13 @@ Notes:
 - GPL question (CLAUDE.md §10): Annota never links libx264. The plugin is a separate package
   loaded by GStreamer at runtime. The maintainer accepted this on 2026-11-22 (Q2); `openh264enc`
   (BSD-2) stays the documented fallback.
+- Measured 2026-11-24 in clean containers (`probe-results/2026-11-24-containers-elements.md`):
+  every element of both pipelines, including `h264timestamper` and `openh264dec`, comes from
+  plugins-base/-good/-ugly/-bad on Ubuntu 24.04, Ubuntu 26.04 and Debian 13; `pulsesrc` is in
+  plugins-good on 24.04 as well (no `gstreamer1.0-pulseaudio`). The export's H.264 decoder
+  prefers `avdec_h264` when `gstreamer1.0-libav` happens to be installed, else plugins-bad's
+  `openh264dec`, so libav is not a dependency. `debian/control` Depends: plugins-good,
+  plugins-ugly, plugins-bad (task 5.5).
 - The `.deb` `Depends` line grows by `gstreamer1.0-plugins-good, gstreamer1.0-plugins-ugly
   (x264enc), gstreamer1.0-plugins-bad (voaacenc)` (plus `gstreamer1.0-pulseaudio` if 24.04
   ships `pulsesrc` there; `tools/recording-probe.py env` prints the owning package). The scenario
@@ -484,8 +492,9 @@ Phase C2 (Recording control, task 4.4, and the kit icons; `src/recording/control
 - **Shown and closed:** `record` shows it once the `RecordingSession` runs (after the countdown).
   `recording::stop()` (Stop, the Record shortcut) closes it at once; every other end (the desktop,
   an error, the stream's end) closes it on the next 250 ms tick, when the session no longer runs,
-  and the delivered `Ended` closes it in any case. A close request (`Alt+F4`) is refused: the
-  control lives exactly as long as its recording. A second request (`start` with any mode but
+  and the delivered `Ended` closes it in any case. ~~A close request (`Alt+F4`) is refused~~
+  (superseded in Phase D1: it minimises the control). The control lives exactly as long as its
+  recording. A second request (`start` with any mode but
   toggle, `start_region`) calls `control::present()`; only without a control (waiting, countdown)
   the waiting indicator is raised as before.
 - **Time:** `Recording::elapsed`, refreshed every 250 ms only while the window is mapped and the
@@ -510,6 +519,81 @@ Phase C2 (Recording control, task 4.4, and the kit icons; `src/recording/control
   setup rows and the unmuted control buttons the kit microphone and speaker. Muted and Minimize
   stay Adwaita (`microphone-disabled-symbolic`, `audio-volume-muted-symbolic`,
   `window-minimize-symbolic`) as "Kit gaps" says.
-- **Not observable without a window manager:** whether the window really got minimised or
-  raised. The live tests count the control's `minimize()`/`present()` calls and check that the
-  recording goes on; the effect itself belongs to the 6.2 live run.
+- ~~**Not observable without a window manager**~~ (superseded in Phase D1: the live tests run
+  `twm` on the test display and observe both).
+
+Phase D1 (Export Recording window and export pipelines, tasks 5.1-5.4, plus the Phase C2 review
+follow-ups; `src/recording/{export,export_window}.rs`, `data/ui/export-recording.blp`,
+`data/ui/discard-recording-dialog.blp`, 2026-11-24):
+- **Opens for every end.** `Hooks::on_ended`'s default is `export_window::open`: Stop, the Record
+  shortcut, the desktop ending the session, the recorded window closed, the stream's end, an
+  error (then with the banner of mockup 11). Annota's windows hidden for the recording are
+  shown again first (Phase C1 review), then the Export Recording window is presented, so it is
+  the newest window. Nothing else changed in the C1 handling of hidden windows.
+- **New key `record-export-folder`** (D8 had none for it; `record-folder` is where working files
+  go): the folder of the last successful export; empty = the recordings folder. Written when an
+  export has been saved, not when a folder is merely chosen.
+- **MP4 remux needs `h264timestamper`** (plugins-bad, GStreamer ≥ 1.22): Matroska stores no
+  decoding timestamps, and with x264's B-frames `mp4mux` wrote a 20 s recording as 44 s without
+  it (measured). Chain: `matroskademux ! queue ! h264parse ! h264timestamper ! mp4mux
+  faststart=true`; `mp4mux`'s faststart temporary file is written hidden next to the target
+  (not in `/tmp`, which may be a small tmpfs) and removed on cancel or error. Audio: each Opus
+  track `opusdec ! audioconvert ! audioresample` into one `audiomixer` (48 kHz stereo) →
+  `voaacenc` 160 kbit/s.
+- **WebM and the poster frame need a software H.264 decoder**, named explicitly: `avdec_h264`
+  (gstreamer1.0-libav), else `openh264dec` (gstreamer1.0-plugins-bad). `decodebin` was tried
+  first: it picks a hardware decoder where one ranks higher (NVIDIA's on the build host), whose
+  threads kept a test process from exiting. **Open for task 5.5:** neither decoder is in design.md
+  "Dependencies"; the `.deb` needs `gstreamer1.0-libav` or the openh264 plugin (verify that
+  Ubuntu 24.04's plugins-bad ships `openh264dec`). VP9: `vp9enc deadline=1 cpu-used=6 row-mt
+  end-usage=cq cq-level=32 target-bitrate=8000000` (cap), threads = cores (≤ 16),
+  `keyframe-max-dist=120`; Opus mix like MP4's into `opusenc`; `webmmux`. A 20 s 1920 × 1080
+  synthetic recording exports in a few seconds on the build host; tuning with real screen
+  content belongs to task 6.2.
+- **Progress** = the newest video timestamp that reached the muxer ÷ the duration (Discoverer's,
+  else the recorded time), polled every 100 ms on the export's worker thread, which also watches
+  the bus and the cancel flag. The target is reserved first with `create_new` and a ` (n)`
+  suffix (`files::create_unique`, shared with the working file); cancel or an error removes it.
+- **A track that is not used** (audio without Include audio, audio for the poster) goes into
+  `queue ! fakesink`: without the queue a paused sink blocks the demuxer's thread and the video
+  track never prerolls (measured with the poster).
+- **Poster frame:** one frame 1 s in (the middle of a shorter recording), decoded at 384 px wide
+  and drawn to cover 192 × 120 through a render-node paintable of that intrinsic size (sharp at
+  scale 2; a texture as the picture's paintable made the window ask for the texture's size).
+  Discoverer gives size, duration and audio tracks; both run in `gio::spawn_blocking`.
+- **Width:** a window's own size request includes the client-side decoration's border (560 gave
+  550 px of content on X11), and a window that cannot be resized takes its content's natural
+  width (the banner's one-line label is wider): the 560 px sit on the content, in an `AdwClamp`.
+- **Deviations from the mockups, pending the maintainer:**
+  - The extension (`.mp4`) is the File name row's dimmed suffix at the row's end, as in the
+    Export Image dialog (add-export-share), not directly after the typed text as drawn in 07:
+    `GtkText` cannot show non-editable text inline. The row's edit pencil is hidden (08, 10).
+  - "Discard Recording?" is a window of its own, modal and transient for the Export Recording
+    window: libadwaita (1.9, measured) presents the dialogs of a window that cannot be resized
+    that way, never inside it. GNOME attaches such a dialog to its parent and dims the parent,
+    close to mockup 10, which draws it inside. The window stays not resizable (redline).
+  - An export that fails (folder not writable, element missing, pipeline error) has no mockup:
+    the window returns to its settings and the banner reads "The recording could not be
+    exported. It is kept."; the cause is logged.
+- **Closing during an export** asks "Discard Recording?" as well (redline: "before an export has
+  finished"); Discard cancels the export (its partial file removed) and deletes the working file.
+  After "Saved", Close and the close button just close.
+- **Show in Files:** `org.freedesktop.FileManager1.ShowItems([uri], "")` on the session bus
+  (async); if the call fails, `gtk::FileLauncher::open_containing_folder`.
+- **Control follow-ups (Phase C2 review):** a close request (`Alt+F4`, the window menu, the
+  overview) minimises the control instead of being refused (decided by the lead, pending the
+  maintainer: nothing is lost, the recording goes on). The 250 ms clock also stops while the
+  toplevel is minimised or suspended (`notify::state`) and resumes when that clears; the map-time
+  frame-clock and state handlers are disconnected on unmap. Pause/resume and the mutes are
+  announced (`gtk_accessible_announce`, "Paused", "Recording", "Microphone muted", "Microphone
+  on", "System audio muted", "System audio on"), but not with GTK's stand-in accessibility
+  context (no accessibility bus, `GTK_A11Y=none`), whose missing announce implementation crashes
+  GTK 4.22 (measured). The time label keeps its text as its accessible name; "Elapsed time" is
+  its description.
+- **Minimise and raise are observed** in the live tests: they start `twm` (with
+  `RandomPlacement`) on the test display. Minimize sets the toplevel's `MINIMIZED` state within
+  a second; a second request makes the control the active window over another one. `present()`
+  cannot de-iconify a window under twm (no `_NET_ACTIVE_WINDOW`, GTK then only raises and
+  focuses), so the test restores the minimised control through the window manager (`xdotool
+  windowmap`), as a user would; on GNOME `present()` uses the activation protocols.
+

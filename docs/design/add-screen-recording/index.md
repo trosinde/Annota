@@ -31,6 +31,7 @@ Titles are *Requirement › Scenario* exactly as in the spec files of this chang
 | Recording source › Record a window | — (reuses fix-window-capture-screencast 02) | "Waiting for a window…" OSD and GNOME's window chooser unchanged; the stream is kept instead of one frame. |
 | Recording source › Record the screen | [03](png/03-waiting-for-screen-light@1x.png) | "Waiting for a screen…". Frame size: no UI (pipeline test). |
 | Recording source › Source request cancelled | [03](png/03-waiting-for-screen-light@1x.png) | Cancel / `Esc` / chooser closed → nothing shown afterwards. |
+| Recording source › Session closed while waiting | [15](png/15-desktop-ended-request-light@1x.png) | Waiting OSD (03) closes at once; toast in the main window, same as 13. |
 | Recording source › Pointer in the recording | [01](png/01-recording-setup-light@1x.png) | "Include pointer" row (the capture setting). Cursor mode: no UI (portal test). |
 | Recording source › Source not offered | [02](png/02-setup-unavailable-light@1x.png) | Window segment insensitive, tooltip "Screen sharing for this source is not available on this desktop". |
 | Recording countdown › Countdown is not recorded | [04](png/04-countdown-light@1x.png) | OSD + dashed outline only during the countdown; first frame after both are gone (pipeline test). |
@@ -101,6 +102,7 @@ Titles are *Requirement › Scenario* exactly as in the spec files of this chang
 | 12 | Welcome page with the Record card | [light](png/12-welcome-record-card-light@1x.png) | [dark](png/12-welcome-record-card-dark@1x.png) |
 | 13 | Welcome page, toast "The selected area is not on the screen you chose. Nothing was recorded." | [light](png/13-region-not-on-screen-light@1x.png) | [dark](png/13-region-not-on-screen-dark@1x.png) |
 | 14 | Preferences › Capture (portal path) with the "Record video" row | [light](png/14-preferences-record-shortcut-light@1x.png) | [dark](png/14-preferences-record-shortcut-dark@1x.png) |
+| 15 | Welcome page, toast "The desktop ended the screen-sharing request. Nothing was recorded." | [light](png/15-desktop-ended-request-light@1x.png) | [dark](png/15-desktop-ended-request-dark@1x.png) |
 
 ## Redlines
 
@@ -234,7 +236,7 @@ Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume"
 - Error (11): `AdwBanner` (error style) below the header bar: "The recording stopped because of an
   error. What was recorded until then is kept." No button. Rest as 07.
 
-### 12–14 Welcome page, toast, Preferences
+### 12–15 Welcome page, toasts, Preferences
 
 - Welcome (based on fix-portal-shortcut-bindings 05): fourth card "Record" (`record` icon 32 px)
   after Region, Window, Screen; same 156 × 108 cards, gap 12; keycaps = the trigger of `record`
@@ -243,6 +245,10 @@ Tooltips use the kit pattern label + `.shortcut` chip: "Pause" `Space`, "Resume"
 - Toast (13): kit `.toast`, no action button, dismiss `close`; text "The selected area is not on
   the screen you chose. Nothing was recorded." Shown in the main window, which is presented if
   it was hidden. Keyboard focus returns to the Record card.
+- Toast (15): identical to 13 (kit `.toast`, no action button, dismiss `close`, main window
+  presented if hidden, focus back to the Record card); text "The desktop ended the
+  screen-sharing request. Nothing was recorded." Shown when the portal closes the session while
+  the waiting indicator (03) is up; the indicator closes first.
 - Preferences › Capture, portal path (based on fix-portal-shortcut-bindings 02): "Record video"
   read-only row after "Screen capture", same keycap suffix. On the GNOME-keybinding path the row
   is editable like the other three (add-screen-capture 09/10).

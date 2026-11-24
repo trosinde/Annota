@@ -36,7 +36,7 @@ pub enum EndReason {
 }
 
 /// A finished recording, for the Export Recording window.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Ended {
     pub finished: Finished,
     pub reason: EndReason,

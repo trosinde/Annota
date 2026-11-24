@@ -1105,3 +1105,64 @@ popover.annota-style-menu stack > box > box > box:last-child modelbutton {
 .annota-theme-button label {
   font-weight: normal;
 }
+
+/* --- Export Recording window (add-screen-recording 07–11) -------------------------------- */
+
+/* Mockup 11: the error banner below the header bar, full width, square. */
+banner.annota-recording-error-banner > revealer > widget {
+  background-color: mix(@error_bg_color, @window_bg_color, 0.78);
+  color: @window_fg_color;
+}
+
+/* Poster frame 192 × 120, radius 9, 1 px --borders. */
+.annota-recording-poster {
+  border-radius: 9px;
+  box-shadow: inset 0 0 0 1px alpha(currentColor, 0.15);
+  background-color: alpha(currentColor, 0.08);
+}
+
+/* Duration badge: --osd-bg-solid, 12 px bold, tabular. */
+.annota-recording-duration-badge {
+  background-color: #303034;
+  color: white;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.annota-recording-export-name {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.annota-recording-discard {
+  font-weight: bold;
+}
+
+/* The export's progress bar: 6 px. */
+progressbar.annota-recording-progress > trough,
+progressbar.annota-recording-progress > trough > progress {
+  min-height: 6px;
+  border-radius: 3px;
+}
+
+/* Mockup 09: a 64 px --success-bg circle with a 32 px check. */
+.annota-recording-saved-badge {
+  border-radius: 32px;
+  background-color: @success_bg_color;
+  color: @success_fg_color;
+}
+
+.annota-recording-saved-title {
+  font-weight: 900;
+}
+
+/* File name: no edit pencil beside the dimmed extension (mockups 08, 10). */
+row.annota-recording-name-row .edit-icon {
+  opacity: 0;
+}
+
+banner.annota-recording-error-banner label {
+  font-weight: normal;
+}

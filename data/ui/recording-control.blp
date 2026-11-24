@@ -45,8 +45,9 @@ Window control_window {
         xalign: 0;
         styles ["annota-recording-control-time"]
 
+        // A description, not a label: the label's own text (the time) stays its name.
         accessibility {
-          label: _("Elapsed time");
+          description: _("Elapsed time");
         }
       }
 

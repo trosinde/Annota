@@ -3804,3 +3804,67 @@ msgstr "Systemton stummgeschaltet"
 #: data/ui/recording-control.blp
 msgid "Minimize"
 msgstr "Minimieren"
+
+#: src/recording/control.rs
+msgid "Microphone on"
+msgstr "Mikrofon an"
+
+#: src/recording/control.rs
+msgid "System audio on"
+msgstr "Systemton an"
+
+#: data/ui/export-recording.blp
+msgid "Export Recording"
+msgstr "Aufnahme exportieren"
+
+#: data/ui/export-recording.blp
+msgid ""
+"The recording stopped because of an error. What was recorded until then is "
+"kept."
+msgstr ""
+"Die Aufnahme wurde wegen eines Fehlers beendet. Was bis dahin aufgenommen "
+"wurde, bleibt erhalten."
+
+#: data/ui/export-recording.blp
+msgid "Include audio"
+msgstr "Ton einbeziehen"
+
+#: data/ui/export-recording.blp
+msgid "Mixes microphone and system audio into one track"
+msgstr "Mischt Mikrofon und Systemton in eine Spur"
+
+#: data/ui/export-recording.blp
+msgid "Saved"
+msgstr "Gespeichert"
+
+#: data/ui/export-recording.blp
+msgid "Exporting…"
+msgstr "Wird exportiert …"
+
+#: data/ui/discard-recording-dialog.blp
+msgid "Discard Recording?"
+msgstr "Aufnahme verwerfen?"
+
+#: src/recording/export_window.rs
+msgid "Microphone + system audio"
+msgstr "Mikrofon + Systemton"
+
+#: src/recording/export_window.rs
+msgid "No audio"
+msgstr "Kein Ton"
+
+#: src/recording/export_window.rs
+msgid "H.264 + AAC · plays almost everywhere"
+msgstr "H.264 + AAC · läuft fast überall"
+
+#: src/recording/export_window.rs
+msgid "VP9 + Opus · open format for the web"
+msgstr "VP9 + Opus · offenes Format fürs Web"
+
+#: src/recording/export_window.rs
+msgid "The recording could not be exported. It is kept."
+msgstr "Die Aufnahme konnte nicht exportiert werden. Sie bleibt erhalten."
+
+#: src/recording/export_window.rs
+msgid "“{name}” ({duration}) will be deleted. This cannot be undone."
+msgstr "„{name}“ ({duration}) wird gelöscht. Das kann nicht rückgängig gemacht werden."

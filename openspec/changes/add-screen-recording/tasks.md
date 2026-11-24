@@ -15,8 +15,8 @@ capability is named. Every test carries a `spec:` tag for the scenarios it prove
   - [ ] 2.1c Run on GNOME 46 (Ubuntu 24.04), Wayland and X11 (P9), log committed
   - [x] 2.1d Spec/design corrected from the results — probe table with status and evidence for P1-P12 (2026-11-23); P6: per-buffer crop meta, close → `Session.Closed`, damage-driven window streams
 - [ ] 2.2 Measure `pulsesrc` default source, `@DEFAULT_MONITOR@` and `GstDeviceMonitor` on Ubuntu 24.04 (pipewire-pulse): `tools/recording-probe.py audio`
-- [ ] 2.3 Verify every element of "Recording runtime dependencies" and its package on clean Ubuntu 24.04, Ubuntu 26.04 and Debian 13 containers; settle Q2/Q3 with the result
-- [ ] 2.4 Crates: `gstreamer-pbutils`/`gstreamer-audio` if needed, MSRV 1.85 and GStreamer 1.24 checked, `Cargo.lock` with Rust 1.85, `build-aux/update-copyright.py`
+- [x] 2.3 Verify every element of "Recording runtime dependencies" and its package on clean Ubuntu 24.04, Ubuntu 26.04 and Debian 13 containers; settle Q2/Q3 with the result — done 2026-11-24 in clean Docker containers (`probe-results/2026-11-24-containers-elements.md`): every element present from the planned packages on all three; `pulsesrc` is in plugins-good on 24.04 too; `openh264dec` and `h264timestamper` ship in plugins-bad everywhere, so no `gstreamer1.0-libav` dependency
+- [x] 2.4 Crates: `gstreamer-pbutils` 0.23.5 (+ `gstreamer-audio` 0.23.6 pulled in by it; both rust-version 1.71.1, MIT OR Apache-2.0 / MIT, glib 0.20 shared), `Cargo.lock` changed only by these four crates, re-vendored, `build-aux/update-copyright.py` (MSRV is 1.91 since ADR 0003; CI's `.deb (lintian)` job builds with 1.91)
 - [x] 2.5 GSettings keys of design.md D8 with defaults; `cli.rs` `--record region|window|screen|toggle` — Recording on the command line / Invalid record mode
 
 ## 3. Recording pipeline
@@ -26,23 +26,23 @@ capability is named. Every test carries a `spec:` tag for the scenarios it prove
 - [x] 3.4 Pipeline to the Matroska working file (videotestsrc/audiotestsrc in tests), stream timestamps + `videorate` 30 fps — Working file / Recording survives a crash, Name already taken, Recording error; Recording frame rate / Still screen, Burst of buffers
 - [x] 3.5 Pause/resume via drop probe + running-time offset — Pause and resume / Paused time is not recorded
 - [x] 3.6 Audio: device presence, mute, level — Audio / Mute the microphone, Mute system audio, No microphone, No audio selected — pipeline tests (silence while muted, no audio track) plus the control's `M`/`S` with the file checked (Phase C2), the setup's missing-device row (C1)
-- [x] 3.7 Stop paths: button, shortcut, `Session::Closed`, window stream end — Stop recording / Stop by button, Stop by hotkey, Session ended by the desktop, Recorded window closed (both measured as `Session.Closed` without EOS, P5/P6) — Phase B: `recording::stop`/`RecordingSession`, ends delivered to `Hooks::on_ended`; the control disappearing (4.4) and the Export window opening (5.1) are not built yet
+- [x] 3.7 Stop paths: button, shortcut, `Session::Closed`, window stream end — Stop recording / Stop by button, Stop by hotkey, Session ended by the desktop, Recorded window closed (both measured as `Session.Closed` without EOS, P5/P6) — Phase B: `recording::stop`/`RecordingSession`, ends delivered to `Hooks::on_ended`; the control disappears (4.4) and the Export Recording window opens (5.1) for each end, proven by the live tests of all four (Phase D1)
 
 ## 4. UI chrome
 - [x] 4.1 Overlay mode pill + recording setup (Blueprint), settings persisted — Recording setup / Switch the overlay to video, Choices are remembered, Cancel the setup (mockups 01, 02) — also Recording source / Source not offered, Audio / No microphone, Record shortcut / Shortcut opens the setup (through `app.record toggle`, the action `--record toggle` runs; the portal shortcut of 4.5 must call the same), `--record region|toggle` wired (Phase C1)
 - [x] 4.2 Waiting indicator "Waiting for a screen…" reusing the window-wait OSD (mockup 03)
 - [x] 4.3 Countdown label and recording start after the waiting indicator and the OSD have gone — Recording countdown / Countdown is not recorded, Cancel the countdown, No countdown, Waiting indicator is not recorded (mockup 04) — also Record shortcut / Shortcut cancels the countdown, Recording on the command line / Record a screen from the command line (Phase C1)
-- [x] 4.4 Control window: time, pause, stop, mutes, meters, `Space`/`M`/`S`, second request raises it — Recording control / Elapsed time, Second recording request; Recording control / Minimize the control; Pause and resume / Paused state (mockups 05, 06) — Phase C2; Stop by button / Stop by hotkey are exercised by its live tests (control gone, session closed, `Ended` once, also while paused) but stay untagged until the Export Recording window (5.1) opens from `on_ended`
+- [x] 4.4 Control window: time, pause, stop, mutes, meters, `Space`/`M`/`S`, second request raises it — Recording control / Elapsed time, Second recording request; Recording control / Minimize the control; Pause and resume / Paused state (mockups 05, 06) — Phase C2; Stop by button / Stop by hotkey tagged in Phase D1 (control gone, session closed, `Ended` once, also while paused, and the Export Recording window opens); Minimize and the raise of a second request observed with a window manager (twm) on the test display
 - [ ] 4.5 Record shortcut (portal ID `record` + GNOME-keybinding fallback), Preferences › Capture row — Record shortcut / all six scenarios incl. Portal assigns a different record trigger and Record trigger taken by GNOME (mockup 14); preferred trigger `Super+Alt+R` (design.md Q7)
 - [ ] 4.6 Welcome page Record card — `app-shell` / Welcome page / Record card starts the recording setup, and the existing Welcome page scenarios stay green (mockup 12); region-not-on-screen toast (mockup 13)
 - [ ] 4.7 `designer` agent: mockup for the toast "The desktop ended the screen-sharing request. Nothing was recorded." in the style of mockup 13 (design.md Q9), light + dark, 1x + 2x, mapped in `index.md` to Recording source / Session closed while waiting; then implement it
 
 ## 5. Export and integration
-- [ ] 5.1 Export Recording window: poster frame and duration (discoverer), name, folder, format, include audio (mockup 07)
-- [ ] 5.2 MP4 remux + AAC mix, WebM VP9 + Opus transcode, progress and Cancel — Export after recording / Export as MP4, Export as WebM, Export without audio, Cancel the export, Target name taken (mockups 07, 08)
-- [ ] 5.3 "Saved" state, Show in Files via `org.freedesktop.FileManager1` — Export after recording / Show in Files (mockup 09)
-- [ ] 5.4 Discard + close confirmation — Discard a recording / Discard, Close asks first (mockup 10); error banner (mockup 11)
-- [ ] 5.5 `debian/control` Depends per design.md "Dependencies" (plugins-good, plugins-ugly for x264enc, plugins-bad for voaacenc) — `debian-packaging` / Recording runtime dependencies / Recording elements installed
+- [x] 5.1 Export Recording window: poster frame and duration (discoverer), name, folder, format, include audio (mockup 07) — opens from `Hooks::on_ended` for every end; new key `record-export-folder` (design.md, Phase D1)
+- [x] 5.2 MP4 remux + AAC mix, WebM VP9 + Opus transcode, progress and Cancel — Export after recording / Export as MP4, Export as WebM, Export without audio, Cancel the export, Target name taken (mockups 07, 08)
+- [x] 5.3 "Saved" state, Show in Files via `org.freedesktop.FileManager1` — Export after recording / Show in Files (mockup 09)
+- [x] 5.4 Discard + close confirmation — Discard a recording / Discard, Close asks first (mockup 10); error banner (mockup 11)
+- [x] 5.5 `debian/control` Depends per design.md "Dependencies" (plugins-good, plugins-ugly for x264enc, plugins-bad for voaacenc and `h264timestamper`, and a software H.264 decoder for WebM and the poster: `gstreamer1.0-libav` or plugins-bad's `openh264dec`, design.md Phase D1) — `debian-packaging` / Recording runtime dependencies / Recording elements installed
 - [ ] 5.6 Shortcuts window, metainfo/README feature text, `docs/feature-catalog.md` status
 
 ## 6. Verify

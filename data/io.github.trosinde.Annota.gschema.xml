@@ -111,6 +111,11 @@
       <default>'mp4'</default>
       <summary>Recording export format</summary>
     </key>
+    <key name="record-export-folder" type="s">
+      <default>''</default>
+      <summary>Recording export folder</summary>
+      <description>The folder the Export Recording window used last. Empty means the recordings folder.</description>
+    </key>
     <key name="record-include-audio" type="b">
       <default>true</default>
       <summary>Include audio when exporting a recording</summary>

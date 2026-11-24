@@ -20,6 +20,8 @@ data/ui/batch-export-dialog.blp
 data/ui/save-changes-dialog.blp
 data/ui/replace-file-dialog.blp
 data/ui/recording-control.blp
+data/ui/export-recording.blp
+data/ui/discard-recording-dialog.blp
 src/application.rs
 src/capture/countdown.rs
 src/capture/delivery.rs
@@ -31,6 +33,7 @@ src/capture/shortcuts.rs
 src/capture/window_wait.rs
 src/preferences.rs
 src/recording/control.rs
+src/recording/export_window.rs
 src/recording/mod.rs
 src/recording/setup.rs
 src/recording/source.rs

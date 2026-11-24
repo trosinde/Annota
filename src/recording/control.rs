@@ -7,11 +7,12 @@
 //! recording (design.md D4). It shows the elapsed time without paused time (`M:SS`, `H:MM:SS`
 //! from one hour), Pause/Resume (`Space`), Stop, a mute button with a 5-bar level meter per
 //! recorded audio source (`M`, `S`) and Minimize. `Space`, `M` and `S` work while the control
-//! has the keyboard focus (it is a normal window). A second recording request presents it
-//! ([`present`]).
+//! has the keyboard focus (it is a normal window); each toggle is announced to assistive
+//! technology. A second recording request presents it ([`present`]); a close request
+//! (`Alt+F4`, the window menu) minimises it, the recording goes on.
 //!
-//! Idle cost: the time is refreshed every [`TICK`] only while the window is mapped and the
-//! recording is not paused, and a label or meter is redrawn only when what it shows changed.
+//! Idle cost: the time is refreshed every [`TICK`] only while the desktop shows the window
+//! (mapped, neither minimised nor suspended) and the recording is not paused, and a label or meter is redrawn only when what it shows changed.
 
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
@@ -105,6 +106,16 @@ impl AudioButton {
         }
     }
 
+    /// What a screen reader is told when the source is toggled.
+    fn announcement(&self, muted: bool) -> String {
+        match (self.source, muted) {
+            (AudioSource::Microphone, true) => gettext("Microphone muted"),
+            (AudioSource::Microphone, false) => gettext("Microphone on"),
+            (AudioSource::SystemAudio, true) => gettext("System audio muted"),
+            (AudioSource::SystemAudio, false) => gettext("System audio on"),
+        }
+    }
+
     /// Kit gap: Adwaita's muted glyphs stand in for the kit's slashed ones.
     fn icon_name(&self, muted: bool) -> &'static str {
         match (self.source, muted) {
@@ -145,6 +156,9 @@ struct Control {
     session: Weak<RecordingSession>,
     elapsed: RefCell<ElapsedSource>,
     tick: RefCell<Option<glib::SourceId>>,
+    /// Handlers connected while the window is mapped (frame clock, toplevel state), removed
+    /// when it is unmapped.
+    mapped_handlers: RefCell<Vec<(glib::Object, glib::SignalHandlerId)>>,
 }
 
 thread_local! {
@@ -153,6 +167,28 @@ thread_local! {
     /// (neither is observable on a display without a window manager).
     #[cfg(test)]
     static REQUESTS: RefCell<(u32, u32)> = const { RefCell::new((0, 0)) };
+    /// Tests: what was announced to assistive technology.
+    #[cfg(test)]
+    static ANNOUNCED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Tells assistive technology `message` (a toggle by key or click changes no focus, so nothing
+/// else would be read). GTK's stand-in context, used when there is no accessibility bus or with
+/// `GTK_A11Y=none`, has no announce implementation and crashes in it (measured with GTK 4.22),
+/// so only a real context is asked.
+fn announce(widget: &impl IsA<gtk::Accessible>, message: &str) {
+    #[cfg(test)]
+    ANNOUNCED.with(|a| a.borrow_mut().push(message.to_string()));
+    if widget.at_context().type_().name() == "GtkTestATContext" {
+        return;
+    }
+    widget.announce(message, gtk::AccessibleAnnouncementPriority::Medium);
+}
+
+/// Tests: the announcements so far (and forgets them).
+#[cfg(test)]
+pub(crate) fn take_announced() -> Vec<String> {
+    ANNOUNCED.with(|a| a.take())
 }
 
 fn shown_control() -> Option<Rc<Control>> {
@@ -245,6 +281,12 @@ pub(crate) fn meter(source: AudioSource) -> Option<(usize, bool)> {
         .map(|a| a.shown.get())
 }
 
+/// Tests: whether the time is being refreshed.
+#[cfg(test)]
+pub(crate) fn ticking() -> bool {
+    shown_control().is_some_and(|control| control.tick.borrow().is_some())
+}
+
 /// Tests: (minimise requests, present requests) so far in this thread.
 #[cfg(test)]
 pub(crate) fn requests() -> (u32, u32) {
@@ -299,6 +341,7 @@ fn build(session: &Rc<RecordingSession>, record_trigger: RecordTrigger) -> Optio
         session: Rc::downgrade(session),
         elapsed: RefCell::new(elapsed_of(session)),
         tick: RefCell::new(None),
+        mapped_handlers: RefCell::new(Vec::new()),
     });
     let stop_button = button("stop_button")?;
     control.connect(&pill, &stop_button, record_trigger);
@@ -438,33 +481,78 @@ impl Control {
         });
         self.window.add_controller(keys);
 
-        // It closes with its recording, not on its own (`Alt+F4` and the like do nothing).
-        self.window
-            .connect_close_request(|_| glib::Propagation::Stop);
+        // It lives exactly as long as its recording: a close request (`Alt+F4`, the window
+        // menu, the overview) minimises it instead, the recording goes on (design.md, Phase D1).
+        let minimize = with(|c| c.minimize());
+        self.window.connect_close_request(move |_| {
+            minimize();
+            glib::Propagation::Stop
+        });
 
-        let start = with(|c| c.refresh());
-        self.window.connect_map(move |_| start());
-        let stop_tick = with(|c| c.stop_tick());
-        self.window.connect_unmap(move |_| stop_tick());
-
-        // Only the pill takes pointer input; its shadow margins let clicks through.
+        let weak = Rc::downgrade(self);
         let pill = pill.clone();
         self.window.connect_map(move |window| {
-            let (Some(surface), Some(clock)) = (window.surface(), window.frame_clock()) else {
-                return;
-            };
-            let (window, pill) = (window.clone(), pill.clone());
-            let last = Cell::new(None);
-            clock.connect_after_paint(move |_| {
-                let rect = window_wait::input_rect(&window, &pill);
-                if rect.is_some() && rect != last.get() {
-                    last.set(rect);
-                    if let Some(rect) = rect {
-                        surface.set_input_region(&cairo::Region::create_rectangle(&rect));
-                    }
+            if let Some(control) = weak.upgrade() {
+                control.on_map(window, &pill);
+                control.refresh();
+            }
+        });
+        let weak = Rc::downgrade(self);
+        self.window.connect_unmap(move |_| {
+            if let Some(control) = weak.upgrade() {
+                control.stop_tick();
+                for (object, id) in control.mapped_handlers.take() {
+                    object.disconnect(id);
+                }
+            }
+        });
+    }
+
+    /// While mapped: only the pill takes pointer input (its shadow margins let clicks
+    /// through), and the clock stops while the desktop has the window minimised or suspended.
+    fn on_map(self: &Rc<Self>, window: &gtk::Window, pill: &gtk::Box) {
+        let (Some(surface), Some(clock)) = (window.surface(), window.frame_clock()) else {
+            return;
+        };
+        let mut handlers = Vec::new();
+        let (input_window, pill, input_surface) = (window.clone(), pill.clone(), surface.clone());
+        let last = Cell::new(None);
+        let id = clock.connect_after_paint(move |_| {
+            let rect = window_wait::input_rect(&input_window, &pill);
+            if rect.is_some() && rect != last.get() {
+                last.set(rect);
+                if let Some(rect) = rect {
+                    input_surface.set_input_region(&cairo::Region::create_rectangle(&rect));
+                }
+            }
+        });
+        handlers.push((clock.upcast(), id));
+        if let Ok(toplevel) = surface.downcast::<gdk::Toplevel>() {
+            let weak = Rc::downgrade(self);
+            let id = toplevel.connect_state_notify(move |_| {
+                if let Some(control) = weak.upgrade() {
+                    control.refresh();
                 }
             });
-        });
+            handlers.push((toplevel.upcast(), id));
+        }
+        for (object, id) in self.mapped_handlers.replace(handlers) {
+            object.disconnect(id);
+        }
+    }
+
+    /// Whether the desktop shows the window: mapped, not minimised, not suspended.
+    fn is_seen(&self) -> bool {
+        self.window.is_mapped()
+            && !self
+                .window
+                .surface()
+                .and_downcast::<gdk::Toplevel>()
+                .is_some_and(|toplevel| {
+                    toplevel
+                        .state()
+                        .intersects(gdk::ToplevelState::MINIMIZED | gdk::ToplevelState::SUSPENDED)
+                })
     }
 
     fn toggle_pause(self: &Rc<Self>) {
@@ -479,6 +567,12 @@ impl Control {
         });
         self.refresh();
         self.pause_button.trigger_tooltip_query();
+        let state = if self.is_paused() {
+            gettext("Paused")
+        } else {
+            gettext("Recording")
+        };
+        announce(&self.window, &state);
     }
 
     fn toggle_mute(&self, index: usize) {
@@ -495,6 +589,7 @@ impl Control {
             })
             .unwrap_or(false);
         audio.show_muted(muted);
+        announce(&self.window, &audio.announcement(muted));
     }
 
     fn minimize(&self) {
@@ -527,7 +622,7 @@ impl Control {
             }
         }
         self.show_time();
-        if paused || !self.window.is_mapped() {
+        if paused || !self.is_seen() {
             self.stop_tick();
         } else if self.tick.borrow().is_none() {
             let weak = Rc::downgrade(self);

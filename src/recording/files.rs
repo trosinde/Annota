@@ -37,12 +37,18 @@ pub fn base_name(time: &glib::DateTime) -> String {
 /// overwriting a file: a taken name gets ` (2)`, ` (3)`, … The file is created empty with
 /// `create_new`, so the name is reserved without a race against another recording.
 pub fn create_working_file(folder: &Path, base: &str) -> io::Result<(PathBuf, File)> {
+    create_unique(folder, base, EXTENSION)
+}
+
+/// Creates `<base>.<extension>` in `folder` (and the folder if missing), never overwriting a
+/// file: a taken name gets ` (2)`, ` (3)`, … (the working file, an exported recording).
+pub fn create_unique(folder: &Path, base: &str, extension: &str) -> io::Result<(PathBuf, File)> {
     fs::create_dir_all(folder)?;
     for n in 1..=MAX_SUFFIX {
         let name = if n == 1 {
-            format!("{base}.{EXTENSION}")
+            format!("{base}.{extension}")
         } else {
-            format!("{base} ({n}).{EXTENSION}")
+            format!("{base} ({n}).{extension}")
         };
         let path = folder.join(name);
         match OpenOptions::new().write(true).create_new(true).open(&path) {
@@ -53,8 +59,15 @@ pub fn create_working_file(folder: &Path, base: &str) -> io::Result<(PathBuf, Fi
     }
     Err(io::Error::new(
         io::ErrorKind::AlreadyExists,
-        "no free working file name",
+        "no free file name",
     ))
+}
+
+/// The working file's name without `.mkv`: the export's default file name.
+pub fn stem(path: &Path) -> String {
+    path.file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
