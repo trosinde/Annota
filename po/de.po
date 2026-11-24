@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: annota\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 21:59+0100\n"
+"POT-Creation-Date: 2026-11-24 18:35+0100\n"
 "PO-Revision-Date: 2026-10-30 15:01+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -20,7 +20,7 @@ msgstr ""
 #: data/io.github.trosinde.Annota.desktop.in:2
 #: data/io.github.trosinde.Annota.metainfo.xml.in:7 data/ui/window.blp:49
 #: data/ui/editor-window.blp:275 data/ui/editor-window.blp:324
-#: src/ui/editor/mod.rs:932 src/ui/editor/mod.rs:934
+#: src/ui/editor/mod.rs:969 src/ui/editor/mod.rs:971
 msgid "Annota"
 msgstr "Annota"
 
@@ -38,15 +38,16 @@ msgstr "Bildschirm aufnehmen, markieren und aufzeichnen"
 msgid "screenshot;capture;annotate;arrow;markup;redact;screen;recording;"
 msgstr "Bildschirmfoto;Screenshot;Aufnahme;Anmerken;Pfeil;Markieren;Schwärzen;Bildschirm;Aufzeichnung;"
 
-#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:398
+#: data/io.github.trosinde.Annota.desktop.in:17 src/application.rs:654
 msgid "Capture Region"
 msgstr "Bereich aufnehmen"
 
-#: data/io.github.trosinde.Annota.desktop.in:21 src/application.rs:399
+#: data/io.github.trosinde.Annota.desktop.in:21 data/ui/window-wait.blp:11
+#: src/application.rs:655 src/capture/window_wait.rs:61
 msgid "Capture Window"
 msgstr "Fenster aufnehmen"
 
-#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:400
+#: data/io.github.trosinde.Annota.desktop.in:25 src/application.rs:656
 msgid "Capture Screen"
 msgstr "Bildschirm aufnehmen"
 
@@ -64,13 +65,23 @@ msgstr ""
 
 #: data/io.github.trosinde.Annota.metainfo.xml.in:19
 msgid ""
+"Annota also records your screen: a region, a window or the whole screen as a "
+"video, with the microphone and the system audio if you like, saved as MP4 or "
+"WebM."
+msgstr ""
+"Annota zeichnet auch Ihren Bildschirm auf: einen Bereich, ein Fenster oder "
+"den ganzen Bildschirm als Video, auf Wunsch mit Mikrofon und Systemton, "
+"gespeichert als MP4 oder WebM."
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in:23
+msgid ""
 "Annota works entirely on your computer: no account, no cloud service and no "
 "telemetry."
 msgstr ""
 "Annota arbeitet vollständig auf Ihrem Computer: kein Konto, kein Cloud-"
 "Dienst und keine Telemetrie."
 
-#: data/io.github.trosinde.Annota.metainfo.xml.in:22
+#: data/io.github.trosinde.Annota.metainfo.xml.in:26
 msgid ""
 "This is a pre-release. Saving, exporting and the annotation tools arrive "
 "with milestone 0.1."
@@ -78,37 +89,74 @@ msgstr ""
 "Dies ist eine Vorabversion. Speichern, Exportieren und die "
 "Anmerkungswerkzeuge folgen mit Meilenstein 0.1."
 
-#: data/io.github.trosinde.Annota.metainfo.xml.in:53
+#: data/io.github.trosinde.Annota.metainfo.xml.in:57
+msgid "Screen recording and capture fixes."
+msgstr "Bildschirmaufzeichnung und Korrekturen bei Aufnahmen."
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in:59
+msgid ""
+"Record a region, a window or the whole screen, with microphone and system "
+"audio, pause and mute, and export to MP4 or WebM."
+msgstr ""
+"Einen Bereich, ein Fenster oder den ganzen Bildschirm aufzeichnen, mit "
+"Mikrofon und Systemton, Pause und Stummschalten, und als MP4 oder WebM "
+"exportieren."
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in:60
+msgid ""
+"Window captures show the whole window at the size it has on screen, on "
+"scaled displays too."
+msgstr ""
+"Fensteraufnahmen zeigen das ganze Fenster in der Größe, die es auf dem "
+"Bildschirm hat, auch auf skalierten Bildschirmen."
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in:61
+msgid ""
+"The pointer is captured where it is, also in delayed region captures and in "
+"screen captures."
+msgstr ""
+"Der Mauszeiger wird dort aufgenommen, wo er ist, auch bei verzögerten "
+"Bereichsaufnahmen und bei Bildschirmaufnahmen."
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in:67
+msgid ""
+"First release: region, window and screen capture, the annotation editor, "
+"quick styles and themes, and export."
+msgstr ""
+"Erste Version: Bereichs-, Fenster- und Bildschirmaufnahme, der "
+"Anmerkungseditor, Schnellstile und Themen sowie Export."
+
+#: data/io.github.trosinde.Annota.metainfo.xml.in:72
 msgid "Project skeleton: application shell and Debian packaging."
 msgstr "Projektgerüst: Anwendungsrahmen und Debian-Paket."
 
-#: data/io.github.trosinde.Annota.gschema.xml:23 data/ui/preferences.blp:19
+#: data/io.github.trosinde.Annota.gschema.xml:27 data/ui/preferences.blp:19
 msgid "Save folder"
 msgstr "Speicherordner"
 
-#: data/io.github.trosinde.Annota.gschema.xml:24
+#: data/io.github.trosinde.Annota.gschema.xml:28
 msgid "Where Ctrl+S puts new captures. Empty means ~/Pictures/Annota."
 msgstr "Hierhin legt Strg+S neue Aufnahmen. Leer bedeutet ~/Bilder/Annota."
 
-#: data/io.github.trosinde.Annota.gschema.xml:28 data/ui/preferences.blp:31
+#: data/io.github.trosinde.Annota.gschema.xml:32 data/ui/preferences.blp:31
 #: data/ui/batch-export-dialog.blp:178
 msgid "File name pattern"
 msgstr "Dateinamensmuster"
 
-#: data/io.github.trosinde.Annota.gschema.xml:29
+#: data/io.github.trosinde.Annota.gschema.xml:33
 msgid "strftime-style pattern used to name quick-saved captures."
 msgstr ""
 "strftime-ähnliches Muster für die Benennung schnell gespeicherter Aufnahmen."
 
-#: data/io.github.trosinde.Annota.gschema.xml:33
+#: data/io.github.trosinde.Annota.gschema.xml:37
 msgid "Default export format"
 msgstr "Standard-Exportformat"
 
-#: data/io.github.trosinde.Annota.gschema.xml:37 data/ui/preferences.blp:71
+#: data/io.github.trosinde.Annota.gschema.xml:41 data/ui/preferences.blp:71
 msgid "Export folder"
 msgstr "Exportordner"
 
-#: data/io.github.trosinde.Annota.gschema.xml:38
+#: data/io.github.trosinde.Annota.gschema.xml:42
 msgid ""
 "Folder offered by the export dialog. Empty means the save folder's Exports "
 "subfolder."
@@ -116,38 +164,38 @@ msgstr ""
 "Ordner, den der Exportdialog vorschlägt. Leer bedeutet den Unterordner "
 "„Exports“ des Speicherordners."
 
-#: data/io.github.trosinde.Annota.gschema.xml:42
+#: data/io.github.trosinde.Annota.gschema.xml:46
 msgid "What happens after a capture"
 msgstr "Was nach einer Aufnahme passiert"
 
-#: data/io.github.trosinde.Annota.gschema.xml:46
+#: data/io.github.trosinde.Annota.gschema.xml:50
 msgid "Default capture mode"
 msgstr "Standard-Aufnahmemodus"
 
-#: data/io.github.trosinde.Annota.gschema.xml:51
+#: data/io.github.trosinde.Annota.gschema.xml:55
 msgid "Capture delay in seconds"
 msgstr "Aufnahmeverzögerung in Sekunden"
 
-#: data/io.github.trosinde.Annota.gschema.xml:55
+#: data/io.github.trosinde.Annota.gschema.xml:59
 msgid "Include the mouse pointer in captures"
 msgstr "Mauszeiger in Aufnahmen einschließen"
 
-#: data/io.github.trosinde.Annota.gschema.xml:59 data/ui/preferences.blp:181
+#: data/io.github.trosinde.Annota.gschema.xml:63 data/ui/preferences.blp:283
 msgid "Capture all monitors"
 msgstr "Alle Bildschirme aufnehmen"
 
-#: data/io.github.trosinde.Annota.gschema.xml:60
+#: data/io.github.trosinde.Annota.gschema.xml:64
 msgid ""
 "Screen mode captures every monitor instead of the one under the pointer."
 msgstr ""
 "Der Bildschirmmodus nimmt alle Bildschirme auf statt nur den unter dem "
 "Mauszeiger."
 
-#: data/io.github.trosinde.Annota.gschema.xml:64
+#: data/io.github.trosinde.Annota.gschema.xml:68
 msgid "Region capture shortcut"
 msgstr "Tastenkürzel für Bereichsaufnahme"
 
-#: data/io.github.trosinde.Annota.gschema.xml:65
+#: data/io.github.trosinde.Annota.gschema.xml:69
 msgid ""
 "Global shortcut (GTK accelerator syntax) that starts a region capture. Empty "
 "disables it."
@@ -155,11 +203,11 @@ msgstr ""
 "Globales Tastenkürzel (GTK-Syntax), das eine Bereichsaufnahme startet. Leer "
 "schaltet es ab."
 
-#: data/io.github.trosinde.Annota.gschema.xml:69
+#: data/io.github.trosinde.Annota.gschema.xml:73
 msgid "Window capture shortcut"
 msgstr "Tastenkürzel für Fensteraufnahme"
 
-#: data/io.github.trosinde.Annota.gschema.xml:70
+#: data/io.github.trosinde.Annota.gschema.xml:74
 msgid ""
 "Global shortcut (GTK accelerator syntax) that starts a window capture. Empty "
 "disables it."
@@ -167,11 +215,11 @@ msgstr ""
 "Globales Tastenkürzel (GTK-Syntax), das eine Fensteraufnahme startet. Leer "
 "schaltet es ab."
 
-#: data/io.github.trosinde.Annota.gschema.xml:74
+#: data/io.github.trosinde.Annota.gschema.xml:78
 msgid "Screen capture shortcut"
 msgstr "Tastenkürzel für Bildschirmaufnahme"
 
-#: data/io.github.trosinde.Annota.gschema.xml:75
+#: data/io.github.trosinde.Annota.gschema.xml:79
 msgid ""
 "Global shortcut (GTK accelerator syntax) that starts a screen capture. Empty "
 "disables it."
@@ -179,11 +227,82 @@ msgstr ""
 "Globales Tastenkürzel (GTK-Syntax), das eine Bildschirmaufnahme startet. "
 "Leer schaltet es ab."
 
-#: data/io.github.trosinde.Annota.gschema.xml:79
+#: data/io.github.trosinde.Annota.gschema.xml:83
+msgid "Record video shortcut"
+msgstr "Tastenkürzel für Videoaufnahme"
+
+#: data/io.github.trosinde.Annota.gschema.xml:84
+msgid ""
+"Global shortcut (GTK accelerator syntax) that opens the recording setup or "
+"stops a running recording, used for the GNOME custom keybinding when the "
+"GlobalShortcuts portal is unavailable. Empty disables it."
+msgstr ""
+"Globales Tastenkürzel (GTK-Syntax), das die Aufnahmeeinstellungen öffnet "
+"oder eine laufende Aufnahme beendet. Wird für das eigene GNOME-Tastenkürzel "
+"verwendet, wenn das GlobalShortcuts-Portal fehlt. Leer schaltet es ab."
+
+#: data/io.github.trosinde.Annota.gschema.xml:88
+msgid "Recording source"
+msgstr "Aufnahmequelle"
+
+#: data/io.github.trosinde.Annota.gschema.xml:89
+msgid "What the recording setup records: a region, a window or a screen."
+msgstr ""
+"Was die Aufnahmeeinstellungen aufzeichnen: einen Bereich, ein Fenster oder "
+"einen Bildschirm."
+
+#: data/io.github.trosinde.Annota.gschema.xml:93 data/ui/region-overlay.blp:760
+msgid "Record the microphone"
+msgstr "Mikrofon aufnehmen"
+
+#: data/io.github.trosinde.Annota.gschema.xml:97 data/ui/region-overlay.blp:788
+msgid "Record system audio"
+msgstr "Systemton aufnehmen"
+
+#: data/io.github.trosinde.Annota.gschema.xml:98
+msgid "Records the monitor of the default audio output."
+msgstr "Zeichnet den Monitor der Standard-Audioausgabe auf."
+
+#: data/io.github.trosinde.Annota.gschema.xml:103
+msgid "Recording countdown in seconds"
+msgstr "Countdown vor der Aufnahme in Sekunden"
+
+#: data/io.github.trosinde.Annota.gschema.xml:107
+msgid "Recordings folder"
+msgstr "Ordner für Aufnahmen"
+
+#: data/io.github.trosinde.Annota.gschema.xml:108
+msgid ""
+"Where working files of recordings are written. Empty means ~/Videos/Annota."
+msgstr ""
+"Hierhin werden die Arbeitsdateien von Aufnahmen geschrieben. Leer bedeutet ~/"
+"Videos/Annota."
+
+#: data/io.github.trosinde.Annota.gschema.xml:112
+msgid "Recording export format"
+msgstr "Exportformat für Aufnahmen"
+
+#: data/io.github.trosinde.Annota.gschema.xml:116
+msgid "Recording export folder"
+msgstr "Exportordner für Aufnahmen"
+
+#: data/io.github.trosinde.Annota.gschema.xml:117
+msgid ""
+"The folder the Export Recording window used last. Empty means the recordings "
+"folder."
+msgstr ""
+"Der Ordner, den das Fenster »Aufnahme exportieren« zuletzt verwendet hat. "
+"Leer bedeutet der Ordner für Aufnahmen."
+
+#: data/io.github.trosinde.Annota.gschema.xml:121
+msgid "Include audio when exporting a recording"
+msgstr "Ton beim Export einer Aufnahme einbeziehen"
+
+#: data/io.github.trosinde.Annota.gschema.xml:125
 msgid "GNOME shortcuts created"
 msgstr "GNOME-Tastenkürzel angelegt"
 
-#: data/io.github.trosinde.Annota.gschema.xml:80
+#: data/io.github.trosinde.Annota.gschema.xml:126
 msgid ""
 "Whether Annota has written GNOME custom keybindings that run annota --"
 "capture (used when the GlobalShortcuts portal is unavailable)."
@@ -205,11 +324,11 @@ msgstr ""
 "anzulegen, wo seine GNOME-Tastenkürzel schon vorher angelegt waren. Danach "
 "wird es nicht mehr angelegt, auch wenn es entfernt wurde."
 
-#: data/io.github.trosinde.Annota.gschema.xml:84
+#: data/io.github.trosinde.Annota.gschema.xml:135
 msgid "GNOME screenshot keys moved aside"
 msgstr "Beiseitegelegte GNOME-Bildschirmfototasten"
 
-#: data/io.github.trosinde.Annota.gschema.xml:85
+#: data/io.github.trosinde.Annota.gschema.xml:136
 msgid ""
 "GNOME Shell keybindings (key, accelerator) that Annota took over. They are "
 "given back when the Annota shortcut is disabled or changed."
@@ -218,11 +337,12 @@ msgstr ""
 "übernommen hat. Sie werden zurückgegeben, wenn das Annota-Tastenkürzel "
 "abgeschaltet oder geändert wird."
 
-#: data/io.github.trosinde.Annota.gschema.xml:89 data/ui/editor-window.blp:1208
+#: data/io.github.trosinde.Annota.gschema.xml:140
+#: data/ui/editor-window.blp:1208
 msgid "Snap to guides"
 msgstr "An Hilfslinien einrasten"
 
-#: data/io.github.trosinde.Annota.gschema.xml:90
+#: data/io.github.trosinde.Annota.gschema.xml:141
 msgid ""
 "Moved and resized objects snap to the canvas and to other objects in the "
 "editor (sidebar switch, Ctrl+;)."
@@ -230,33 +350,33 @@ msgstr ""
 "Verschobene und skalierte Objekte rasten im Editor an der Leinwand und an "
 "anderen Objekten ein (Schalter in der Seitenleiste, Strg+;)."
 
-#: data/io.github.trosinde.Annota.gschema.xml:94
+#: data/io.github.trosinde.Annota.gschema.xml:145
 msgid "Show the properties sidebar"
 msgstr "Eigenschaften-Seitenleiste anzeigen"
 
-#: data/io.github.trosinde.Annota.gschema.xml:95
+#: data/io.github.trosinde.Annota.gschema.xml:146
 msgid "Editor sidebar on the right; below 900 px it is a bottom sheet (F9)."
 msgstr ""
 "Seitenleiste rechts im Editor; unter 900 px ein Bereich am unteren Rand (F9)."
 
-#: data/io.github.trosinde.Annota.gschema.xml:99
+#: data/io.github.trosinde.Annota.gschema.xml:150
 msgid "Show the recent captures tray"
 msgstr "Leiste mit letzten Aufnahmen anzeigen"
 
-#: data/io.github.trosinde.Annota.gschema.xml:103
+#: data/io.github.trosinde.Annota.gschema.xml:154
 msgid "Editor window width"
 msgstr "Breite des Editorfensters"
 
-#: data/io.github.trosinde.Annota.gschema.xml:107
+#: data/io.github.trosinde.Annota.gschema.xml:158
 msgid "Editor window height"
 msgstr "Höhe des Editorfensters"
 
-#: data/io.github.trosinde.Annota.gschema.xml:111
+#: data/io.github.trosinde.Annota.gschema.xml:162
 msgid "Editor window maximized"
 msgstr "Editorfenster maximiert"
 
-#: data/ui/window.blp:8 data/ui/editor-window.blp:17
-#: data/ui/editor-window.blp:292
+#: data/ui/window.blp:8 data/ui/window.blp:67 data/ui/editor-window.blp:17
+#: data/ui/editor-window.blp:292 src/capture/shortcuts.rs:702
 msgid "New Capture"
 msgstr "Neue Aufnahme"
 
@@ -284,98 +404,112 @@ msgstr "_Info zu Annota"
 msgid "_Quit"
 msgstr "_Beenden"
 
-#: data/ui/window.blp:61 data/ui/editor-window.blp:289
+#: data/ui/window.blp:61 data/ui/window.blp:68 data/ui/editor-window.blp:289
 msgid "New Capture (Ctrl+N)"
 msgstr "Neue Aufnahme (Strg+N)"
 
-#: data/ui/window.blp:79 data/ui/window.blp:93 data/ui/window.blp:343
-#: data/ui/region-overlay.blp:159
+#: data/ui/window.blp:87 data/ui/window.blp:101 data/ui/window.blp:402
+#: data/ui/region-overlay.blp:164 data/ui/region-overlay.blp:670
+#: data/ui/region-overlay.blp:683
 msgid "Region"
 msgstr "Bereich"
 
-#: data/ui/window.blp:105 data/ui/window.blp:119 data/ui/window.blp:369
-#: data/ui/region-overlay.blp:166
+#: data/ui/window.blp:129 data/ui/window.blp:143 data/ui/window.blp:429
+#: data/ui/region-overlay.blp:171 data/ui/region-overlay.blp:692
+#: data/ui/region-overlay.blp:705
 msgid "Window"
 msgstr "Fenster"
 
-#: data/ui/window.blp:131 data/ui/window.blp:145 data/ui/window.blp:395
-#: data/ui/region-overlay.blp:173
+#: data/ui/window.blp:171 data/ui/window.blp:185 data/ui/window.blp:456
+#: data/ui/region-overlay.blp:178 data/ui/region-overlay.blp:714
+#: data/ui/region-overlay.blp:727
 msgid "Screen"
 msgstr "Bildschirm"
 
-#: data/ui/window.blp:166 data/ui/region-overlay.blp:246
+#: data/ui/window.blp:222 data/ui/region-overlay.blp:251
 msgid "Delay"
 msgstr "Verzögerung"
 
-#: data/ui/window.blp:171
+#: data/ui/window.blp:227
 msgid "Countdown before capturing"
 msgstr "Countdown vor der Aufnahme"
 
-#: data/ui/window.blp:179 data/ui/region-overlay.blp:268
+#: data/ui/window.blp:235 data/ui/region-overlay.blp:273
 msgid "Delay in seconds"
 msgstr "Verzögerung in Sekunden"
 
-#: data/ui/window.blp:194 data/ui/preferences.blp:166
+#: data/ui/window.blp:250 data/ui/preferences.blp:268
+#: data/ui/region-overlay.blp:799 data/ui/region-overlay.blp:814
 msgid "Include pointer"
 msgstr "Mauszeiger einschließen"
 
-#: data/ui/window.blp:201 data/ui/region-overlay.blp:241
+#: data/ui/window.blp:257 data/ui/region-overlay.blp:246
 msgid "Include Pointer"
 msgstr "Mauszeiger einschließen"
 
-#: data/ui/window.blp:239
+#: data/ui/window.blp:296
 msgid "Paste Image From Clipboard"
 msgstr "Bild aus Zwischenablage einfügen"
 
-#: data/ui/window.blp:262
+#: data/ui/window.blp:319
 msgid "Open Image…"
 msgstr "Bild öffnen …"
 
-#: data/ui/window.blp:280 data/ui/editor-window.blp:331
+#: data/ui/window.blp:337 data/ui/editor-window.blp:331
 msgid "Main Menu"
 msgstr "Hauptmenü"
 
-#: data/ui/window.blp:308
+#: data/ui/window.blp:365
 msgid "Capture Anything"
 msgstr "Alles aufnehmen"
 
-#: data/ui/window.blp:315
+#: data/ui/window.blp:372
 msgid ""
-"Pick what to capture. The capture opens in the editor, ready to mark up. "
+"Pick what to capture or record. A capture opens here, ready to mark up. "
 "Every annotation stays editable until you export."
 msgstr ""
-"Wählen Sie, was aufgenommen werden soll. Die Aufnahme öffnet sich im Editor, "
-"bereit zum Markieren. Jede Anmerkung bleibt bis zum Export bearbeitbar."
+"Wählen Sie, was Sie aufnehmen oder als Video aufzeichnen möchten. Eine "
+"Aufnahme öffnet sich hier, bereit zum Markieren. Jede Anmerkung bleibt bis "
+"zum Export bearbeitbar."
 
-#: data/ui/window.blp:329
+#: data/ui/window.blp:388
 msgid "Capture a region"
 msgstr "Einen Bereich aufnehmen"
 
-#: data/ui/window.blp:355
+#: data/ui/window.blp:415
 msgid "Capture a window"
 msgstr "Ein Fenster aufnehmen"
 
-#: data/ui/window.blp:381
+#: data/ui/window.blp:442
 msgid "Capture the screen"
 msgstr "Den Bildschirm aufnehmen"
 
-#: data/ui/window.blp:418
+#: data/ui/window.blp:470 data/ui/preferences.blp:229
+#: src/capture/shortcuts.rs:109
+msgid "Record video"
+msgstr "Video aufnehmen"
+
+#: data/ui/window.blp:484
+msgid "Record"
+msgstr "Aufzeichnen"
+
+#: data/ui/window.blp:508
 msgid "or open an image or .annota file with"
 msgstr "oder öffnen Sie ein Bild oder eine .annota-Datei mit"
 
-#: data/ui/window.blp:428
+#: data/ui/window.blp:518
 msgid "— or drop it here"
 msgstr "– oder ziehen Sie sie hierher"
 
-#: data/ui/window.blp:462
+#: data/ui/window.blp:552
 msgid "Drop to Open as New Capture"
 msgstr "Ablegen, um als neue Aufnahme zu öffnen"
 
-#: data/ui/window.blp:467
+#: data/ui/window.blp:557
 msgid "PNG, JPG, WebP or .annota"
 msgstr "PNG, JPG, WebP oder .annota"
 
-#: data/ui/preferences.blp:5
+#: data/ui/preferences.blp:5 src/capture/shortcuts.rs:698
 msgid "Preferences"
 msgstr "Einstellungen"
 
@@ -409,6 +543,7 @@ msgstr "Beispiel"
 
 #: data/ui/preferences.blp:60 data/ui/editor-window.blp:337
 #: data/ui/export-dialog.blp:28 data/ui/batch-export-dialog.blp:28
+#: src/capture/shortcuts.rs:706
 msgid "Export"
 msgstr "Export"
 
@@ -456,8 +591,8 @@ msgstr "Folgt dem hellen oder dunklen Stil des Systems sowie der Akzentfarbe"
 msgid "System"
 msgstr "System"
 
-#: data/ui/preferences.blp:102 data/ui/preferences.blp:163
-#: data/ui/region-overlay.blp:298 data/ui/region-overlay.blp:464
+#: data/ui/preferences.blp:102 data/ui/preferences.blp:265
+#: data/ui/region-overlay.blp:303 data/ui/region-overlay.blp:521
 msgid "Capture"
 msgstr "Aufnahme"
 
@@ -465,54 +600,58 @@ msgstr "Aufnahme"
 msgid "Global Shortcuts"
 msgstr "Globale Tastenkürzel"
 
-#: data/ui/preferences.blp:114 src/capture/shortcuts.rs:60
+#: data/ui/preferences.blp:115
+msgid "Open GNOME Settings"
+msgstr "GNOME-Einstellungen öffnen"
+
+#: data/ui/preferences.blp:121 src/capture/shortcuts.rs:106
 msgid "Region capture"
 msgstr "Bereichsaufnahme"
 
-#: data/ui/preferences.blp:130 src/capture/shortcuts.rs:61
+#: data/ui/preferences.blp:157 src/capture/shortcuts.rs:107
 msgid "Window capture"
 msgstr "Fensteraufnahme"
 
-#: data/ui/preferences.blp:146 src/capture/shortcuts.rs:62
+#: data/ui/preferences.blp:193 src/capture/shortcuts.rs:108
 msgid "Screen capture"
 msgstr "Bildschirmaufnahme"
 
-#: data/ui/preferences.blp:167
+#: data/ui/preferences.blp:269
 msgid "Show the mouse pointer in captures"
 msgstr "Mauszeiger in Aufnahmen zeigen"
 
-#: data/ui/preferences.blp:171
+#: data/ui/preferences.blp:273
 msgid "Default delay"
 msgstr "Standardverzögerung"
 
-#: data/ui/preferences.blp:182
+#: data/ui/preferences.blp:284
 msgid "Screen mode captures every monitor instead of the one under the pointer"
 msgstr ""
 "Der Bildschirmmodus nimmt alle Bildschirme auf statt nur den unter dem "
 "Mauszeiger"
 
-#: data/ui/preferences.blp:186
+#: data/ui/preferences.blp:288
 msgid "After capture"
 msgstr "Nach der Aufnahme"
 
-#: data/ui/preferences.blp:188
+#: data/ui/preferences.blp:290
 msgid "Open in Editor"
 msgstr "Im Editor öffnen"
 
-#: data/ui/preferences.blp:188 data/ui/editor-window.blp:352
-#: src/ui/editor/mod.rs:3159
+#: data/ui/preferences.blp:290 data/ui/editor-window.blp:352
+#: src/ui/editor/mod.rs:3196
 msgid "Copy to Clipboard"
 msgstr "In die Zwischenablage kopieren"
 
-#: data/ui/preferences.blp:188
+#: data/ui/preferences.blp:290
 msgid "Both"
 msgstr "Beides"
 
-#: data/ui/preferences.blp:196
+#: data/ui/preferences.blp:298
 msgid "Global shortcuts are not active yet"
 msgstr "Globale Tastenkürzel sind noch nicht aktiv"
 
-#: data/ui/preferences.blp:197
+#: data/ui/preferences.blp:299
 msgid "Create GNOME Shortcuts"
 msgstr "GNOME-Tastenkürzel anlegen"
 
@@ -581,297 +720,389 @@ msgctxt "shortcut window"
 msgid "Capture screen"
 msgstr "Bildschirm aufnehmen"
 
-#: data/ui/help-overlay.blp:74
+#: data/ui/help-overlay.blp:73
+msgctxt "shortcut window"
+msgid "Record video"
+msgstr "Video aufnehmen"
+
+#: data/ui/help-overlay.blp:80
+msgctxt "shortcut window"
+msgid "Recording"
+msgstr "Videoaufnahme"
+
+#: data/ui/help-overlay.blp:83
+msgctxt "shortcut window"
+msgid "Pause or resume"
+msgstr "Pausieren oder fortsetzen"
+
+#: data/ui/help-overlay.blp:88
+msgctxt "shortcut window"
+msgid "Mute or unmute the microphone"
+msgstr "Mikrofon stumm- oder lautschalten"
+
+#: data/ui/help-overlay.blp:93
+msgctxt "shortcut window"
+msgid "Mute or unmute system audio"
+msgstr "Systemton stumm- oder lautschalten"
+
+#: data/ui/help-overlay.blp:99
 msgctxt "shortcut window"
 msgid "Document"
 msgstr "Dokument"
 
-#: data/ui/help-overlay.blp:77
+#: data/ui/help-overlay.blp:102
 msgctxt "shortcut window"
 msgid "Save"
 msgstr "Speichern"
 
-#: data/ui/help-overlay.blp:82
+#: data/ui/help-overlay.blp:107
 msgctxt "shortcut window"
 msgid "Save as"
 msgstr "Speichern unter"
 
-#: data/ui/help-overlay.blp:87
+#: data/ui/help-overlay.blp:112
 msgctxt "shortcut window"
 msgid "Export"
 msgstr "Exportieren"
 
-#: data/ui/help-overlay.blp:92
+#: data/ui/help-overlay.blp:117
 msgctxt "shortcut window"
 msgid "Copy image"
 msgstr "Bild kopieren"
 
-#: data/ui/help-overlay.blp:97
+#: data/ui/help-overlay.blp:122
 msgctxt "shortcut window"
 msgid "Paste"
 msgstr "Einfügen"
 
-#: data/ui/help-overlay.blp:102
+#: data/ui/help-overlay.blp:127
 msgctxt "shortcut window"
 msgid "Undo"
 msgstr "Rückgängig"
 
-#: data/ui/help-overlay.blp:107
+#: data/ui/help-overlay.blp:132
 msgctxt "shortcut window"
 msgid "Redo"
 msgstr "Wiederholen"
 
-#: data/ui/help-overlay.blp:112
+#: data/ui/help-overlay.blp:137
 msgctxt "shortcut window"
 msgid "Zoom"
 msgstr "Zoom"
 
-#: data/ui/help-overlay.blp:117
+#: data/ui/help-overlay.blp:142
 msgctxt "shortcut window"
 msgid "Best fit"
 msgstr "Einpassen"
 
-#: data/ui/help-overlay.blp:123
+#: data/ui/help-overlay.blp:148
 msgctxt "shortcut window"
 msgid "Tools"
 msgstr "Werkzeuge"
 
-#: data/ui/help-overlay.blp:126
+#: data/ui/help-overlay.blp:151
 msgctxt "shortcut window"
 msgid "Select"
 msgstr "Auswählen"
 
-#: data/ui/help-overlay.blp:131
+#: data/ui/help-overlay.blp:156
 msgctxt "shortcut window"
 msgid "Arrow"
 msgstr "Pfeil"
 
-#: data/ui/help-overlay.blp:136
+#: data/ui/help-overlay.blp:161
 msgctxt "shortcut window"
 msgid "Line"
 msgstr "Linie"
 
-#: data/ui/help-overlay.blp:141
+#: data/ui/help-overlay.blp:166
 msgctxt "shortcut window"
 msgid "Pen"
 msgstr "Stift"
 
-#: data/ui/help-overlay.blp:146
+#: data/ui/help-overlay.blp:171
 msgctxt "shortcut window"
 msgid "Shape"
 msgstr "Form"
 
-#: data/ui/help-overlay.blp:151
+#: data/ui/help-overlay.blp:176
 msgctxt "shortcut window"
 msgid "Text"
 msgstr "Text"
 
-#: data/ui/help-overlay.blp:156
+#: data/ui/help-overlay.blp:181
 msgctxt "shortcut window"
 msgid "Callout"
 msgstr "Sprechblase"
 
-#: data/ui/help-overlay.blp:161
+#: data/ui/help-overlay.blp:186
 msgctxt "shortcut window"
 msgid "Step"
 msgstr "Schritt"
 
-#: data/ui/help-overlay.blp:166
+#: data/ui/help-overlay.blp:191
 msgctxt "shortcut window"
 msgid "Highlighter"
 msgstr "Textmarker"
 
-#: data/ui/help-overlay.blp:171
+#: data/ui/help-overlay.blp:196
 msgctxt "shortcut window"
 msgid "Redact"
 msgstr "Schwärzen"
 
-#: data/ui/help-overlay.blp:177
+#: data/ui/help-overlay.blp:202
 msgctxt "shortcut window"
 msgid "More Tools"
 msgstr "Weitere Werkzeuge"
 
-#: data/ui/help-overlay.blp:180
+#: data/ui/help-overlay.blp:205
 msgctxt "shortcut window"
 msgid "Crop"
 msgstr "Zuschneiden"
 
-#: data/ui/help-overlay.blp:185
+#: data/ui/help-overlay.blp:210
 msgctxt "shortcut window"
 msgid "Magnify"
 msgstr "Lupe"
 
-#: data/ui/help-overlay.blp:190
+#: data/ui/help-overlay.blp:215
 msgctxt "shortcut window"
 msgid "Spotlight"
 msgstr "Spotlight"
 
-#: data/ui/help-overlay.blp:195
+#: data/ui/help-overlay.blp:220
 msgctxt "shortcut window"
 msgid "Stamp"
 msgstr "Stempel"
 
-#: data/ui/help-overlay.blp:200
+#: data/ui/help-overlay.blp:225
 msgctxt "shortcut window"
 msgid "Cut-out"
 msgstr "Ausschnitt"
 
-#: data/ui/help-overlay.blp:205
+#: data/ui/help-overlay.blp:230
 msgctxt "shortcut window"
 msgid "Fill"
 msgstr "Füllen"
 
-#: data/ui/help-overlay.blp:210
+#: data/ui/help-overlay.blp:235
 msgctxt "shortcut window"
 msgid "Eraser"
 msgstr "Radierer"
 
-#: data/ui/help-overlay.blp:215
+#: data/ui/help-overlay.blp:240
 msgctxt "shortcut window"
 msgid "Magic wand"
 msgstr "Zauberstab"
 
-#: data/ui/help-overlay.blp:220
+#: data/ui/help-overlay.blp:245
 msgctxt "shortcut window"
 msgid "Selection"
 msgstr "Auswahl"
 
-#: data/ui/region-overlay.blp:10 data/ui/region-overlay.blp:259
-#: src/capture/overlay.rs:348
+#: data/ui/region-overlay.blp:14 data/ui/region-overlay.blp:264
+#: src/capture/overlay.rs:540
 msgid "Off"
 msgstr "Aus"
 
-#: data/ui/region-overlay.blp:16
+#: data/ui/region-overlay.blp:20
 msgid "1 s"
 msgstr "1 s"
 
-#: data/ui/region-overlay.blp:22
+#: data/ui/region-overlay.blp:26
 msgid "2 s"
 msgstr "2 s"
 
-#: data/ui/region-overlay.blp:28
+#: data/ui/region-overlay.blp:32
 msgid "3 s"
 msgstr "3 s"
 
-#: data/ui/region-overlay.blp:34
+#: data/ui/region-overlay.blp:38
 msgid "5 s"
 msgstr "5 s"
 
-#: data/ui/region-overlay.blp:40
+#: data/ui/region-overlay.blp:44
 msgid "10 s"
 msgstr "10 s"
 
-#: data/ui/region-overlay.blp:46
+#: data/ui/region-overlay.blp:50
 msgid "Custom…"
 msgstr "Eigene …"
 
-#: data/ui/region-overlay.blp:54
+#: data/ui/region-overlay.blp:58
 msgid "Select Region"
 msgstr "Bereich auswählen"
 
-#: data/ui/region-overlay.blp:141
+#: data/ui/region-overlay.blp:146
 msgid "Snapped to window edge"
 msgstr "An Fensterkante eingerastet"
 
-#: data/ui/region-overlay.blp:189
+#: data/ui/region-overlay.blp:194
 msgctxt "width"
 msgid "W"
 msgstr "B"
 
-#: data/ui/region-overlay.blp:199 data/ui/export-dialog.blp:278
+#: data/ui/region-overlay.blp:204 data/ui/export-dialog.blp:278
 msgid "Width in pixels"
 msgstr "Breite in Pixeln"
 
-#: data/ui/region-overlay.blp:215
+#: data/ui/region-overlay.blp:220
 msgctxt "height"
 msgid "H"
 msgstr "H"
 
-#: data/ui/region-overlay.blp:225
+#: data/ui/region-overlay.blp:230
 msgid "Height in pixels"
 msgstr "Höhe in Pixeln"
 
-#: data/ui/region-overlay.blp:231
+#: data/ui/region-overlay.blp:236
 msgid "px"
 msgstr "px"
 
-#: data/ui/region-overlay.blp:283 data/ui/region-overlay.blp:371
-#: data/ui/region-overlay.blp:429 data/ui/region-overlay.blp:478
-#: data/ui/countdown.blp:48 data/ui/shortcut-dialog.blp:18
+#: data/ui/region-overlay.blp:288 data/ui/region-overlay.blp:434
+#: data/ui/region-overlay.blp:489 data/ui/region-overlay.blp:535
+#: data/ui/region-overlay.blp:630 data/ui/countdown.blp:58
+#: data/ui/countdown.blp:101 data/ui/window-wait.blp:58
+#: data/ui/window-wait.blp:74 data/ui/shortcut-dialog.blp:18
 #: data/ui/editor-window.blp:769 data/ui/editor-window.blp:1400
-#: data/ui/editor-window.blp:3464 data/ui/editor-window.blp:3836
+#: data/ui/editor-window.blp:3462 data/ui/editor-window.blp:3834
 #: data/ui/resize-dialog.blp:21 data/ui/export-dialog.blp:23
 #: data/ui/export-dialog.blp:283 data/ui/redaction-warning.blp:53
-#: data/ui/batch-export-dialog.blp:23 src/ui/editor/theme_editor.rs:859
+#: data/ui/batch-export-dialog.blp:23 data/ui/export-recording.blp:375
+#: src/ui/editor/theme_editor.rs:859
 msgid "Cancel"
 msgstr "Abbrechen"
 
-#: data/ui/region-overlay.blp:329
+#: data/ui/region-overlay.blp:322
+msgid "Mode"
+msgstr "Modus"
+
+#: data/ui/region-overlay.blp:327
+msgid "Take a screenshot of the area"
+msgstr "Bildschirmfoto des Bereichs"
+
+#: data/ui/region-overlay.blp:330 data/ui/region-overlay.blp:342
+msgid "Screenshot"
+msgstr "Bildschirmfoto"
+
+#: data/ui/region-overlay.blp:349
+msgid "Record a video"
+msgstr "Video aufnehmen"
+
+#: data/ui/region-overlay.blp:352 data/ui/region-overlay.blp:364
+msgid "Video"
+msgstr "Video"
+
+#: data/ui/region-overlay.blp:392
 msgid "Drag to select"
 msgstr "Ziehen zum Auswählen"
 
-#: data/ui/region-overlay.blp:338 data/ui/region-overlay.blp:516
+#: data/ui/region-overlay.blp:401 data/ui/region-overlay.blp:573
 msgctxt "keyboard key"
 msgid "Shift"
 msgstr "Umschalt"
 
-#: data/ui/region-overlay.blp:343 data/ui/editor-window.blp:1799
+#: data/ui/region-overlay.blp:406 data/ui/editor-window.blp:1799
 #: data/ui/editor-window.blp:1807
 msgid "Square"
 msgstr "Quadrat"
 
-#: data/ui/region-overlay.blp:352 data/ui/region-overlay.blp:410
+#: data/ui/region-overlay.blp:415 data/ui/region-overlay.blp:470
 msgctxt "keyboard key"
 msgid "Alt"
 msgstr "Alt"
 
-#: data/ui/region-overlay.blp:357
+#: data/ui/region-overlay.blp:420
 msgid "No snapping"
 msgstr "Kein Einrasten"
 
-#: data/ui/region-overlay.blp:366 data/ui/region-overlay.blp:424
-#: data/ui/region-overlay.blp:473 data/ui/countdown.blp:43
+#: data/ui/region-overlay.blp:429 data/ui/region-overlay.blp:484
+#: data/ui/region-overlay.blp:530 data/ui/region-overlay.blp:625
+#: data/ui/countdown.blp:53 data/ui/countdown.blp:96 data/ui/window-wait.blp:69
 msgctxt "keyboard key"
 msgid "Esc"
 msgstr "Esc"
 
-#: data/ui/region-overlay.blp:401
+#: data/ui/region-overlay.blp:461
 msgid "Edges snap within 8 px"
 msgstr "Kanten rasten innerhalb von 8 px ein"
 
-#: data/ui/region-overlay.blp:415
+#: data/ui/region-overlay.blp:475
 msgid "Hold to place freely"
 msgstr "Halten für freie Platzierung"
 
-#: data/ui/region-overlay.blp:459 data/ui/countdown.blp:57
+#: data/ui/region-overlay.blp:516 data/ui/region-overlay.blp:611
+#: data/ui/region-overlay.blp:874 data/ui/countdown.blp:67
+#: data/ui/countdown.blp:82
 msgctxt "keyboard key"
 msgid "Enter"
 msgstr "Eingabe"
 
-#: data/ui/region-overlay.blp:507
+#: data/ui/region-overlay.blp:564
 msgid "Nudge 1 px"
 msgstr "1 px verschieben"
 
-#: data/ui/region-overlay.blp:530
+#: data/ui/region-overlay.blp:587
 msgctxt "keyboard key"
 msgid "Space"
 msgstr "Leertaste"
 
-#: data/ui/region-overlay.blp:535
+#: data/ui/region-overlay.blp:592
 msgid "Move selection"
 msgstr "Auswahl verschieben"
 
-#: data/ui/countdown.blp:7
+#: data/ui/region-overlay.blp:602
+msgid "Drag to change the area"
+msgstr "Ziehen, um den Bereich zu ändern"
+
+#: data/ui/region-overlay.blp:616
+msgctxt "recording hint"
+msgid "Start"
+msgstr "Starten"
+
+#: data/ui/region-overlay.blp:663
+msgid "Source"
+msgstr "Quelle"
+
+#: data/ui/region-overlay.blp:738 src/recording/export_window.rs:156
+msgid "Microphone"
+msgstr "Mikrofon"
+
+#: data/ui/region-overlay.blp:766 src/recording/export_window.rs:157
+msgid "System audio"
+msgstr "Systemton"
+
+#: data/ui/region-overlay.blp:800
+msgid "Same setting as for captures"
+msgstr "Dieselbe Einstellung wie bei Bildschirmfotos"
+
+#: data/ui/region-overlay.blp:820
+msgid "Countdown"
+msgstr "Countdown"
+
+#: data/ui/region-overlay.blp:839
+msgid "Countdown in seconds"
+msgstr "Countdown in Sekunden"
+
+#: data/ui/region-overlay.blp:857 data/ui/region-overlay.blp:870
+msgid "Start Recording"
+msgstr "Aufnahme starten"
+
+#: data/ui/countdown.blp:9
 msgid "Capture Countdown"
 msgstr "Aufnahme-Countdown"
 
-#: data/ui/window-wait.blp:45
-msgid "Waiting for a window…"
-msgstr "Warte auf ein Fenster …"
-
-#: data/ui/countdown.blp:62
+#: data/ui/countdown.blp:72
 msgid "Capture now"
 msgstr "Jetzt aufnehmen"
+
+#: data/ui/countdown.blp:87
+msgid "Start now"
+msgstr "Jetzt starten"
+
+#: data/ui/window-wait.blp:47 src/capture/window_wait.rs:46
+msgid "Waiting for a window…"
+msgstr "Warte auf ein Fenster …"
 
 #: data/ui/permission-dialog.blp:9 data/ui/permission-dialog.blp:26
 msgid "Screen Access Denied"
@@ -894,7 +1125,7 @@ msgstr "Es wurde nichts aufgenommen."
 msgid "The answer could not be reset"
 msgstr "Die Antwort konnte nicht zurückgesetzt werden"
 
-#: data/ui/permission-dialog.blp:63
+#: data/ui/permission-dialog.blp:63 data/ui/export-recording.blp:285
 msgid "Close"
 msgstr "Schließen"
 
@@ -915,14 +1146,16 @@ msgid "Esc cancels · Backspace disables the shortcut"
 msgstr "Esc bricht ab · Rücktaste schaltet das Tastenkürzel ab"
 
 #: data/ui/editor-window.blp:27 data/ui/editor-window.blp:807
+#: src/capture/shortcuts.rs:701
 msgid "Open Library"
 msgstr "Bibliothek öffnen"
 
-#: data/ui/editor-window.blp:34 data/ui/editor-window.blp:3468
+#: data/ui/editor-window.blp:34 data/ui/editor-window.blp:3466
+#: src/capture/shortcuts.rs:707
 msgid "Save"
 msgstr "Speichern"
 
-#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1889
+#: data/ui/editor-window.blp:39 src/ui/editor/mod.rs:1926
 msgid "Save As…"
 msgstr "Speichern unter …"
 
@@ -934,11 +1167,13 @@ msgstr "Exportieren …"
 msgid "Resize Image…"
 msgstr "Bildgröße ändern …"
 
-#: data/ui/editor-window.blp:56 src/ui/labels.rs:75
+#: data/ui/editor-window.blp:56 src/capture/shortcuts.rs:713
+#: src/ui/labels.rs:75
 msgid "Rotate Right"
 msgstr "Nach rechts drehen"
 
-#: data/ui/editor-window.blp:61 src/ui/labels.rs:74
+#: data/ui/editor-window.blp:61 src/capture/shortcuts.rs:714
+#: src/ui/labels.rs:74
 msgid "Rotate Left"
 msgstr "Nach links drehen"
 
@@ -953,7 +1188,8 @@ msgid "Flip Vertically"
 msgstr "Vertikal spiegeln"
 
 #: data/ui/editor-window.blp:76 data/ui/editor-window.blp:197
-#: data/ui/editor-window.blp:1215 src/ui/labels.rs:82
+#: data/ui/editor-window.blp:1215 src/capture/shortcuts.rs:715
+#: src/ui/labels.rs:82
 msgid "Flatten All"
 msgstr "Alle einbrennen"
 
@@ -969,8 +1205,8 @@ msgstr "Öffnen mit …"
 msgid "Copy to Folder…"
 msgstr "In Ordner kopieren …"
 
-#: data/ui/editor-window.blp:132 src/capture/delivery.rs:313
-#: src/ui/editor/mod.rs:687
+#: data/ui/editor-window.blp:132 src/capture/delivery.rs:401
+#: src/capture/delivery.rs:451 src/ui/editor/mod.rs:724
 msgid "Copy"
 msgstr "Kopieren"
 
@@ -979,7 +1215,7 @@ msgstr "Kopieren"
 msgid "Duplicate"
 msgstr "Duplizieren"
 
-#: data/ui/editor-window.blp:144 data/ui/editor-window.blp:3905
+#: data/ui/editor-window.blp:144 data/ui/editor-window.blp:3903
 #: src/ui/editor/theme_editor.rs:860
 msgid "Delete"
 msgstr "Löschen"
@@ -1009,11 +1245,11 @@ msgstr "Gruppieren"
 msgid "Ungroup"
 msgstr "Gruppierung aufheben"
 
-#: data/ui/editor-window.blp:192
+#: data/ui/editor-window.blp:192 src/capture/shortcuts.rs:716
 msgid "Flatten Selection"
 msgstr "Auswahl einbrennen"
 
-#: data/ui/editor-window.blp:207
+#: data/ui/editor-window.blp:207 src/capture/shortcuts.rs:709
 msgid "Fit to Window"
 msgstr "An Fenster anpassen"
 
@@ -1022,16 +1258,18 @@ msgid "Fit Width"
 msgstr "An Breite anpassen"
 
 #: data/ui/editor-window.blp:263 data/ui/editor-window.blp:604
+#: src/capture/shortcuts.rs:711
 msgid "Zoom In"
 msgstr "Vergrößern"
 
 #: data/ui/editor-window.blp:268 data/ui/editor-window.blp:583
+#: src/capture/shortcuts.rs:712
 msgid "Zoom Out"
 msgstr "Verkleinern"
 
-#: data/ui/editor-window.blp:306 src/capture/delivery.rs:298
-#: src/ui/editor/mod.rs:696 src/ui/editor/mod.rs:1396 src/ui/editor/mod.rs:1533
-#: src/ui/editor/mod.rs:2594 src/ui/editor/mod.rs:2998
+#: data/ui/editor-window.blp:306 src/capture/delivery.rs:436
+#: src/ui/editor/mod.rs:733 src/ui/editor/mod.rs:1433 src/ui/editor/mod.rs:1570
+#: src/ui/editor/mod.rs:2631 src/ui/editor/mod.rs:3035
 #: src/ui/editor/text.rs:101
 msgid "Undo"
 msgstr "Rückgängig"
@@ -1056,7 +1294,7 @@ msgstr "In die Zwischenablage kopieren (Strg+C)"
 msgid "Show Properties (F9)"
 msgstr "Eigenschaften anzeigen (F9)"
 
-#: data/ui/editor-window.blp:363
+#: data/ui/editor-window.blp:363 src/capture/shortcuts.rs:705
 msgid "Show Properties"
 msgstr "Eigenschaften anzeigen"
 
@@ -1098,7 +1336,7 @@ msgid "Shape (U)"
 msgstr "Form (U)"
 
 #: data/ui/editor-window.blp:449 data/ui/editor-window.blp:1775
-#: data/ui/editor-window.blp:2937 src/ui/labels.rs:202
+#: data/ui/editor-window.blp:2935 src/ui/labels.rs:202
 msgid "Shape"
 msgstr "Form"
 
@@ -1142,7 +1380,7 @@ msgstr "Schwärzen (B)"
 msgid "Redact"
 msgstr "Schwärzen"
 
-#: data/ui/editor-window.blp:532 src/ui/editor/mod.rs:1017
+#: data/ui/editor-window.blp:532 src/ui/editor/mod.rs:1054
 msgid "Crop (C)"
 msgstr "Zuschneiden (C)"
 
@@ -1223,8 +1461,8 @@ msgstr "Dokument"
 msgid "Image"
 msgstr "Bild"
 
-#: data/ui/editor-window.blp:943 data/ui/editor-window.blp:2979
-#: data/ui/editor-window.blp:2996 data/ui/export-dialog.blp:203
+#: data/ui/editor-window.blp:943 data/ui/editor-window.blp:2977
+#: data/ui/editor-window.blp:2994 data/ui/export-dialog.blp:203
 #: data/ui/export-dialog.blp:212 data/ui/batch-export-dialog.blp:150
 msgid "Size"
 msgstr "Größe"
@@ -1245,8 +1483,8 @@ msgstr "Nach links drehen (Umschalt+Strg+R)"
 msgid "Rotate Right (Ctrl+R)"
 msgstr "Nach rechts drehen (Strg+R)"
 
-#: data/ui/editor-window.blp:990 data/ui/editor-window.blp:2150
-#: data/ui/editor-window.blp:2198
+#: data/ui/editor-window.blp:990 data/ui/editor-window.blp:2148
+#: data/ui/editor-window.blp:2196
 msgid "Corner radius"
 msgstr "Eckenradius"
 
@@ -1258,31 +1496,31 @@ msgstr "Leinwand"
 msgid "Background"
 msgstr "Hintergrund"
 
-#: data/ui/editor-window.blp:1017 src/ui/editor/panel.rs:1678
+#: data/ui/editor-window.blp:1017 src/ui/editor/panel.rs:1686
 msgid "Coral"
 msgstr "Koralle"
 
-#: data/ui/editor-window.blp:1022 src/ui/editor/panel.rs:1679
+#: data/ui/editor-window.blp:1022 src/ui/editor/panel.rs:1687
 msgid "Amber"
 msgstr "Bernstein"
 
-#: data/ui/editor-window.blp:1027 src/ui/editor/panel.rs:1680
+#: data/ui/editor-window.blp:1027 src/ui/editor/panel.rs:1688
 msgid "Lime"
 msgstr "Limette"
 
-#: data/ui/editor-window.blp:1032 src/ui/editor/panel.rs:1681
+#: data/ui/editor-window.blp:1032 src/ui/editor/panel.rs:1689
 msgid "Teal"
 msgstr "Petrol"
 
-#: data/ui/editor-window.blp:1037 src/ui/editor/panel.rs:1682
+#: data/ui/editor-window.blp:1037 src/ui/editor/panel.rs:1690
 msgid "Azure"
 msgstr "Azur"
 
-#: data/ui/editor-window.blp:1042 src/ui/editor/panel.rs:1683
+#: data/ui/editor-window.blp:1042 src/ui/editor/panel.rs:1691
 msgid "Violet"
 msgstr "Violett"
 
-#: data/ui/editor-window.blp:1047 src/ui/editor/panel.rs:1684
+#: data/ui/editor-window.blp:1047 src/ui/editor/panel.rs:1692
 msgid "Ink"
 msgstr "Tinte"
 
@@ -1290,11 +1528,11 @@ msgstr "Tinte"
 msgid "Transparent"
 msgstr "Transparent"
 
-#: data/ui/editor-window.blp:1061 src/ui/editor/panel.rs:1685
+#: data/ui/editor-window.blp:1061 src/ui/editor/panel.rs:1693
 msgid "Paper"
 msgstr "Papier"
 
-#: data/ui/editor-window.blp:1066 src/ui/editor/panel.rs:1163
+#: data/ui/editor-window.blp:1066 src/ui/editor/panel.rs:1171
 #: src/ui/editor/theme_editor.rs:782
 msgid "Custom Colour"
 msgstr "Eigene Farbe"
@@ -1355,7 +1593,7 @@ msgstr "Objekte"
 msgid "Ctrl+; · hold Alt to suspend"
 msgstr "Strg+; · Alt gedrückt halten zum Aussetzen"
 
-#: data/ui/editor-window.blp:1252 data/ui/editor-window.blp:3504
+#: data/ui/editor-window.blp:1252 data/ui/editor-window.blp:3502
 msgctxt "arrange"
 msgid "X"
 msgstr "X"
@@ -1364,7 +1602,7 @@ msgstr "X"
 msgid "Crop X position"
 msgstr "X-Position des Zuschnitts"
 
-#: data/ui/editor-window.blp:1277 data/ui/editor-window.blp:3529
+#: data/ui/editor-window.blp:1277 data/ui/editor-window.blp:3527
 msgctxt "arrange"
 msgid "Y"
 msgstr "Y"
@@ -1373,7 +1611,7 @@ msgstr "Y"
 msgid "Crop Y position"
 msgstr "Y-Position des Zuschnitts"
 
-#: data/ui/editor-window.blp:1302 data/ui/editor-window.blp:3554
+#: data/ui/editor-window.blp:1302 data/ui/editor-window.blp:3552
 msgctxt "arrange"
 msgid "W"
 msgstr "B"
@@ -1382,7 +1620,7 @@ msgstr "B"
 msgid "Crop width"
 msgstr "Breite des Zuschnitts"
 
-#: data/ui/editor-window.blp:1327 data/ui/editor-window.blp:3579
+#: data/ui/editor-window.blp:1327 data/ui/editor-window.blp:3577
 msgctxt "arrange"
 msgid "H"
 msgstr "H"
@@ -1464,7 +1702,7 @@ msgstr "I, II, III"
 
 #: data/ui/editor-window.blp:1655 data/ui/editor-window.blp:1663
 #: data/ui/editor-window.blp:1715 data/ui/editor-window.blp:1723
-#: data/ui/editor-window.blp:2947 data/ui/editor-window.blp:2955
+#: data/ui/editor-window.blp:2945 data/ui/editor-window.blp:2953
 msgid "Rectangle"
 msgstr "Rechteck"
 
@@ -1474,7 +1712,7 @@ msgstr "Abgerundetes Rechteck"
 
 #: data/ui/editor-window.blp:1683 data/ui/editor-window.blp:1691
 #: data/ui/editor-window.blp:1743 data/ui/editor-window.blp:1751
-#: data/ui/editor-window.blp:2961 data/ui/editor-window.blp:2969
+#: data/ui/editor-window.blp:2959 data/ui/editor-window.blp:2967
 msgid "Ellipse"
 msgstr "Ellipse"
 
@@ -1524,240 +1762,240 @@ msgctxt "redaction"
 msgid "Solid"
 msgstr "Füllen"
 
-#: data/ui/editor-window.blp:1892 data/ui/editor-window.blp:1897
+#: data/ui/editor-window.blp:1892 data/ui/editor-window.blp:1895
 msgid "Font"
 msgstr "Schrift"
 
-#: data/ui/editor-window.blp:1913
+#: data/ui/editor-window.blp:1911
 msgid "Font size"
 msgstr "Schriftgröße"
 
-#: data/ui/editor-window.blp:1927
+#: data/ui/editor-window.blp:1925
 msgid "Bold (Ctrl+B)"
 msgstr "Fett (Strg+B)"
 
-#: data/ui/editor-window.blp:1930
+#: data/ui/editor-window.blp:1928
 msgid "Bold"
 msgstr "Fett"
 
-#: data/ui/editor-window.blp:1936
+#: data/ui/editor-window.blp:1934
 msgid "Italic (Ctrl+I)"
 msgstr "Kursiv (Strg+I)"
 
-#: data/ui/editor-window.blp:1939
+#: data/ui/editor-window.blp:1937
 msgid "Italic"
 msgstr "Kursiv"
 
-#: data/ui/editor-window.blp:1945
+#: data/ui/editor-window.blp:1943
 msgid "Underline (Ctrl+U)"
 msgstr "Unterstrichen (Strg+U)"
 
-#: data/ui/editor-window.blp:1948
+#: data/ui/editor-window.blp:1946
 msgid "Underline"
 msgstr "Unterstrichen"
 
-#: data/ui/editor-window.blp:1954 data/ui/editor-window.blp:1957
+#: data/ui/editor-window.blp:1952 data/ui/editor-window.blp:1955
 msgid "Strikethrough"
 msgstr "Durchgestrichen"
 
-#: data/ui/editor-window.blp:1967 data/ui/editor-window.blp:1970
+#: data/ui/editor-window.blp:1965 data/ui/editor-window.blp:1968
 msgid "Align Left"
 msgstr "Linksbündig"
 
-#: data/ui/editor-window.blp:1977 data/ui/editor-window.blp:1980
+#: data/ui/editor-window.blp:1975 data/ui/editor-window.blp:1978
 msgid "Centre"
 msgstr "Zentriert"
 
-#: data/ui/editor-window.blp:1987 data/ui/editor-window.blp:1990
+#: data/ui/editor-window.blp:1985 data/ui/editor-window.blp:1988
 msgid "Align Right"
 msgstr "Rechtsbündig"
 
-#: data/ui/editor-window.blp:2001 data/ui/editor-window.blp:3127
+#: data/ui/editor-window.blp:1999 data/ui/editor-window.blp:3125
 #: src/ui/editor/panel.rs:289
 msgid "Colour"
 msgstr "Farbe"
 
-#: data/ui/editor-window.blp:2017 src/ui/editor/panel.rs:285
+#: data/ui/editor-window.blp:2015 src/ui/editor/panel.rs:285
 msgid "Fill"
 msgstr "Füllung"
 
-#: data/ui/editor-window.blp:2033 src/ui/editor/panel.rs:286
+#: data/ui/editor-window.blp:2031 src/ui/editor/panel.rs:286
 msgid "Outline"
 msgstr "Kontur"
 
-#: data/ui/editor-window.blp:2049 data/ui/editor-window.blp:2069
+#: data/ui/editor-window.blp:2047 data/ui/editor-window.blp:2067
 msgid "Fill opacity"
 msgstr "Deckkraft der Füllung"
 
-#: data/ui/editor-window.blp:2085 data/ui/editor-window.blp:2102
-#: data/ui/editor-window.blp:3565 data/ui/resize-dialog.blp:44
+#: data/ui/editor-window.blp:2083 data/ui/editor-window.blp:2100
+#: data/ui/editor-window.blp:3563 data/ui/resize-dialog.blp:44
 msgid "Width"
 msgstr "Breite"
 
-#: data/ui/editor-window.blp:2111 data/ui/editor-window.blp:2128
-#: data/ui/editor-window.blp:2139 data/ui/editor-window.blp:2177
-#: data/ui/editor-window.blp:2209 data/ui/editor-window.blp:2247
+#: data/ui/editor-window.blp:2109 data/ui/editor-window.blp:2126
+#: data/ui/editor-window.blp:2137 data/ui/editor-window.blp:2175
+#: data/ui/editor-window.blp:2207 data/ui/editor-window.blp:2245
 msgid "Outline width"
 msgstr "Konturbreite"
 
-#: data/ui/editor-window.blp:2220 data/ui/editor-window.blp:2268
+#: data/ui/editor-window.blp:2218 data/ui/editor-window.blp:2266
 msgid "Padding"
 msgstr "Innenabstand"
 
-#: data/ui/editor-window.blp:2279
+#: data/ui/editor-window.blp:2277
 msgid "Ends"
 msgstr "Enden"
 
-#: data/ui/editor-window.blp:2291
+#: data/ui/editor-window.blp:2289
 msgctxt "arrow end"
 msgid "Start"
 msgstr "Anfang"
 
-#: data/ui/editor-window.blp:2302
+#: data/ui/editor-window.blp:2300
 msgctxt "arrow end"
 msgid "End"
 msgstr "Ende"
 
-#: data/ui/editor-window.blp:2314 data/ui/editor-window.blp:2322
+#: data/ui/editor-window.blp:2312 data/ui/editor-window.blp:2320
 msgid "Start Style"
 msgstr "Anfangsstil"
 
-#: data/ui/editor-window.blp:2356 data/ui/editor-window.blp:2371
-#: data/ui/editor-window.blp:2579 data/ui/editor-window.blp:2594
+#: data/ui/editor-window.blp:2354 data/ui/editor-window.blp:2369
+#: data/ui/editor-window.blp:2577 data/ui/editor-window.blp:2592
 msgctxt "end style"
 msgid "None"
 msgstr "Keins"
 
-#: data/ui/editor-window.blp:2387 data/ui/editor-window.blp:2402
-#: data/ui/editor-window.blp:2610 data/ui/editor-window.blp:2625
+#: data/ui/editor-window.blp:2385 data/ui/editor-window.blp:2400
+#: data/ui/editor-window.blp:2608 data/ui/editor-window.blp:2623
 msgctxt "end style"
 msgid "Triangle"
 msgstr "Dreieck"
 
-#: data/ui/editor-window.blp:2418 data/ui/editor-window.blp:2433
-#: data/ui/editor-window.blp:2641 data/ui/editor-window.blp:2656
+#: data/ui/editor-window.blp:2416 data/ui/editor-window.blp:2431
+#: data/ui/editor-window.blp:2639 data/ui/editor-window.blp:2654
 msgctxt "end style"
 msgid "Open"
 msgstr "Offen"
 
-#: data/ui/editor-window.blp:2449 data/ui/editor-window.blp:2464
-#: data/ui/editor-window.blp:2672 data/ui/editor-window.blp:2687
+#: data/ui/editor-window.blp:2447 data/ui/editor-window.blp:2462
+#: data/ui/editor-window.blp:2670 data/ui/editor-window.blp:2685
 msgctxt "end style"
 msgid "Circle"
 msgstr "Kreis"
 
-#: data/ui/editor-window.blp:2480 data/ui/editor-window.blp:2495
-#: data/ui/editor-window.blp:2703 data/ui/editor-window.blp:2718
+#: data/ui/editor-window.blp:2478 data/ui/editor-window.blp:2493
+#: data/ui/editor-window.blp:2701 data/ui/editor-window.blp:2716
 msgctxt "end style"
 msgid "Square"
 msgstr "Quadrat"
 
-#: data/ui/editor-window.blp:2511 data/ui/editor-window.blp:2526
-#: data/ui/editor-window.blp:2734 data/ui/editor-window.blp:2749
+#: data/ui/editor-window.blp:2509 data/ui/editor-window.blp:2524
+#: data/ui/editor-window.blp:2732 data/ui/editor-window.blp:2747
 msgctxt "end style"
 msgid "Bar"
 msgstr "Balken"
 
-#: data/ui/editor-window.blp:2537 data/ui/editor-window.blp:2545
+#: data/ui/editor-window.blp:2535 data/ui/editor-window.blp:2543
 msgid "End Style"
 msgstr "Endstil"
 
-#: data/ui/editor-window.blp:2775
+#: data/ui/editor-window.blp:2773
 msgid "Start size"
 msgstr "Anfangsgröße"
 
-#: data/ui/editor-window.blp:2796
+#: data/ui/editor-window.blp:2794
 msgid "End size"
 msgstr "Endgröße"
 
-#: data/ui/editor-window.blp:2806
+#: data/ui/editor-window.blp:2804
 msgid "Line style"
 msgstr "Linienstil"
 
-#: data/ui/editor-window.blp:2816 data/ui/editor-window.blp:2824
+#: data/ui/editor-window.blp:2814 data/ui/editor-window.blp:2822
 #: src/ui/editor/styles.rs:339
 msgid "Solid"
 msgstr "Durchgezogen"
 
-#: data/ui/editor-window.blp:2830 data/ui/editor-window.blp:2838
+#: data/ui/editor-window.blp:2828 data/ui/editor-window.blp:2836
 msgid "Dashed"
 msgstr "Gestrichelt"
 
-#: data/ui/editor-window.blp:2844 data/ui/editor-window.blp:2852
+#: data/ui/editor-window.blp:2842 data/ui/editor-window.blp:2850
 msgid "Dotted"
 msgstr "Gepunktet"
 
-#: data/ui/editor-window.blp:2863 data/ui/editor-window.blp:2883
+#: data/ui/editor-window.blp:2861 data/ui/editor-window.blp:2881
 msgid "Smoothing"
 msgstr "Glättung"
 
-#: data/ui/editor-window.blp:2900 data/ui/editor-window.blp:2920
+#: data/ui/editor-window.blp:2898 data/ui/editor-window.blp:2918
 msgid "Intensity"
 msgstr "Stärke"
 
-#: data/ui/editor-window.blp:3010
+#: data/ui/editor-window.blp:3008
 msgid "Value"
 msgstr "Wert"
 
-#: data/ui/editor-window.blp:3015
+#: data/ui/editor-window.blp:3013
 msgid "This marker only"
 msgstr "Nur diese Markierung"
 
-#: data/ui/editor-window.blp:3026
+#: data/ui/editor-window.blp:3024
 msgid "Value of this marker"
 msgstr "Wert dieser Markierung"
 
-#: data/ui/editor-window.blp:3035 data/ui/editor-window.blp:3052
+#: data/ui/editor-window.blp:3033 data/ui/editor-window.blp:3050
 msgid "Next value"
 msgstr "Nächster Wert"
 
-#: data/ui/editor-window.blp:3058
+#: data/ui/editor-window.blp:3056
 msgid "Restart Sequence"
 msgstr "Folge neu beginnen"
 
-#: data/ui/editor-window.blp:3066 data/ui/editor-window.blp:3086
-#: data/ui/editor-window.blp:3261 data/ui/editor-window.blp:3671
+#: data/ui/editor-window.blp:3064 data/ui/editor-window.blp:3084
+#: data/ui/editor-window.blp:3259 data/ui/editor-window.blp:3669
 msgid "Opacity"
 msgstr "Deckkraft"
 
-#: data/ui/editor-window.blp:3107
+#: data/ui/editor-window.blp:3105
 msgid "Shadow"
 msgstr "Schatten"
 
-#: data/ui/editor-window.blp:3148 data/ui/editor-window.blp:3176
+#: data/ui/editor-window.blp:3146 data/ui/editor-window.blp:3174
 msgid "Shadow angle"
 msgstr "Schattenwinkel"
 
-#: data/ui/editor-window.blp:3158
+#: data/ui/editor-window.blp:3156
 msgid "Angle"
 msgstr "Winkel"
 
-#: data/ui/editor-window.blp:3187
+#: data/ui/editor-window.blp:3185
 msgid "Distance"
 msgstr "Abstand"
 
-#: data/ui/editor-window.blp:3207
+#: data/ui/editor-window.blp:3205
 msgid "Shadow distance"
 msgstr "Schattenabstand"
 
-#: data/ui/editor-window.blp:3224 src/ui/editor/styles.rs:342
+#: data/ui/editor-window.blp:3222 src/ui/editor/styles.rs:342
 #: src/ui/editor/styles.rs:393
 msgid "Blur"
 msgstr "Unschärfe"
 
-#: data/ui/editor-window.blp:3244
+#: data/ui/editor-window.blp:3242
 msgid "Shadow blur"
 msgstr "Schattenunschärfe"
 
-#: data/ui/editor-window.blp:3281
+#: data/ui/editor-window.blp:3279
 msgid "Shadow opacity"
 msgstr "Schattendeckkraft"
 
-#: data/ui/editor-window.blp:3299
+#: data/ui/editor-window.blp:3297
 msgid "Reset Shadow"
 msgstr "Schatten zurücksetzen"
 
-#: data/ui/editor-window.blp:3313
+#: data/ui/editor-window.blp:3311
 msgid ""
 "Strokes stay editable vector paths. Hold <b>Shift</b> while drawing for a "
 "straight segment."
@@ -1765,7 +2003,7 @@ msgstr ""
 "Striche bleiben bearbeitbare Vektorpfade. <b>Umschalt</b> beim Zeichnen "
 "gedrückt halten für ein gerades Stück."
 
-#: data/ui/editor-window.blp:3331
+#: data/ui/editor-window.blp:3329
 msgid ""
 "Click to add a point. <b>Enter</b> or double-click finishes, clicking the "
 "first point closes the shape, <b>Backspace</b> removes the last point, "
@@ -1775,14 +2013,14 @@ msgstr ""
 "Klick auf den ersten Punkt schließt die Form, <b>Rücktaste</b> entfernt den "
 "letzten Punkt, <b>Esc</b> bricht ab."
 
-#: data/ui/editor-window.blp:3349
+#: data/ui/editor-window.blp:3347
 msgid ""
 "Multiply keeps text under the highlight readable. Drag to mark a rectangle."
 msgstr ""
 "Multiplizieren hält Text unter der Markierung lesbar. Ziehen markiert ein "
 "Rechteck."
 
-#: data/ui/editor-window.blp:3358
+#: data/ui/editor-window.blp:3356
 msgid ""
 "Drag + to add a tail. Drag a tail tip onto the body to remove it. The body "
 "grows with the text."
@@ -1790,7 +2028,7 @@ msgstr ""
 "+ ziehen fügt einen Zeiger hinzu. Eine Zeigerspitze auf die Sprechblase "
 "ziehen entfernt ihn. Die Sprechblase wächst mit dem Text."
 
-#: data/ui/editor-window.blp:3374
+#: data/ui/editor-window.blp:3372
 msgid ""
 "Blur and pixelate can sometimes be reversed. For passwords and personal data "
 "use <b>Solid</b>. Annota asks again before export."
@@ -1799,122 +2037,122 @@ msgstr ""
 "Passwörter und persönliche Daten <b>Füllen</b> verwenden. Annota fragt vor "
 "dem Export noch einmal nach."
 
-#: data/ui/editor-window.blp:3398 data/ui/editor-window.blp:3412
-#: data/ui/editor-window.blp:3476
+#: data/ui/editor-window.blp:3396 data/ui/editor-window.blp:3410
+#: data/ui/editor-window.blp:3474
 msgid "Save as Quick Style"
 msgstr "Als Schnellstil speichern"
 
-#: data/ui/editor-window.blp:3449 data/ui/editor-window.blp:3827
+#: data/ui/editor-window.blp:3447 data/ui/editor-window.blp:3825
 #: data/ui/theme-editor.blp:174
 msgid "Name"
 msgstr "Name"
 
-#: data/ui/editor-window.blp:3455 data/ui/editor-window.blp:3885
+#: data/ui/editor-window.blp:3453 data/ui/editor-window.blp:3883
 msgid "Add to Favourites"
 msgstr "Zu Favoriten hinzufügen"
 
-#: data/ui/editor-window.blp:3485
+#: data/ui/editor-window.blp:3483
 msgid "Arrange"
 msgstr "Anordnen"
 
-#: data/ui/editor-window.blp:3515
+#: data/ui/editor-window.blp:3513
 msgid "X position"
 msgstr "X-Position"
 
-#: data/ui/editor-window.blp:3540
+#: data/ui/editor-window.blp:3538
 msgid "Y position"
 msgstr "Y-Position"
 
-#: data/ui/editor-window.blp:3590 data/ui/resize-dialog.blp:56
+#: data/ui/editor-window.blp:3588 data/ui/resize-dialog.blp:56
 msgid "Height"
 msgstr "Höhe"
 
-#: data/ui/editor-window.blp:3600 data/ui/editor-window.blp:3617
+#: data/ui/editor-window.blp:3598 data/ui/editor-window.blp:3615
 msgid "Rotation"
 msgstr "Drehung"
 
-#: data/ui/editor-window.blp:3629
+#: data/ui/editor-window.blp:3627
 msgid "Dragging any member moves the whole group."
 msgstr "Wird ein Mitglied gezogen, bewegt sich die ganze Gruppe."
 
-#: data/ui/editor-window.blp:3653
+#: data/ui/editor-window.blp:3651
 msgid "Saturation and brightness"
 msgstr "Sättigung und Helligkeit"
 
-#: data/ui/editor-window.blp:3662
+#: data/ui/editor-window.blp:3660
 msgid "Hue"
 msgstr "Farbton"
 
-#: data/ui/editor-window.blp:3690
+#: data/ui/editor-window.blp:3688
 msgid "Hex colour"
 msgstr "Hex-Farbwert"
 
-#: data/ui/editor-window.blp:3705
+#: data/ui/editor-window.blp:3703
 msgid "Red"
 msgstr "Rot"
 
-#: data/ui/editor-window.blp:3720
+#: data/ui/editor-window.blp:3718
 msgid "Green"
 msgstr "Grün"
 
-#: data/ui/editor-window.blp:3735
+#: data/ui/editor-window.blp:3733
 msgid "Blue"
 msgstr "Blau"
 
-#: data/ui/editor-window.blp:3740
+#: data/ui/editor-window.blp:3738
 msgctxt "colour"
 msgid "Hex"
 msgstr "Hex"
 
-#: data/ui/editor-window.blp:3750
+#: data/ui/editor-window.blp:3748
 msgctxt "colour"
 msgid "R"
 msgstr "R"
 
-#: data/ui/editor-window.blp:3760
+#: data/ui/editor-window.blp:3758
 msgctxt "colour"
 msgid "G"
 msgstr "G"
 
-#: data/ui/editor-window.blp:3770
+#: data/ui/editor-window.blp:3768
 msgctxt "colour"
 msgid "B"
 msgstr "B"
 
-#: data/ui/editor-window.blp:3795 data/ui/theme-editor.blp:329
-#: data/ui/theme-editor.blp:332 src/ui/editor/panel.rs:1164
+#: data/ui/editor-window.blp:3793 data/ui/theme-editor.blp:329
+#: data/ui/theme-editor.blp:332 src/ui/editor/panel.rs:1172
 msgid "Pick From Screen"
 msgstr "Vom Bildschirm aufnehmen"
 
-#: data/ui/editor-window.blp:3818
+#: data/ui/editor-window.blp:3816
 msgid "Rename Quick Style"
 msgstr "Schnellstil umbenennen"
 
-#: data/ui/editor-window.blp:3840
+#: data/ui/editor-window.blp:3838
 msgid "Rename"
 msgstr "Umbenennen"
 
-#: data/ui/editor-window.blp:3854 src/ui/editor/theme_editor.rs:923
+#: data/ui/editor-window.blp:3852 src/ui/editor/theme_editor.rs:923
 msgid "Apply"
 msgstr "Anwenden"
 
-#: data/ui/editor-window.blp:3860
+#: data/ui/editor-window.blp:3858
 msgid "Rename…"
 msgstr "Umbenennen …"
 
-#: data/ui/editor-window.blp:3869 data/ui/theme-editor.blp:349
+#: data/ui/editor-window.blp:3867 data/ui/theme-editor.blp:349
 msgid "Move Left"
 msgstr "Nach links verschieben"
 
-#: data/ui/editor-window.blp:3876 data/ui/theme-editor.blp:358
+#: data/ui/editor-window.blp:3874 data/ui/theme-editor.blp:358
 msgid "Move Right"
 msgstr "Nach rechts verschieben"
 
-#: data/ui/editor-window.blp:3891
+#: data/ui/editor-window.blp:3889
 msgid "Remove from Favourites"
 msgstr "Aus Favoriten entfernen"
 
-#: data/ui/editor-window.blp:3897
+#: data/ui/editor-window.blp:3895
 msgid "Update from Current Properties"
 msgstr "Mit aktuellen Eigenschaften aktualisieren"
 
@@ -1933,7 +2171,7 @@ msgstr ""
 "Annota hat von jedem eine Kopie behalten, damit sie wiederhergestellt werden "
 "können."
 
-#: data/ui/restore-dialog.blp:55
+#: data/ui/restore-dialog.blp:55 data/ui/export-recording.blp:310
 msgid "Discard"
 msgstr "Verwerfen"
 
@@ -1945,7 +2183,8 @@ msgstr "Wiederherstellen"
 msgid "Newer Annota Version Needed"
 msgstr "Neuere Annota-Version erforderlich"
 
-#: data/ui/newer-version-dialog.blp:39 src/ui/editor/mod.rs:1906
+#: data/ui/newer-version-dialog.blp:39 data/ui/export-recording.blp:280
+#: src/ui/editor/mod.rs:1943
 msgid "Show in Files"
 msgstr "In Dateien anzeigen"
 
@@ -2108,21 +2347,24 @@ msgstr "Bild exportieren"
 msgid "Pixel-identical to the canvas at 100 %"
 msgstr "Pixelgenau wie die Arbeitsfläche bei 100 %"
 
-#: data/ui/export-dialog.blp:88
+#: data/ui/export-dialog.blp:88 data/ui/export-recording.blp:133
 msgid "File name"
 msgstr "Dateiname"
 
 #: data/ui/export-dialog.blp:98 data/ui/batch-export-dialog.blp:207
+#: data/ui/export-recording.blp:149
 msgid "Folder"
 msgstr "Ordner"
 
 #: data/ui/export-dialog.blp:104 data/ui/export-dialog.blp:108
 #: data/ui/batch-export-dialog.blp:213 data/ui/batch-export-dialog.blp:217
+#: data/ui/export-recording.blp:156 data/ui/export-recording.blp:163
 #: src/ui/editor/batch.rs:450 src/ui/editor/saving.rs:55
 msgid "Choose Folder…"
 msgstr "Ordner wählen …"
 
 #: data/ui/export-dialog.blp:119 data/ui/batch-export-dialog.blp:66
+#: data/ui/export-recording.blp:177
 msgid "Format"
 msgstr "Format"
 
@@ -2244,10 +2486,11 @@ msgid "Save Changes?"
 msgstr "Änderungen speichern?"
 
 #: data/ui/save-changes-dialog.blp:19 data/ui/replace-file-dialog.blp:18
+#: data/ui/discard-recording-dialog.blp:16
 msgid "_Cancel"
 msgstr "_Abbrechen"
 
-#: data/ui/save-changes-dialog.blp:20
+#: data/ui/save-changes-dialog.blp:20 data/ui/discard-recording-dialog.blp:17
 msgid "_Discard"
 msgstr "_Verwerfen"
 
@@ -2263,67 +2506,146 @@ msgstr "Eine Datei mit diesem Namen existiert bereits"
 msgid "_Replace"
 msgstr "_Ersetzen"
 
-#: src/application.rs:148 src/capture/import.rs:72
+#: data/ui/recording-control.blp:13 src/recording/control.rs:573
+msgid "Recording"
+msgstr "Aufnahme"
+
+#: data/ui/recording-control.blp:50
+msgid "Elapsed time"
+msgstr "Aufgenommene Zeit"
+
+#: data/ui/recording-control.blp:55 src/recording/control.rs:571
+msgid "Paused"
+msgstr "Pausiert"
+
+#: data/ui/recording-control.blp:73 src/recording/control.rs:402
+#: src/recording/control.rs:611
+msgid "Pause"
+msgstr "Pausieren"
+
+#: data/ui/recording-control.blp:84 src/recording/control.rs:412
+msgid "Stop"
+msgstr "Stoppen"
+
+#: data/ui/recording-control.blp:100 src/recording/control.rs:102
+msgid "Mute microphone"
+msgstr "Mikrofon stummschalten"
+
+#: data/ui/recording-control.blp:126 src/recording/control.rs:104
+msgid "Mute system audio"
+msgstr "Systemton stummschalten"
+
+#: data/ui/recording-control.blp:155 data/ui/recording-control.blp:159
+msgid "Minimize"
+msgstr "Minimieren"
+
+#: data/ui/export-recording.blp:10
+msgid "Export Recording"
+msgstr "Aufnahme exportieren"
+
+#: data/ui/export-recording.blp:35 src/recording/export_window.rs:303
+msgid ""
+"The recording stopped because of an error. What was recorded until then is "
+"kept."
+msgstr ""
+"Die Aufnahme wurde wegen eines Fehlers beendet. Was bis dahin aufgenommen "
+"wurde, bleibt erhalten."
+
+#: data/ui/export-recording.blp:207
+msgid "Include audio"
+msgstr "Ton einbeziehen"
+
+#: data/ui/export-recording.blp:208
+msgid "Mixes microphone and system audio into one track"
+msgstr "Mischt Mikrofon und Systemton in eine Spur"
+
+#: data/ui/export-recording.blp:244
+msgid "Saved"
+msgstr "Gespeichert"
+
+#: data/ui/export-recording.blp:324
+msgctxt "verb"
+msgid "Export"
+msgstr "Exportieren"
+
+#: data/ui/export-recording.blp:348 data/ui/export-recording.blp:369
+msgid "Exporting…"
+msgstr "Wird exportiert …"
+
+#: data/ui/discard-recording-dialog.blp:11
+msgid "Discard Recording?"
+msgstr "Aufnahme verwerfen?"
+
+#: src/application.rs:198 src/capture/import.rs:72
 msgid "The editor could not be opened"
 msgstr "Der Editor konnte nicht geöffnet werden"
 
-#: src/application.rs:365 src/capture/overlay.rs:350 src/preferences.rs:232
+#: src/application.rs:584 src/capture/overlay.rs:542 src/preferences.rs:254
+#: src/recording/setup.rs:555
 msgid "{seconds} s"
 msgstr "{seconds} s"
 
-#: src/application.rs:533
+#: src/application.rs:815
 msgid "The capture library arrives in milestone 0.1"
 msgstr "Die Aufnahme-Bibliothek folgt mit Meilenstein 0.1"
 
-#: src/application.rs:566
+#: src/application.rs:849
 msgid "Works entirely on this computer. No account, no tracking."
 msgstr "Arbeitet vollständig auf diesem Computer. Kein Konto, kein Tracking."
 
-#: src/capture/countdown.rs:55
+#: src/capture/countdown.rs:69
 msgid "Capturing region in {seconds} s"
 msgstr "Bereich wird in {seconds} s aufgenommen"
 
-#: src/capture/countdown.rs:56
+#: src/capture/countdown.rs:70
 msgid "Capturing window in {seconds} s"
 msgstr "Fenster wird in {seconds} s aufgenommen"
 
-#: src/capture/countdown.rs:57
+#: src/capture/countdown.rs:71
 msgid "Capturing screen in {seconds} s"
 msgstr "Bildschirm wird in {seconds} s aufgenommen"
 
-#: src/capture/delivery.rs:113
+#: src/capture/countdown.rs:105
+msgid "Recording starts in {seconds} s"
+msgstr "Aufnahme startet in {seconds} s"
+
+#: src/capture/countdown.rs:217
+msgid "Recording Countdown"
+msgstr "Countdown der Videoaufnahme"
+
+#: src/capture/delivery.rs:119
 msgid "Region captured · {width} × {height}"
 msgstr "Bereich aufgenommen · {width} × {height}"
 
-#: src/capture/delivery.rs:114
+#: src/capture/delivery.rs:120
 msgid "Window captured · {width} × {height}"
 msgstr "Fenster aufgenommen · {width} × {height}"
 
-#: src/capture/delivery.rs:115
+#: src/capture/delivery.rs:121
 msgid "Screen captured · {width} × {height}"
 msgstr "Bildschirm aufgenommen · {width} × {height}"
 
-#: src/capture/delivery.rs:116
+#: src/capture/delivery.rs:122
 msgid "New capture from clipboard"
 msgstr "Neue Aufnahme aus der Zwischenablage"
 
-#: src/capture/delivery.rs:117
+#: src/capture/delivery.rs:123
 msgid "New capture from file"
 msgstr "Neue Aufnahme aus Datei"
 
-#: src/capture/delivery.rs:128
+#: src/capture/delivery.rs:134
 msgid "Pasted Image"
 msgstr "Eingefügtes Bild"
 
-#: src/capture/delivery.rs:234 src/capture/delivery.rs:251
+#: src/capture/delivery.rs:164
 msgid "Copied to clipboard"
 msgstr "In die Zwischenablage kopiert"
 
-#: src/capture/delivery.rs:291
+#: src/capture/delivery.rs:429
 msgid "Saved as {name}"
 msgstr "Gespeichert als {name}"
 
-#: src/capture/delivery.rs:326
+#: src/capture/delivery.rs:463
 msgid "Could not save the capture: {error}"
 msgstr "Die Aufnahme konnte nicht gespeichert werden: {error}"
 
@@ -2352,41 +2674,43 @@ msgstr "Bilder und Annota-Dokumente"
 msgid "Open File"
 msgstr "Datei öffnen"
 
-#: src/capture/mod.rs:95
+#: src/capture/mod.rs:138
 msgid "Capturing needs xdg-desktop-portal, which is not running"
 msgstr "Für Aufnahmen wird xdg-desktop-portal benötigt, das nicht läuft"
 
-#: src/capture/mod.rs:98
+#: src/capture/mod.rs:141
 msgid "GNOME could not ask for screen access. Click this window and try again."
 msgstr ""
 "GNOME konnte nicht nach dem Bildschirmzugriff fragen. Klicken Sie in dieses "
 "Fenster und versuchen Sie es erneut."
 
-#: src/capture/mod.rs:100
+#: src/capture/mod.rs:143
 msgid "Nothing was captured"
 msgstr "Es wurde nichts aufgenommen"
 
-#: src/capture/mod.rs:101
+#: src/capture/mod.rs:144
 msgid "The capture failed. Nothing was captured."
 msgstr "Die Aufnahme ist fehlgeschlagen. Es wurde nichts aufgenommen."
 
-#: src/capture/overlay.rs:619
+#: src/capture/overlay.rs:867
 msgid "at {x}, {y}"
 msgstr "bei {x}, {y}"
 
-#: src/capture/overlay.rs:671 src/capture/overlay.rs:672
+#: src/capture/overlay.rs:960 src/capture/overlay.rs:961
+#: src/capture/overlay.rs:2689 src/capture/overlay.rs:2698
 msgid "Pointer in capture"
 msgstr "Mauszeiger wird aufgenommen"
 
-#: src/capture/overlay.rs:677
+#: src/capture/overlay.rs:966 src/capture/overlay.rs:2708
+#: src/capture/overlay.rs:2721
 msgid "Pointer not in capture"
 msgstr "Mauszeiger wird nicht aufgenommen"
 
-#: src/capture/overlay.rs:678
+#: src/capture/overlay.rs:967 src/capture/overlay.rs:2690
 msgid "Move the pointer into the selection to include it"
 msgstr "Mauszeiger in die Auswahl bewegen, damit er aufgenommen wird"
 
-#: src/capture/overlay.rs:685
+#: src/capture/overlay.rs:974
 msgid "on the edge"
 msgstr "auf dem Rand"
 
@@ -2406,11 +2730,59 @@ msgstr "Von GNOME übernommen: {name}"
 msgid "Used by {name}"
 msgstr "Belegt durch {name}"
 
-#: src/preferences.rs:208
+#: src/capture/shortcuts.rs:697
+msgid "Quit"
+msgstr "Beenden"
+
+#: src/capture/shortcuts.rs:699
+msgid "Paste Image"
+msgstr "Bild einfügen"
+
+#: src/capture/shortcuts.rs:700
+msgid "Open Image"
+msgstr "Bild öffnen"
+
+#: src/capture/shortcuts.rs:703
+msgid "Close Window"
+msgstr "Fenster schließen"
+
+#: src/capture/shortcuts.rs:704
+msgid "Keyboard Shortcuts"
+msgstr "Tastenkürzel"
+
+#: src/capture/shortcuts.rs:708 src/ui/editor/mod.rs:1832
+msgid "Save As"
+msgstr "Speichern unter"
+
+#: src/capture/shortcuts.rs:742
+msgid "Annota: {action}"
+msgstr "Annota: {action}"
+
+#: src/capture/shortcuts.rs:807
+msgid "Used by GNOME: {action}"
+msgstr "Belegt durch GNOME: {action}"
+
+#: src/capture/shortcuts.rs:808
+msgid "Used by GNOME"
+msgstr "Belegt durch GNOME"
+
+#: src/capture/window_wait.rs:47
+msgid "Waiting for a screen…"
+msgstr "Warte auf einen Bildschirm …"
+
+#: src/capture/window_wait.rs:62
+msgid "Record Window"
+msgstr "Fenster als Video aufnehmen"
+
+#: src/capture/window_wait.rs:63
+msgid "Record Screen"
+msgstr "Bildschirm als Video aufnehmen"
+
+#: src/preferences.rs:230
 msgid "Could not change the shortcut: {error}"
 msgstr "Das Tastenkürzel konnte nicht geändert werden: {error}"
 
-#: src/preferences.rs:258
+#: src/preferences.rs:301
 msgid ""
 "This system has no global-shortcuts portal. Annota adds GNOME keyboard "
 "shortcuts instead."
@@ -2418,48 +2790,283 @@ msgstr ""
 "Dieses System hat kein Portal für globale Tastenkürzel. Annota legt "
 "stattdessen GNOME-Tastenkürzel an."
 
-#: src/preferences.rs:260
+#: src/preferences.rs:303
 msgid "Work in every app, even when Annota is closed"
 msgstr "Funktionieren in jeder App, auch wenn Annota geschlossen ist"
 
-#: src/preferences.rs:262
-msgid "Work in every app while Annota is running"
-msgstr "Funktionieren in jeder App, solange Annota läuft"
+#: src/preferences.rs:305
+msgid "GNOME manages these shortcuts. Change them in GNOME Settings."
+msgstr ""
+"GNOME verwaltet diese Tastenkürzel. Ändern Sie sie in den GNOME-"
+"Einstellungen."
 
-#: src/preferences.rs:276
+#: src/preferences.rs:310
+msgid "GNOME has not reported these shortcuts."
+msgstr "GNOME hat diese Tastenkürzel nicht gemeldet."
+
+#: src/preferences.rs:346
+msgid "Not set"
+msgstr "Nicht festgelegt"
+
+#: src/preferences.rs:388
 msgid "Disabled"
 msgstr "Abgeschaltet"
 
-#: src/preferences.rs:279
+#: src/preferences.rs:391
 msgid "GNOME shortcut · runs {command}"
 msgstr "GNOME-Tastenkürzel · führt {command} aus"
 
-#: src/preferences.rs:282
+#: src/preferences.rs:394
 msgid "System shortcut"
 msgstr "Systemkürzel"
 
-#: src/preferences.rs:284
+#: src/preferences.rs:396
 msgid "Not active yet"
 msgstr "Noch nicht aktiv"
 
-#: src/preferences.rs:307
+#: src/preferences.rs:418
 msgid "{count} GNOME shortcut created"
 msgid_plural "{count} GNOME shortcuts created"
 msgstr[0] "{count} GNOME-Tastenkürzel angelegt"
 msgstr[1] "{count} GNOME-Tastenkürzel angelegt"
 
-#: src/preferences.rs:314
+#: src/preferences.rs:425
 msgid "Open Keyboard Settings"
 msgstr "Tastatureinstellungen öffnen"
 
-#: src/preferences.rs:320
+#: src/preferences.rs:431
 msgid "Could not create GNOME shortcuts: {error}"
 msgstr "GNOME-Tastenkürzel konnten nicht angelegt werden: {error}"
 
-#: src/preferences.rs:348 src/ui/editor/batch.rs:539
-#: src/ui/editor/export_dialog.rs:638
+#: src/preferences.rs:528 src/recording/export_window.rs:411
+#: src/ui/editor/batch.rs:539 src/ui/editor/export_dialog.rs:638
 msgid "Choose Folder"
 msgstr "Ordner wählen"
+
+#: src/recording/control.rs:103 src/recording/control.rs:112
+msgid "Microphone muted"
+msgstr "Mikrofon stummgeschaltet"
+
+#: src/recording/control.rs:105 src/recording/control.rs:114
+msgid "System audio muted"
+msgstr "Systemton stummgeschaltet"
+
+#: src/recording/control.rs:113
+msgid "Microphone on"
+msgstr "Mikrofon an"
+
+#: src/recording/control.rs:115
+msgid "System audio on"
+msgstr "Systemton an"
+
+#: src/recording/control.rs:400 src/recording/control.rs:609
+msgid "Resume"
+msgstr "Fortsetzen"
+
+#: src/recording/export_window.rs:155
+msgid "Microphone + system audio"
+msgstr "Mikrofon + Systemton"
+
+#: src/recording/export_window.rs:158
+msgid "No audio"
+msgstr "Kein Ton"
+
+#: src/recording/export_window.rs:323
+msgid "H.264 + AAC · plays almost everywhere"
+msgstr "H.264 + AAC · läuft fast überall"
+
+#: src/recording/export_window.rs:324
+msgid "VP9 + Opus · open format for the web"
+msgstr "VP9 + Opus · offenes Format fürs Web"
+
+#: src/recording/export_window.rs:568
+msgid "The recording could not be exported. It is kept."
+msgstr "Die Aufnahme konnte nicht exportiert werden. Sie bleibt erhalten."
+
+#: src/recording/export_window.rs:592
+msgid "“{name}” ({duration}) will be deleted. This cannot be undone."
+msgstr ""
+"„{name}“ ({duration}) wird gelöscht. Das kann nicht rückgängig gemacht "
+"werden."
+
+#: src/recording/export_window.rs:703 src/ui/editor/batch.rs:307
+#: src/ui/editor/text.rs:84
+msgid "{percent} %"
+msgstr "{percent} %"
+
+#: src/recording/mod.rs:141
+msgid "The desktop ended the screen-sharing request. Nothing was recorded."
+msgstr ""
+"Die Arbeitsumgebung hat die Bildschirmfreigabe beendet. Es wurde nichts "
+"aufgenommen."
+
+#: src/recording/mod.rs:144
+msgid "The selected area is not on the screen you chose. Nothing was recorded."
+msgstr ""
+"Der ausgewählte Bereich liegt nicht auf dem gewählten Bildschirm. Es wurde "
+"nichts aufgenommen."
+
+#: src/recording/setup.rs:70
+msgid "No microphone found"
+msgstr "Kein Mikrofon gefunden"
+
+#: src/recording/setup.rs:71
+msgid "No audio output found"
+msgstr "Keine Audioausgabe gefunden"
+
+#: src/recording/source.rs:101
+msgid "Screen sharing for this source is not available on this desktop"
+msgstr ""
+"Bildschirmfreigabe ist für diese Quelle in dieser Arbeitsumgebung nicht "
+"verfügbar"
+
+#. Translators: state of a GSettings schema file in Annota's startup schema report.
+#: src/schema_check.rs:287
+msgid "complete"
+msgstr "vollständig"
+
+#. Translators: state of a GSettings schema file; {n} is a number of settings keys.
+#: src/schema_check.rs:292
+msgid "lacks {n} key"
+msgid_plural "lacks {n} keys"
+msgstr[0] "{n} Schlüssel fehlt"
+msgstr[1] "{n} Schlüssel fehlen"
+
+#. Translators: {command} is a shell command, keep the backticks around it.
+#: src/schema_check.rs:311
+msgid ""
+"compile the complete schema file: run `{command}` (as root for a system "
+"directory)."
+msgstr ""
+"Kompilieren Sie die vollständige Schema-Datei: Führen Sie `{command}` aus "
+"(für ein Systemverzeichnis als root)."
+
+#: src/schema_check.rs:315
+msgid "no complete schema file of this version was found: reinstall Annota."
+msgstr ""
+"Es wurde keine vollständige Schema-Datei dieser Version gefunden: "
+"Installieren Sie Annota neu."
+
+#. Translators: {compiled} is a file path, {file} a file name, {command} a shell
+#. command; keep the backticks.
+#: src/schema_check.rs:327
+msgid ""
+"{compiled} does not match the complete {file} next to it: run `{command}` "
+"(as root for a system directory)."
+msgstr ""
+"{compiled} passt nicht zur vollständigen {file} daneben: Führen Sie "
+"`{command}` aus (für ein Systemverzeichnis als root)."
+
+#: src/schema_check.rs:346
+msgid "no complete schema of this version is installed: reinstall Annota."
+msgstr ""
+"Es ist kein vollständiges Schema dieser Version installiert: Installieren "
+"Sie Annota neu."
+
+#. Translators: {compiled} and {later_file} are file paths, {command} and
+#. {later_command} shell commands; keep the backticks.
+#: src/schema_check.rs:355
+msgid ""
+"the stale schema in {compiled} has no source file left and shadows the "
+"complete schema file {later_file}, which GLib does not use yet: run "
+"`{command}`, then `{later_command}` (as root for a system directory)."
+msgstr ""
+"Zum veralteten Schema in {compiled} gibt es keine Quelldatei mehr, und es "
+"verdeckt die vollständige Schema-Datei {later_file}, die GLib noch nicht "
+"verwendet: Führen Sie `{command}` und danach `{later_command}` aus (für ein "
+"Systemverzeichnis als root)."
+
+#. Translators: {dir} is a directory, {file} and {later_file} file paths,
+#. {command} and {later_command} shell commands; keep the backticks.
+#: src/schema_check.rs:366
+msgid ""
+"the stale schema in {dir} shadows the complete schema file {later_file}, "
+"which GLib does not use yet: remove {file}, then run `{command}` and "
+"`{later_command}` (as root for a system directory)."
+msgstr ""
+"Das veraltete Schema in {dir} verdeckt die vollständige Schema-Datei "
+"{later_file}, die GLib noch nicht verwendet: Entfernen Sie {file} und führen "
+"Sie dann `{command}` und `{later_command}` aus (für ein Systemverzeichnis "
+"als root)."
+
+#. Translators: {compiled} is a file path, {command} a shell command; keep the
+#. backticks.
+#: src/schema_check.rs:381
+msgid ""
+"the stale schema in {compiled} has no source file left: run `{command}` (as "
+"root for a system directory) to drop it."
+msgstr ""
+"Zum veralteten Schema in {compiled} gibt es keine Quelldatei mehr: Führen "
+"Sie `{command}` aus (für ein Systemverzeichnis als root), um es zu entfernen."
+
+#. Translators: {dir} is a directory, {file} a file path, {command} a shell command;
+#. keep the backticks and `meson install`.
+#: src/schema_check.rs:387
+msgid ""
+"the stale schema in {dir} shadows the complete one further down (often left "
+"by an old `meson install` into /usr/local): remove {file}, then run "
+"`{command}` (as root for a system directory)."
+msgstr ""
+"Das veraltete Schema in {dir} verdeckt das vollständige weiter hinten (oft "
+"Überrest eines alten `meson install` nach /usr/local): Entfernen Sie {file} "
+"und führen Sie dann `{command}` aus (für ein Systemverzeichnis als root)."
+
+#. Translators: {schema} is a GSettings schema id.
+#: src/schema_check.rs:406
+msgid "the settings schema {schema} is not installed."
+msgstr "Das Einstellungsschema {schema} ist nicht installiert."
+
+#: src/schema_check.rs:414
+msgid ""
+"the settings schema {schema} in use does not match this version of Annota."
+msgstr ""
+"Das verwendete Einstellungsschema {schema} passt nicht zu dieser Annota-"
+"Version."
+
+#. Translators: {keys} is a comma-separated list of settings key names.
+#: src/schema_check.rs:420
+msgid "missing keys: {keys}"
+msgstr "Fehlende Schlüssel: {keys}"
+
+#. Translators: {file} is a file name, {schema} a GSettings schema id.
+#: src/schema_check.rs:428
+msgid "no {file} and no compiled schema {schema} on the schema search path."
+msgstr "Keine {file} und kein kompiliertes Schema {schema} im Schema-Suchpfad."
+
+#. Translators: {compiled} is the file name gschemas.compiled.
+#: src/schema_check.rs:434
+msgid ""
+"schema files on the search path, in lookup order (GLib uses the first "
+"{compiled} that holds the schema):"
+msgstr ""
+"Schema-Dateien im Suchpfad, in Suchreihenfolge (GLib verwendet die erste "
+"{compiled}, die das Schema enthält):"
+
+#. Translators: a compiled schema that GLib does not use, because an earlier
+#. one on the search path wins.
+#: src/schema_check.rs:444
+msgid "shadowed"
+msgstr "verdeckt"
+
+#. Translators: the compiled schema GLib uses.
+#: src/schema_check.rs:447
+msgid "in use"
+msgstr "in Verwendung"
+
+#. Translators: the schema source file (.gschema.xml), as opposed to the compiled one.
+#: src/schema_check.rs:458
+msgid "source"
+msgstr "Quelle"
+
+#. Translators: a schema file that cannot be read.
+#: src/schema_check.rs:463
+msgid "unreadable"
+msgstr "nicht lesbar"
+
+#. Translators: a schema source file that no gschemas.compiled holds.
+#: src/schema_check.rs:468
+msgid "not compiled"
+msgstr "nicht kompiliert"
 
 #: src/ui/editor/batch.rs:255
 msgid "Export {n} Image"
@@ -2500,10 +3107,6 @@ msgid "{n} image could not be exported: {reason}"
 msgid_plural "{n} images could not be exported: {reason}"
 msgstr[0] "{n} Bild konnte nicht exportiert werden: {reason}"
 msgstr[1] "{n} Bilder konnten nicht exportiert werden: {reason}"
-
-#: src/ui/editor/batch.rs:307 src/ui/editor/text.rs:84
-msgid "{percent} %"
-msgstr "{percent} %"
 
 #: src/ui/editor/closing.rs:54
 msgid ""
@@ -2548,55 +3151,51 @@ msgstr "{width} × {height} px · {format}"
 msgid "Custom Width…"
 msgstr "Eigene Breite …"
 
-#: src/ui/editor/mod.rs:673 src/ui/editor/mod.rs:2832
+#: src/ui/editor/mod.rs:710 src/ui/editor/mod.rs:2869
 msgid "Could not open “{name}”: {error}"
 msgstr "„{name}“ konnte nicht geöffnet werden: {error}"
 
-#: src/ui/editor/mod.rs:954
+#: src/ui/editor/mod.rs:991
 msgid "Pick a colour anywhere on the screen"
 msgstr "Eine Farbe irgendwo auf dem Bildschirm aufnehmen"
 
-#: src/ui/editor/mod.rs:1790
+#: src/ui/editor/mod.rs:1827
 msgid "Annota Documents"
 msgstr "Annota-Dokumente"
 
-#: src/ui/editor/mod.rs:1795
-msgid "Save As"
-msgstr "Speichern unter"
-
-#: src/ui/editor/mod.rs:2235
+#: src/ui/editor/mod.rs:2272
 msgid "PNG Images"
 msgstr "PNG-Bilder"
 
-#: src/ui/editor/mod.rs:2240
+#: src/ui/editor/mod.rs:2277
 msgid "Copy to Folder"
 msgstr "In Ordner kopieren"
 
-#: src/ui/editor/mod.rs:2241
+#: src/ui/editor/mod.rs:2278
 msgid "_Copy"
 msgstr "_Kopieren"
 
-#: src/ui/editor/mod.rs:2697
+#: src/ui/editor/mod.rs:2734
 msgid "Picking a colour from the screen needs xdg-desktop-portal"
 msgstr "Farben vom Bildschirm aufnehmen braucht xdg-desktop-portal"
 
-#: src/ui/editor/mod.rs:2701 src/ui/editor/theme_editor.rs:764
+#: src/ui/editor/mod.rs:2738 src/ui/editor/theme_editor.rs:764
 msgid "The colour could not be picked"
 msgstr "Die Farbe konnte nicht aufgenommen werden"
 
-#: src/ui/editor/mod.rs:2727
+#: src/ui/editor/mod.rs:2764
 msgid "Canvas Colour"
 msgstr "Leinwandfarbe"
 
-#: src/ui/editor/mod.rs:2986
+#: src/ui/editor/mod.rs:3023
 msgid "Could not insert the image"
 msgstr "Das Bild konnte nicht eingefügt werden"
 
-#: src/ui/editor/mod.rs:2997
+#: src/ui/editor/mod.rs:3034
 msgid "Image inserted"
 msgstr "Bild eingefügt"
 
-#: src/ui/editor/mod.rs:3080
+#: src/ui/editor/mod.rs:3117
 msgid "Could not restore “{name}”: {error}"
 msgstr "„{name}“ konnte nicht wiederhergestellt werden: {error}"
 
@@ -2634,13 +3233,13 @@ msgstr "Textfarbe"
 msgid "{n} {unit}"
 msgstr "{n} {unit}"
 
-#: src/ui/editor/panel.rs:1162 src/ui/editor/styles.rs:206
+#: src/ui/editor/panel.rs:1170 src/ui/editor/styles.rs:206
 #: src/ui/editor/styles.rs:309
 msgctxt "colour"
 msgid "None"
 msgstr "Keine"
 
-#: src/ui/editor/panel.rs:1686
+#: src/ui/editor/panel.rs:1694
 msgid "Yellow"
 msgstr "Gelb"
 
@@ -3585,49 +4184,16 @@ msgid_plural "{n} objects flattened into the image"
 msgstr[0] "{n} Objekt in das Bild eingebrannt"
 msgstr[1] "{n} Objekte in das Bild eingebrannt"
 
-#: data/ui/preferences.blp:115
-msgid "Open GNOME Settings"
-msgstr "GNOME-Einstellungen öffnen"
+#~ msgid ""
+#~ "Pick what to capture. The capture opens in the editor, ready to mark up. "
+#~ "Every annotation stays editable until you export."
+#~ msgstr ""
+#~ "Wählen Sie, was aufgenommen werden soll. Die Aufnahme öffnet sich im "
+#~ "Editor, bereit zum Markieren. Jede Anmerkung bleibt bis zum Export "
+#~ "bearbeitbar."
 
-#: src/preferences.rs:303
-msgid "GNOME manages these shortcuts. Change them in GNOME Settings."
-msgstr "GNOME verwaltet diese Tastenkürzel. Ändern Sie sie in den GNOME-Einstellungen."
-
-#: src/preferences.rs:307
-msgid "GNOME has not reported these shortcuts."
-msgstr "GNOME hat diese Tastenkürzel nicht gemeldet."
-
-#: src/preferences.rs:332
-msgid "Not set"
-msgstr "Nicht festgelegt"
-
-#: src/capture/shortcuts.rs:587
-msgid "Paste Image"
-msgstr "Bild einfügen"
-
-#: src/capture/shortcuts.rs:588
-msgid "Open Image"
-msgstr "Bild öffnen"
-
-#: src/capture/shortcuts.rs:591
-msgid "Close Window"
-msgstr "Fenster schließen"
-
-#: src/capture/shortcuts.rs:592
-msgid "Keyboard Shortcuts"
-msgstr "Tastenkürzel"
-
-#: src/capture/shortcuts.rs:630
-msgid "Annota: {action}"
-msgstr "Annota: {action}"
-
-#: src/capture/shortcuts.rs:695
-msgid "Used by GNOME: {action}"
-msgstr "Belegt durch GNOME: {action}"
-
-#: src/capture/shortcuts.rs:696
-msgid "Used by GNOME"
-msgstr "Belegt durch GNOME"
+#~ msgid "Work in every app while Annota is running"
+#~ msgstr "Funktionieren in jeder App, solange Annota läuft"
 
 #~ msgid "Object copied to clipboard"
 #~ msgid_plural "{n} objects copied to clipboard"
@@ -3658,367 +4224,3 @@ msgstr "Belegt durch GNOME"
 
 #~ msgid "PNG, JPG or WebP images"
 #~ msgstr "PNG-, JPG- oder WebP-Bilder"
-
-#: src/capture/window_wait.rs
-msgid "Waiting for a screen…"
-msgstr "Warte auf einen Bildschirm …"
-
-#: src/capture/window_wait.rs
-msgid "Record Screen"
-msgstr "Bildschirm als Video aufnehmen"
-
-#: src/capture/window_wait.rs
-msgid "Record Window"
-msgstr "Fenster als Video aufnehmen"
-
-#: src/recording/mod.rs
-msgid "The desktop ended the screen-sharing request. Nothing was recorded."
-msgstr ""
-"Die Arbeitsumgebung hat die Bildschirmfreigabe beendet. Es wurde nichts "
-"aufgenommen."
-
-#: src/recording/mod.rs
-msgid ""
-"The selected area is not on the screen you chose. Nothing was recorded."
-msgstr ""
-"Der ausgewählte Bereich liegt nicht auf dem gewählten Bildschirm. Es wurde "
-"nichts aufgenommen."
-
-#: src/recording/source.rs
-msgid "Screen sharing for this source is not available on this desktop"
-msgstr ""
-"Bildschirmfreigabe ist für diese Quelle in dieser Arbeitsumgebung nicht "
-"verfügbar"
-
-#: data/ui/region-overlay.blp
-msgid "Take a screenshot of the area"
-msgstr "Bildschirmfoto des Bereichs"
-
-#: data/ui/region-overlay.blp
-msgid "Screenshot"
-msgstr "Bildschirmfoto"
-
-#: data/ui/region-overlay.blp
-msgid "Record a video"
-msgstr "Video aufnehmen"
-
-#: data/ui/region-overlay.blp
-msgid "Video"
-msgstr "Video"
-
-#: data/ui/region-overlay.blp
-msgid "Drag to change the area"
-msgstr "Ziehen, um den Bereich zu ändern"
-
-#: data/ui/region-overlay.blp
-msgctxt "recording hint"
-msgid "Start"
-msgstr "Starten"
-
-#: data/ui/region-overlay.blp
-msgid "Mode"
-msgstr "Modus"
-
-#: data/ui/region-overlay.blp
-msgid "Source"
-msgstr "Quelle"
-
-#: data/ui/region-overlay.blp
-msgid "Microphone"
-msgstr "Mikrofon"
-
-#: data/ui/region-overlay.blp
-msgid "Record the microphone"
-msgstr "Mikrofon aufnehmen"
-
-#: data/ui/region-overlay.blp
-msgid "System audio"
-msgstr "Systemton"
-
-#: data/ui/region-overlay.blp
-msgid "Record system audio"
-msgstr "Systemton aufnehmen"
-
-#: data/ui/region-overlay.blp
-msgid "Same setting as for captures"
-msgstr "Dieselbe Einstellung wie bei Bildschirmfotos"
-
-#: data/ui/region-overlay.blp
-msgid "Countdown"
-msgstr "Countdown"
-
-#: data/ui/region-overlay.blp
-msgid "Countdown in seconds"
-msgstr "Countdown in Sekunden"
-
-#: data/ui/region-overlay.blp
-msgid "Start Recording"
-msgstr "Aufnahme starten"
-
-#: data/ui/countdown.blp
-msgid "Start now"
-msgstr "Jetzt starten"
-
-#: src/capture/countdown.rs
-msgid "Recording starts in {seconds} s"
-msgstr "Aufnahme startet in {seconds} s"
-
-#: src/capture/countdown.rs
-msgid "Recording Countdown"
-msgstr "Countdown der Videoaufnahme"
-
-#: src/recording/setup.rs
-msgid "No microphone found"
-msgstr "Kein Mikrofon gefunden"
-
-#: src/recording/setup.rs
-msgid "No audio output found"
-msgstr "Keine Audioausgabe gefunden"
-
-#: data/ui/recording-control.blp
-msgid "Recording"
-msgstr "Aufnahme"
-
-#: data/ui/recording-control.blp
-msgid "Elapsed time"
-msgstr "Aufgenommene Zeit"
-
-#: data/ui/recording-control.blp
-msgid "Paused"
-msgstr "Pausiert"
-
-#: data/ui/recording-control.blp src/recording/control.rs
-msgid "Pause"
-msgstr "Pausieren"
-
-#: src/recording/control.rs
-msgid "Resume"
-msgstr "Fortsetzen"
-
-#: data/ui/recording-control.blp src/recording/control.rs
-msgid "Stop"
-msgstr "Stoppen"
-
-#: data/ui/recording-control.blp src/recording/control.rs
-msgid "Mute microphone"
-msgstr "Mikrofon stummschalten"
-
-#: src/recording/control.rs
-msgid "Microphone muted"
-msgstr "Mikrofon stummgeschaltet"
-
-#: data/ui/recording-control.blp src/recording/control.rs
-msgid "Mute system audio"
-msgstr "Systemton stummschalten"
-
-#: src/recording/control.rs
-msgid "System audio muted"
-msgstr "Systemton stummgeschaltet"
-
-#: data/ui/recording-control.blp
-msgid "Minimize"
-msgstr "Minimieren"
-
-#: src/recording/control.rs
-msgid "Microphone on"
-msgstr "Mikrofon an"
-
-#: src/recording/control.rs
-msgid "System audio on"
-msgstr "Systemton an"
-
-#: data/ui/export-recording.blp
-msgid "Export Recording"
-msgstr "Aufnahme exportieren"
-
-#: data/ui/export-recording.blp
-msgid ""
-"The recording stopped because of an error. What was recorded until then is "
-"kept."
-msgstr ""
-"Die Aufnahme wurde wegen eines Fehlers beendet. Was bis dahin aufgenommen "
-"wurde, bleibt erhalten."
-
-#: data/ui/export-recording.blp
-msgid "Include audio"
-msgstr "Ton einbeziehen"
-
-#: data/ui/export-recording.blp
-msgid "Mixes microphone and system audio into one track"
-msgstr "Mischt Mikrofon und Systemton in eine Spur"
-
-#: data/ui/export-recording.blp
-msgid "Saved"
-msgstr "Gespeichert"
-
-#. The Export Recording window's button (add-screen-recording mockup 07).
-#: data/ui/export-recording.blp
-msgctxt "verb"
-msgid "Export"
-msgstr "Exportieren"
-
-#: data/ui/export-recording.blp
-msgid "Exporting…"
-msgstr "Wird exportiert …"
-
-#: data/ui/discard-recording-dialog.blp
-msgid "Discard Recording?"
-msgstr "Aufnahme verwerfen?"
-
-#: src/recording/export_window.rs
-msgid "Microphone + system audio"
-msgstr "Mikrofon + Systemton"
-
-#: src/recording/export_window.rs
-msgid "No audio"
-msgstr "Kein Ton"
-
-#: src/recording/export_window.rs
-msgid "H.264 + AAC · plays almost everywhere"
-msgstr "H.264 + AAC · läuft fast überall"
-
-#: src/recording/export_window.rs
-msgid "VP9 + Opus · open format for the web"
-msgstr "VP9 + Opus · offenes Format fürs Web"
-
-#: src/recording/export_window.rs
-msgid "The recording could not be exported. It is kept."
-msgstr "Die Aufnahme konnte nicht exportiert werden. Sie bleibt erhalten."
-
-#: src/recording/export_window.rs
-msgid "“{name}” ({duration}) will be deleted. This cannot be undone."
-msgstr "„{name}“ ({duration}) wird gelöscht. Das kann nicht rückgängig gemacht werden."
-
-#: src/capture/shortcuts.rs data/ui/preferences.blp data/ui/window.blp
-msgid "Record video"
-msgstr "Video aufnehmen"
-
-#: data/ui/window.blp
-msgid "Record"
-msgstr "Aufzeichnen"
-
-#: data/ui/window.blp
-msgid ""
-"Pick what to capture or record. A capture opens here, ready to mark up. "
-"Every annotation stays editable until you export."
-msgstr ""
-"Wählen Sie, was Sie aufnehmen oder als Video aufzeichnen möchten. Eine "
-"Aufnahme öffnet sich hier, bereit zum Markieren. Jede Anmerkung bleibt bis "
-"zum Export bearbeitbar."
-
-#: data/ui/help-overlay.blp
-msgctxt "shortcut window"
-msgid "Record video"
-msgstr "Video aufnehmen"
-
-#: data/ui/help-overlay.blp
-msgctxt "shortcut window"
-msgid "Recording"
-msgstr "Videoaufnahme"
-
-#: data/ui/help-overlay.blp
-msgctxt "shortcut window"
-msgid "Pause or resume"
-msgstr "Pausieren oder fortsetzen"
-
-#: data/ui/help-overlay.blp
-msgctxt "shortcut window"
-msgid "Mute or unmute the microphone"
-msgstr "Mikrofon stumm- oder lautschalten"
-
-#: data/ui/help-overlay.blp
-msgctxt "shortcut window"
-msgid "Mute or unmute system audio"
-msgstr "Systemton stumm- oder lautschalten"
-
-#: data/io.github.trosinde.Annota.metainfo.xml.in
-msgid ""
-"Annota also records your screen: a region, a window or the whole screen as a "
-"video, with the microphone and the system audio if you like, saved as MP4 or "
-"WebM."
-msgstr ""
-"Annota zeichnet auch Ihren Bildschirm auf: einen Bereich, ein Fenster oder "
-"den ganzen Bildschirm als Video, auf Wunsch mit Mikrofon und Systemton, "
-"gespeichert als MP4 oder WebM."
-
-#: src/schema_check.rs
-msgid "complete"
-msgstr "vollständig"
-
-#: src/schema_check.rs
-msgid "lacks {n} key"
-msgid_plural "lacks {n} keys"
-msgstr[0] "{n} Schlüssel fehlt"
-msgstr[1] "{n} Schlüssel fehlen"
-
-#: src/schema_check.rs
-msgid "compile the complete schema file: run `{command}` (as root for a system directory)."
-msgstr "Kompilieren Sie die vollständige Schema-Datei: Führen Sie `{command}` aus (für ein Systemverzeichnis als root)."
-
-#: src/schema_check.rs
-msgid "no complete schema file of this version was found: reinstall Annota."
-msgstr "Es wurde keine vollständige Schema-Datei dieser Version gefunden: Installieren Sie Annota neu."
-
-#: src/schema_check.rs
-msgid "{compiled} does not match the complete {file} next to it: run `{command}` (as root for a system directory)."
-msgstr "{compiled} passt nicht zur vollständigen {file} daneben: Führen Sie `{command}` aus (für ein Systemverzeichnis als root)."
-
-#: src/schema_check.rs
-msgid "no complete schema of this version is installed: reinstall Annota."
-msgstr "Es ist kein vollständiges Schema dieser Version installiert: Installieren Sie Annota neu."
-
-#: src/schema_check.rs
-msgid "the stale schema in {compiled} has no source file left: run `{command}` (as root for a system directory) to drop it."
-msgstr "Zum veralteten Schema in {compiled} gibt es keine Quelldatei mehr: Führen Sie `{command}` aus (für ein Systemverzeichnis als root), um es zu entfernen."
-
-#: src/schema_check.rs
-msgid "the stale schema in {dir} shadows the complete one further down (often left by an old `meson install` into /usr/local): remove {file}, then run `{command}` (as root for a system directory)."
-msgstr "Das veraltete Schema in {dir} verdeckt das vollständige weiter hinten (oft Überrest eines alten `meson install` nach /usr/local): Entfernen Sie {file} und führen Sie dann `{command}` aus (für ein Systemverzeichnis als root)."
-
-#: src/schema_check.rs
-msgid "the settings schema {schema} is not installed."
-msgstr "Das Einstellungsschema {schema} ist nicht installiert."
-
-#: src/schema_check.rs
-msgid "the settings schema {schema} in use does not match this version of Annota."
-msgstr "Das verwendete Einstellungsschema {schema} passt nicht zu dieser Annota-Version."
-
-#: src/schema_check.rs
-msgid "missing keys: {keys}"
-msgstr "Fehlende Schlüssel: {keys}"
-
-#: src/schema_check.rs
-msgid "no {file} and no compiled schema {schema} on the schema search path."
-msgstr "Keine {file} und kein kompiliertes Schema {schema} im Schema-Suchpfad."
-
-#: src/schema_check.rs
-msgid "schema files on the search path, in lookup order (GLib uses the first {compiled} that holds the schema):"
-msgstr "Schema-Dateien im Suchpfad, in Suchreihenfolge (GLib verwendet die erste {compiled}, die das Schema enthält):"
-
-#: src/schema_check.rs
-msgid "shadowed"
-msgstr "verdeckt"
-
-#: src/schema_check.rs
-msgid "in use"
-msgstr "in Verwendung"
-
-#: src/schema_check.rs
-msgid "source"
-msgstr "Quelle"
-
-#: src/schema_check.rs
-msgid "unreadable"
-msgstr "nicht lesbar"
-
-#: src/schema_check.rs
-msgid "not compiled"
-msgstr "nicht kompiliert"
-
-#: src/schema_check.rs
-msgid "the stale schema in {compiled} has no source file left and shadows the complete schema file {later_file}, which GLib does not use yet: run `{command}`, then `{later_command}` (as root for a system directory)."
-msgstr "Zum veralteten Schema in {compiled} gibt es keine Quelldatei mehr, und es verdeckt die vollständige Schema-Datei {later_file}, die GLib noch nicht verwendet: Führen Sie `{command}` und danach `{later_command}` aus (für ein Systemverzeichnis als root)."
-
-#: src/schema_check.rs
-msgid "the stale schema in {dir} shadows the complete schema file {later_file}, which GLib does not use yet: remove {file}, then run `{command}` and `{later_command}` (as root for a system directory)."
-msgstr "Das veraltete Schema in {dir} verdeckt die vollständige Schema-Datei {later_file}, die GLib noch nicht verwendet: Entfernen Sie {file} und führen Sie dann `{command}` und `{later_command}` aus (für ein Systemverzeichnis als root)."
