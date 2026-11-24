@@ -19,6 +19,10 @@ Build-Depends:
  desktop-file-utils,
  appstream,
  libglib2.0-bin,
+ gstreamer1.0-plugins-base <!nocheck>,
+ gstreamer1.0-plugins-good <!nocheck>,
+ gstreamer1.0-plugins-ugly <!nocheck>,
+ gstreamer1.0-plugins-bad <!nocheck>,
 Standards-Version: 4.7.0
 Homepage: https://github.com/trosinde/Annota
 Vcs-Browser: https://github.com/trosinde/Annota

@@ -44,7 +44,9 @@ runs:
           libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
           blueprint-compiler gettext \
           desktop-file-utils appstream libglib2.0-bin lintian devscripts \
-          fonts-dejavu-core fontconfig
+          fonts-dejavu-core fontconfig \
+          gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly \
+          gstreamer1.0-plugins-bad
 
     # Saved here, not in a post step, so a later failing step (tests, lintian) still leaves a
     # warm cache behind. Parallel jobs race for the same key; the losers only log a warning.
