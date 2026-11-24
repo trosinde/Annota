@@ -52,6 +52,21 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.2.0" date="2026-11-24">
+      <description>
+        <p>Screen recording and capture fixes.</p>
+        <ul>
+          <li>Record a region, a window or the whole screen, with microphone and system audio, pause and mute, and export to MP4 or WebM.</li>
+          <li>Window captures show the whole window at the size it has on screen, on scaled displays too.</li>
+          <li>The pointer is captured where it is, also in delayed region captures and in screen captures.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.1.0" date="2026-11-14">
+      <description>
+        <p>First release: region, window and screen capture, the annotation editor, quick styles and themes, and export.</p>
+      </description>
+    </release>
     <release version="0.1.0~dev" date="2026-10-30" type="development">
       <description>
         <p>Project skeleton: application shell and Debian packaging.</p>
