@@ -50,3 +50,32 @@ not tell a part from the whole.
 After the review (the cut now grows along the window past a cutting meta instead of searching
 the whole buffer), the full suite ran once more against the rebuilt binary: all 10 scenarios
 pass, with the same sizes (1280 × 800, 1284 × 804, 6144 × 3360) and all four corners.
+
+## 2026-11-24: window image at screen size (design.md D3, maintainer decision 2026-11-24)
+
+GNOME Shell 50.1 (Wayland, one monitor 3840 × 2160 at scale 1.25). Annota built from
+`fix/window-capture-screen-size` (6e7222e). Command:
+`python3 -I tools/live-window-capture.py --annota _build/src/annota --runs 1 --save <dir>`.
+`expect_size` now wants logical size × monitor scale ± 2 px (a decorated, non-maximised window
+plus its 1 px outline, 2 logical px); the pointer check's threshold is in logical px (5 × k²
+samples), because the image is no longer at scale 2.
+
+| Scenario | Result |
+|---|---|
+| capture / Window capture / Window on Wayland | pass, 800 × 500 |
+| capture / Window capture / The whole window at any display scale | pass: small 800 × 500, small decorated 803 × 503 (1284 × 804 × 0.625, the outline included), maximised decorated 3840 × 2100, all four corners, title centred |
+| capture / Window capture / Window mode from the welcome page | pass, 800 × 500 |
+| capture / Window capture / Waiting for the chooser | pass |
+| capture / Window capture / Cancel while waiting | pass |
+| capture / Window capture / Chooser closed | pass |
+| capture / Window capture / Delayed window capture | pass |
+| capture / Window capture / Countdown cancelled | pass |
+| capture / Cursor inclusion / Pointer in a window capture | pass (14 samples; the pointer landed half off the window's left edge) |
+| capture / Cursor inclusion / Cursor excluded | pass |
+
+The images were looked at. In separate runs the same day, 3 of 8 maximised captures failed with
+"no image on the clipboard" while the toast said "Window captured · 3840 × 2100": the clipboard
+flake noted for 2026-11-14 above (the toast's Copy after a synthetic key), not the image. Live
+runs were refused earlier the same night with RemoteDesktop `CreateSession` response 2: the
+screen was locked, and mutter inhibits remote-desktop sessions then ("Session creation
+inhibited" in the journal).
