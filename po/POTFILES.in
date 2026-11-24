@@ -37,6 +37,7 @@ src/recording/export_window.rs
 src/recording/mod.rs
 src/recording/setup.rs
 src/recording/source.rs
+src/schema_check.rs
 src/ui/editor/batch.rs
 src/ui/editor/closing.rs
 src/ui/editor/dialogs.rs
